@@ -1,0 +1,37 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.config.settings import get_settings
+from app.routers.health_router import router as health_router
+from app.routers.process_router import router as process_router
+
+settings = get_settings()
+
+app = FastAPI(
+    title=settings.app_name,
+    version='1.0.0',
+    docs_url='/docs',
+    redoc_url='/redoc',
+)
+
+app.include_router(health_router)
+app.include_router(process_router)
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(_: Request, exc: ValueError):
+    return JSONResponse(status_code=400, content={'success': False, 'detail': str(exc)})
+
+
+@app.exception_handler(KeyError)
+async def key_error_handler(_: Request, exc: KeyError):
+    detail = str(exc).replace("'", '')
+    return JSONResponse(status_code=422, content={'success': False, 'detail': detail})
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(_: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={'success': False, 'detail': f'Processing failure: {str(exc)}'},
+    )
