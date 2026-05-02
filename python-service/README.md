@@ -94,22 +94,22 @@ uvicorn app.main:app --reload --port 8000
 
 ## HTTP errors
 
-| Status | Typical cause |
-|--------|----------------|
-| `400` | `ValueError` — bad upload (extension/MIME, empty file), unreadable Excel, etc. |
-| `422` | `KeyError` — missing required columns after normalization |
-| `500` | Unexpected processing failure |
+| Status | Typical cause                                                                  |
+| ------ | ------------------------------------------------------------------------------ |
+| `400`  | `ValueError` — bad upload (extension/MIME, empty file), unreadable Excel, etc. |
+| `422`  | `KeyError` — missing required columns after normalization                      |
+| `500`  | Unexpected processing failure                                                  |
 
 ## API endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/health` | Health check |
-| `POST` | `/api/process/pan` | PAN audit (`multipart/form-data`, field **`file`**) |
-| `POST` | `/api/process/pan/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download |
-| `POST` | `/api/process/gst` | GST column checks (`file`) |
-| `POST` | `/api/process/gross-weight` | Gross-weight column checks (`file`) |
-| `POST` | `/api/process/sales` | Sales column checks (`file`) |
+| Method | Endpoint                          | Description                                         |
+| ------ | --------------------------------- | --------------------------------------------------- |
+| `GET`  | `/api/health`                     | Health check                                        |
+| `POST` | `/api/process/pan`                | PAN audit (`multipart/form-data`, field **`file`**) |
+| `POST` | `/api/process/pan/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download      |
+| `POST` | `/api/process/gst`                | GST column checks (`file`)                          |
+| `POST` | `/api/process/gross-weight`       | Gross-weight column checks (`file`)                 |
+| `POST` | `/api/process/sales`              | Sales column checks (`file`)                        |
 
 ## Request examples
 
@@ -131,19 +131,19 @@ curl -s -X POST "http://127.0.0.1:8000/api/process/pan" -F "file=@./pan-file.xls
 - Non-alphanumeric characters → `_`
 - Leading/trailing `_` removed
 
-| Excel header | Normalized |
-|--------------|------------|
-| `PAN` | `pan` |
+| Excel header          | Normalized            |
+| --------------------- | --------------------- |
+| `PAN`                 | `pan`                 |
 | `Manual Gross Weight` | `manual_gross_weight` |
 
 ## Required columns (normalized)
 
-| Processor | Required |
-|-----------|----------|
-| **PAN** | `total_value`; **both** `pan` **and** `pan1` columns must exist on the sheet; at least one of `add_proof`, `add_proof_2` |
-| **GST** | `gst` |
-| **Gross weight** | `manual_gross_weight`, `auto_gross_weight` |
-| **Sales** | `expected_rate`, `actual_rate`, `sales_value` |
+| Processor        | Required                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **PAN**          | `total_value`; **both** `pan` **and** `pan1` columns must exist on the sheet; at least one of `add_proof`, `add_proof_2` |
+| **GST**          | `gst`                                                                                                                    |
+| **Gross weight** | `manual_gross_weight`, `auto_gross_weight`                                                                               |
+| **Sales**        | `expected_rate`, `actual_rate`, `sales_value`                                                                            |
 
 PAN expects both `pan` and `pan1` **columns**; row-level logic treats empty-like cells (`na`, `pending`, `-`, etc.) as missing.
 
