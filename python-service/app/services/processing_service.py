@@ -12,4 +12,4 @@ class ProcessingService:
             raise ValueError('Uploaded file is empty')
 
         processor = get_processor(file_type)
-        return processor.process(file_bytes)
+        return processor.process(file_bytes, original_filename=upload_file.filename or '')

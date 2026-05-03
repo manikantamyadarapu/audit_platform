@@ -4,11 +4,11 @@ import api, { getApiErrorMessage } from './api';
  * @param {File} file
  * @param {AbortSignal} [signal]
  */
-export async function validatePanExcel(file, signal) {
+export async function validateGrossWeightExcel(file, signal) {
   const form = new FormData();
   form.append('file', file);
   try {
-    const { data } = await api.post('/api/v1/process/pan/validate', form, {
+    const { data } = await api.post('/api/v1/process/gross-weight', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });
@@ -20,19 +20,19 @@ export async function validatePanExcel(file, signal) {
 }
 
 /**
- * @param {Record<string, unknown>[]} records
+ * @param {Record<string, unknown>[]} records Invalid rows only (`status === 'invalid'`).
  * @param {AbortSignal} [signal]
  * @returns {Promise<{ blob: Blob, filename: string }>}
  */
-export async function exportInvalidPanRows(records, signal) {
+export async function exportInvalidGrossWeightRows(records, signal) {
   try {
-    const res = await api.post('/api/v1/process/pan/export-invalid', { records }, {
+    const res = await api.post('/api/v1/process/gross-weight/export-invalid', { records }, {
       responseType: 'blob',
       signal,
     });
     const blob = res.data;
     const disposition = res.headers['content-disposition'];
-    let filename = 'pan-invalid-rows.xlsx';
+    let filename = 'gross-weight-invalid-rows.xlsx';
     if (disposition && disposition.includes('filename=')) {
       const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(disposition);
       if (match?.[1]) filename = decodeURIComponent(match[1].replace(/["']/g, ''));

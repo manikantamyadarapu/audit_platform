@@ -1,9 +1,33 @@
 from io import BytesIO
+from typing import Any
 
 import pandas as pd
 
 from app.config.settings import get_settings
 from app.utils.header_cleaner import normalize_headers
+
+
+def tuple_cell_1(row: tuple[Any, ...] | list[Any] | None, col_1based: int) -> Any:
+    """1-based column index into an openpyxl ``values_only`` row tuple (column A = 1)."""
+    if not row:
+        return None
+    i = col_1based - 1
+    if i < 0 or i >= len(row):
+        return None
+    return row[i]
+
+
+def effective_excel_max_row(ws_max_row: int, cap: int) -> tuple[int, bool]:
+    """
+    Returns (effective_last_row_to_scan, truncated).
+
+    ``cap`` 0 or negative means unlimited (use full ``ws_max_row``).
+    """
+    mr = max(ws_max_row, 0)
+    if cap <= 0:
+        return mr, False
+    eff = min(mr, cap)
+    return eff, mr > cap
 
 
 class ExcelReader:

@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     log_level: str = Field(default='INFO', alias='LOG_LEVEL')
     chunk_size: int = Field(default=2500, alias='CHUNK_SIZE')
     gross_weight_tolerance: float = Field(default=0.5, alias='GROSS_WEIGHT_TOLERANCE')
+    # 0 = unlimited. If set, processors stop at this row and set rowStats.scanCapTruncated.
+    excel_max_rows: int = Field(default=0, alias='EXCEL_MAX_ROWS')
+    # Rows scanned from the top when locating PAN / tabular headers (title rows above header).
+    excel_pan_header_probe_rows: int = Field(default=80, alias='EXCEL_PAN_HEADER_PROBE_ROWS')
 
 
 @lru_cache

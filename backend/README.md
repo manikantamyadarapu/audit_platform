@@ -32,10 +32,10 @@ src/
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/health` | Node process health (does not call Python) |
-| `POST` | `/api/v1/process/pan/validate` | `multipart/form-data`, field **`file`** → Python `POST /api/process/pan` → JSON |
+| Method | Path                                 | Description                                                                                    |
+| ------ | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/health`                        | Node process health (does not call Python)                                                     |
+| `POST` | `/api/v1/process/pan/validate`       | `multipart/form-data`, field **`file`** → Python `POST /api/process/pan` → JSON                |
 | `POST` | `/api/v1/process/pan/export-invalid` | JSON `{ "records": [ ... ] }` → Python `POST /api/process/pan/export-invalid` → `.xlsx` stream |
 
 Optional header **`x-request-id`** is accepted on both POST routes and forwarded to Python when present.
@@ -62,15 +62,15 @@ Set **`ENABLE_SWAGGER=false`** to disable `/api-docs` and `/openapi.json` (typic
 
 Copy `.env.example` to `.env` and adjust as needed.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `PORT` | `3000` | HTTP listen port |
-| `NODE_ENV` | `development` | `production` enforces stricter CORS rules |
-| `PYTHON_SERVICE_URL` | `http://127.0.0.1:8000` | FastAPI base URL (no trailing slash) |
-| `CORS_ORIGIN` | `*` in dev | Comma-separated origins; **required** in production (no `*`) |
-| `REQUEST_BODY_JSON_LIMIT` | `50mb` | Max JSON body for export-invalid |
-| `UPLOAD_MAX_BYTES` | `52428800` (50 MiB) | Max multipart upload size |
-| `ENABLE_SWAGGER` | `true` | Set `false` to hide Swagger |
+| Variable                  | Default                 | Purpose                                                      |
+| ------------------------- | ----------------------- | ------------------------------------------------------------ |
+| `PORT`                    | `3000`                  | HTTP listen port                                             |
+| `NODE_ENV`                | `development`           | `production` enforces stricter CORS rules                    |
+| `PYTHON_SERVICE_URL`      | `http://127.0.0.1:8000` | FastAPI base URL (no trailing slash)                         |
+| `CORS_ORIGIN`             | `*` in dev              | Comma-separated origins; **required** in production (no `*`) |
+| `REQUEST_BODY_JSON_LIMIT` | `50mb`                  | Max JSON body for export-invalid                             |
+| `UPLOAD_MAX_BYTES`        | `52428800` (50 MiB)     | Max multipart upload size                                    |
+| `ENABLE_SWAGGER`          | `true`                  | Set `false` to hide Swagger                                  |
 
 ## Setup and run
 

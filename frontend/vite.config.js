@@ -11,6 +11,9 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        // Large Excel: browser → Vite → Node → Python can exceed default proxy/socket limits.
+        timeout: 900_000,
+        proxyTimeout: 900_000,
       },
     },
   },

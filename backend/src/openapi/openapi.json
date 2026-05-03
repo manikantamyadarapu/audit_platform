@@ -16,6 +16,10 @@
     {
       "name": "PAN",
       "description": "PAN Excel validation via Python. **Flow:** (1) `validate` → copy JSON field `records`. (2) `export-invalid` → POST `{ \"records\": [ ... ] }` with that array → download `.xlsx`."
+    },
+    {
+      "name": "Gross weight",
+      "description": "Semi-structured gross-weight voucher validation via Python (`POST /api/process/gross-weight`)."
     }
   ],
   "paths": {
@@ -224,10 +228,155 @@
           }
         }
       }
+    },
+    "/api/v1/process/gross-weight": {
+      "post": {
+        "operationId": "grossWeightValidateExcel",
+        "tags": ["Gross weight"],
+        "summary": "Validate gross-weight Excel (multipart upload)",
+        "description": "Upload an Excel file. Field name must be **`file`**. Proxies to Python `POST /api/process/gross-weight` (JSON with `records`, `summary`, `module`).",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id (also returned in error JSON)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Excel workbook (.xlsx, .xlsm, .xls)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (missing file, invalid type, Python 400)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service unreachable or error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/process/gross-weight/export-invalid": {
+      "post": {
+        "operationId": "grossWeightExportInvalid",
+        "tags": ["Gross weight"],
+        "summary": "Export invalid gross-weight rows as Excel",
+        "description": "Send **`records`**: only rows with **`status`: `\"invalid\"`** from the validate response. Body `{ \"records\": [ ... ] }` (minimum one row). Proxies to Python `POST /api/process/gross-weight/export-invalid`.",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["records"],
+                "properties": {
+                  "records": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/components/schemas/GrossWeightInvalidRecord" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excel workbook download",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "GrossWeightInvalidRecord": {
+        "type": "object",
+        "description": "One invalid gross-weight row from validate JSON (`status` must be invalid). Extra fields (e.g. `voucherRow`) are ignored for export columns.",
+        "properties": {
+          "voucherNo": { "type": "string" },
+          "manualGross": { "type": "number" },
+          "autoGross": { "type": "number" },
+          "difference": { "type": "number" },
+          "status": { "type": "string", "enum": ["invalid"] },
+          "issues": { "type": "array", "items": { "type": "string" } }
+        }
+      },
       "PanInvalidRecord": {
         "type": "object",
         "description": "One invalid row from PAN validate JSON (field names as returned by API).",

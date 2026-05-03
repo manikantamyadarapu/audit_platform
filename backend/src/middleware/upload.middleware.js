@@ -5,7 +5,7 @@ const { ALLOWED_PAN_EXTENSIONS, ALLOWED_PAN_MIME_TYPES } = require('../utils/con
 
 const storage = multer.memoryStorage();
 
-function panFileFilter(_req, file, cb) {
+function excelFileFilter(_req, file, cb) {
   const ext = path.extname(file.originalname || '').toLowerCase();
   const mime = (file.mimetype || '').toLowerCase();
 
@@ -25,9 +25,11 @@ function panFileFilter(_req, file, cb) {
 const upload = multer({
   storage,
   limits: { fileSize: UPLOAD_MAX_BYTES, files: 1 },
-  fileFilter: panFileFilter,
+  fileFilter: excelFileFilter,
 });
 
-const singlePanFile = upload.single('file');
+const singleExcelFile = upload.single('file');
+/** @deprecated Use singleExcelFile — kept for PAN route imports */
+const singlePanFile = singleExcelFile;
 
-module.exports = { singlePanFile };
+module.exports = { singlePanFile, singleExcelFile };

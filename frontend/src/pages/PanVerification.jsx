@@ -70,7 +70,7 @@ export default function PanVerification() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      recordExport();
+      recordExport('Invalid PAN rows exported (.xlsx)');
       toast.success('Excel export downloaded');
     } catch (e) {
       toast.error(e.message || 'Export failed');

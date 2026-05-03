@@ -41,13 +41,32 @@ export function AppUiProvider({ children }) {
     [pushActivity]
   );
 
-  const recordExport = useCallback(() => {
-    setSessionStats((prev) => ({
-      ...prev,
-      exportsDownloaded: prev.exportsDownloaded + 1,
-    }));
-    pushActivity('Invalid PAN rows exported to Excel', 'success');
-  }, [pushActivity]);
+  const recordGrossWeightValidation = useCallback(
+    (payload) => {
+      setSessionStats((prev) => ({
+        filesProcessed: prev.filesProcessed + 1,
+        rowsProcessed: prev.rowsProcessed + (payload.totalRows ?? 0),
+        errorsFound: prev.errorsFound + (payload.errorRows ?? 0),
+        exportsDownloaded: prev.exportsDownloaded,
+      }));
+      pushActivity(
+        `Gross weight validated · ${payload.totalRows ?? 0} vouchers · ${payload.errorRows ?? 0} invalid`,
+        (payload.errorRows ?? 0) > 0 ? 'warn' : 'success'
+      );
+    },
+    [pushActivity]
+  );
+
+  const recordExport = useCallback(
+    (message = 'Invalid rows exported to Excel (.xlsx)') => {
+      setSessionStats((prev) => ({
+        ...prev,
+        exportsDownloaded: prev.exportsDownloaded + 1,
+      }));
+      pushActivity(message, 'success');
+    },
+    [pushActivity]
+  );
 
   const value = useMemo(
     () => ({
@@ -58,14 +77,24 @@ export function AppUiProvider({ children }) {
       sessionStats,
       activities,
       recordPanValidation,
+      recordGrossWeightValidation,
       recordExport,
     }),
-    [sidebarCollapsed, division, sessionStats, activities, recordPanValidation, recordExport]
+    [
+      sidebarCollapsed,
+      division,
+      sessionStats,
+      activities,
+      recordPanValidation,
+      recordGrossWeightValidation,
+      recordExport,
+    ]
   );
 
   return <AppUiContext.Provider value={value}>{children}</AppUiContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with AppUiProvider
 export function useAppUi() {
   const ctx = useContext(AppUiContext);
   if (!ctx) throw new Error('useAppUi must be used within AppUiProvider');

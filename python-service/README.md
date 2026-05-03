@@ -1,13 +1,13 @@
 # Excel validation and auditing service (FastAPI)
 
-Microservice that accepts Excel workbooks, normalizes headers, validates required columns, processes rows in chunks, and returns structured JSON for PAN, GST, gross weight, and sales audits.
+Microservice that accepts Excel workbooks, normalizes headers, validates required columns, processes rows in chunks, and returns structured JSON for **PAN** and **gross weight** audits.
 
 The **Node** gateway used in this repo (`backend`) proxies PAN upload and invalid-row export to this service. See [`../backend/README.md`](../backend/README.md) for `/api/v1` routes and Swagger.
 
 ## Current status
 
 - **PAN:** Full rules — required columns, PAN format (`AAAAA9999A`), missing PAN when total value is above ₹2L, invalid PAN format, missing address proof when total value is above ₹50k (see [PAN validation rules](#pan-validation-rules)).
-- **GST / gross weight / sales:** Endpoints validate required columns and run lightweight scaffolding; extend processors for row-level rules as needed.
+- **Gross weight:** Tabular or semi-structured workbooks — manual vs auto gross weight and difference rules (see `app/processors/gross_weight_processor.py`).
 - Headers are normalized to **snake_case** before validation.
 
 ## Tech stack
@@ -25,12 +25,12 @@ The **Node** gateway used in this repo (`backend`) proxies PAN upload and invali
 python-service/
   app/
     config/           Settings (`app/config/settings.py`)
-    processors/       PAN, GST, gross weight, sales processors + factory
+    processors/       PAN + gross weight processors + factory
     routers/          `health_router`, `process_router`
     schemas/          API models where used
     services/         `ProcessingService` (calls `validate_upload_file`, dispatches processor)
     utils/            Excel reader, header cleaner, response builder, constants, logging
-    validators/       `common_validator` (upload extension/MIME); PAN/GST helpers exist for reuse
+    validators/       `common_validator` (upload extension/MIME)
     main.py           FastAPI app, exception handlers
   tests/
   requirements.txt
@@ -107,9 +107,7 @@ uvicorn app.main:app --reload --port 8000
 | `GET`  | `/api/health`                     | Health check                                        |
 | `POST` | `/api/process/pan`                | PAN audit (`multipart/form-data`, field **`file`**) |
 | `POST` | `/api/process/pan/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download      |
-| `POST` | `/api/process/gst`                | GST column checks (`file`)                          |
 | `POST` | `/api/process/gross-weight`       | Gross-weight column checks (`file`)                 |
-| `POST` | `/api/process/sales`              | Sales column checks (`file`)                        |
 
 ## Request examples
 
@@ -141,9 +139,7 @@ curl -s -X POST "http://127.0.0.1:8000/api/process/pan" -F "file=@./pan-file.xls
 | Processor        | Required                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **PAN**          | `total_value`; **both** `pan` **and** `pan1` columns must exist on the sheet; at least one of `add_proof`, `add_proof_2` |
-| **GST**          | `gst`                                                                                                                    |
-| **Gross weight** | `manual_gross_weight`, `auto_gross_weight`                                                                               |
-| **Sales**        | `expected_rate`, `actual_rate`, `sales_value`                                                                            |
+| **Gross weight** | Tabular or voucher layout — see `gross_weight_processor` header detection and column rules                             |
 
 PAN expects both `pan` and `pan1` **columns**; row-level logic treats empty-like cells (`na`, `pending`, `-`, etc.) as missing.
 
