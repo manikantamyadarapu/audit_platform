@@ -10,6 +10,7 @@ import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 import ModuleSoon from '../pages/ModuleSoon';
 import VouchingHold from '../pages/VouchingHold';
+import PlatformPlaceholder from '../pages/PlatformPlaceholder';
 
 export function AppRoutes() {
   return (
@@ -21,6 +22,10 @@ export function AppRoutes() {
         <Route path="/vouching" element={<VouchingHub />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/audit-runs" element={<PlatformPlaceholder />} />
+        <Route path="/exceptions" element={<PlatformPlaceholder />} />
+        <Route path="/clients" element={<PlatformPlaceholder />} />
+        <Route path="/team-activity" element={<PlatformPlaceholder />} />
 
         <Route path="/scrutiny/pan" element={<PanVerification />} />
         <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />

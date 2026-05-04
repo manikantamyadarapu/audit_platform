@@ -139,7 +139,7 @@ curl -s -X POST "http://127.0.0.1:8000/api/process/pan" -F "file=@./pan-file.xls
 | Processor        | Required                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **PAN**          | `total_value`; **both** `pan` **and** `pan1` columns must exist on the sheet; at least one of `add_proof`, `add_proof_2` |
-| **Gross weight** | Tabular or voucher layout — see `gross_weight_processor` header detection and column rules                             |
+| **Gross weight** | Tabular or voucher layout — see `gross_weight_processor` header detection and column rules                               |
 
 PAN expects both `pan` and `pan1` **columns**; row-level logic treats empty-like cells (`na`, `pending`, `-`, etc.) as missing.
 

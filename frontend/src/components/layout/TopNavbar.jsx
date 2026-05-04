@@ -7,10 +7,14 @@ import { Button } from '../ui/Button';
 import { cn } from '../../utils/cn';
 
 const TITLE_MAP = [
-  { test: /^\/dashboard\/?$/, title: 'Dashboard' },
+  { test: /^\/dashboard\/?$/, title: 'Audit Intelligence Center' },
+  { test: /^\/audit-runs/, title: 'Audit Runs' },
+  { test: /^\/exceptions/, title: 'Exceptions' },
+  { test: /^\/clients/, title: 'Clients' },
+  { test: /^\/team-activity/, title: 'Team Activity' },
   { test: /^\/reports/, title: 'Reports' },
   { test: /^\/settings/, title: 'Settings' },
-  { test: /^\/scrutiny$/, title: 'Scrutiny' },
+  { test: /^\/scrutiny$/, title: 'Upload & scrutiny hub' },
   { test: /^\/scrutiny\/pan/, title: 'PAN Verification' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
   { test: /^\/scrutiny\/sales-ledger/, title: 'Sales Ledger' },
