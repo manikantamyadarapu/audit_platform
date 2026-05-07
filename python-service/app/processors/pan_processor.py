@@ -1,14 +1,13 @@
 import re
 from datetime import date, datetime
-from io import BytesIO
 from typing import Any
 
 import pandas as pd
 
 from app.processors.base import BaseProcessor
 from app.utils.constants import PAN_REGEX
+from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
 from app.utils.excel_reader import ExcelReader
-from app.utils.header_cleaner import normalize_headers
 from app.utils.response_builder import build_processing_response
 
 
@@ -163,24 +162,25 @@ class PanProcessor(BaseProcessor):
 
     def _read_pan_dataframe(self, file_bytes: bytes) -> tuple[pd.DataFrame, int]:
         dataframe = self.reader.read_excel(file_bytes)
-        if 'total_value' in dataframe.columns:
+        if 'total_value' in dataframe.columns and self._columns_sufficient_for_pan(set(dataframe.columns)):
             return dataframe, 0
 
-        header_row_index = self._detect_header_row_index(file_bytes)
+        header_row_index = find_header_row_index(file_bytes, self._headers_match_pan_sheet)
         if header_row_index is None:
             return dataframe, 0
 
-        dataframe = pd.read_excel(BytesIO(file_bytes), engine='openpyxl', header=header_row_index)
-        dataframe.columns = normalize_headers(dataframe.columns)
+        dataframe = load_excel_with_header_row(file_bytes, header_row_index)
         return dataframe, header_row_index
 
-    def _detect_header_row_index(self, file_bytes: bytes) -> int | None:
-        preview = pd.read_excel(BytesIO(file_bytes), engine='openpyxl', header=None, nrows=25)
-        for idx, row in preview.iterrows():
-            headers = {header for header in normalize_headers(row.tolist()) if header}
-            if 'total_value' in headers and ('pan' in headers or 'pan1' in headers):
-                return int(idx)
-        return None
+    def _columns_sufficient_for_pan(self, cols: set[str]) -> bool:
+        if not cols & self.ADDRESS_COLUMN_OPTIONS:
+            return False
+        return 'pan' in cols or 'pan1' in cols
+
+    def _headers_match_pan_sheet(self, headers: set[str]) -> bool:
+        if 'total_value' not in headers or not ('pan' in headers or 'pan1' in headers):
+            return False
+        return bool(headers & self.ADDRESS_COLUMN_OPTIONS)
 
     def _is_blank_row(self, row: pd.Series) -> bool:
         for value in row.values:

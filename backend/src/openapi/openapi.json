@@ -16,6 +16,14 @@
     {
       "name": "PAN",
       "description": "PAN Excel validation via Python. **Flow:** (1) `validate` → copy JSON field `records`. (2) `export-invalid` → POST `{ \"records\": [ ... ] }` with that array → download `.xlsx`."
+    },
+    {
+      "name": "Gross weight",
+      "description": "Gross weight audit Excel forwarded to FastAPI `POST /api/process/gross-weight`. Field **`file`**; requires `manual_gross_weight` and `auto_gross_weight` columns."
+    },
+    {
+      "name": "Sales",
+      "description": "Sales ledger audit Excel forwarded to FastAPI `POST /api/process/sales`. Field **`file`**; requires `expected_rate`, `actual_rate`, `sales_value`."
     }
   ],
   "paths": {
@@ -216,6 +224,144 @@
           },
           "502": {
             "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/process/gross-weight/validate": {
+      "post": {
+        "operationId": "grossWeightValidateExcel",
+        "tags": ["Gross weight"],
+        "summary": "Validate gross-weight Excel (multipart upload)",
+        "description": "Upload an Excel file. Field name must be **`file`**. Proxies to Python `POST /api/process/gross-weight`.",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Excel workbook (.xlsx, .xlsm, .xls)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processing result JSON",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (e.g. missing columns)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service unreachable or error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/process/sales/validate": {
+      "post": {
+        "operationId": "salesValidateExcel",
+        "tags": ["Sales"],
+        "summary": "Validate sales ledger Excel (multipart upload)",
+        "description": "Upload an Excel file. Field name must be **`file`**. Proxies to Python `POST /api/process/sales`.",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Excel workbook (.xlsx, .xlsm, .xls)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processing result JSON",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (e.g. missing columns)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service unreachable or error",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorBody" }

@@ -29,6 +29,13 @@ function errorHandler(err, req, res, _next) {
     logger.error(err.message || 'Unhandled error', { requestId, stack: err.stack });
   }
 
+  if (err.apiBody && typeof err.apiBody === 'object') {
+    return res.status(status).json({
+      ...err.apiBody,
+      requestId: err.apiBody.requestId || requestId,
+    });
+  }
+
   return res.status(status).json({
     success: false,
     detail,

@@ -1,10 +1,10 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { PYTHON_SERVICE_URL } = require('../config');
+const { PYTHON_SERVICE_URL, PYTHON_SERVICE_TIMEOUT_MS } = require('../config');
 
 const client = axios.create({
   baseURL: PYTHON_SERVICE_URL,
-  timeout: 120000,
+  timeout: PYTHON_SERVICE_TIMEOUT_MS,
   maxContentLength: Infinity,
   maxBodyLength: Infinity,
   headers: {
@@ -19,7 +19,13 @@ const client = axios.create({
  */
 function mapAxiosError(err) {
   if (!err.response) {
-    const e = new Error(err.message || 'Python service unreachable');
+    const hint =
+      err.code === 'ECONNREFUSED'
+        ? ' Is FastAPI running (uvicorn on PYTHON_SERVICE_URL)?'
+        : /timeout/i.test(err.message || '')
+          ? ' Request exceeded PYTHON_SERVICE_TIMEOUT_MS — try raising it or freeing the Python worker (avoid parallel huge uploads while one is running).'
+          : '';
+    const e = new Error((err.message || 'Python service unreachable') + hint);
     e.status = 502;
     return e;
   }
@@ -32,16 +38,18 @@ function mapAxiosError(err) {
   else if (status === 400) e.status = 400;
   else if (status >= 500) e.status = 502;
   else e.status = status;
+  if (data && typeof data === 'object') e.apiBody = data;
   return e;
 }
 
 /**
+ * @param {string} pythonPath e.g. '/api/process/pan'
  * @param {Buffer} fileBuffer
  * @param {string} originalname
  * @param {string} [mimetype]
  * @param {{ requestId?: string }} [options]
  */
-async function postPanValidate(fileBuffer, originalname, mimetype, options = {}) {
+async function postExcelProcess(pythonPath, fileBuffer, originalname, mimetype, options = {}) {
   const form = new FormData();
   form.append('file', fileBuffer, {
     filename: originalname || 'upload.xlsx',
@@ -54,13 +62,31 @@ async function postPanValidate(fileBuffer, originalname, mimetype, options = {})
   }
 
   try {
-    const { data } = await client.post('/api/process/pan', form, {
+    const { data } = await client.post(pythonPath, form, {
       headers,
     });
     return data;
   } catch (err) {
     throw mapAxiosError(err);
   }
+}
+
+/**
+ * @param {Buffer} fileBuffer
+ * @param {string} originalname
+ * @param {string} [mimetype]
+ * @param {{ requestId?: string }} [options]
+ */
+async function postPanValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/pan', fileBuffer, originalname, mimetype, options);
+}
+
+async function postGrossWeightValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/gross-weight', fileBuffer, originalname, mimetype, options);
+}
+
+async function postSalesValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
 }
 
 /**
@@ -114,4 +140,6 @@ async function postPanExportInvalid(records, options = {}) {
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
+  postGrossWeightValidate,
+  postSalesValidate,
 };

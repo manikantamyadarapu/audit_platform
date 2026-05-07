@@ -4,7 +4,8 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const api = axios.create({
   baseURL,
-  timeout: 120_000,
+  /** Server can spend several minutes on large ledgers before Node returns (see PYTHON_SERVICE_TIMEOUT_MS). */
+  timeout: 600_000,
   headers: {
     Accept: 'application/json',
   },
@@ -16,7 +17,12 @@ export function getApiErrorMessage(error) {
   const res = error.response;
   const data = res?.data;
   if (data && typeof data === 'object' && !Array.isArray(data)) {
-    if (typeof data.detail === 'string') return data.detail;
+    if (typeof data.detail === 'string') {
+      if (Array.isArray(data.error?.missingColumns) && data.error.missingColumns.length) {
+        return `${data.detail} (missing: ${data.error.missingColumns.join(', ')})`;
+      }
+      return data.detail;
+    }
     if (typeof data.message === 'string') return data.message;
   }
   if (typeof data === 'string') return data;

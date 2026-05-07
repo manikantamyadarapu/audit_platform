@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.config.settings import get_settings
 from app.routers.health_router import router as health_router
 from app.routers.process_router import router as process_router
+from app.utils.sheet_validation_error import SheetValidationError
 
 settings = get_settings()
 
@@ -23,10 +24,22 @@ async def value_error_handler(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={'success': False, 'detail': str(exc)})
 
 
+@app.exception_handler(SheetValidationError)
+async def sheet_validation_handler(_: Request, exc: SheetValidationError):
+    return JSONResponse(status_code=422, content=exc.to_response())
+
+
 @app.exception_handler(KeyError)
 async def key_error_handler(_: Request, exc: KeyError):
     detail = str(exc).replace("'", '')
-    return JSONResponse(status_code=422, content={'success': False, 'detail': detail})
+    return JSONResponse(
+        status_code=422,
+        content={
+            'success': False,
+            'detail': detail,
+            'error': {'code': 'KEY_ERROR', 'message': detail},
+        },
+    )
 
 
 @app.exception_handler(Exception)

@@ -11,6 +11,9 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        /** Match Node → Python proxy timeout — large spreadsheets can exceed the default (~2 min). */
+        timeout: 600_000,
+        proxyTimeout: 600_000,
       },
     },
   },
