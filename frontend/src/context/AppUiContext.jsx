@@ -57,6 +57,22 @@ export function AppUiProvider({ children }) {
     [pushActivity]
   );
 
+  const recordSalesAuditValidation = useCallback(
+    (payload) => {
+      setSessionStats((prev) => ({
+        filesProcessed: prev.filesProcessed + 1,
+        rowsProcessed: prev.rowsProcessed + (payload.totalRows ?? 0),
+        errorsFound: prev.errorsFound + (payload.errorRows ?? 0),
+        exportsDownloaded: prev.exportsDownloaded,
+      }));
+      pushActivity(
+        `Sales audit validated · ${payload.totalRows ?? 0} rows · ${payload.errorRows ?? 0} invalid`,
+        (payload.errorRows ?? 0) > 0 ? 'warn' : 'success'
+      );
+    },
+    [pushActivity]
+  );
+
   const recordExport = useCallback(
     (message = 'Invalid rows exported to Excel (.xlsx)') => {
       setSessionStats((prev) => ({
@@ -78,6 +94,7 @@ export function AppUiProvider({ children }) {
       activities,
       recordPanValidation,
       recordGrossWeightValidation,
+      recordSalesAuditValidation,
       recordExport,
     }),
     [
@@ -87,6 +104,7 @@ export function AppUiProvider({ children }) {
       activities,
       recordPanValidation,
       recordGrossWeightValidation,
+      recordSalesAuditValidation,
       recordExport,
     ]
   );

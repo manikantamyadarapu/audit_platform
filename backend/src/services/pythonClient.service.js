@@ -1,6 +1,6 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { PYTHON_SERVICE_URL } = require('../config');
+const { PYTHON_SERVICE_URL, PYTHON_SALES_AUDIT_TIMEOUT_MS } = require('../config');
 
 const client = axios.create({
   baseURL: PYTHON_SERVICE_URL,
@@ -183,9 +183,84 @@ async function postGrossWeightExportInvalid(records, options = {}) {
   }
 }
 
+/**
+ * @param {Buffer} fileBuffer
+ * @param {string} originalname
+ * @param {string} [mimetype]
+ * @param {{ requestId?: string }} [options]
+ */
+async function postSalesAuditValidate(fileBuffer, originalname, mimetype, options = {}) {
+  const form = new FormData();
+  form.append('file', fileBuffer, {
+    filename: originalname || 'upload.xlsx',
+    contentType: mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/sales-audit', form, {
+      headers,
+      timeout: PYTHON_SALES_AUDIT_TIMEOUT_MS,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} records
+ * @param {{ requestId?: string }} [options]
+ */
+async function postSalesAuditExportInvalid(records, options = {}) {
+  try {
+    const headers = {};
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/sales-audit/export-invalid', { records }, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const json = JSON.parse(Buffer.from(response.data).toString('utf8'));
+        if (json && json.detail) detail = json.detail;
+      } catch {
+        // ignore
+      }
+      const err = new Error(detail);
+      err.status = response.status === 422 ? 422 : response.status >= 500 ? 502 : 400;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentDisposition,
+      contentType,
+    };
+  } catch (err) {
+    if (err.status) throw err;
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
   postGrossWeightValidate,
   postGrossWeightExportInvalid,
+  postSalesAuditValidate,
+  postSalesAuditExportInvalid,
 };

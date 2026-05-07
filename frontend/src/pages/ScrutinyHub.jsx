@@ -22,7 +22,7 @@ const modules = [
   },
   {
     title: 'Sales Ledger',
-    description: 'Rate mismatch signals and duplicate sales row detection (pipeline).',
+    description: 'Cross-check sales account category against product and flag mismatches.',
     path: '/scrutiny/sales-ledger',
     icon: BookOpen,
     tone: 'violet',

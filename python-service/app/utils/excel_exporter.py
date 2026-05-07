@@ -26,6 +26,16 @@ GROSS_WEIGHT_EXPORT_COLUMNS = [
     'issues',
 ]
 
+SALES_AUDIT_EXPORT_COLUMNS = [
+    'voucherNo',
+    'salesAccount',
+    'product',
+    'expectedCategory',
+    'predictedCategory',
+    'status',
+    'issues',
+]
+
 
 def export_invalid_pan_records(records: list[dict[str, Any]]) -> bytes:
     if not records:
@@ -42,6 +52,25 @@ def export_invalid_pan_records(records: list[dict[str, Any]]) -> bytes:
 
     output = BytesIO()
     dataframe.to_excel(output, index=False, sheet_name='Invalid PAN Rows')
+    output.seek(0)
+    return output.read()
+
+
+def export_invalid_sales_audit_records(records: list[dict[str, Any]]) -> bytes:
+    if not records:
+        raise ValueError('No invalid records found to export')
+
+    dataframe = pd.DataFrame(records).copy()
+
+    for column in SALES_AUDIT_EXPORT_COLUMNS:
+        if column not in dataframe.columns:
+            dataframe[column] = ''
+
+    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
+    dataframe = dataframe[SALES_AUDIT_EXPORT_COLUMNS].fillna('')
+
+    output = BytesIO()
+    dataframe.to_excel(output, index=False, sheet_name='Invalid sales audit rows')
     output.seek(0)
     return output.read()
 

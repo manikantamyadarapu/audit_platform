@@ -8,7 +8,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services.processing_service import ProcessingService
-from app.utils.excel_exporter import export_invalid_gross_weight_records, export_invalid_pan_records
+from app.utils.excel_exporter import (
+    export_invalid_gross_weight_records,
+    export_invalid_pan_records,
+    export_invalid_sales_audit_records,
+)
 from app.utils.logger import get_logger
 
 router = APIRouter(prefix='/api/process', tags=['processing'])
@@ -20,6 +24,10 @@ class PanInvalidRowsExportRequest(BaseModel):
 
 
 class GrossWeightInvalidRowsExportRequest(BaseModel):
+    records: list[dict[str, Any]]
+
+
+class SalesAuditInvalidRowsExportRequest(BaseModel):
     records: list[dict[str, Any]]
 
 
@@ -59,6 +67,34 @@ async def process_gross_weight(file: UploadFile = File(...)) -> dict:
     response = await service.process('gross_weight', file)
     log.info('Gross weight processing complete')
     return response
+
+
+@router.post('/sales-audit')
+async def process_sales_audit(file: UploadFile = File(...)) -> dict:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Sales audit processing request received')
+    response = await service.process('sales_audit', file)
+    log.info('Sales audit processing complete')
+    return response
+
+
+@router.post('/sales-audit/export-invalid')
+async def export_sales_audit_invalid_rows(payload: SalesAuditInvalidRowsExportRequest) -> StreamingResponse:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Sales audit invalid rows export request received')
+
+    excel_bytes = export_invalid_sales_audit_records(payload.records)
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'sales-audit-invalid-rows-{timestamp}.xlsx'
+
+    log.info('Sales audit invalid rows export generated')
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post('/gross-weight/export-invalid')

@@ -9,6 +9,9 @@ const PYTHON_SERVICE_URL = (process.env.PYTHON_SERVICE_URL || 'http://127.0.0.1:
   ''
 );
 
+/** Axios timeout for sales-audit Excel (large sheets → Python can exceed default 120s). */
+const PYTHON_SALES_AUDIT_TIMEOUT_MS = Number(process.env.PYTHON_SALES_AUDIT_TIMEOUT_MS) || 900_000;
+
 /** Comma-separated origins, or "*" for all (dev only). */
 const CORS_ORIGIN_RAW = process.env.CORS_ORIGIN;
 const REQUEST_BODY_JSON_LIMIT = process.env.REQUEST_BODY_JSON_LIMIT || '50mb';
@@ -56,6 +59,7 @@ module.exports = {
   NODE_ENV,
   isProduction,
   PYTHON_SERVICE_URL,
+  PYTHON_SALES_AUDIT_TIMEOUT_MS,
   getCorsOrigin,
   REQUEST_BODY_JSON_LIMIT,
   UPLOAD_MAX_BYTES,
