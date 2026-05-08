@@ -138,19 +138,21 @@ export default function PanVerification() {
               <KpiCard label="Error rows" value={formatNumber(errorRows)} icon={AlertTriangle} accent="amber" />
               <KpiCard
                 label={'Missing PAN (> ₹2L)'}
-                value={formatNumber(summary.missingPanAbove2L ?? 0)}
+                value={formatNumber(summary.missingPanCount ?? summary.missingPanAbove2L ?? 0)}
                 icon={BadgeAlert}
                 accent="rose"
               />
               <KpiCard
                 label="Invalid PAN format"
-                value={formatNumber(summary.invalidPanFormat ?? 0)}
+                value={formatNumber(summary.invalidPanFormatCount ?? summary.invalidPanFormat ?? 0)}
                 icon={AlertTriangle}
                 accent="rose"
               />
               <KpiCard
                 label={'Missing address (> ₹50k)'}
-                value={formatNumber(summary.missingAddressProofAbove50K ?? 0)}
+                value={formatNumber(
+                  summary.missingAddressProofCount ?? summary.missingAddressProofAbove50K ?? 0
+                )}
                 icon={Home}
                 accent="violet"
               />

@@ -1,18 +1,23 @@
 import { useCallback, useState } from 'react';
-import { Scale, Loader2 } from 'lucide-react';
+import { Scale, Loader2, AlertTriangle, Rows3, Download, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
+import { GrossWeightResultsTable } from '../components/tables/GrossWeightResultsTable';
 import toast from 'react-hot-toast';
-import { validateGrossWeightExcel } from '../services/processExcelService';
-import { formatNumber } from '../utils/format';
+import {
+  validateGrossWeightExcel,
+  exportInvalidGrossWeightRows,
+} from '../services/processExcelService';
+import { formatNumber, formatPercent } from '../utils/format';
 
 export default function GrossWeight() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
 
   const runComparison = useCallback(async () => {
@@ -39,11 +44,38 @@ export default function GrossWeight() {
     }
   }, [file]);
 
+  const runExport = useCallback(async () => {
+    const records = result?.records;
+    if (!Array.isArray(records) || records.length === 0) {
+      toast.error('No invalid rows to export.');
+      return;
+    }
+    const ac = new AbortController();
+    setExporting(true);
+    try {
+      const { blob, filename } = await exportInvalidGrossWeightRows(records, ac.signal);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Excel export downloaded');
+    } catch (e) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [result]);
+
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
   const errorRows = result?.errorRows ?? 0;
-  const mismatchCount = summary.weightMismatch ?? errorRows;
-  const withinTol = Math.max(0, totalRows - errorRows);
+  const manualAutoMismatch = summary.mismatchCount ?? 0;
+  const differenceViolations = summary.differenceViolations ?? 0;
+  const negativeViolations = summary.negativeValueViolations ?? 0;
+  const compliance =
+    totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
 
   return (
     <div className="relative space-y-8">
@@ -64,18 +96,14 @@ export default function GrossWeight() {
         ) : null}
       </AnimatePresence>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center gap-3">
-        <h2 className="text-2xl font-semibold text-slate-900">Gross weight audit</h2>
-      </motion.div>
-
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Upload workbook</h3>
+              <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
               <p className="text-sm text-slate-500">
-                Compare <code className="rounded bg-slate-100 px-1 font-mono text-xs">manual_gross_weight</code> vs{' '}
-                <code className="rounded bg-slate-100 px-1 font-mono text-xs">auto_gross_weight</code>. Connected to{' '}
+                Strict manual vs auto gross (±0.01), optional{' '}
+                <code className="rounded bg-slate-100 px-1 font-mono text-xs">difference</code> must be 0.00. Connected to{' '}
                 <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
                   POST /api/v1/process/gross-weight/validate
                 </code>
@@ -86,6 +114,7 @@ export default function GrossWeight() {
                 Clear file
               </Button>
               <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runComparison}>
+                <FileSpreadsheet className="h-4 w-4" />
                 Run comparison
               </Button>
             </div>
@@ -98,64 +127,79 @@ export default function GrossWeight() {
 
       {result ? (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <KpiCard label="Rows scanned" value={formatNumber(totalRows)} hint="From workbook" icon={Scale} accent="blue" />
-            <KpiCard
-              label="Mismatches"
-              value={formatNumber(mismatchCount)}
-              hint="Outside tolerance"
-              icon={Scale}
-              accent="amber"
-            />
-            <KpiCard
-              label="Within tolerance"
-              value={formatNumber(withinTol)}
-              hint="Clean vs flagged"
-              icon={Scale}
-              accent="emerald"
-            />
-          </div>
+          <section>
+            <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <KpiCard label="Total rows" value={formatNumber(totalRows)} icon={Rows3} accent="blue" />
+              <KpiCard label="Error rows" value={formatNumber(errorRows)} icon={AlertTriangle} accent="amber" />
+              <KpiCard
+                label="Manual ≠ auto"
+                value={formatNumber(manualAutoMismatch)}
+                hint="Quantized mismatch"
+                icon={Scale}
+                accent="rose"
+              />
+              <KpiCard
+                label="Difference ≠ 0"
+                value={formatNumber(differenceViolations)}
+                hint="After manual=auto match"
+                icon={Scale}
+                accent="orange"
+              />
+              <KpiCard
+                label="Negative values"
+                value={formatNumber(negativeViolations)}
+                hint="Manual, auto, or difference"
+                icon={Scale}
+                accent="violet"
+              />
+              <KpiCard
+                label="Compliance"
+                value={compliance != null ? formatPercent(compliance) : '—'}
+                hint="Clean rows / total rows"
+                icon={Rows3}
+                accent="emerald"
+              />
+            </div>
+          </section>
 
           <Card>
             <CardHeader>
-              <h3 className="text-base font-semibold text-slate-900">Mismatch register</h3>
-              <p className="text-sm text-slate-500">Exception rows returned by the processor appear here.</p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Issue register</h3>
+                  <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV export</p>
+                </div>
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={exporting}
+                  disabled={exporting || !result.records?.length}
+                  onClick={runExport}
+                >
+                  <Download className="h-4 w-4" />
+                  Export invalid rows (.xlsx)
+                </Button>
+              </div>
             </CardHeader>
             <CardBody>
               {result.records?.length ? (
-                <p className="text-sm text-slate-600">{result.records.length} mismatch row(s) returned.</p>
+                <GrossWeightResultsTable data={result.records} />
               ) : (
                 <EmptyState
-                  icon={Scale}
-                  title="No mismatch rows"
-                  description="The current processor run did not return individual exception rows, or all weights are within tolerance."
+                  title="No issues detected"
+                  description="Every scanned row satisfied gross-weight checks, or non-data rows were skipped."
                 />
               )}
             </CardBody>
           </Card>
         </>
       ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <KpiCard label="Rows scanned" value="—" hint="Run comparison" icon={Scale} accent="blue" />
-            <KpiCard label="Mismatches" value="—" hint="Awaiting run" icon={Scale} accent="amber" />
-            <KpiCard label="Within tolerance" value="—" hint="Awaiting run" icon={Scale} accent="emerald" />
-          </div>
-
-          <Card>
-            <CardHeader>
-              <h3 className="text-base font-semibold text-slate-900">Mismatch register</h3>
-              <p className="text-sm text-slate-500">Will reuse shared TanStack table + CSV export pattern.</p>
-            </CardHeader>
-            <CardBody>
-              <EmptyState
-                icon={Scale}
-                title="No comparison yet"
-                description="Upload a workbook and run comparison to pull results from the gateway."
-              />
-            </CardBody>
-          </Card>
-        </>
+        <EmptyState
+          icon={Scale}
+          title="Awaiting validation"
+          description="Upload an Excel workbook and run comparison to populate summary metrics, issue badges, and exports."
+        />
       )}
     </div>
   );

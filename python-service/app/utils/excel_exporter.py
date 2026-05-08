@@ -15,6 +15,31 @@ PAN_EXPORT_COLUMNS = [
     'addProof',
     'addProof2',
     'issues',
+    'messages',
+]
+
+
+GROSS_EXPORT_COLUMNS = [
+    'rowNumber',
+    'manualGrossWeight',
+    'autoGrossWeight',
+    'difference',
+    'issues',
+    'messages',
+]
+
+SALES_EXPORT_COLUMNS = [
+    'rowNumber',
+    'voucherNo',
+    'salesAccount',
+    'product',
+    'expectedSalesAccountCategory',
+    'predictedCategory',
+    'usedFuzzyClassification',
+    'manualGrossWt',
+    'autoGrossWt',
+    'issues',
+    'messages',
 ]
 
 
@@ -29,10 +54,46 @@ def export_invalid_pan_records(records: list[dict[str, Any]]) -> bytes:
             dataframe[column] = ''
 
     dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
+    if 'messages' in dataframe.columns:
+        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
     dataframe = dataframe[PAN_EXPORT_COLUMNS]
 
     output = BytesIO()
     dataframe.to_excel(output, index=False, sheet_name='Invalid PAN Rows')
+    output.seek(0)
+    return output.read()
+
+
+def export_invalid_gross_weight_records(records: list[dict[str, Any]]) -> bytes:
+    if not records:
+        raise ValueError('No invalid records found to export')
+    dataframe = pd.DataFrame(records).copy()
+    for column in GROSS_EXPORT_COLUMNS:
+        if column not in dataframe.columns:
+            dataframe[column] = ''
+    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
+    if 'messages' in dataframe.columns:
+        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
+    dataframe = dataframe[GROSS_EXPORT_COLUMNS]
+    output = BytesIO()
+    dataframe.to_excel(output, index=False, sheet_name='Invalid Gross Weight Rows')
+    output.seek(0)
+    return output.read()
+
+
+def export_invalid_sales_records(records: list[dict[str, Any]]) -> bytes:
+    if not records:
+        raise ValueError('No invalid records found to export')
+    dataframe = pd.DataFrame(records).copy()
+    for column in SALES_EXPORT_COLUMNS:
+        if column not in dataframe.columns:
+            dataframe[column] = ''
+    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
+    if 'messages' in dataframe.columns:
+        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
+    dataframe = dataframe[SALES_EXPORT_COLUMNS]
+    output = BytesIO()
+    dataframe.to_excel(output, index=False, sheet_name='Invalid Sales Rows')
     output.seek(0)
     return output.read()
 

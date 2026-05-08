@@ -18,27 +18,23 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 import { cn } from '../../utils/cn';
-import { formatNumber, effectivePan } from '../../utils/format';
+import { formatNumber } from '../../utils/format';
+import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
 
-function issueTone(code) {
-  if (code?.includes('MISSING')) return 'amber';
-  if (code?.includes('INVALID')) return 'rose';
-  return 'blue';
-}
-
-function panGlobalFilter(row, _columnId, filterValue) {
+function salesGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
   if (!q) return true;
   const r = row.original;
   const blob = [
     r.rowNumber,
-    r.date,
     r.voucherNo,
-    r.party,
-    r.totalValue,
-    r.pan,
-    r.pan1,
+    r.salesAccount,
+    r.product,
+    r.expectedSalesAccountCategory,
+    r.predictedCategory,
+    r.manualGrossWt,
+    r.autoGrossWt,
     ...(Array.isArray(r.issues) ? r.issues : []),
     ...(Array.isArray(r.messages) ? r.messages : []),
   ]
@@ -47,7 +43,7 @@ function panGlobalFilter(row, _columnId, filterValue) {
   return blob.includes(q);
 }
 
-export function PanResultsTable({ data }) {
+export function SalesResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo(
@@ -60,13 +56,6 @@ export function PanResultsTable({ data }) {
         ),
       },
       {
-        accessorKey: 'date',
-        header: 'Date',
-        cell: (info) => (
-          <span className="text-sm text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
         accessorKey: 'voucherNo',
         header: 'Voucher No',
         cell: (info) => (
@@ -74,27 +63,45 @@ export function PanResultsTable({ data }) {
         ),
       },
       {
-        accessorKey: 'party',
-        header: 'Party',
+        accessorKey: 'salesAccount',
+        header: 'Sales account',
         cell: (info) => (
-          <span className="max-w-[200px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
+          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
-        accessorKey: 'totalValue',
-        header: 'Total Value',
+        accessorKey: 'product',
+        header: 'Product',
         cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>
+          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
-        id: 'effectivePan',
-        header: 'Effective PAN',
-        accessorFn: (row) => effectivePan(row),
+        accessorKey: 'expectedSalesAccountCategory',
+        header: 'Expected category',
         cell: (info) => (
-          <span className="font-mono text-xs uppercase tracking-wide text-slate-800">
-            {info.getValue()}
-          </span>
+          <span className="text-xs text-slate-700">{info.getValue() ?? '—'}</span>
+        ),
+      },
+      {
+        accessorKey: 'predictedCategory',
+        header: 'Predicted category',
+        cell: (info) => (
+          <span className="text-xs text-slate-700">{info.getValue() ?? '—'}</span>
+        ),
+      },
+      {
+        accessorKey: 'manualGrossWt',
+        header: 'Manual gross wt',
+        cell: (info) => (
+          <span className="font-mono text-xs text-slate-800">{formatNumber(info.getValue())}</span>
+        ),
+      },
+      {
+        accessorKey: 'autoGrossWt',
+        header: 'Auto gross wt',
+        cell: (info) => (
+          <span className="font-mono text-xs text-slate-800">{formatNumber(info.getValue())}</span>
         ),
       },
       {
@@ -104,9 +111,14 @@ export function PanResultsTable({ data }) {
         cell: (info) => {
           const issues = info.getValue() || [];
           return (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex max-w-[220px] flex-wrap gap-1">
               {issues.map((issue) => (
-                <Badge key={issue} tone={issueTone(issue)} caps={false} className="text-[10px] font-medium">
+                <Badge
+                  key={issue}
+                  tone={auditIssueTone(issue)}
+                  caps={false}
+                  className="text-[10px] font-medium"
+                >
                   {issue.replace(/_/g, ' ')}
                 </Badge>
               ))}
@@ -122,7 +134,7 @@ export function PanResultsTable({ data }) {
           const msgs = info.getValue();
           if (!Array.isArray(msgs) || msgs.length === 0) return <span className="text-slate-400">—</span>;
           return (
-            <ul className="max-w-xs list-disc space-y-1 pl-4 text-xs text-slate-700">
+            <ul className="max-w-md list-disc space-y-1 pl-4 text-xs text-slate-700">
               {msgs.map((m) => (
                 <li key={m}>{m}</li>
               ))}
@@ -139,7 +151,7 @@ export function PanResultsTable({ data }) {
     columns,
     state: { globalFilter },
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: panGlobalFilter,
+    globalFilterFn: salesGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -150,16 +162,21 @@ export function PanResultsTable({ data }) {
   const exportCsv = () => {
     const cols = [
       { header: 'Row Number', accessor: (r) => r.rowNumber },
-      { header: 'Date', accessor: (r) => r.date ?? '' },
       { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
-      { header: 'Party', accessor: (r) => r.party ?? '' },
-      { header: 'Total Value', accessor: (r) => r.totalValue ?? '' },
-      { header: 'PAN', accessor: (r) => r.pan ?? '' },
-      { header: 'PAN1', accessor: (r) => r.pan1 ?? '' },
+      { header: 'Sales Account', accessor: (r) => r.salesAccount ?? '' },
+      { header: 'Product', accessor: (r) => r.product ?? '' },
+      { header: 'Expected Category', accessor: (r) => r.expectedSalesAccountCategory ?? '' },
+      { header: 'Predicted Category', accessor: (r) => r.predictedCategory ?? '' },
+      { header: 'Manual Gross Wt', accessor: (r) => r.manualGrossWt ?? '' },
+      { header: 'Auto Gross Wt', accessor: (r) => r.autoGrossWt ?? '' },
       { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
       { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
     ];
-    exportRowsToCsv(`pan-results-${Date.now()}.csv`, cols, table.getFilteredRowModel().rows.map((r) => r.original));
+    exportRowsToCsv(
+      `sales-ledger-results-${Date.now()}.csv`,
+      cols,
+      table.getFilteredRowModel().rows.map((r) => r.original)
+    );
   };
 
   return (
@@ -170,7 +187,7 @@ export function PanResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search party, voucher, PAN, issues..."
+            placeholder="Search voucher, product, issues..."
             className="pl-10"
           />
         </div>
@@ -182,7 +199,7 @@ export function PanResultsTable({ data }) {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[880px] w-full text-left text-sm">
+          <table className="data-table min-w-[960px] w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">

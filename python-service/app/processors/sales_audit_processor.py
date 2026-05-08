@@ -11,6 +11,7 @@ from app.utils.excel_header_detection import find_header_row_index, load_excel_w
 from app.utils.excel_reader import ExcelReader
 from app.utils.product_classifier import classify_product_cached, expected_category_from_sales_account
 from app.utils.response_builder import build_processing_response
+from app.utils.constants import SALES_ISSUE_MESSAGES
 from app.utils.sheet_validation_error import SheetValidationError
 
 _EMPTY_TOKENS = frozenset(
@@ -22,6 +23,17 @@ _REQUIRED = frozenset(
 )
 
 _SALES_HEADER_CORE = frozenset({'voucher_no', 'sales_account', 'product'})
+
+
+def _sales_issue_messages(issues: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for code in issues:
+        msg = SALES_ISSUE_MESSAGES.get(code)
+        if msg and msg not in seen:
+            seen.add(msg)
+            ordered.append(msg)
+    return ordered
 
 
 def _sales_header_row_matches(labels: set[str]) -> bool:
@@ -140,6 +152,7 @@ class SalesAuditProcessor(BaseProcessor):
                 pass  # already counted gross_weight_mismatches
 
             if issues:
+                messages = _sales_issue_messages(issues)
                 records.append(
                     {
                         'rowNumber': int(idx) + header_row_index + 2,
@@ -152,6 +165,7 @@ class SalesAuditProcessor(BaseProcessor):
                         'manualGrossWt': manual_cell if man_w is None else man_w,
                         'autoGrossWt': auto_cell if auto_w is None else auto_w,
                         'issues': issues,
+                        'messages': messages,
                     }
                 )
 

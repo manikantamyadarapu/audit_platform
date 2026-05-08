@@ -66,6 +66,8 @@ export function AppUiProvider({ children }) {
   return <AppUiContext.Provider value={value}>{children}</AppUiContext.Provider>;
 }
 
+// Hook co-located with provider (Fast Refresh wants components-only exports).
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAppUi() {
   const ctx = useContext(AppUiContext);
   if (!ctx) throw new Error('useAppUi must be used within AppUiProvider');

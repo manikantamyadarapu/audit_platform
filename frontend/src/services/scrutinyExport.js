@@ -1,37 +1,22 @@
 import api, { getApiErrorMessage } from './api';
 
 /**
- * @param {File} file
- * @param {AbortSignal} [signal]
- */
-export async function validatePanExcel(file, signal) {
-  const form = new FormData();
-  form.append('file', file);
-  try {
-    const { data } = await api.post('/api/v1/process/pan/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      signal,
-    });
-    return data;
-  } catch (err) {
-    throw new Error(getApiErrorMessage(err), { cause: err });
-  }
-}
-
-/**
+ * POST JSON { records } → Excel blob (multipart/binary scrutiny exports).
+ *
+ * @param {string} path API path e.g. '/api/v1/process/gross-weight/export-invalid'
  * @param {Record<string, unknown>[]} records
  * @param {AbortSignal} [signal]
  * @returns {Promise<{ blob: Blob, filename: string }>}
  */
-export async function exportInvalidPanRows(records, signal) {
+export async function exportInvalidRecordsXlsx(path, records, signal) {
   try {
-    const res = await api.post('/api/v1/process/pan/export-invalid', { records }, {
+    const res = await api.post(path, { records }, {
       responseType: 'blob',
       signal,
     });
     const blob = res.data;
     const disposition = res.headers['content-disposition'];
-    let filename = 'pan-invalid-rows.xlsx';
+    let filename = 'invalid-rows.xlsx';
     if (disposition && disposition.includes('filename=')) {
       const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(disposition);
       if (match?.[1]) filename = decodeURIComponent(match[1].replace(/["']/g, ''));

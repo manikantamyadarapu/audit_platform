@@ -1,4 +1,5 @@
 const pythonClient = require('../services/pythonClient.service');
+const { validateExportInvalidBody } = require('../validators/panExport.validator');
 const logger = require('../utils/logger');
 
 async function validate(req, res, next) {
@@ -29,4 +30,38 @@ async function validate(req, res, next) {
   }
 }
 
-module.exports = { validate };
+async function exportInvalid(req, res, next) {
+  try {
+    const parsed = validateExportInvalidBody(req.body);
+    if (!parsed.ok) {
+      return res.status(400).json({
+        success: false,
+        detail: parsed.detail,
+        requestId: req.requestId,
+      });
+    }
+
+    logger.info('Sales export-invalid: forwarding to Python', {
+      requestId: req.requestId,
+      recordCount: parsed.records.length,
+    });
+
+    const { buffer, contentDisposition, contentType } = await pythonClient.postSalesExportInvalid(
+      parsed.records,
+      { requestId: req.requestId }
+    );
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentDisposition) {
+      res.setHeader('Content-Disposition', contentDisposition);
+    } else {
+      res.setHeader('Content-Disposition', 'attachment; filename="sales-invalid-rows.xlsx"');
+    }
+
+    return res.send(buffer);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = { validate, exportInvalid };

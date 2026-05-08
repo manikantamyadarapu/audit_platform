@@ -170,7 +170,8 @@ def test_pan_pending_treated_empty_and_flags_missing_pan():
     assert result['records'][0]['issues'] == ['MISSING_PAN_ABOVE_2L']
 
 
-def test_invalid_pan_format_is_flagged():
+def test_invalid_pan_format_below_2l_is_not_flagged():
+    """PAN format is validated only when Total Value > ₹2,00,000."""
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [_base_row(**{'Total Value': 75000, 'PAN': 'AB123', 'Add. proof': 'Passport'})]
@@ -178,9 +179,9 @@ def test_invalid_pan_format_is_flagged():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['invalidPanFormat'] == 1
-    assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
+    assert result['errorRows'] == 0
+    assert result['summary']['invalidPanFormat'] == 0
+    assert result['records'] == []
 
 
 def test_valid_row_has_no_issues():
@@ -526,3 +527,68 @@ def test_detects_header_row_when_title_rows_exist():
         'MISSING_PAN_ABOVE_2L',
         'MISSING_ADDRESS_PROOF_ABOVE_50K',
     }
+
+
+def test_subtotal_like_voucher_row_is_skipped():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': '3,00,000',
+                    'Voucher No': 'Grand Total',
+                    'PAN': '',
+                    'PAN1': '',
+                    'Add. proof': '',
+                    'Add. Proof 2': '',
+                }
+            )
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+
+
+def test_missing_voucher_row_is_skipped():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': '3,00,000',
+                    'Voucher No': '',
+                    'PAN': '',
+                    'PAN1': '',
+                    'Add. proof': 'Bill',
+                }
+            )
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+
+
+def test_duplicate_mid_sheet_header_row_is_skipped():
+    processor = PanProcessor()
+    header_like = _base_row(
+        **{
+            'Total Value': 'Total Value',
+            'Voucher No': 'VN',
+            'PAN': 'PAN',
+            'PAN1': 'PAN1',
+            'Add. proof': 'x',
+        }
+    )
+    good = _base_row(
+        **{
+            'SNo': 2,
+            'Total Value': 250000,
+            'PAN': '',
+            'PAN1': '',
+            'Add. proof': 'Doc',
+        }
+    )
+    file_bytes = _build_excel_bytes([header_like, good])
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 1
+    assert result['records'][0]['issues'] == ['MISSING_PAN_ABOVE_2L']

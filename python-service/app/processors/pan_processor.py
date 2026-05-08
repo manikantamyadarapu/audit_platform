@@ -5,7 +5,13 @@ from typing import Any
 import pandas as pd
 
 from app.processors.base import BaseProcessor
-from app.utils.constants import PAN_REGEX
+from app.utils.audit_row_skips import should_skip_audit_row
+from app.utils.constants import (
+    ADDRESS_PROOF_MISSING_MESSAGE,
+    PAN_MISSING_OR_INVALID_MESSAGE,
+    PAN_REGEX,
+    SPREADSHEET_EMPTY_TOKENS,
+)
 from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
 from app.utils.excel_reader import ExcelReader
 from app.utils.response_builder import build_processing_response
@@ -15,7 +21,6 @@ class PanProcessor(BaseProcessor):
     REQUIRED_BASE_COLUMNS = {'total_value'}
     PAN_COLUMN_OPTIONS = {'pan', 'pan1'}
     ADDRESS_COLUMN_OPTIONS = {'add_proof', 'add_proof_2'}
-    EMPTY_VALUES = {'', 'pending', 'na', 'n/a', 'none', 'null', 'nan', '-', '----'}
 
     def __init__(self) -> None:
         self.reader = ExcelReader()
@@ -31,13 +36,17 @@ class PanProcessor(BaseProcessor):
         total_rows = len(df)
 
         records: list[dict[str, Any]] = []
-        missing_pan_above_2l = 0
-        missing_address_above_50k = 0
-        invalid_pan_format = 0
+        missing_pan_count = 0
+        invalid_pan_format_count = 0
+        missing_address_proof_count = 0
+
+        columns_set = set(df.columns)
 
         for _, chunk in self.reader.iter_chunks(df):
             for idx, row in chunk.iterrows():
-                if self._is_blank_row(row):
+                if should_skip_audit_row(
+                    row, columns_set, normalize_empty=self.normalize_empty_value
+                ):
                     continue
 
                 total_value = self.parse_amount(row.get('total_value'))
@@ -50,16 +59,17 @@ class PanProcessor(BaseProcessor):
                 pan_issues = self._collect_pan_issues(total_value, pan, pan1)
                 for issue in pan_issues:
                     if issue == 'MISSING_PAN_ABOVE_2L':
-                        missing_pan_above_2l += 1
+                        missing_pan_count += 1
                     elif issue == 'INVALID_PAN_FORMAT':
-                        invalid_pan_format += 1
+                        invalid_pan_format_count += 1
                 issues.extend(pan_issues)
 
                 if total_value is not None and total_value > 50000 and not (add_proof or add_proof_2):
                     issues.append('MISSING_ADDRESS_PROOF_ABOVE_50K')
-                    missing_address_above_50k += 1
+                    missing_address_proof_count += 1
 
                 if issues:
+                    messages = self._messages_for_issues(issues)
                     records.append(
                         {
                             'rowNumber': int(idx) + header_row_index + 2,
@@ -72,18 +82,24 @@ class PanProcessor(BaseProcessor):
                             'addProof': add_proof or '',
                             'addProof2': add_proof_2 or '',
                             'issues': issues,
+                            'messages': messages,
                         }
                     )
+
+        summary = {
+            'missingPanCount': missing_pan_count,
+            'invalidPanFormatCount': invalid_pan_format_count,
+            'missingAddressProofCount': missing_address_proof_count,
+            'missingPanAbove2L': missing_pan_count,
+            'invalidPanFormat': invalid_pan_format_count,
+            'missingAddressProofAbove50K': missing_address_proof_count,
+        }
 
         return build_processing_response(
             file_type='pan',
             total_rows=total_rows,
             error_rows=len(records),
-            summary={
-                'missingPanAbove2L': missing_pan_above_2l,
-                'missingAddressProofAbove50K': missing_address_above_50k,
-                'invalidPanFormat': invalid_pan_format,
-            },
+            summary=summary,
             records=records,
         )
 
@@ -96,7 +112,7 @@ class PanProcessor(BaseProcessor):
         text = str(value).strip()
         if not text:
             return None
-        if text.lower() in self.EMPTY_VALUES:
+        if text.lower() in SPREADSHEET_EMPTY_TOKENS:
             return None
         return text
 
@@ -109,7 +125,7 @@ class PanProcessor(BaseProcessor):
         text = str(value).strip()
         if not text:
             return None
-        if text.lower() in self.EMPTY_VALUES:
+        if text.lower() in SPREADSHEET_EMPTY_TOKENS:
             return None
 
         cleaned = re.sub(r'[^0-9.\-]', '', text.replace(',', ''))
@@ -122,27 +138,36 @@ class PanProcessor(BaseProcessor):
         number = float(cleaned)
         return int(number) if number.is_integer() else number
 
+    @staticmethod
+    def _messages_for_issues(issues: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for code in issues:
+            if code == 'MISSING_ADDRESS_PROOF_ABOVE_50K':
+                msg = ADDRESS_PROOF_MISSING_MESSAGE
+            elif code in {'MISSING_PAN_ABOVE_2L', 'INVALID_PAN_FORMAT'}:
+                msg = PAN_MISSING_OR_INVALID_MESSAGE
+            else:
+                continue
+            if msg not in seen:
+                seen.add(msg)
+                ordered.append(msg)
+        return ordered
+
     def _collect_pan_issues(
         self, total_value: float | int | None, pan_norm: str | None, pan1_norm: str | None
     ) -> list[str]:
+        if total_value is None or total_value <= 200000:
+            return []
+
         pan_ok = pan_norm is not None and self.is_valid_pan(pan_norm)
         pan1_ok = pan1_norm is not None and self.is_valid_pan(pan1_norm)
 
-        if total_value is not None and total_value > 200000:
-            if pan_ok or pan1_ok:
-                return []
-            if pan_norm is None and pan1_norm is None:
-                return ['MISSING_PAN_ABOVE_2L']
-            return ['INVALID_PAN_FORMAT']
-
         if pan_ok or pan1_ok:
             return []
-
-        pan_bad = pan_norm is not None and not self.is_valid_pan(pan_norm)
-        pan1_bad = pan1_norm is not None and not self.is_valid_pan(pan1_norm)
-        if pan_bad or pan1_bad:
-            return ['INVALID_PAN_FORMAT']
-        return []
+        if pan_norm is None and pan1_norm is None:
+            return ['MISSING_PAN_ABOVE_2L']
+        return ['INVALID_PAN_FORMAT']
 
     def is_valid_pan(self, pan_value: str) -> bool:
         return bool(self._pan_pattern.fullmatch(pan_value.strip().upper()))
@@ -181,12 +206,6 @@ class PanProcessor(BaseProcessor):
         if 'total_value' not in headers or not ('pan' in headers or 'pan1' in headers):
             return False
         return bool(headers & self.ADDRESS_COLUMN_OPTIONS)
-
-    def _is_blank_row(self, row: pd.Series) -> bool:
-        for value in row.values:
-            if self.normalize_empty_value(value) is not None:
-                return False
-        return True
 
     def _format_cell_value(self, value: Any) -> str:
         if value is None:

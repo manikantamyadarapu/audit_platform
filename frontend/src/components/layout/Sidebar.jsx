@@ -83,7 +83,7 @@ function NavItem({ to, label, icon: Icon, end, soon, collapsed, disabled, onNavi
       end={end}
       onClick={onNavigate}
       title={collapsed ? label : undefined}
-      className={({ isActive }) => cn('block w-full', disabled && 'pointer-events-none')}
+      className="block w-full"
     >
       {({ isActive }) => inner(isActive)}
     </NavLink>

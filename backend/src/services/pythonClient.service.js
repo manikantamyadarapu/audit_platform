@@ -97,14 +97,19 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
  * @param {Array<Record<string, unknown>>} records
  * @param {{ requestId?: string }} [options]
  */
-async function postPanExportInvalid(records, options = {}) {
+/**
+ * @param {string} pythonPath e.g. '/api/process/pan/export-invalid'
+ * @param {Array<Record<string, unknown>>} records
+ * @param {{ requestId?: string }} [options]
+ */
+async function postExportInvalidRows(pythonPath, records, options = {}) {
   try {
     const headers = {};
     if (options.requestId) {
       headers['x-request-id'] = options.requestId;
     }
 
-    const response = await client.post('/api/process/pan/export-invalid', { records }, {
+    const response = await client.post(pythonPath, { records }, {
       responseType: 'arraybuffer',
       validateStatus: () => true,
       headers,
@@ -137,9 +142,23 @@ async function postPanExportInvalid(records, options = {}) {
   }
 }
 
+async function postPanExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/pan/export-invalid', records, options);
+}
+
+async function postGrossWeightExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/gross-weight/export-invalid', records, options);
+}
+
+async function postSalesExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales/export-invalid', records, options);
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
   postGrossWeightValidate,
+  postGrossWeightExportInvalid,
   postSalesValidate,
+  postSalesExportInvalid,
 };

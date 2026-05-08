@@ -1,5 +1,6 @@
 import api, { getApiErrorMessage } from './api';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
+import { exportInvalidRecordsXlsx } from './scrutinyExport';
 
 /**
  * @param {File} file
@@ -43,4 +44,20 @@ export async function validateSalesExcel(file, signal) {
     if (payload) e.details = payload;
     throw e;
   }
+}
+
+/**
+ * @param {Record<string, unknown>[]} records
+ * @param {AbortSignal} [signal]
+ */
+export function exportInvalidGrossWeightRows(records, signal) {
+  return exportInvalidRecordsXlsx('/api/v1/process/gross-weight/export-invalid', records, signal);
+}
+
+/**
+ * @param {Record<string, unknown>[]} records
+ * @param {AbortSignal} [signal]
+ */
+export function exportInvalidSalesRows(records, signal) {
+  return exportInvalidRecordsXlsx('/api/v1/process/sales/export-invalid', records, signal);
 }

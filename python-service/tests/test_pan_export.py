@@ -23,6 +23,10 @@ def test_export_invalid_pan_rows_returns_excel_file() -> None:
                 'addProof': '',
                 'addProof2': '',
                 'issues': ['MISSING_PAN_ABOVE_2L', 'MISSING_ADDRESS_PROOF_ABOVE_50K'],
+                'messages': [
+                    'No valid PAN found in PAN or PAN1 columns',
+                    'Address proof missing in both address proof columns',
+                ],
             }
         ]
     }
@@ -50,11 +54,16 @@ def test_export_invalid_pan_rows_returns_excel_file() -> None:
         'addProof',
         'addProof2',
         'issues',
+        'messages',
     ]
     assert sheet.cell(row=2, column=1).value == 77
     assert (
         sheet.cell(row=2, column=10).value
         == 'MISSING_PAN_ABOVE_2L, MISSING_ADDRESS_PROOF_ABOVE_50K'
+    )
+    assert sheet.cell(row=2, column=11).value == (
+        'No valid PAN found in PAN or PAN1 columns, '
+        'Address proof missing in both address proof columns'
     )
 
 

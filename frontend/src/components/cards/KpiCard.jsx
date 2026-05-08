@@ -22,6 +22,10 @@ const accentMap = {
     wash: 'from-rose-500/12 via-white/40 to-pink-500/8',
     icon: 'text-rose-600',
   },
+  orange: {
+    wash: 'from-orange-500/12 via-white/40 to-amber-500/8',
+    icon: 'text-orange-600',
+  },
 };
 
 export function KpiCard({ icon: Icon, label, value, hint, accent = 'blue', delay = 0 }) {
