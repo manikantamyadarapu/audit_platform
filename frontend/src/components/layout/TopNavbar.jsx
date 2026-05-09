@@ -4,6 +4,7 @@ import { Bell, Search, UploadCloud, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../utils/cn';
 
 const TITLE_MAP = [
@@ -23,7 +24,7 @@ const TITLE_MAP = [
 
 function matchTitle(pathname) {
   const found = TITLE_MAP.find((m) => m.test.test(pathname));
-  return found?.title ?? 'Audit Platform';
+  return found?.title ?? 'Overview';
 }
 
 function greetingLine() {
@@ -54,7 +55,7 @@ export function TopNavbar() {
       <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem]">
-            {greeting}, Audit Platform
+            {greeting}, HAA
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-500">{dateLine}</p>
           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Current view · {viewTitle}</p>
@@ -79,6 +80,8 @@ export function TopNavbar() {
               <UploadCloud className="h-4 w-4" />
               Quick upload
             </Button>
+
+            <ThemeToggle compact />
 
             <button
               type="button"

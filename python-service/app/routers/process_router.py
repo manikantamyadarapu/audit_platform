@@ -16,6 +16,7 @@ from app.utils.excel_exporter import (
 from app.utils.logger import get_logger
 
 router = APIRouter(prefix='/api/process', tags=['processing'])
+gateway_router = APIRouter(prefix='/api/v1/process', tags=['processing'])
 service = ProcessingService()
 
 
@@ -28,6 +29,7 @@ class InvalidRowsExportRequest(BaseModel):
 
 
 @router.post('/pan')
+@gateway_router.post('/pan/validate')
 async def process_pan(file: UploadFile = File(...)) -> dict:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -38,6 +40,7 @@ async def process_pan(file: UploadFile = File(...)) -> dict:
 
 
 @router.post('/pan/export-invalid')
+@gateway_router.post('/pan/export-invalid')
 async def export_pan_invalid_rows(payload: PanInvalidRowsExportRequest) -> StreamingResponse:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -56,6 +59,7 @@ async def export_pan_invalid_rows(payload: PanInvalidRowsExportRequest) -> Strea
 
 
 @router.post('/gst')
+@gateway_router.post('/gst/validate')
 async def process_gst(file: UploadFile = File(...)) -> dict:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -66,6 +70,7 @@ async def process_gst(file: UploadFile = File(...)) -> dict:
 
 
 @router.post('/gross-weight/export-invalid')
+@gateway_router.post('/gross-weight/export-invalid')
 async def export_gross_weight_invalid_rows(payload: InvalidRowsExportRequest) -> StreamingResponse:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -82,6 +87,7 @@ async def export_gross_weight_invalid_rows(payload: InvalidRowsExportRequest) ->
 
 
 @router.post('/gross-weight')
+@gateway_router.post('/gross-weight/validate')
 async def process_gross_weight(file: UploadFile = File(...)) -> dict:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -92,6 +98,7 @@ async def process_gross_weight(file: UploadFile = File(...)) -> dict:
 
 
 @router.post('/sales/export-invalid')
+@gateway_router.post('/sales/export-invalid')
 async def export_sales_invalid_rows(payload: InvalidRowsExportRequest) -> StreamingResponse:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
@@ -108,6 +115,7 @@ async def export_sales_invalid_rows(payload: InvalidRowsExportRequest) -> Stream
 
 
 @router.post('/sales')
+@gateway_router.post('/sales/validate')
 async def process_sales(file: UploadFile = File(...)) -> dict:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)

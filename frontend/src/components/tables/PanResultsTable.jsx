@@ -12,14 +12,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  FileText,
   Search,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 import { cn } from '../../utils/cn';
-import { formatNumber, effectivePan } from '../../utils/format';
 import { exportRowsToCsv } from '../../utils/csvExport';
+import { exportRowsToPdf } from '../../utils/pdfExport';
+
+const PAN_EXPORT_COLS = [
+  { header: 'Row Number', accessor: (r) => r.rowNumber },
+  { header: 'Date', accessor: (r) => r.date ?? '' },
+  { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
+  { header: 'Party', accessor: (r) => r.party ?? '' },
+  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
+  { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
+];
 
 function issueTone(code) {
   if (code?.includes('MISSING')) return 'amber';
@@ -36,9 +46,6 @@ function panGlobalFilter(row, _columnId, filterValue) {
     r.date,
     r.voucherNo,
     r.party,
-    r.totalValue,
-    r.pan,
-    r.pan1,
     ...(Array.isArray(r.issues) ? r.issues : []),
     ...(Array.isArray(r.messages) ? r.messages : []),
   ]
@@ -78,23 +85,6 @@ export function PanResultsTable({ data }) {
         header: 'Party',
         cell: (info) => (
           <span className="max-w-[200px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'totalValue',
-        header: 'Total Value',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>
-        ),
-      },
-      {
-        id: 'effectivePan',
-        header: 'Effective PAN',
-        accessorFn: (row) => effectivePan(row),
-        cell: (info) => (
-          <span className="font-mono text-xs uppercase tracking-wide text-slate-800">
-            {info.getValue()}
-          </span>
         ),
       },
       {
@@ -147,19 +137,14 @@ export function PanResultsTable({ data }) {
     initialState: { pagination: { pageSize: 10 } },
   });
 
+  const filteredRows = () => table.getFilteredRowModel().rows.map((r) => r.original);
+
   const exportCsv = () => {
-    const cols = [
-      { header: 'Row Number', accessor: (r) => r.rowNumber },
-      { header: 'Date', accessor: (r) => r.date ?? '' },
-      { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
-      { header: 'Party', accessor: (r) => r.party ?? '' },
-      { header: 'Total Value', accessor: (r) => r.totalValue ?? '' },
-      { header: 'PAN', accessor: (r) => r.pan ?? '' },
-      { header: 'PAN1', accessor: (r) => r.pan1 ?? '' },
-      { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-      { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
-    ];
-    exportRowsToCsv(`pan-results-${Date.now()}.csv`, cols, table.getFilteredRowModel().rows.map((r) => r.original));
+    exportRowsToCsv(`pan-results-${Date.now()}.csv`, PAN_EXPORT_COLS, filteredRows());
+  };
+
+  const exportPdf = () => {
+    exportRowsToPdf(`pan-results-${Date.now()}.pdf`, 'PAN audit — issue register', PAN_EXPORT_COLS, filteredRows());
   };
 
   return (
@@ -170,19 +155,25 @@ export function PanResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search party, voucher, PAN, issues..."
+            placeholder="Search party, voucher, issues…"
             className="pl-10"
           />
         </div>
-        <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="secondary" size="md" onClick={exportPdf} disabled={!data.length}>
+            <FileText className="h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[880px] w-full text-left text-sm">
+          <table className="data-table min-w-[640px] w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">

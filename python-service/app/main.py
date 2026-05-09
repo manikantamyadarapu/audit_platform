@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config.settings import get_settings
 from app.routers.health_router import router as health_router
+from app.routers.process_router import gateway_router as gateway_process_router
 from app.routers.process_router import router as process_router
 from app.utils.sheet_validation_error import SheetValidationError
 
@@ -15,8 +17,17 @@ app = FastAPI(
     redoc_url='/redoc',
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_methods=['GET', 'POST', 'OPTIONS'],
+    allow_headers=['*'],
+    expose_headers=['Content-Disposition'],
+)
+
 app.include_router(health_router)
 app.include_router(process_router)
+app.include_router(gateway_process_router)
 
 
 @app.exception_handler(ValueError)

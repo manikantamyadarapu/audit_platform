@@ -41,7 +41,7 @@ if (config.ENABLE_SWAGGER) {
     '/api-docs',
     swaggerUi.serve,
     swaggerUi.setup(openapiSpec, {
-      customSiteTitle: 'Audit Platform API — PAN',
+      customSiteTitle: 'HAA Audit Platform API — PAN',
       swaggerOptions: {
         persistAuthorization: true,
         displayRequestDuration: true,

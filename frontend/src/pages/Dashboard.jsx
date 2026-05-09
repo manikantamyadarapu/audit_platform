@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
 
 const kpis = [
   { label: 'Total Audits', value: '124', delta: '18%', tone: 'green', icon: FileSpreadsheet },
@@ -212,6 +213,7 @@ export default function Dashboard() {
           <p className="mt-2 text-base font-medium text-slate-600">Here's what's happening with your audits today.</p>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle compact className="h-14 w-14" />
           <button
             type="button"
             className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50"

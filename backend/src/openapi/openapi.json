@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Audit Platform — Node API (PAN)",
+    "title": "HAA — Audit Platform — Node API (PAN)",
     "description": "Proxies PAN Excel validation and invalid-row export to the FastAPI `python-service`. Use **Try it out** to upload a file or POST JSON.",
     "version": "1.0.0"
   },

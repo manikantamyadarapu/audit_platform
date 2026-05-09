@@ -388,6 +388,14 @@ def test_above_2_lakh_with_pan_and_pan1_both_missing_and_no_address():
     [
         ('ABCDE1234F', 'PQRST6789L'),
         ('abcde1234f', 'pqrst6789l'),
+        ('ALOPY 6826 F', 'PQRST6789L'),
+        ('ABCDE1234F', 'PQRS T6789 L'),
+        ('Form No-60', ''),
+        ('FORM NO 60', ''),
+        ('', 'US DL'),
+        ('USDL', ''),
+        ('', 'USDL -'),
+        ('us dl', ''),
     ],
 )
 def test_valid_pan_and_pan1_formats_pass_without_errors(pan_value, pan1_value):

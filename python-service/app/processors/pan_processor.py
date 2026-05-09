@@ -9,8 +9,8 @@ from app.utils.audit_row_skips import should_skip_audit_row
 from app.utils.constants import (
     ADDRESS_PROOF_MISSING_MESSAGE,
     PAN_MISSING_OR_INVALID_MESSAGE,
-    PAN_REGEX,
     SPREADSHEET_EMPTY_TOKENS,
+    is_acceptable_pan_equivalent,
 )
 from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
 from app.utils.excel_reader import ExcelReader
@@ -24,7 +24,6 @@ class PanProcessor(BaseProcessor):
 
     def __init__(self) -> None:
         self.reader = ExcelReader()
-        self._pan_pattern = re.compile(PAN_REGEX)
 
     def process(self, file_bytes: bytes) -> dict[str, Any]:
         try:
@@ -170,7 +169,7 @@ class PanProcessor(BaseProcessor):
         return ['INVALID_PAN_FORMAT']
 
     def is_valid_pan(self, pan_value: str) -> bool:
-        return bool(self._pan_pattern.fullmatch(pan_value.strip().upper()))
+        return is_acceptable_pan_equivalent(pan_value)
 
     def _validate_required_columns(self, columns: Any) -> None:
         column_set = set(columns)

@@ -1,4 +1,4 @@
-# Audit platform
+# HAA audit platform
 
 Web application for **spreadsheet-driven audits**: teams upload Excel ledgers, the stack validates structure and business rules, and the UI surfaces row-level issues (with PAN-specific export of invalid rows). The product is organised around **Scrutiny** (active checks: PAN, gross weight, sales ledger; GST and other modules are scaffolded) and **Vouching** (placeholder flows), plus dashboard, reports, and settings.
 

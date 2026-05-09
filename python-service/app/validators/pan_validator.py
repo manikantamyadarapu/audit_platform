@@ -1,8 +1,4 @@
-import re
-
-from app.utils.constants import COMMON_EMPTY_VALUES, PAN_REGEX
-
-_pan_pattern = re.compile(PAN_REGEX)
+from app.utils.constants import COMMON_EMPTY_VALUES, is_acceptable_pan_equivalent
 
 
 def is_pan_missing(value: object) -> bool:
@@ -12,7 +8,4 @@ def is_pan_missing(value: object) -> bool:
 
 
 def is_pan_valid(value: object) -> bool:
-    if value is None:
-        return False
-    text = str(value).strip().upper()
-    return bool(_pan_pattern.match(text))
+    return is_acceptable_pan_equivalent(value)
