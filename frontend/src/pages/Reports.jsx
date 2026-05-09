@@ -21,7 +21,7 @@ export default function Reports() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardBody className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
               <History className="h-6 w-6" />
             </div>
             <div>

@@ -16,8 +16,10 @@ import {
   Scale,
   Settings,
   Shield,
+  Sparkles,
   Users,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { cn } from '../../utils/cn';
 import { useAppUi } from '../../context/AppUiContext';
 import { Badge } from '../ui/Badge';
@@ -49,18 +51,26 @@ function NavItem({ to, label, icon: Icon, end, soon, collapsed, disabled, onNavi
   const inner = (isActive) => (
     <span
       className={cn(
-        'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-        disabled && 'cursor-not-allowed opacity-45',
-        !disabled && isActive && 'bg-white/10 text-white shadow-lg shadow-blue-500/10 ring-1 ring-white/10',
-        !disabled && !isActive && 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+        'group flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm font-medium transition-colors duration-150',
+        disabled && 'cursor-not-allowed opacity-40',
+        !disabled &&
+          isActive &&
+          'bg-emerald-50 font-semibold text-emerald-900 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]',
+        !disabled && !isActive && 'text-slate-600 hover:bg-slate-100/90 hover:text-slate-900'
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+      <Icon
+        className={cn(
+          'h-[18px] w-[18px] shrink-0 stroke-[1.75]',
+          !disabled && isActive && 'text-emerald-700',
+          !disabled && !isActive && 'text-slate-400 group-hover:text-slate-600'
+        )}
+      />
       {!collapsed && (
         <>
           <span className="flex-1 truncate text-left">{label}</span>
           {soon ? (
-            <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200">
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
               Soon
             </span>
           ) : null}
@@ -92,11 +102,11 @@ function NavItem({ to, label, icon: Icon, end, soon, collapsed, disabled, onNavi
 
 function SectionLabel({ collapsed, children, right }) {
   if (collapsed) {
-    return <div className="my-2 h-px w-8 self-center bg-slate-800" />;
+    return <div className="my-2 h-px w-8 self-center bg-slate-200" />;
   }
   return (
-    <div className="mb-2 mt-6 flex items-center justify-between gap-2 px-1 first:mt-0">
-      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{children}</span>
+    <div className="mb-2 mt-5 flex items-center justify-between gap-2 px-1 first:mt-0">
+      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{children}</span>
       {right}
     </div>
   );
@@ -113,32 +123,35 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 80 : 288 }}
+      animate={{ width: sidebarCollapsed ? 80 : 274 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
-      className="relative z-20 flex h-svh shrink-0 flex-col border-r border-slate-800/80 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 shadow-2xl shadow-slate-950/50"
+      className="relative z-20 flex h-svh shrink-0 flex-col border-r border-slate-200/90 bg-[var(--color-sidebar)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.18),_transparent_55%)]" />
-
       <div
         className={cn(
-          'relative flex gap-3 px-4 py-6',
+          'flex gap-3 border-b border-slate-200/60 px-4 py-6',
           sidebarCollapsed ? 'flex-col items-center' : 'items-start justify-between'
         )}
       >
         {!sidebarCollapsed ? (
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300/90">Enterprise</p>
-            <p className="mt-1 truncate text-lg font-semibold tracking-tight text-white">Audit Platform</p>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 shadow-md shadow-emerald-500/25">
+              <Sparkles className="h-5 w-5 text-white" strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-tight text-slate-900">Audit Platform</p>
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Scrutiny suite</p>
+            </div>
           </div>
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-xs font-bold text-white shadow-lg shadow-blue-600/40">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 text-sm font-bold text-white shadow-md">
             AP
           </div>
         )}
         <button
           type="button"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+          className="shrink-0 rounded-[12px] border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -146,16 +159,16 @@ export function Sidebar() {
       </div>
 
       {!sidebarCollapsed && (
-        <div className="relative mx-4 mb-4 rounded-xl border border-white/10 bg-white/5 p-1">
+        <div className="mx-4 mt-4 rounded-[14px] border border-slate-200/80 bg-white p-1 shadow-[0_2px_12px_rgba(15,23,42,0.04)]">
           <div className="grid grid-cols-2 gap-1">
             <button
               type="button"
               onClick={() => setDivision('scrutiny')}
               className={cn(
-                'rounded-lg px-2 py-2 text-xs font-semibold transition',
+                'rounded-xl px-2 py-2 text-xs font-semibold transition',
                 division === 'scrutiny'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
               )}
             >
               Scrutiny
@@ -164,10 +177,10 @@ export function Sidebar() {
               type="button"
               onClick={() => setDivision('vouching')}
               className={cn(
-                'rounded-lg px-2 py-2 text-xs font-semibold transition',
+                'rounded-xl px-2 py-2 text-xs font-semibold transition',
                 division === 'vouching'
-                  ? 'bg-slate-700 text-white ring-1 ring-white/10'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
               )}
             >
               Vouching
@@ -176,18 +189,18 @@ export function Sidebar() {
         </div>
       )}
 
-      <nav className="relative flex-1 overflow-y-auto px-3 pb-8 scrollbar-thin">
-        <SectionLabel collapsed={sidebarCollapsed}>Main</SectionLabel>
+      <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-6 pt-4 scrollbar-thin">
+        <SectionLabel collapsed={sidebarCollapsed}>Menu</SectionLabel>
         {mainNav.map((item) => (
           <NavItem key={item.to} {...item} collapsed={sidebarCollapsed} />
         ))}
 
-        <SectionLabel collapsed={sidebarCollapsed}>Scrutiny Services</SectionLabel>
+        <SectionLabel collapsed={sidebarCollapsed}>Scrutiny</SectionLabel>
         {!sidebarCollapsed && (
           <button
             type="button"
             onClick={() => setOpenScrutiny((o) => !o)}
-            className="mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            className="mb-1 flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-xs font-semibold text-slate-500 transition hover:bg-slate-100/80 hover:text-slate-800"
           >
             <span>Modules</span>
             <ChevronDown className={cn('h-4 w-4 transition', openScrutiny && 'rotate-180')} />
@@ -217,19 +230,19 @@ export function Sidebar() {
           collapsed={sidebarCollapsed}
           right={
             !sidebarCollapsed ? (
-              <Badge tone="slate" className="!normal-case !tracking-normal !text-[9px]">
+              <Badge tone="neutral" className="!normal-case !tracking-normal !text-[9px]">
                 On hold
               </Badge>
             ) : null
           }
         >
-          Vouching Division
+          Vouching
         </SectionLabel>
         {!sidebarCollapsed && (
           <button
             type="button"
             onClick={() => setOpenVouching((o) => !o)}
-            className="mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-500 hover:bg-white/5 hover:text-slate-300"
+            className="mb-1 flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-xs font-semibold text-slate-400 transition hover:bg-slate-100/80 hover:text-slate-700"
           >
             <span>Modules</span>
             <ChevronDown className={cn('h-4 w-4 transition', openVouching && 'rotate-180')} />
@@ -254,11 +267,32 @@ export function Sidebar() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="mt-auto flex flex-col gap-2 pt-6">
+          {!sidebarCollapsed ? (
+            <>
+              <button
+                type="button"
+                className="w-full rounded-[14px] border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                onClick={() => toast('Release notes ship with deployment tags.', { icon: '📝' })}
+              >
+                Release notes
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-[14px] px-3 py-2 text-left text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+                onClick={() => toast('Connect SSO to enable sign-out from this workspace.', { icon: '🔐' })}
+              >
+                Log out
+              </button>
+            </>
+          ) : null}
+        </div>
       </nav>
 
       {!sidebarCollapsed && (
-        <div className="relative border-t border-white/5 px-4 py-4 text-[10px] leading-relaxed text-slate-500">
-          Signed path · {location.pathname}
+        <div className="border-t border-slate-200/80 px-4 py-3 text-[10px] leading-relaxed text-slate-400">
+          {location.pathname}
         </div>
       )}
     </motion.aside>

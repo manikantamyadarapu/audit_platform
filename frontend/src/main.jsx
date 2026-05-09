@@ -17,11 +17,11 @@ createRoot(document.getElementById('root')).render(
           toastOptions={{
             duration: 4200,
             style: {
-              borderRadius: '14px',
-              background: 'rgba(15,23,42,0.94)',
-              color: '#f8fafc',
-              border: '1px solid rgba(148,163,184,0.25)',
-              boxShadow: '0 18px 40px rgba(15,23,42,0.35)',
+              borderRadius: '16px',
+              background: 'rgba(255,255,255,0.97)',
+              color: '#0f172a',
+              border: '1px solid rgba(226,232,240,0.95)',
+              boxShadow: '0 14px 40px rgba(15,23,42,0.1)',
             },
           }}
         />

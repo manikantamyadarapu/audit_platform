@@ -38,7 +38,7 @@ export default function Settings() {
         </CardHeader>
         <CardBody>
           <div className="flex gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5">
-            <Shield className="h-10 w-10 shrink-0 text-blue-600" strokeWidth={1.25} />
+            <Shield className="h-10 w-10 shrink-0 text-emerald-600" strokeWidth={1.25} />
             <div>
               <p className="text-sm font-semibold text-slate-900">Internal deployment checklist</p>
               <ul className="mt-3 list-inside list-disc space-y-2 text-sm text-slate-600">

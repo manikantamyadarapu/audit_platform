@@ -2,19 +2,17 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
-import { TopFloatingNav } from './TopFloatingNav';
 
 export function AppLayout() {
   const location = useLocation();
 
   return (
     <div className="flex min-h-svh w-full">
-      <TopFloatingNav />
       <Sidebar />
-      <div className="flex min-h-svh min-w-0 flex-1 flex-col pt-[4.75rem] sm:pt-[5.25rem]">
+      <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         <TopNavbar />
         <main className="relative flex-1 overflow-x-hidden px-4 py-8 sm:px-6 lg:px-10">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.06),_transparent_50%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_80%_-10%,rgba(16,185,129,0.06),transparent_52%)]" />
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

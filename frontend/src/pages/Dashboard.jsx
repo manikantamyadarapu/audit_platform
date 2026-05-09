@@ -74,24 +74,28 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white/90 via-white/70 to-blue-50/40 p-8 shadow-[var(--shadow-float)] backdrop-blur-xl sm:p-10"
+        className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-8 shadow-[var(--shadow-glass)] sm:p-10"
       >
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 left-10 h-72 w-72 rounded-full bg-indigo-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-emerald-100/60 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-48 w-48 rounded-full bg-sky-100/50 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-700">Welcome back</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            <p className="text-sm font-medium text-emerald-700">Welcome back</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
               Audit Operations Center
             </h2>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
               Scrutiny-grade controls with a calm enterprise workspace. Upload ledgers, validate PAN exposure,
               and ship audit-ready exports without leaving the browser.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Badge tone="blue">Internal · Confidential</Badge>
-            <Badge tone="emerald">Live · Scrutiny</Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="neutral" caps={false}>
+              Internal · Confidential
+            </Badge>
+            <Badge tone="emerald" caps={false}>
+              Live · Scrutiny
+            </Badge>
           </div>
         </div>
       </motion.section>
@@ -131,7 +135,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => navigate('/reports')}
-            className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900 sm:flex"
+            className="hidden items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-900 sm:flex"
           >
             View history
             <ArrowRight className="h-4 w-4" />
@@ -191,7 +195,7 @@ export default function Dashboard() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4 backdrop-blur-sm"
+                className="rounded-[14px] border border-slate-100 bg-slate-50/80 p-4"
               >
                 <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.detail}</p>
@@ -211,9 +215,9 @@ export default function Dashboard() {
                 <span
                   className={cn(
                     'mt-1.5 h-2 w-2 shrink-0 rounded-full',
-                    a.tone === 'success' && 'bg-emerald-500',
-                    a.tone === 'warn' && 'bg-amber-500',
-                    (!a.tone || a.tone === 'info') && 'bg-blue-500'
+                    a.tone === 'success' && 'bg-emerald-400',
+                    a.tone === 'warn' && 'bg-amber-400',
+                    (!a.tone || a.tone === 'info') && 'bg-sky-400'
                   )}
                 />
                 <div>

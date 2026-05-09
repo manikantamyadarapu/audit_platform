@@ -20,7 +20,7 @@ export default function VouchingHub() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Vouching</h2>
-          <Badge tone="slate">On hold</Badge>
+          <Badge tone="neutral">On hold</Badge>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
           Division navigation stays visible for continuity. Sub-modules open placeholder screens until business resumes

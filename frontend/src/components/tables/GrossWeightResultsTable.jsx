@@ -199,7 +199,7 @@ export function GrossWeightResultsTable({ data }) {
                   <tr
                     key={row.id}
                     className={cn(
-                      'border-b border-slate-100/90 transition-colors hover:bg-blue-50/40',
+                      'border-b border-slate-100/90 transition-colors hover:bg-emerald-50/35',
                       i % 2 === 1 && 'bg-slate-50/40'
                     )}
                   >

@@ -96,7 +96,7 @@ export default function PanVerification() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 backdrop-blur-sm"
           >
             <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
-              <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+              <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
               <p className="mt-4 text-sm font-semibold text-slate-800">Validating workbook…</p>
               <p className="mt-1 text-xs text-slate-500">Forwarding secure multipart upload to gateway</p>
             </div>
