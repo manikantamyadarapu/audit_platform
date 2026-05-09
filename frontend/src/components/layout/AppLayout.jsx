@@ -5,14 +5,14 @@ import { TopNavbar } from './TopNavbar';
 
 export function AppLayout() {
   const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
-    <div className="flex min-h-svh w-full">
+    <div className="flex min-h-svh w-full bg-transparent text-slate-950">
       <Sidebar />
       <div className="flex min-h-svh min-w-0 flex-1 flex-col">
-        <TopNavbar />
-        <main className="relative flex-1 overflow-x-hidden px-4 py-8 sm:px-6 lg:px-10">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_80%_-10%,rgba(16,185,129,0.06),transparent_52%)]" />
+        {!isDashboard ? <TopNavbar /> : null}
+        <main className="relative flex-1 overflow-x-hidden bg-transparent px-5 py-6 lg:px-7">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -20,7 +20,7 @@ export function AppLayout() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.22 }}
-              className="relative mx-auto max-w-[1400px]"
+              className="relative mx-auto max-w-[1500px]"
             >
               <Outlet />
             </motion.div>

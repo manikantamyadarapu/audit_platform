@@ -51,14 +51,14 @@ export function FileUploadZone({
           if (f) onFileChange(f);
         }}
       />
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 text-white shadow-md shadow-emerald-500/25">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-teal-400 to-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]">
         <CloudUpload className="h-7 w-7" strokeWidth={1.5} />
       </div>
       <p className="mt-4 text-base font-semibold text-slate-900">Drag &amp; drop Excel file</p>
       <p className="mt-1 text-sm text-slate-500">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
 
       {file ? (
-        <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.08)]">
           <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600" />
           <span className="truncate text-sm font-medium text-slate-800">{file.name}</span>
         </div>
