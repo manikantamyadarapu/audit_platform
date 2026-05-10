@@ -12,15 +12,27 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  FileText,
   Search,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 import { cn } from '../../utils/cn';
-import { formatNumber } from '../../utils/format';
 import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
+import { exportRowsToPdf } from '../../utils/pdfExport';
+
+const SALES_EXPORT_COLS = [
+  { header: 'Row Number', accessor: (r) => r.rowNumber },
+  { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
+  { header: 'Sales Account', accessor: (r) => r.salesAccount ?? '' },
+  { header: 'Product', accessor: (r) => r.product ?? '' },
+  { header: 'Expected Category', accessor: (r) => r.expectedSalesAccountCategory ?? '' },
+  { header: 'Predicted Category', accessor: (r) => r.predictedCategory ?? '' },
+  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
+  { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
+];
 
 function salesGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
@@ -33,8 +45,6 @@ function salesGlobalFilter(row, _columnId, filterValue) {
     r.product,
     r.expectedSalesAccountCategory,
     r.predictedCategory,
-    r.manualGrossWt,
-    r.autoGrossWt,
     ...(Array.isArray(r.issues) ? r.issues : []),
     ...(Array.isArray(r.messages) ? r.messages : []),
   ]
@@ -88,20 +98,6 @@ export function SalesResultsTable({ data }) {
         header: 'Predicted category',
         cell: (info) => (
           <span className="text-xs text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'manualGrossWt',
-        header: 'Manual gross wt',
-        cell: (info) => (
-          <span className="font-mono text-xs text-slate-800">{formatNumber(info.getValue())}</span>
-        ),
-      },
-      {
-        accessorKey: 'autoGrossWt',
-        header: 'Auto gross wt',
-        cell: (info) => (
-          <span className="font-mono text-xs text-slate-800">{formatNumber(info.getValue())}</span>
         ),
       },
       {
@@ -159,23 +155,18 @@ export function SalesResultsTable({ data }) {
     initialState: { pagination: { pageSize: 10 } },
   });
 
+  const filteredRows = () => table.getFilteredRowModel().rows.map((r) => r.original);
+
   const exportCsv = () => {
-    const cols = [
-      { header: 'Row Number', accessor: (r) => r.rowNumber },
-      { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
-      { header: 'Sales Account', accessor: (r) => r.salesAccount ?? '' },
-      { header: 'Product', accessor: (r) => r.product ?? '' },
-      { header: 'Expected Category', accessor: (r) => r.expectedSalesAccountCategory ?? '' },
-      { header: 'Predicted Category', accessor: (r) => r.predictedCategory ?? '' },
-      { header: 'Manual Gross Wt', accessor: (r) => r.manualGrossWt ?? '' },
-      { header: 'Auto Gross Wt', accessor: (r) => r.autoGrossWt ?? '' },
-      { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-      { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
-    ];
-    exportRowsToCsv(
-      `sales-ledger-results-${Date.now()}.csv`,
-      cols,
-      table.getFilteredRowModel().rows.map((r) => r.original)
+    exportRowsToCsv(`sales-ledger-results-${Date.now()}.csv`, SALES_EXPORT_COLS, filteredRows());
+  };
+
+  const exportPdf = () => {
+    exportRowsToPdf(
+      `sales-ledger-results-${Date.now()}.pdf`,
+      'Sales ledger audit — issue register',
+      SALES_EXPORT_COLS,
+      filteredRows()
     );
   };
 
@@ -191,15 +182,21 @@ export function SalesResultsTable({ data }) {
             className="pl-10"
           />
         </div>
-        <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="secondary" size="md" onClick={exportPdf} disabled={!data.length}>
+            <FileText className="h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[960px] w-full text-left text-sm">
+          <table className="data-table min-w-[720px] w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">

@@ -2,17 +2,17 @@ import { cn } from '../../utils/cn';
 
 const variants = {
   primary:
-    'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20 hover:bg-emerald-600 hover:shadow-emerald-500/25 active:scale-[0.98]',
+    'bg-emerald-500 text-white shadow-[0_10px_24px_rgba(16,185,129,0.24)] hover:bg-emerald-600 hover:shadow-[0_12px_28px_rgba(16,185,129,0.28)] active:scale-[0.98]',
   secondary:
-    'border border-slate-200 bg-white text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:border-slate-300 hover:bg-slate-50/90 active:scale-[0.98]',
+    'border border-slate-200 bg-white text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-slate-50/90 active:scale-[0.98]',
   ghost: 'text-slate-600 hover:bg-slate-100 active:scale-[0.98]',
-  danger: 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm shadow-rose-500/15 active:scale-[0.98]',
+  danger: 'bg-rose-500 text-white hover:bg-rose-600 shadow-[0_10px_24px_rgba(244,63,94,0.22)] active:scale-[0.98]',
 };
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-xs rounded-[11px] gap-1.5',
-  md: 'px-4 py-2.5 text-sm rounded-[13px] gap-2',
-  lg: 'px-5 py-3 text-sm rounded-[14px] gap-2',
+  sm: 'h-9 px-4 text-xs rounded-full gap-1.5',
+  md: 'h-12 px-5 text-sm rounded-full gap-2.5',
+  lg: 'h-14 px-6 text-sm rounded-full gap-3',
 };
 
 export function Button({

@@ -4,7 +4,7 @@
   --font-sans: 'Inter', 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-surface-page: #f4f6f9;
+  --color-surface-page: #f8fafc;
   --color-surface-elevated: #ffffff;
   --color-sidebar: #fafbfc;
 
@@ -32,11 +32,150 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
-  background: var(--color-surface-page);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent-soft, #dcfce7) 55%, transparent), transparent 30rem),
+    var(--color-surface-page);
+  color: var(--color-text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 #root {
   min-height: 100dvh;
+}
+
+:root {
+  --color-accent-soft: #dcfce7;
+  --color-surface-page: #f8fafc;
+  --color-surface-muted: #f8fafc;
+  --color-surface-subtle: #f1f5f9;
+  --color-surface-elevated: #ffffff;
+  --color-surface-overlay: rgba(255, 255, 255, 0.92);
+  --color-border-soft: rgba(226, 232, 240, 0.86);
+  --color-border-strong: rgba(203, 213, 225, 0.9);
+  --color-text-primary: #020617;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-faint: #94a3b8;
+  --shadow-glass: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-float: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+:root.dark {
+  --color-accent-soft: #064e3b;
+  --color-surface-page: #070b13;
+  --color-surface-muted: #0f172a;
+  --color-surface-subtle: #111827;
+  --color-surface-elevated: #111827;
+  --color-surface-overlay: rgba(15, 23, 42, 0.9);
+  --color-border-soft: rgba(51, 65, 85, 0.78);
+  --color-border-strong: rgba(71, 85, 105, 0.86);
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-text-faint: #64748b;
+  --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.28), 0 16px 42px rgba(0, 0, 0, 0.28);
+  --shadow-float: 0 18px 55px rgba(0, 0, 0, 0.34);
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.18), transparent 32rem),
+    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 28rem),
+    var(--color-surface-page);
+}
+
+.dark :where(
+  [class~="bg-white"],
+  [class~="bg-white/80"],
+  [class~="bg-white/90"],
+  [class~="bg-slate-50"],
+  [class~="bg-slate-50/40"],
+  [class~="bg-slate-50/50"],
+  [class~="bg-slate-50/60"],
+  [class~="bg-slate-50/70"],
+  [class~="bg-slate-50/90"]
+) {
+  background-color: var(--color-surface-elevated);
+}
+
+.dark :where(
+  [class~="bg-slate-100"],
+  [class~="bg-slate-100/90"]
+) {
+  background-color: var(--color-surface-subtle);
+}
+
+.dark :where(
+  [class~="border-slate-100"],
+  [class~="border-slate-100/90"],
+  [class~="border-slate-200"],
+  [class~="border-slate-200/70"],
+  [class~="border-slate-200/80"],
+  [class~="border-slate-200/90"],
+  [class~="border-white/40"],
+  [class~="ring-slate-200/80"]
+) {
+  border-color: var(--color-border-soft);
+  --tw-ring-color: var(--color-border-soft);
+}
+
+.dark :where([class~="border-slate-300"]) {
+  border-color: var(--color-border-strong);
+}
+
+.dark :where(
+  [class~="text-slate-950"],
+  [class~="text-slate-900"],
+  [class~="text-slate-800"]
+) {
+  color: var(--color-text-primary);
+}
+
+.dark :where(
+  [class~="text-slate-700"],
+  [class~="text-slate-600"]
+) {
+  color: var(--color-text-secondary);
+}
+
+.dark :where([class~="text-slate-500"]) {
+  color: var(--color-text-muted);
+}
+
+.dark :where([class~="text-slate-400"]) {
+  color: var(--color-text-faint);
+}
+
+.dark :where(
+  [class~="placeholder:text-slate-400"]::placeholder
+) {
+  color: var(--color-text-faint);
+}
+
+.dark :where(
+  [class~="shadow-slate-200/40"]
+) {
+  --tw-shadow-color: rgba(15, 23, 42, 0.7);
+}
+
+.dark :where(
+  [class~="hover:bg-slate-50"]:hover,
+  [class~="hover:bg-slate-50/90"]:hover,
+  [class~="hover:bg-slate-100"]:hover
+) {
+  background-color: #1e293b;
+}
+
+.dark :where(
+  [class~="hover:text-slate-800"]:hover,
+  [class~="hover:text-slate-900"]:hover,
+  [class~="hover:text-slate-950"]:hover
+) {
+  color: #f8fafc;
+}
+
+.dark :where([class~="hover:border-slate-300"]:hover) {
+  border-color: var(--color-border-strong);
 }
 
 /* TanStack table density */

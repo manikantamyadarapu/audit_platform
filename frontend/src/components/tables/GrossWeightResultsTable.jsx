@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  FileText,
   Search,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -21,6 +22,16 @@ import { cn } from '../../utils/cn';
 import { formatNumber } from '../../utils/format';
 import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
+import { exportRowsToPdf } from '../../utils/pdfExport';
+
+const GROSS_EXPORT_COLS = [
+  { header: 'Row Number', accessor: (r) => r.rowNumber },
+  { header: 'Manual Gross', accessor: (r) => r.manualGrossWeight ?? '' },
+  { header: 'Auto Gross', accessor: (r) => r.autoGrossWeight ?? '' },
+  { header: 'Difference', accessor: (r) => r.difference ?? '' },
+  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
+  { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
+];
 
 function grossGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
@@ -127,19 +138,18 @@ export function GrossWeightResultsTable({ data }) {
     initialState: { pagination: { pageSize: 10 } },
   });
 
+  const filteredRows = () => table.getFilteredRowModel().rows.map((r) => r.original);
+
   const exportCsv = () => {
-    const cols = [
-      { header: 'Row Number', accessor: (r) => r.rowNumber },
-      { header: 'Manual Gross', accessor: (r) => r.manualGrossWeight ?? '' },
-      { header: 'Auto Gross', accessor: (r) => r.autoGrossWeight ?? '' },
-      { header: 'Difference', accessor: (r) => r.difference ?? '' },
-      { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-      { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
-    ];
-    exportRowsToCsv(
-      `gross-weight-results-${Date.now()}.csv`,
-      cols,
-      table.getFilteredRowModel().rows.map((r) => r.original)
+    exportRowsToCsv(`gross-weight-results-${Date.now()}.csv`, GROSS_EXPORT_COLS, filteredRows());
+  };
+
+  const exportPdf = () => {
+    exportRowsToPdf(
+      `gross-weight-results-${Date.now()}.pdf`,
+      'Gross weight audit — issue register',
+      GROSS_EXPORT_COLS,
+      filteredRows()
     );
   };
 
@@ -151,14 +161,20 @@ export function GrossWeightResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search row, weights, issues, messages..."
+            placeholder="Search row, weights, issues, messages…"
             className="pl-10"
           />
         </div>
-        <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="secondary" size="md" onClick={exportPdf} disabled={!data.length}>
+            <FileText className="h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">

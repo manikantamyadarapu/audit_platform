@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const AppUiContext = createContext(null);
+const THEME_STORAGE_KEY = 'audit-platform-theme';
 
 const seedActivities = [
   { id: '1', text: 'PAN workbook uploaded · Finance batch Q4', tone: 'info' },
@@ -11,6 +12,12 @@ const seedActivities = [
 
 export function AppUiProvider({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light';
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const [division, setDivision] = useState('scrutiny');
   const [sessionStats, setSessionStats] = useState({
     filesProcessed: 0,
@@ -49,10 +56,25 @@ export function AppUiProvider({ children }) {
     pushActivity('Invalid PAN rows exported to Excel', 'success');
   }, [pushActivity]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  }, []);
+
   const value = useMemo(
     () => ({
       sidebarCollapsed,
       setSidebarCollapsed,
+      theme,
+      setTheme,
+      toggleTheme,
       division,
       setDivision,
       sessionStats,
@@ -60,7 +82,7 @@ export function AppUiProvider({ children }) {
       recordPanValidation,
       recordExport,
     }),
-    [sidebarCollapsed, division, sessionStats, activities, recordPanValidation, recordExport]
+    [sidebarCollapsed, theme, toggleTheme, division, sessionStats, activities, recordPanValidation, recordExport]
   );
 
   return <AppUiContext.Provider value={value}>{children}</AppUiContext.Provider>;

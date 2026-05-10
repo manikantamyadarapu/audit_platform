@@ -4,6 +4,7 @@ import { Bell, Search, UploadCloud, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../utils/cn';
 
 const TITLE_MAP = [
@@ -23,7 +24,7 @@ const TITLE_MAP = [
 
 function matchTitle(pathname) {
   const found = TITLE_MAP.find((m) => m.test.test(pathname));
-  return found?.title ?? 'Audit Platform';
+  return found?.title ?? 'Overview';
 }
 
 function greetingLine() {
@@ -54,7 +55,7 @@ export function TopNavbar() {
       <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem]">
-            {greeting}, Audit Platform
+            {greeting}, HAA
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-500">{dateLine}</p>
           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Current view · {viewTitle}</p>
@@ -64,7 +65,7 @@ export function TopNavbar() {
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              className="rounded-[14px] border-slate-200/90 bg-slate-50/80 pl-11 shadow-none"
+              className="border-slate-200/90 bg-white pl-11"
               placeholder="Search modules, reports…"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -75,20 +76,17 @@ export function TopNavbar() {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button
-              variant="primary"
-              size="md"
-              className="rounded-[14px]"
-              onClick={() => navigate('/scrutiny/pan')}
-            >
+            <Button variant="primary" size="md" onClick={() => navigate('/scrutiny/pan')}>
               <UploadCloud className="h-4 w-4" />
               Quick upload
             </Button>
 
+            <ThemeToggle compact />
+
             <button
               type="button"
               className={cn(
-                'flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-[0_2px_8px_rgba(15,23,42,0.06)] transition hover:border-slate-300 hover:text-slate-800'
+                'flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
               )}
               aria-label="Notifications"
               onClick={() => toast('No new notifications.', { icon: '🔔' })}
@@ -96,8 +94,8 @@ export function TopNavbar() {
               <Bell className="h-5 w-5" strokeWidth={1.5} />
             </button>
 
-            <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-emerald-100 text-teal-700">
+            <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-1.5 pr-5 shadow-[0_8px_22px_rgba(15,23,42,0.08)]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                 <User className="h-4 w-4" strokeWidth={1.75} />
               </span>
               <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-800 sm:inline">Audit operator</span>
