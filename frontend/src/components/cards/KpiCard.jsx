@@ -22,16 +22,41 @@ const accentMap = {
   },
 };
 
-export function KpiCard({ icon: Icon, label, value, hint, accent = 'blue', delay = 0 }) {
+export function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  accent = 'blue',
+  delay = 0,
+  interactive = false,
+  selected = false,
+  onClick,
+}) {
   const a = accentMap[accent] || accentMap.blue;
+
+  const handleKeyDown = (e) => {
+    if (!interactive || !onClick) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick(e);
+    }
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay }}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={interactive ? onClick : undefined}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'relative overflow-hidden rounded-[18px] border border-slate-200/70 bg-white p-5 shadow-[var(--shadow-glass)]'
+        'relative overflow-hidden rounded-[18px] border border-slate-200/70 bg-white p-5 shadow-[var(--shadow-glass)]',
+        interactive && 'cursor-pointer select-none transition-[box-shadow,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40',
+        interactive && selected && 'ring-2 ring-sky-400/35 shadow-[var(--shadow-glass),0_0_0_1px_rgba(56,189,248,0.12)]',
+        interactive && !selected && 'hover:opacity-[0.97]'
       )}
     >
       <div className="flex items-start justify-between gap-3">

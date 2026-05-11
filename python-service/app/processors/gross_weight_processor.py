@@ -11,10 +11,11 @@ from app.utils.constants import (
     NEGATIVE_WEIGHT_MESSAGE,
     SPREADSHEET_EMPTY_TOKENS,
 )
+from app.config.settings import get_settings
 from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
 from app.utils.excel_reader import ExcelReader
 from app.utils.response_builder import build_processing_response
-from app.utils.weight_decimal import parse_weight_decimal, quantize_weight
+from app.utils.weight_decimal import parse_weight_decimal
 
 
 def _gross_header_row_ok(labels: set[str]) -> bool:
@@ -28,6 +29,7 @@ class GrossWeightProcessor(BaseProcessor):
 
     def __init__(self) -> None:
         self.reader = ExcelReader()
+        self._match_epsilon = Decimal(str(get_settings().gross_weight_match_epsilon))
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
@@ -88,11 +90,11 @@ class GrossWeightProcessor(BaseProcessor):
                 negative_value_violations += 1
                 issues.append('NEGATIVE_WEIGHT_VALUES')
                 messages.append(NEGATIVE_WEIGHT_MESSAGE)
-            elif quantize_weight(man_dec) != quantize_weight(auto_dec):
+            elif abs(man_dec - auto_dec) > self._match_epsilon:
                 mismatch_count += 1
                 issues.append('GROSS_WEIGHT_MISMATCH')
                 messages.append(GROSS_WEIGHT_MISMATCH_MESSAGE)
-            elif quantize_weight(effective_diff) != Decimal('0.00'):
+            elif abs(effective_diff) > self._match_epsilon:
                 difference_violations += 1
                 issues.append('GROSS_WEIGHT_DIFFERENCE_VIOLATION')
                 messages.append(GROSS_WEIGHT_DIFFERENCE_MESSAGE)
