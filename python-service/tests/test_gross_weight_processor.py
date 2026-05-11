@@ -31,6 +31,41 @@ def test_matching_positive_weights_pass() -> None:
     assert result['summary']['negativeValueViolations'] == 0
 
 
+def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> None:
+    """Sub-cent differences used to round away at 0.01 — epsilon default 0.001 catches them."""
+    processor = GrossWeightProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            {
+                'Voucher No': 'V1',
+                'Manual Gross Weight': 10.5,
+                'Auto Gross Weight': 10.502,
+                'Difference': 0.0,
+            }
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 1
+    assert result['summary']['mismatchCount'] == 1
+    assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
+
+
+def test_manual_auto_within_epsilon_passes() -> None:
+    processor = GrossWeightProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            {
+                'Voucher No': 'V1',
+                'Manual Gross Weight': 10.5,
+                'Auto Gross Weight': 10.5004,
+                'Difference': 0.0,
+            }
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+
+
 def test_manual_auto_mismatch_counts_mismatch_only() -> None:
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(

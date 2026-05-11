@@ -3,19 +3,15 @@ node_modules/
 dist/
 build/
 .env
-
 # Python
 __pycache__/
 *.pyc
 venv/
 .pytest_cache/
-
 # Editor / local history (Cursor, VS Code)
 .history/
-
 # OS
 .DS_Store
 Thumbs.db
-
 # Logs
 *.log

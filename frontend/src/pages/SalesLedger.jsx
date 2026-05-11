@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   BookOpen,
   Loader2,
@@ -15,12 +15,12 @@ import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SalesResultsTable } from '../components/tables/SalesResultsTable';
-import {
-  validateSalesExcel,
-  exportInvalidSalesRows,
-} from '../services/processExcelService';
+import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
+import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
+import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
+import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 
 export default function SalesLedger() {
   const [file, setFile] = useState(null);
@@ -28,6 +28,7 @@ export default function SalesLedger() {
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
   const [sheetError, setSheetError] = useState(null);
+  const [activeFilter, setActiveFilter] = useState(null);
 
   const runValidation = useCallback(async () => {
     if (!file) {
@@ -38,6 +39,7 @@ export default function SalesLedger() {
     setLoading(true);
     setResult(null);
     setSheetError(null);
+    setActiveFilter(null);
     try {
       const data = await validateSalesExcel(file, ac.signal);
       if (data && data.success === false) {
@@ -57,29 +59,30 @@ export default function SalesLedger() {
     }
   }, [file]);
 
-  const runExport = useCallback(async () => {
-    const records = result?.records;
-    if (!Array.isArray(records) || records.length === 0) {
-      toast.error('No invalid rows to export.');
+  const rawRecords = result?.records;
+  const filteredRecords = useMemo(
+    () => filterSalesRecords(rawRecords, activeFilter),
+    [rawRecords, activeFilter]
+  );
+
+  const toggleCardFilter = useCallback((key) => {
+    setActiveFilter((prev) => (prev === key ? null : key));
+  }, []);
+
+  const runExport = useCallback(() => {
+    if (!filteredRecords.length) {
+      toast.error('No rows to export.');
       return;
     }
-    const ac = new AbortController();
     setExporting(true);
     try {
-      const { blob, filename } = await exportInvalidSalesRows(records, ac.signal);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+      downloadSalesRecordsXlsx(filteredRecords, `sales-rows-${tag}-${Date.now()}.xlsx`);
       toast.success('Excel export downloaded');
-    } catch (e) {
-      toast.error(e.message || 'Export failed');
     } finally {
       setExporting(false);
     }
-  }, [result]);
+  }, [filteredRecords, activeFilter]);
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
@@ -173,14 +176,33 @@ export default function SalesLedger() {
           <section>
             <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <KpiCard label="Total rows" value={formatNumber(totalRows)} icon={Rows3} accent="blue" />
-              <KpiCard label="Error rows" value={formatNumber(errorRows)} icon={AlertTriangle} accent="amber" />
+              <KpiCard
+                label="Total rows"
+                value={formatNumber(totalRows)}
+                icon={Rows3}
+                accent="blue"
+                interactive
+                selected={activeFilter === 'total'}
+                onClick={() => toggleCardFilter('total')}
+              />
+              <KpiCard
+                label="Error rows"
+                value={formatNumber(errorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+                interactive
+                selected={activeFilter === 'errors'}
+                onClick={() => toggleCardFilter('errors')}
+              />
               <KpiCard
                 label="Account vs product"
                 value={formatNumber(catVsProduct)}
                 hint="Classifier mismatch / missing category"
                 icon={BookOpen}
                 accent="rose"
+                interactive
+                selected={activeFilter === 'accountVsProduct'}
+                onClick={() => toggleCardFilter('accountVsProduct')}
               />
               <KpiCard
                 label="Mixed ledgers"
@@ -188,6 +210,9 @@ export default function SalesLedger() {
                 hint="Product vs dominant sales account"
                 icon={BookOpen}
                 accent="amber"
+                interactive
+                selected={activeFilter === 'mixedLedgers'}
+                onClick={() => toggleCardFilter('mixedLedgers')}
               />
               <KpiCard
                 label="Gross weight gaps"
@@ -195,6 +220,9 @@ export default function SalesLedger() {
                 hint="Manual vs auto exceeds tolerance"
                 icon={BookOpen}
                 accent="violet"
+                interactive
+                selected={activeFilter === 'grossWeightGaps'}
+                onClick={() => toggleCardFilter('grossWeightGaps')}
               />
               <KpiCard
                 label="Compliance"
@@ -202,6 +230,9 @@ export default function SalesLedger() {
                 hint="Clean rows / total rows"
                 icon={Rows3}
                 accent="emerald"
+                interactive
+                selected={activeFilter === 'compliance'}
+                onClick={() => toggleCardFilter('compliance')}
               />
             </div>
           </section>
@@ -217,7 +248,7 @@ export default function SalesLedger() {
                   variant="primary"
                   size="md"
                   loading={exporting}
-                  disabled={exporting || !result.records?.length}
+                  disabled={exporting || filteredRecords.length === 0}
                   onClick={runExport}
                 >
                   <Download className="h-4 w-4" />
@@ -226,8 +257,16 @@ export default function SalesLedger() {
               </div>
             </CardHeader>
             <CardBody>
-              {result.records?.length ? (
-                <SalesResultsTable data={result.records} />
+              {result.records?.length || activeFilter != null ? (
+                <div className="space-y-4">
+                  <AuditFilterStrip
+                    activeFilter={activeFilter}
+                    labels={SALES_FILTER_LABELS}
+                    count={filteredRecords.length}
+                    onClear={() => setActiveFilter(null)}
+                  />
+                  <SalesResultsTable data={filteredRecords} />
+                </div>
               ) : (
                 <EmptyState
                   title="No issues detected"

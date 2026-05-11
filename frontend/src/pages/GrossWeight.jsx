@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Scale, Loader2, AlertTriangle, Rows3, Download, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
@@ -8,17 +8,18 @@ import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { GrossWeightResultsTable } from '../components/tables/GrossWeightResultsTable';
 import toast from 'react-hot-toast';
-import {
-  validateGrossWeightExcel,
-  exportInvalidGrossWeightRows,
-} from '../services/processExcelService';
+import { validateGrossWeightExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
+import { filterGrossWeightRecords, GROSS_FILTER_LABELS } from '../utils/grossRecordFilters';
+import { downloadGrossWeightRecordsXlsx } from '../utils/grossXlsxExport';
+import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 
 export default function GrossWeight() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
+  const [activeFilter, setActiveFilter] = useState(null);
 
   const runComparison = useCallback(async () => {
     if (!file) {
@@ -28,6 +29,7 @@ export default function GrossWeight() {
     const ac = new AbortController();
     setLoading(true);
     setResult(null);
+    setActiveFilter(null);
     try {
       const data = await validateGrossWeightExcel(file, ac.signal);
       if (data && data.success === false) {
@@ -44,29 +46,30 @@ export default function GrossWeight() {
     }
   }, [file]);
 
-  const runExport = useCallback(async () => {
-    const records = result?.records;
-    if (!Array.isArray(records) || records.length === 0) {
-      toast.error('No invalid rows to export.');
+  const rawRecords = result?.records;
+  const filteredRecords = useMemo(
+    () => filterGrossWeightRecords(rawRecords, activeFilter),
+    [rawRecords, activeFilter]
+  );
+
+  const toggleCardFilter = useCallback((key) => {
+    setActiveFilter((prev) => (prev === key ? null : key));
+  }, []);
+
+  const runExport = useCallback(() => {
+    if (!filteredRecords.length) {
+      toast.error('No rows to export.');
       return;
     }
-    const ac = new AbortController();
     setExporting(true);
     try {
-      const { blob, filename } = await exportInvalidGrossWeightRows(records, ac.signal);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+      downloadGrossWeightRecordsXlsx(filteredRecords, `gross-weight-rows-${tag}-${Date.now()}.xlsx`);
       toast.success('Excel export downloaded');
-    } catch (e) {
-      toast.error(e.message || 'Export failed');
     } finally {
       setExporting(false);
     }
-  }, [result]);
+  }, [filteredRecords, activeFilter]);
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
@@ -130,14 +133,33 @@ export default function GrossWeight() {
           <section>
             <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <KpiCard label="Total rows" value={formatNumber(totalRows)} icon={Rows3} accent="blue" />
-              <KpiCard label="Error rows" value={formatNumber(errorRows)} icon={AlertTriangle} accent="amber" />
+              <KpiCard
+                label="Total rows"
+                value={formatNumber(totalRows)}
+                icon={Rows3}
+                accent="blue"
+                interactive
+                selected={activeFilter === 'total'}
+                onClick={() => toggleCardFilter('total')}
+              />
+              <KpiCard
+                label="Error rows"
+                value={formatNumber(errorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+                interactive
+                selected={activeFilter === 'errors'}
+                onClick={() => toggleCardFilter('errors')}
+              />
               <KpiCard
                 label="Manual ≠ auto"
                 value={formatNumber(manualAutoMismatch)}
                 hint="Quantized mismatch"
                 icon={Scale}
                 accent="rose"
+                interactive
+                selected={activeFilter === 'grossMismatch'}
+                onClick={() => toggleCardFilter('grossMismatch')}
               />
               <KpiCard
                 label="Difference ≠ 0"
@@ -145,6 +167,9 @@ export default function GrossWeight() {
                 hint="After manual=auto match"
                 icon={Scale}
                 accent="orange"
+                interactive
+                selected={activeFilter === 'differenceViolation'}
+                onClick={() => toggleCardFilter('differenceViolation')}
               />
               <KpiCard
                 label="Negative values"
@@ -152,6 +177,9 @@ export default function GrossWeight() {
                 hint="Manual, auto, or difference"
                 icon={Scale}
                 accent="violet"
+                interactive
+                selected={activeFilter === 'negativeWeight'}
+                onClick={() => toggleCardFilter('negativeWeight')}
               />
               <KpiCard
                 label="Compliance"
@@ -159,6 +187,9 @@ export default function GrossWeight() {
                 hint="Clean rows / total rows"
                 icon={Rows3}
                 accent="emerald"
+                interactive
+                selected={activeFilter === 'compliance'}
+                onClick={() => toggleCardFilter('compliance')}
               />
             </div>
           </section>
@@ -174,7 +205,7 @@ export default function GrossWeight() {
                   variant="primary"
                   size="md"
                   loading={exporting}
-                  disabled={exporting || !result.records?.length}
+                  disabled={exporting || filteredRecords.length === 0}
                   onClick={runExport}
                 >
                   <Download className="h-4 w-4" />
@@ -183,8 +214,16 @@ export default function GrossWeight() {
               </div>
             </CardHeader>
             <CardBody>
-              {result.records?.length ? (
-                <GrossWeightResultsTable data={result.records} />
+              {result.records?.length || activeFilter != null ? (
+                <div className="space-y-4">
+                  <AuditFilterStrip
+                    activeFilter={activeFilter}
+                    labels={GROSS_FILTER_LABELS}
+                    count={filteredRecords.length}
+                    onClear={() => setActiveFilter(null)}
+                  />
+                  <GrossWeightResultsTable data={filteredRecords} />
+                </div>
               ) : (
                 <EmptyState
                   title="No issues detected"
