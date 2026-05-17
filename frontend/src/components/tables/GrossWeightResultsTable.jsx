@@ -161,7 +161,7 @@ export function GrossWeightResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search row, weights, issues, messages…"
+            placeholder="Search row, date, manual gross, auto gross, difference, issues, messages..."
             className="pl-10"
           />
         </div>
