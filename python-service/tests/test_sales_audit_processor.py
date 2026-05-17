@@ -8,6 +8,13 @@ from app.processors.sales_audit_processor import SalesAuditProcessor
 from app.utils.sheet_validation_error import SheetValidationError
 
 
+def _last_numeric_token(product: str) -> float:
+    import re
+
+    found = re.findall(r'\d+', product)
+    return float(found[-1]) if found else 1.0
+
+
 def _full_header() -> list[str]:
     base = [
         'SNo',
@@ -38,16 +45,20 @@ def _row(
     voucher: str,
     sales_account: str,
     product: str,
-    manual_wt: object = '',
-    auto_wt: object = '',
+    unit_rate: object = '',
+    quantity: object = 1,
+    net_amount: object = '',
+    party: str = '',
 ) -> list:
     hdr = _full_header()
     r = dict(zip(hdr, [''] * len(hdr), strict=True))
     r['Voucher No'] = voucher
+    r['Name of the Party'] = party
     r['Sales Account'] = sales_account
     r['Product'] = product
-    r['Manual Gross Wt.'] = manual_wt
-    r['Auto Gross Wt.'] = auto_wt
+    r['Unit Rate'] = unit_rate
+    r['Quantity'] = quantity
+    r['Net Amount'] = net_amount
     out = []
     for k in hdr:
         out.append(r[k])
@@ -81,7 +92,7 @@ def test_sales_raises_structured_error_when_columns_incomplete():
     body = ei.value.to_response()
     assert body['success'] is False
     assert body['error']['code'] == 'MISSING_REQUIRED_COLUMNS'
-    assert {'manual_gross_wt', 'auto_gross_wt'} <= set(body['error']['missingColumns'])
+    assert {'unit_rate'} <= set(body['error']['missingColumns'])
     assert isinstance(body['error']['hints'], list)
 
 
@@ -89,7 +100,7 @@ def test_sales_detects_delayed_header_row():
     preamble = [['Sales Report - Detail'], ['From: demo']]
     proc = SalesAuditProcessor()
     b = _wb_bytes(
-        [_row(voucher='V1', sales_account='Gold Sales Account - 22k', product='Black beads', manual_wt=10, auto_wt=10.1)],
+        [_row(voucher='V1', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=120)],
         preamble_rows=preamble,
     )
     out = proc.process(b)
@@ -98,52 +109,509 @@ def test_sales_detects_delayed_header_row():
     assert out['errorRows'] == 0
 
 
-def test_sales_matching_category_valid():
+def test_sales_strict_master_match_valid():
     proc = SalesAuditProcessor()
-    b = _wb_bytes([_row(voucher='V1', sales_account='Gold Sales Account - 22k', product='Black beads', manual_wt=1, auto_wt=1.01)])
+    b = _wb_bytes(
+        [_row(voucher='V1', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=120)]
+    )
     out = proc.process(b)
     assert out['success'] is True
     assert out['errorRows'] == 0
-    assert out['summary']['categoryBreakdown']['22k'] == 1
+    assert out['summary']['invalidSalesAccounts'] == 0
+    assert out['summary']['invalidProductMappings'] == 0
+    assert out['summary']['productsNotFoundInMaster'] == 0
+    assert out['summary']['rateDeviationViolations'] == 0
+    assert out['summary']['rateMasterNotFound'] == 0
 
 
-def test_sales_skip_when_sales_account_has_no_category():
+def test_sales_invalid_sales_account():
     proc = SalesAuditProcessor()
-    b = _wb_bytes([_row(voucher='V2', sales_account='Round Off Account', product='', manual_wt=0, auto_wt=0)])
+    b = _wb_bytes(
+        [_row(voucher='V2', sales_account='Round Off Account', product='Black beads', unit_rate=100)]
+    )
     out = proc.process(b)
-    assert out['summary']['skippedNoRule'] == 1
+    assert out['summary']['invalidSalesAccounts'] == 1
+    assert out['records'][0]['issues'] == ['INVALID_SALES_ACCOUNT']
 
 
-def test_sales_invalid_category_clash():
+def test_sales_invalid_product_mapping():
     proc = SalesAuditProcessor()
-    b = _wb_bytes([_row(voucher='A', sales_account='Jadau Sales', product='Black beads', manual_wt=1, auto_wt=1)])
-    out = proc.process(b)
-    assert out['errorRows'] == 1
-    issue = next(i for rec in out['records'] for i in rec['issues'])
-    assert 'PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT' in issue
-
-
-def test_sales_conflicting_accounts_same_product():
-    proc = SalesAuditProcessor()
-    # Two identical lines normalize to dominant 22k account; odd row out flagged.
     b = _wb_bytes(
         [
-            _row(voucher='1', sales_account='Gold Sales Account - 22k', product='Widget X', manual_wt=1, auto_wt=1),
-            _row(voucher='2', sales_account='Gold Sales Account - 22k', product='Widget X', manual_wt=1, auto_wt=1),
-            _row(voucher='3', sales_account='Silver Sales Account', product='Widget X', manual_wt=1, auto_wt=1),
+            _row(
+                voucher='A',
+                sales_account='Gold Sales Account - 22k',
+                product='Customer Diamonds',
+                unit_rate=100,
+            )
         ]
     )
     out = proc.process(b)
-    flagged = [r for r in out['records'] if 'CONFLICTING_SALES_ACCOUNT_FOR_PRODUCT' in r['issues']]
-    assert any(r['voucherNo'] == '3' for r in flagged)
+    assert out['errorRows'] == 1
+    assert out['records'][0]['issues'] == ['INVALID_PRODUCT_MAPPING']
 
 
-def test_sales_gross_weight_tolerance():
+def test_sales_product_not_found_in_master():
     proc = SalesAuditProcessor()
-    # default tolerance 0.5 — weights differ by 1.0
     b = _wb_bytes(
-        [_row(voucher='G', sales_account='Gold Sales Account - 22k', product='916 gold ornament', manual_wt=10, auto_wt=11)]
+        [
+            _row(voucher='3', sales_account='Gold Sales Account - 22k', product='Widget X', unit_rate=100),
+        ]
     )
     out = proc.process(b)
-    assert any('GROSS_WEIGHT_OUTSIDE_TOLERANCE' in r['issues'] for r in out['records'])
+    assert out['records'][0]['issues'] == ['PRODUCT_NOT_FOUND_IN_MASTER']
+
+
+def test_sales_diamond_mapping_valid():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='D1',
+                sales_account='Jewel sales account - Diamonds',
+                product='Customer Diamonds',
+                unit_rate=56,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_emerald_mapping_valid_for_added_master_value():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='E1',
+                sales_account='Jewels sales account - Emeralds',
+                product='Emeralds JEM 10500',
+                unit_rate=10500,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+@pytest.mark.parametrize(
+    'product,unit_rate',
+    [
+        ('Emeralds JEM 12000', 12000),
+        ('Emeralds JEM 14000', 14000),
+        ('Emeralds JEM 2100', 2100),
+        ('Emeralds JEM 2300', 2300),
+        ('Emeralds JEM 2500', 2500),
+    ],
+)
+def test_sales_emerald_jem_master_rows_validate(product: str, unit_rate: float):
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='EJ',
+                sales_account='Jewels sales account - Emeralds',
+                product=product,
+                unit_rate=unit_rate,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['productsNotFoundInMaster'] == 0
+
+
+def test_sales_diamond_product_compact_dot_joins_master():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='DD',
+                sales_account='Jewel sales account - Diamonds',
+                product='Di.RA 15',
+                unit_rate=15,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_ruby_mapping_valid_for_added_master_value():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='R1',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 5300',
+                unit_rate=5300,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+@pytest.mark.parametrize(
+    'sales_account,product',
+    [
+        ('Jewels sales account - Pearls', 'Pearls JPS 2900'),
+        ('Jewels sales account - Pearls', 'Pearls JPS 8400'),
+        ('Jewels sales account - Pearls', 'Pearls JPS 33000'),
+        ('Jewels sales account - Rubies', 'Rubies JRU 6300'),
+        ('Jewels sales account - Rubies', 'Rubies JRU 11200'),
+        ('Jewels sales account - Rubies', 'Rubies JRU Loose 33500'),
+        ('Jewels sales account - Rubies', 'Rubies JRU Mix'),
+    ],
+)
+def test_sales_pearl_ruby_master_skus_validate(sales_account: str, product: str):
+    proc = SalesAuditProcessor()
+    uploaded = 1.0 if 'Mix' in product else _last_numeric_token(product)
+    b = _wb_bytes(
+        [_row(voucher='PR', sales_account=sales_account, product=product, unit_rate=uploaded)]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['productsNotFoundInMaster'] == 0
+    assert out['summary']['invalidProductMappings'] == 0
+
+
+def test_sales_24k_account_normalization_allows_missing_space_after_hyphen():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='G24',
+                sales_account='Gold Sales Account -24K',
+                product='Standard Gold 24K',
+                unit_rate=56,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_gold_rows_ignore_product_wise_rate_rules():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [_row(voucher='G', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=999999)]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['rateDeviationViolations'] == 0
+    assert out['summary']['rateMasterNotFound'] == 0
+
+
+def test_sales_skips_repair_charge_rows_entirely():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(voucher='RC1', sales_account='Repair Charges', product='Repair Charges', unit_rate=''),
+        ]
+    )
+    out = proc.process(b)
+    assert out['totalRows'] == 0
+    assert out['errorRows'] == 0
+
+
+def test_sales_skips_blank_rows_entirely():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(voucher='', sales_account='', product='', unit_rate=''),
+            _row(voucher='V1', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=120),
+        ]
+    )
+    out = proc.process(b)
+    assert out['totalRows'] == 1
+    assert out['errorRows'] == 0
+
+
+def test_sales_strict_normalization_allows_spacing_and_case_noise():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='N1',
+                sales_account='  gold   sales  account - 22k  ',
+                product='  black\u00a0beads ',
+                unit_rate=70,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_rubies_jru_1000_invalid_rate_deviation():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='RV',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 1000',
+                unit_rate=1500,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 1
+    assert out['summary']['rateDeviationViolations'] == 1
+    rec = out['records'][0]
+    assert rec['issues'] == ['INVALID_RATE_DEVIATION']
+    assert rec['standardRate'] == 1000
+    assert rec['minAllowedRate'] == 700
+    assert rec['maxAllowedRate'] == 1300
+
+
+def test_sales_rubies_jru_1000_valid_rate_within_band():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='RV2',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 1000',
+                unit_rate=1200,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_customer_rubies_skips_rate_verification():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='CR',
+                sales_account='Jewels sales account - Rubies',
+                product='Customer Rubies',
+                unit_rate=999999,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+
+
+def test_sales_rate_master_not_found_when_rate_workbook_missing_row(tmp_path):
+    from openpyxl import Workbook
+
+    from app.engines.vectorized_sales_engine import VectorizedSalesEngine
+    from app.services.master_sales_rate_rule_service import MasterSalesRateRuleService
+
+    p = tmp_path / 'rates.xlsx'
+    wb = Workbook()
+    ws = wb.active
+    ws.append(['Enterprise Master Sales Rate Verification'])
+    ws.append([])
+    ws.append(
+        [
+            'Sales Account Type',
+            'Product',
+            'Standard Rate',
+            'Allowed Deviation Percent',
+            'Minimum Allowed Rate',
+            'Maximum Allowed Rate',
+            'Status',
+        ]
+    )
+    ws.append(['JEWELS SALES ACCOUNT - PEARLS', 'PEARLS JPS 50', 50, 30, 35, 65, 'Active'])
+    wb.save(p)
+    eng = VectorizedSalesEngine(rate_rule_service=MasterSalesRateRuleService(workbook_path=p))
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='RM',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 5300',
+                unit_rate=5300,
+            )
+        ]
+    )
+    out = eng.validate(b)
+    assert out.summary['rateMasterNotFound'] == 1
+    assert out.records[0]['issues'] == ['RATE_MASTER_NOT_FOUND']
+
+
+def test_sales_unit_rate_with_letters_yields_null_rate_skips_deviation():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='JH/2526/3707',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 5300',
+                unit_rate='JH/2526/3707',
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['rateDeviationViolations'] == 0
+    assert out['records'] == []
+
+
+def test_sales_invalid_export_preserves_exact_excel_row_and_cells():
+    """rowNumber must be the physical Excel row; product/account from that same row."""
+    proc = SalesAuditProcessor()
+    preamble = [['Sales Report'], ['FY 2526']]
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='V-ROW-5',
+                sales_account='Jewels sales account - Emeralds',
+                product='Emeralds JEM 5800',
+                unit_rate=99999,
+                quantity=1,
+            ),
+        ],
+        preamble_rows=preamble,
+    )
+    out = proc.process(b)
+    assert out['errorRows'] >= 1
+    rec = next(r for r in out['records'] if r.get('voucherNo') == 'V-ROW-5')
+    assert rec['rowNumber'] == 4
+    assert rec['sourceExcelRowNumber'] == 4
+    assert rec.get('originalExcelProduct') == 'Emeralds JEM 5800'
+    assert rec.get('validationProduct') == 'EMERALDS JEM 5800'
+    assert rec.get('originalExcelSalesAccount') == 'Jewels sales account - Emeralds'
+    assert rec.get('originalExcelUnitRate') in ('99999', 99999.0, 99999)
+
+
+def test_sales_invalid_row_includes_party_name():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='JH/2526/707',
+                party='Mrs. Demo Customer',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 1000',
+                unit_rate=1500,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 1
+    assert out['records'][0]['partyName'] == 'Mrs. Demo Customer'
+
+
+def test_sales_invalid_row_includes_row_id_and_voucher_norm():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='JH/2526/3707',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 1000',
+                unit_rate=1500,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 1
+    rec = out['records'][0]
+    assert rec['voucherNorm'] == 'JH25263707'
+    assert rec['voucherNo'] == 'JH/2526/3707'
+    assert rec['rowId'] == rec['rowNumber']
+
+
+def test_sales_skips_subtotal_voucher_only_and_narration_rows():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(voucher='JH/2526/11', sales_account='', product='', unit_rate='', quantity=''),
+            _row(
+                voucher='JH/S/2526/4',
+                sales_account='Jewels sales account - Rubies',
+                product='SUBTOTAL',
+                unit_rate=1,
+                quantity=1,
+            ),
+            _row(voucher='VOK', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=120),
+        ]
+    )
+    out = proc.process(b)
+    assert out['totalRows'] == 1
+    assert out['errorRows'] == 0
+
+
+def test_sales_skips_rate_when_unit_rate_cell_empty():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='JH/2526/707',
+                sales_account='Jewels sales account - Rubies',
+                product='Rubies JRU 100',
+                unit_rate='',
+                quantity=2,
+                net_amount=200,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['rateDeviationViolations'] == 0
+
+
+@pytest.mark.parametrize(
+    'voucher,product,unit_rate,sales_account',
+    [
+        ('JH/2526/620', 'Emeralds JEM 5800', 5800, 'Jewels sales account - Emeralds'),
+        ('JH/2526/571', 'Emeralds JEM 700', 700, 'Jewels sales account - Emeralds'),
+        ('JH/2526/571', 'Emeralds JEM 7000', 7000, 'Jewels sales account - Emeralds'),
+        ('JH/2526/795', 'Pearls JPS 2000', 2000, 'Jewels sales account - Pearls'),
+        ('JH/2526/100', 'Precious Stones JOS 100', 100, 'Jewels sales account - Color stones'),
+        ('JH/2526/707', 'Rubies JRU 100', 100, 'Jewels sales account - Rubies'),
+        ('JH/2526/5500', 'Rubies JRU 5500', 5500, 'Jewels sales account - Rubies'),
+    ],
+)
+def test_sales_jewel_skus_pass_when_uploaded_unit_rate_matches_master(
+    voucher: str, product: str, unit_rate: float, sales_account: str
+):
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher=voucher,
+                sales_account=sales_account,
+                product=product,
+                unit_rate=unit_rate,
+                quantity=1,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 0
+    assert out['summary']['rateDeviationViolations'] == 0
+
+
+def test_sales_rate_invalid_when_uploaded_unit_rate_outside_master_band():
+    proc = SalesAuditProcessor()
+    b = _wb_bytes(
+        [
+            _row(
+                voucher='JH/2526/620',
+                sales_account='Jewels sales account - Emeralds',
+                product='Emeralds JEM 5800',
+                unit_rate=11600,
+                quantity=2,
+            )
+        ]
+    )
+    out = proc.process(b)
+    assert out['errorRows'] == 1
+    assert out['summary']['rateDeviationViolations'] == 1
+    rec = out['records'][0]
+    assert rec['issues'] == ['INVALID_RATE_DEVIATION']
+    assert rec['masterStandardRate'] == 5800
+    assert rec['uploadedUnitRate'] == 11600
+    assert rec['rateValidationSource'] == 'master_sales_rate_rules'
 

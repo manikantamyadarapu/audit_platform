@@ -4,6 +4,13 @@ import * as XLSX from 'xlsx';
 const SALES_XLSX_COLUMNS = [
   'rowNumber',
   'voucherNo',
+  'partyName',
+  'sourceExcelRowNumber',
+  'originalExcelSalesAccount',
+  'originalExcelProduct',
+  'originalExcelUnitRate',
+  'validationSalesAccount',
+  'validationProduct',
   'salesAccount',
   'product',
   'expectedSalesAccountCategory',

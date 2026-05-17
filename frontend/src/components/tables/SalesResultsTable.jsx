@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table';
 import {
   ArrowDownUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -22,12 +23,15 @@ import { cn } from '../../utils/cn';
 import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
 import { exportRowsToPdf } from '../../utils/pdfExport';
+import { SalesRateDebugPanel } from './SalesRateDebugPanel';
 
 const SALES_EXPORT_COLS = [
   { header: 'Row Number', accessor: (r) => r.rowNumber },
   { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
-  { header: 'Sales Account', accessor: (r) => r.salesAccount ?? '' },
-  { header: 'Product', accessor: (r) => r.product ?? '' },
+  { header: 'Party / Customer', accessor: (r) => r.partyName ?? '' },
+  { header: 'Excel sales account', accessor: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '' },
+  { header: 'Excel product', accessor: (r) => r.originalExcelProduct ?? r.product ?? '' },
+  { header: 'Excel unit rate', accessor: (r) => r.originalExcelUnitRate ?? '' },
   { header: 'Expected Category', accessor: (r) => r.expectedSalesAccountCategory ?? '' },
   { header: 'Predicted Category', accessor: (r) => r.predictedCategory ?? '' },
   { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
@@ -41,6 +45,9 @@ function salesGlobalFilter(row, _columnId, filterValue) {
   const blob = [
     r.rowNumber,
     r.voucherNo,
+    r.partyName,
+    r.originalExcelSalesAccount,
+    r.originalExcelProduct,
     r.salesAccount,
     r.product,
     r.expectedSalesAccountCategory,
@@ -55,9 +62,30 @@ function salesGlobalFilter(row, _columnId, filterValue) {
 
 export function SalesResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
+  const [expandedRowId, setExpandedRowId] = useState(null);
 
   const columns = useMemo(
     () => [
+      {
+        id: 'expand',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const id = row.original.rowId ?? row.original.rowNumber;
+          const open = expandedRowId === id;
+          return (
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-label={open ? 'Hide rate debug' : 'Show rate debug'}
+              className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              onClick={() => setExpandedRowId(open ? null : id)}
+            >
+              <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+            </button>
+          );
+        },
+      },
       {
         accessorKey: 'rowNumber',
         header: 'Row',
@@ -73,17 +101,31 @@ export function SalesResultsTable({ data }) {
         ),
       },
       {
-        accessorKey: 'salesAccount',
-        header: 'Sales account',
+        accessorKey: 'partyName',
+        header: 'Party / Customer',
         cell: (info) => (
           <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
-        accessorKey: 'product',
-        header: 'Product',
+        accessorKey: 'originalExcelSalesAccount',
+        header: 'Excel sales account',
         cell: (info) => (
           <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
+        ),
+      },
+      {
+        accessorKey: 'originalExcelProduct',
+        header: 'Excel product',
+        cell: (info) => (
+          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
+        ),
+      },
+      {
+        accessorKey: 'originalExcelUnitRate',
+        header: 'Excel unit rate',
+        cell: (info) => (
+          <span className="font-mono text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
@@ -139,7 +181,7 @@ export function SalesResultsTable({ data }) {
         },
       },
     ],
-    []
+    [expandedRowId]
   );
 
   const table = useReactTable({
@@ -196,7 +238,7 @@ export function SalesResultsTable({ data }) {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[720px] w-full text-left text-sm">
+          <table className="data-table min-w-[900px] w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">
@@ -228,21 +270,33 @@ export function SalesResultsTable({ data }) {
                   </td>
                 </tr>
               ) : (
-                table.getRowModel().rows.map((row, i) => (
-                  <tr
-                    key={row.id}
-                    className={cn(
-                      'border-b border-slate-100/90 transition-colors hover:bg-emerald-50/35',
-                      i % 2 === 1 && 'bg-slate-50/40'
-                    )}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-3 align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                table.getRowModel().rows.map((row, i) => {
+                  const rowKey = row.original.rowId ?? row.original.rowNumber;
+                  const isOpen = expandedRowId === rowKey;
+                  return (
+                    <Fragment key={row.id}>
+                      <tr
+                        className={cn(
+                          'border-b border-slate-100/90 transition-colors hover:bg-emerald-50/35',
+                          i % 2 === 1 && 'bg-slate-50/40'
+                        )}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-4 py-3 align-top">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                      {isOpen ? (
+                        <tr className="border-b border-slate-100/90 bg-slate-50/60">
+                          <td colSpan={columns.length} className="px-4 py-3">
+                            <SalesRateDebugPanel record={row.original} />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

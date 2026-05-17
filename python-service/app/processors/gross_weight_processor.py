@@ -1,21 +1,15 @@
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
-import pandas as pd
+import polars as pl
 
-from app.processors.base import BaseProcessor
-from app.utils.audit_row_skips import should_skip_audit_row
-from app.utils.constants import (
-    GROSS_WEIGHT_DIFFERENCE_MESSAGE,
-    GROSS_WEIGHT_MISMATCH_MESSAGE,
-    NEGATIVE_WEIGHT_MESSAGE,
-    SPREADSHEET_EMPTY_TOKENS,
-)
+from app.core.issue_engine import issue_message
+from app.engines.vectorized_validation_engine import VectorizedValidationEngine
 from app.config.settings import get_settings
-from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
-from app.utils.excel_reader import ExcelReader
+from app.processors.base import BaseProcessor
+from app.utils.constants import SPREADSHEET_EMPTY_TOKENS
 from app.utils.response_builder import build_processing_response
-from app.utils.weight_decimal import parse_weight_decimal
 
 
 def _gross_header_row_ok(labels: set[str]) -> bool:
@@ -28,91 +22,64 @@ class GrossWeightProcessor(BaseProcessor):
     REQUIRED_COLUMNS = {'manual_gross_weight', 'auto_gross_weight'}
 
     def __init__(self) -> None:
-        self.reader = ExcelReader()
+        self.engine = VectorizedValidationEngine('gross_weight')
         self._match_epsilon = Decimal(str(get_settings().gross_weight_match_epsilon))
 
-    def normalize_empty_value(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, float) and pd.isna(value):
-            return None
-        text = str(value).strip()
-        if not text:
-            return None
-        if text.lower() in SPREADSHEET_EMPTY_TOKENS:
-            return None
-        return text
-
     def process(self, file_bytes: bytes) -> dict[str, Any]:
-        header_idx = find_header_row_index(file_bytes, _gross_header_row_ok)
-        if header_idx is not None:
-            df = load_excel_with_header_row(file_bytes, header_idx)
-        else:
-            df = self.reader.read_excel(file_bytes)
-            header_idx = 0
-
-        df = self._canonical_gross_columns(df)
-        missing = self.REQUIRED_COLUMNS - set(df.columns)
+        total_start = perf_counter()
+        loaded = self.engine.load_sheet(file_bytes, row_matches=_gross_header_row_ok)
+        df = self._canonical_gross_columns(loaded.dataframe)
+        data_columns = self.engine.user_columns(df)
+        missing = self.REQUIRED_COLUMNS - set(data_columns)
         if missing:
             raise KeyError(f"Missing required columns: {', '.join(sorted(missing))}")
 
-        columns_set = set(df.columns)
+        validation_start = perf_counter()
+        with self.engine.duckdb_connection(df) as connection:
+            invalid_df = self.engine.fetch_frame(connection, self._validation_sql(data_columns))
+        validation_ms = (perf_counter() - validation_start) * 1000
 
+        extraction_start = perf_counter()
         mismatch_count = 0
         difference_violations = 0
         negative_value_violations = 0
         records: list[dict[str, Any]] = []
 
-        for idx, row in df.iterrows():
-            if should_skip_audit_row(
-                row, columns_set, normalize_empty=self.normalize_empty_value
-            ):
-                continue
-
-            manual_cell = row.get('manual_gross_weight')
-            auto_cell = row.get('auto_gross_weight')
-
-            man_dec = parse_weight_decimal(manual_cell)
-            auto_dec = parse_weight_decimal(auto_cell)
-
-            if man_dec is None or auto_dec is None:
-                continue
-
-            diff_cell = row.get('difference') if 'difference' in columns_set else None
-            stated_diff = parse_weight_decimal(diff_cell)
-            derived_diff = man_dec - auto_dec
-            effective_diff = stated_diff if stated_diff is not None else derived_diff
-
-            issues: list[str] = []
-            messages: list[str] = []
-
-            if man_dec < 0 or auto_dec < 0 or effective_diff < 0:
+        for row in invalid_df.to_dicts():
+            issue_code = str(row['issue_code'])
+            if issue_code == 'NEGATIVE_WEIGHT_VALUES':
                 negative_value_violations += 1
-                issues.append('NEGATIVE_WEIGHT_VALUES')
-                messages.append(NEGATIVE_WEIGHT_MESSAGE)
-            elif abs(man_dec - auto_dec) > self._match_epsilon:
+            elif issue_code == 'GROSS_WEIGHT_MISMATCH':
                 mismatch_count += 1
-                issues.append('GROSS_WEIGHT_MISMATCH')
-                messages.append(GROSS_WEIGHT_MISMATCH_MESSAGE)
-            elif abs(effective_diff) > self._match_epsilon:
+            else:
                 difference_violations += 1
-                issues.append('GROSS_WEIGHT_DIFFERENCE_VIOLATION')
-                messages.append(GROSS_WEIGHT_DIFFERENCE_MESSAGE)
 
-            if issues:
-                records.append(
-                    {
-                        'rowNumber': int(idx) + int(header_idx) + 2,
-                        'manualGrossWeight': float(man_dec),
-                        'autoGrossWeight': float(auto_dec),
-                        'difference': float(effective_diff),
-                        'issues': issues,
-                        'messages': messages,
-                    }
-                )
+            records.append(
+                {
+                    'rowNumber': int(row['row_number']),
+                    'manualGrossWeight': float(row['manual_gross_weight']),
+                    'autoGrossWeight': float(row['auto_gross_weight']),
+                    'difference': float(row['difference']),
+                    'issues': [issue_code],
+                    'messages': [issue_message(issue_code)],
+                }
+            )
+
+        extraction_ms = (perf_counter() - extraction_start) * 1000
 
         invalid_rows = negative_value_violations + mismatch_count + difference_violations
         weight_mismatch_total = invalid_rows
+
+        total_ms = (perf_counter() - total_start) * 1000
+        self.engine.log_benchmark(
+            row_count=len(df),
+            header_row_index=loaded.header_row_index,
+            header_detection_ms=loaded.header_detection_ms,
+            load_ms=loaded.load_ms,
+            validation_ms=validation_ms,
+            extraction_ms=extraction_ms,
+            total_ms=total_ms,
+        )
 
         return build_processing_response(
             file_type='gross_weight',
@@ -127,7 +94,7 @@ class GrossWeightProcessor(BaseProcessor):
             records=records,
         )
 
-    def _canonical_gross_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _canonical_gross_columns(self, df: pl.DataFrame) -> pl.DataFrame:
         renames: dict[str, str] = {}
         if 'manual_gross_wt' in df.columns:
             renames['manual_gross_wt'] = 'manual_gross_weight'
@@ -137,4 +104,54 @@ class GrossWeightProcessor(BaseProcessor):
             if alt in df.columns and 'difference' not in df.columns:
                 renames[alt] = 'difference'
                 break
-        return df.rename(columns=renames) if renames else df
+        return df.rename(renames) if renames else df
+
+    def _validation_sql(self, columns: list[str]) -> str:
+        skip_sql = self.engine.shared_skip_sql(columns, empty_tokens=SPREADSHEET_EMPTY_TOKENS)
+        manual_sql = self.engine.decimal_sql('manual_gross_weight', empty_tokens=SPREADSHEET_EMPTY_TOKENS)
+        auto_sql = self.engine.decimal_sql('auto_gross_weight', empty_tokens=SPREADSHEET_EMPTY_TOKENS)
+        difference_sql = (
+            self.engine.decimal_sql('difference', empty_tokens=SPREADSHEET_EMPTY_TOKENS)
+            if 'difference' in columns
+            else 'NULL'
+        )
+        epsilon_sql = f"CAST({str(self._match_epsilon)} AS DECIMAL(18, 6))"
+        return f"""
+WITH parsed AS (
+    SELECT
+        "__excel_row_number__" AS excel_row_number,
+        {manual_sql} AS manual_weight,
+        {auto_sql} AS auto_weight,
+        {difference_sql} AS stated_difference,
+        {skip_sql} AS should_skip
+    FROM source_rows
+),
+evaluated AS (
+    SELECT
+        excel_row_number,
+        manual_weight,
+        auto_weight,
+        COALESCE(stated_difference, manual_weight - auto_weight) AS effective_difference,
+        CASE
+            WHEN should_skip OR manual_weight IS NULL OR auto_weight IS NULL THEN NULL
+            WHEN manual_weight < 0 OR auto_weight < 0
+                OR COALESCE(stated_difference, manual_weight - auto_weight) < 0
+                THEN 'NEGATIVE_WEIGHT_VALUES'
+            WHEN ABS(manual_weight - auto_weight) > {epsilon_sql}
+                THEN 'GROSS_WEIGHT_MISMATCH'
+            WHEN ABS(COALESCE(stated_difference, manual_weight - auto_weight)) > {epsilon_sql}
+                THEN 'GROSS_WEIGHT_DIFFERENCE_VIOLATION'
+            ELSE NULL
+        END AS issue_code
+    FROM parsed
+)
+SELECT
+    CAST(excel_row_number AS BIGINT) AS row_number,
+    CAST(manual_weight AS DOUBLE) AS manual_gross_weight,
+    CAST(auto_weight AS DOUBLE) AS auto_gross_weight,
+    CAST(effective_difference AS DOUBLE) AS difference,
+    issue_code
+FROM evaluated
+WHERE issue_code IS NOT NULL
+ORDER BY row_number
+"""

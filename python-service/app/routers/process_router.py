@@ -22,10 +22,16 @@ service = ProcessingService()
 
 class PanInvalidRowsExportRequest(BaseModel):
     records: list[dict[str, Any]]
+    summary: dict[str, Any] | None = None
+    processingStatistics: dict[str, Any] | None = None
+    executionTiming: dict[str, Any] | None = None
 
 
 class InvalidRowsExportRequest(BaseModel):
     records: list[dict[str, Any]]
+    summary: dict[str, Any] | None = None
+    processingStatistics: dict[str, Any] | None = None
+    executionTiming: dict[str, Any] | None = None
 
 
 @router.post('/pan')
@@ -46,7 +52,12 @@ async def export_pan_invalid_rows(payload: PanInvalidRowsExportRequest) -> Strea
     log = get_logger(request_id)
     log.info('PAN invalid rows export request received')
 
-    excel_bytes = export_invalid_pan_records(payload.records)
+    excel_bytes = export_invalid_pan_records(
+        payload.records,
+        summary=payload.summary,
+        processing_statistics=payload.processingStatistics,
+        execution_timing=payload.executionTiming,
+    )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'pan-invalid-rows-{timestamp}.xlsx'
 
@@ -75,7 +86,12 @@ async def export_gross_weight_invalid_rows(payload: InvalidRowsExportRequest) ->
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info('Gross weight invalid rows export request received')
-    excel_bytes = export_invalid_gross_weight_records(payload.records)
+    excel_bytes = export_invalid_gross_weight_records(
+        payload.records,
+        summary=payload.summary,
+        processing_statistics=payload.processingStatistics,
+        execution_timing=payload.executionTiming,
+    )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'gross-weight-invalid-rows-{timestamp}.xlsx'
     log.info('Gross weight invalid rows export generated')
@@ -103,7 +119,12 @@ async def export_sales_invalid_rows(payload: InvalidRowsExportRequest) -> Stream
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info('Sales invalid rows export request received')
-    excel_bytes = export_invalid_sales_records(payload.records)
+    excel_bytes = export_invalid_sales_records(
+        payload.records,
+        summary=payload.summary,
+        processing_statistics=payload.processingStatistics,
+        execution_timing=payload.executionTiming,
+    )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'sales-invalid-rows-{timestamp}.xlsx'
     log.info('Sales invalid rows export generated')
