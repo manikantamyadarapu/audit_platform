@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime
+from pathlib import Path
 from time import perf_counter
 from typing import Any
 
@@ -42,45 +43,45 @@ class PanProcessor(BaseProcessor):
 
         extraction_start = perf_counter()
         records: list[dict[str, Any]] = []
-        missing_pan_count = 0
-        invalid_pan_format_count = 0
-        missing_address_proof_count = 0
+        missing_pan_count = int(invalid_df['missing_pan_issue'].sum() or 0)
+        invalid_pan_format_count = int(invalid_df['invalid_pan_issue'].sum() or 0)
+        missing_address_proof_count = int(invalid_df['missing_address_issue'].sum() or 0)
 
         for row in invalid_df.to_dicts():
             issues: list[str] = []
-            if row['missing_pan_issue']:
+            if row.get('missing_pan_issue'):
                 issues.append('MISSING_PAN_ABOVE_2L')
-                missing_pan_count += 1
-            elif row['invalid_pan_issue']:
+            if row.get('invalid_pan_issue'):
                 issues.append('INVALID_PAN_FORMAT')
-                invalid_pan_format_count += 1
-            if row['missing_address_issue']:
+            if row.get('missing_address_issue'):
                 issues.append('MISSING_ADDRESS_PROOF_ABOVE_50K')
-                missing_address_proof_count += 1
-
-            messages = self._messages_for_issues(issues)
-            pan = self.normalize_empty_value(row.get('pan'))
-            pan1 = self.normalize_empty_value(row.get('pan1'))
-            add_proof = self.normalize_empty_value(row.get('add_proof'))
-            add_proof_2 = self.normalize_empty_value(row.get('add_proof_2'))
 
             records.append(
                 {
-                    'rowNumber': int(row['row_number']),
+                    'rowNumber': self._json_value(row.get('row_number')),
                     'date': self._format_cell_value(row.get('date')),
                     'voucherNo': self._format_cell_value(row.get('voucher_no')),
                     'party': self._format_cell_value(row.get('party')),
-                    'totalValue': row.get('total_value'),
-                    'pan': pan or '',
-                    'pan1': pan1 or '',
-                    'addProof': add_proof or '',
-                    'addProof2': add_proof_2 or '',
+                    'totalValue': self._json_value(row.get('total_value')),
+                    'pan': self._format_cell_value(row.get('pan')),
+                    'pan1': self._format_cell_value(row.get('pan1')),
+                    'addProof': self._format_cell_value(row.get('add_proof')),
+                    'addProof2': self._format_cell_value(row.get('add_proof_2')),
                     'issues': issues,
-                    'messages': messages,
+                    'messages': self._messages_for_issues(issues),
                 }
             )
 
         extraction_ms = (perf_counter() - extraction_start) * 1000
+        self.engine.log_benchmark(
+            row_count=total_rows,
+            header_row_index=loaded.header_row_index,
+            header_detection_ms=loaded.header_detection_ms,
+            load_ms=loaded.load_ms,
+            validation_ms=validation_ms,
+            extraction_ms=extraction_ms,
+            total_ms=(perf_counter() - total_start) * 1000,
+        )
 
         summary = {
             'missingPanCount': missing_pan_count,
@@ -91,16 +92,7 @@ class PanProcessor(BaseProcessor):
             'missingAddressProofAbove50K': missing_address_proof_count,
         }
 
-        total_ms = (perf_counter() - total_start) * 1000
-        self.engine.log_benchmark(
-            row_count=total_rows,
-            header_row_index=loaded.header_row_index,
-            header_detection_ms=loaded.header_detection_ms,
-            load_ms=loaded.load_ms,
-            validation_ms=validation_ms,
-            extraction_ms=extraction_ms,
-            total_ms=total_ms,
-        )
+        self._export_issue_rows_debug(records)
 
         return build_processing_response(
             file_type='pan',
@@ -109,6 +101,18 @@ class PanProcessor(BaseProcessor):
             summary=summary,
             records=records,
         )
+
+    def _export_issue_rows_debug(self, records: list[dict[str, Any]]) -> None:
+        if not records:
+            return
+
+        issue_rows = pd.DataFrame(records).head(200)
+
+        output_path = (
+            Path(__file__).resolve().parents[2]
+            / "pan_issue_rows_debug.xlsx"
+        )
+        issue_rows.to_excel(output_path, index=False)
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
@@ -152,7 +156,7 @@ class PanProcessor(BaseProcessor):
     def _collect_pan_issues(
         self, total_value: float | int | None, pan_norm: str | None, pan1_norm: str | None
     ) -> list[str]:
-        if total_value is None or total_value <= 200000:
+        if total_value is None or total_value < 200000:
             return []
 
         pan_ok = pan_norm is not None and self.is_valid_pan(pan_norm)
@@ -163,6 +167,20 @@ class PanProcessor(BaseProcessor):
         if pan_norm is None and pan1_norm is None:
             return ['MISSING_PAN_ABOVE_2L']
         return ['INVALID_PAN_FORMAT']
+
+    def _collect_address_proof_issue(
+        self,
+        total_value: float | int | None,
+        add_proof: str | None,
+        add_proof_2: str | None,
+    ) -> str | None:
+        if total_value is None or total_value < 50000:
+            return None
+
+        if add_proof or add_proof_2:
+            return None
+
+        return 'MISSING_ADDRESS_PROOF_ABOVE_50K'
 
     def is_valid_pan(self, pan_value: str) -> bool:
         return is_acceptable_pan_equivalent(pan_value)
@@ -202,6 +220,15 @@ class PanProcessor(BaseProcessor):
         if isinstance(value, date):
             return value.strftime('%d-%m-%Y')
         return str(value).strip()
+
+    def _json_value(self, value: Any) -> Any:
+        if value is None:
+            return None
+        if pd.isna(value):
+            return None
+        if hasattr(value, 'item'):
+            return value.item()
+        return value
 
     def _validation_sql(self, columns: list[str]) -> str:
         skip_sql = self.engine.shared_skip_sql(columns, empty_tokens=SPREADSHEET_EMPTY_TOKENS)

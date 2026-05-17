@@ -25,10 +25,12 @@ def test_matching_positive_weights_pass() -> None:
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
     assert result['errorRows'] == 0
     assert result['summary']['mismatchCount'] == 0
     assert result['summary']['differenceViolations'] == 0
     assert result['summary']['negativeValueViolations'] == 0
+    assert result['summary']['weightMismatch'] == 0
 
 
 def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> None:
@@ -45,8 +47,10 @@ def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> Non
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
     assert result['errorRows'] == 1
     assert result['summary']['mismatchCount'] == 1
+    assert result['summary']['weightMismatch'] == 1
     assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
 
 
@@ -63,6 +67,7 @@ def test_manual_auto_within_epsilon_passes() -> None:
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
     assert result['errorRows'] == 0
 
 
@@ -79,8 +84,10 @@ def test_manual_auto_mismatch_counts_mismatch_only() -> None:
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
     assert result['errorRows'] == 1
     assert result['summary']['mismatchCount'] == 1
+    assert result['summary']['positiveCount'] == 1
     assert result['summary']['differenceViolations'] == 0
     assert result['summary']['negativeValueViolations'] == 0
     assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
@@ -119,8 +126,10 @@ def test_negative_equal_pair_is_invalid_with_message() -> None:
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
     assert result['errorRows'] == 1
     assert result['summary']['negativeValueViolations'] == 1
+    assert result['summary']['weightMismatch'] == 1
     assert result['records'][0]['issues'] == ['NEGATIVE_WEIGHT_VALUES']
     assert result['records'][0]['messages'] == ['Negative weight values are not allowed']
 
@@ -153,6 +162,7 @@ def test_missing_voucher_row_skipped() -> None:
         ]
     )
     result = processor.process(file_bytes)
+    assert result['totalRows'] == 0
     assert result['errorRows'] == 0
 
 
