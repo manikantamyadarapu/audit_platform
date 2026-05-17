@@ -57,6 +57,21 @@ SALES_ISSUE_MESSAGES = {
     'GROSS_WEIGHT_OUTSIDE_TOLERANCE': (
         'Manual gross weight and auto gross weight differ by more than the configured tolerance.'
     ),
+    'INVALID_SALES_ACCOUNT': (
+        'Sales account was not found in the master sales verification sheet.'
+    ),
+    'INVALID_PRODUCT_MAPPING': (
+        'Product does not belong to the uploaded sales account in the master sales verification sheet.'
+    ),
+    'PRODUCT_NOT_FOUND_IN_MASTER': (
+        'Product was not found in the master sales verification sheet.'
+    ),
+    'INVALID_RATE_DEVIATION': (
+        'Unit rate is outside the allowed deviation band for this product in the master sales rate rules.'
+    ),
+    'RATE_MASTER_NOT_FOUND': (
+        'No product-wise sales rate rule was found in the master sales rate rules for this row.'
+    ),
 }
 
 ALLOWED_EXTENSIONS = {'.xlsx', '.xlsm', '.xls'}

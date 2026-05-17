@@ -1,169 +1,291 @@
-# Excel validation and auditing service (FastAPI)
+# Excel Validation and Auditing Service
 
-Microservice that accepts Excel workbooks, normalizes headers, validates required columns, processes rows in chunks, and returns structured JSON for PAN, GST, gross weight, and sales audits.
+FastAPI microservice for Excel-based audit validation. The active processors are:
 
-The **Node** gateway used in this repo (`backend`) proxies PAN upload and invalid-row export to this service. See [`../backend/README.md`](../backend/README.md) for `/api/v1` routes and Swagger.
+- PAN audit
+- Gross weight audit
+- Sales audit
+
+The service keeps a uniform JSON contract for validation responses and supports downloadable Excel reports for invalid rows.
+
+The **Node** gateway in this repo (`backend`) proxies some routes to this service. See [`../backend/README.md`](../backend/README.md) for gateway-facing API details.
 
 ## Current status
 
-- **PAN:** Full rules — header-row detection when the sheet has preamble rows, required columns, PAN / PAN1 checks **only when `total_value` > ₹2,00,000**, address proof when `total_value` > ₹50,000, row skipping for blanks / repeated headers / subtotals / missing voucher (see [PAN audit](#pan-audit)).
-- **Gross weight:** Full rules — optional header-row detection, alias columns (`manual_gross_wt` → `manual_gross_weight`), decimal parsing, mismatch vs tolerance, optional `difference` column, issue codes and messages (see [Gross weight audit](#gross-weight-audit)).
-- **Sales:** Full rules — header-row detection (preamble allowed), product ↔ sales-account classification (including fuzzy product matching), dominant sales-account-per-product consistency, manual vs auto gross weight tolerance (see [Sales audit](#sales-audit)); missing columns after detection return structured **422** (`SheetValidationError`).
-- **GST:** Skeleton only — requires `gst` column; returns success with zero issue counts (extend `app/processors/gst_processor.py` for real checks).
-- Headers are normalized to **snake_case** before validation (`app/utils/header_cleaner.py`).
+- **PAN:** full validation with header-row detection, row skipping, PAN format/equivalent checks, and address-proof rules.
+- **Gross weight:** full vectorized validation with header detection, alias handling, mismatch/difference/negative checks, and benchmark logging.
+- **Sales:** strict master-rule comparison only. Uploaded rows are validated only against `app/data/master_sales_rules.xlsx`.
+- **Enterprise reporting:** invalid-row exports are multi-sheet Excel workbooks with summary, issue breakdown, grouping, statistics, timing, and invalid-row sheets.
+- **GST:** not active in the current processor registry.
 
 ## Tech stack
 
 - Python 3.10+
 - FastAPI, Uvicorn
-- Pandas, OpenPyXL
+- Pandas
+- OpenPyXL
+- XlsxWriter
+- Polars
+- DuckDB
+- PyArrow
 - Pydantic / Pydantic Settings
 - Loguru
 - Pytest
-- RapidFuzz (sales product classification)
+- RapidFuzz
+
+## Architecture
+
+### Shared validation flow
+
+1. Upload Excel workbook
+2. Detect the real header row even when title/metadata rows exist above it
+3. Normalize headers to `snake_case`
+4. Load into vectorized data structures
+5. Run processor-specific validation
+6. Return unchanged JSON response shape
+7. Export invalid rows as Excel when requested
+
+### Sales strict flow
+
+1. Upload sales Excel
+2. Detect header row
+3. Normalize uploaded `sales_account`, `product`, and `unit_rate`
+4. Load master verification workbook from `app/data/master_sales_rules.xlsx`
+5. Normalize master workbook values the same way
+6. Perform strict DuckDB joins
+7. Return only invalid sales rows
+
+Sales audit does **not** validate GST, PAN, gross weight, tax calculations, or address proof.
 
 ## Project structure
 
 ```text
 python-service/
   app/
-    config/                 Settings (`app/config/settings.py`) — e.g. `CHUNK_SIZE`, `GROSS_WEIGHT_TOLERANCE`
-    processors/             `pan_processor`, `gross_weight_processor`, `sales_audit_processor`, `gst_processor`, `factory`
-    routers/                `health_router`, `process_router` (includes `/api/v1/process/*` gateway prefixes)
-    schemas/                API models where used
-    services/               `ProcessingService` → `validate_upload_file` + processor dispatch
+    config/                 Runtime settings
+    core/
+      issue_engine.py       Central issue-code registry, severity/category metadata, audit trace helpers
+    data/
+      master_sales_rules.csv    Legacy seed/reference data
+      master_sales_rules.xlsx   Active master verification workbook for sales audit
+    engines/
+      vectorized_validation_engine.py  Shared OpenPyXL + Polars + DuckDB helpers
+      vectorized_sales_engine.py       Strict sales rule-comparison engine
+    processors/
+      pan_processor.py
+      gross_weight_processor.py
+      sales_audit_processor.py
+      factory.py
+    routers/
+      health_router.py
+      process_router.py
+    services/
+      processing_service.py
+      master_rule_service.py
     utils/
-      audit_row_skips.py    Shared skip logic for PAN / gross weight (blank, repeated header, subtotal, missing voucher)
-      constants.py          PAN regex / Form 60 & US DL equivalents, GST regex, issue messages
-      excel_header_detection.py   Scan sheet for header row when exports have title rows above data
-      excel_reader.py       Chunked reads
-      excel_exporter.py     Invalid-row Excel downloads for PAN, gross weight, sales
-      header_cleaner.py     Normalization to snake_case
-      product_classifier.py Sales: product → category, sales account → expected category
-      response_builder.py   Uniform success JSON
-      sheet_validation_error.py   Structured errors for sales sheet shape issues
-      weight_decimal.py     Gross weight decimal parsing / quantization
-    validators/             `common_validator` (upload extension/MIME); helpers for reuse
-    main.py                 FastAPI app, exception handlers (400 / 422)
+      audit_reporter.py         Multi-sheet enterprise Excel report generator
+      audit_row_skips.py        Shared skip logic for PAN / gross weight
+      constants.py              Issue messages and validation constants
+      excel_exporter.py         Export entry points for PAN / gross weight / sales
+      header_cleaner.py         Header normalization
+      master_sales_rule_engine.py   Legacy CSV-backed rule helper utilities
+      normalization_engine.py   Strict uppercase/trim/hidden-char normalization
+      response_builder.py       Uniform response shape
+      sheet_validation_error.py Structured 422 for sales
+      weight_decimal.py         Gross-weight decimal parsing
+    validators/
+      common_validator.py
+    main.py
   tests/
   requirements.txt
   README.md
 ```
 
-**Where validation runs**
+## Active processors
 
-- Upload checks: `app/validators/common_validator.py` (via `app/services/processing_service.py`).
-- Spreadsheet rules: `app/processors/*.py`.
+### PAN audit
 
----
+**Module:** `app/processors/pan_processor.py`
 
-## PAN audit
+Required normalized columns:
 
-**Module:** `app/processors/pan_processor.py`  
-**Supporting:** `app/utils/constants.py` (`is_acceptable_pan_equivalent`, messages), `app/utils/audit_row_skips.py`, `app/utils/excel_header_detection.py`.
+- `total_value`
+- `pan`
+- `pan1`
+- at least one of `add_proof`, `add_proof_2`
 
-### Columns
+Behavior:
 
-- **Always required:** `total_value`.
-- **PAN columns:** Both **`pan` and `pan1` must exist as columns** on the sheet (values may be empty).
-- **Address proof:** At least one of **`add_proof`**, **`add_proof_2`** must exist as a column.
+1. Detects header row when title rows exist above the table.
+2. Skips blank rows, repeated header rows, subtotal rows, and rows without voucher numbers when applicable.
+3. Treats PAN as valid if it matches Indian PAN format or accepted equivalents such as Form No-60 / US DL.
+4. Above `total_value > 200000`, flags:
+   - `MISSING_PAN_ABOVE_2L`
+   - `INVALID_PAN_FORMAT`
+5. Above `total_value > 50000`, flags:
+   - `MISSING_ADDRESS_PROOF_ABOVE_50K`
 
-If the first row is not the real header (e.g. report title above the table), the service scans for a row that looks like a PAN sheet (`total_value` + `pan` or `pan1` + an address column) and loads data from that row.
+Summary fields include:
 
-### Row skipping
+- `missingPanCount`
+- `invalidPanFormatCount`
+- `missingAddressProofCount`
+- `missingPanAbove2L`
+- `invalidPanFormat`
+- `missingAddressProofAbove50K`
 
-Rows are skipped (not audited) when they look like blanks, a repeated header line, subtotal/grand total lines, or (if `voucher_no` exists) rows with no voucher — see `should_skip_audit_row` in `app/utils/audit_row_skips.py`.
+### Gross weight audit
 
-### Rules
+**Module:** `app/processors/gross_weight_processor.py`
 
-1. **PAN format / equivalents:** A value counts as valid if it matches Indian PAN `AAAAA9999A` (spacing collapsed, case-insensitive), or normalized equivalents **Form No-60** / **US DL** (`app/utils/constants.py`).
-2. **Above ₹2,00,000 (`total_value`):** If neither `pan` nor `pan1` contains a valid value → `MISSING_PAN_ABOVE_2L` when both empty; **`INVALID_PAN_FORMAT`** when at least one cell is non-empty but none are valid.
-3. **`total_value` ≤ ₹2,00,000:** No PAN issue codes from `_collect_pan_issues` (PAN checks for format are not applied in this branch).
-4. **Above ₹50,000 (`total_value`):** At least one of `add_proof`, `add_proof_2` must be non-empty → else **`MISSING_ADDRESS_PROOF_ABOVE_50K`**.
+Required normalized columns:
 
-Human-readable strings for some issues are in `records[].messages`; codes stay in `records[].issues`.
+- `manual_gross_weight`
+- `auto_gross_weight`
 
-### Summary fields (success)
+Supported aliases:
 
-Includes counts such as `missingPanAbove2L`, `invalidPanFormat`, `missingAddressProofAbove50K` (and duplicate compatible keys like `missingPanCount`) — see `PanProcessor.process` return summary.
+- `manual_gross_wt` -> `manual_gross_weight`
+- `auto_gross_wt` -> `auto_gross_weight`
+- optional difference aliases such as `diff`, `weight_difference`, `gross_difference`
 
----
+Behavior:
 
-## Gross weight audit
+1. Detects header row when needed.
+2. Uses vectorized validation via Polars and DuckDB.
+3. Flags:
+   - `NEGATIVE_WEIGHT_VALUES`
+   - `GROSS_WEIGHT_MISMATCH`
+   - `GROSS_WEIGHT_DIFFERENCE_VIOLATION`
+4. Emits benchmark logging for header detection, load, validation, extraction, and total execution time.
 
-**Module:** `app/processors/gross_weight_processor.py`  
-**Settings:** `GROSS_WEIGHT_TOLERANCE` is used elsewhere (sales); gross processor uses **exact** quantized equality for manual vs auto unless checking the optional difference column — see below.
+Summary fields include:
 
-### Columns
+- `mismatchCount`
+- `differenceViolations`
+- `negativeValueViolations`
+- `weightMismatch`
 
-- After normalization: **`manual_gross_weight`** and **`auto_gross_weight`** required.
-- Aliases from Excel may be **`manual_gross_wt` / `auto_gross_wt`** (renamed internally).
-- Optional: **`difference`**; if absent, aliases like `diff`, `weight_difference`, `gross_difference` may be mapped to `difference`.
+### Sales audit
 
-Header-row detection: if the sheet does not look like row 0 is the header, `find_header_row_index` looks for a row containing both manual and auto gross weight headers.
+**Module:** `app/processors/sales_audit_processor.py`
 
-### Rules (only rows with both weights parsed as numbers)
+**Supporting:** `app/engines/vectorized_sales_engine.py`, `app/services/master_rule_service.py`, `app/utils/normalization_engine.py`
 
-1. **`NEGATIVE_WEIGHT_VALUES`** — manual, auto, or effective difference negative.
-2. **`GROSS_WEIGHT_MISMATCH`** — quantized manual ≠ auto (`app/utils/weight_decimal.py`).
-3. **`GROSS_WEIGHT_DIFFERENCE_VIOLATION`** — if manual and auto match but the **stated** `difference` (or derived manual − auto) is not **0.00** when quantized.
+Master rule source:
 
-Rows skipped via `should_skip_audit_row` (same helper as PAN when columns allow).
+- `app/data/master_sales_rules.xlsx`
 
-### Summary fields
+Expected master workbook columns:
 
-`mismatchCount`, `differenceViolations`, `negativeValueViolations`, `weightMismatch` (total invalid rows).
+- `Sales Account Type`
+- `Product`
+- `Expected Rate`
+- `Allowed Deviation`
 
----
+Required uploaded normalized columns:
 
-## Sales audit
+- `voucher_no`
+- `sales_account`
+- `product`
+- `unit_rate`
 
-**Module:** `app/processors/sales_audit_processor.py`  
-**Supporting:** `app/utils/product_classifier.py` (`classify_product_cached`, `expected_category_from_sales_account`), `app/config/settings.py` (`gross_weight_tolerance` for manual vs auto comparison).
+Typical uploaded header examples:
 
-### Columns (normalized names)
+- `Voucher No` -> `voucher_no`
+- `Sales Account` -> `sales_account`
+- `Product` -> `product`
+- `Unit Rate` -> `unit_rate`
 
-Required after header detection and canonicalization:
+Strict normalization before comparison:
 
-| Logical field        | Typical Excel labels (examples) |
-| -------------------- | --------------------------------- |
-| `voucher_no`         | Voucher No                        |
-| `sales_account`      | Sales account                     |
-| `product`            | Product                           |
-| `manual_gross_wt`    | Manual Gross Wt., Manual Gross Weight → aliased |
-| `auto_gross_wt`      | Auto Gross Wt., Auto Gross Weight → aliased     |
+- uppercase
+- trim leading/trailing spaces
+- collapse repeated spaces
+- remove hidden Excel characters
 
-**Weight column aliases:** If the sheet has `manual_gross_weight` / `auto_gross_weight` but not the `_wt` names, they are renamed to `manual_gross_wt` / `auto_gross_wt` internally.
+Strict validation rules:
 
-Missing required columns **after** header detection raise **`SheetValidationError`** → HTTP **422** with `success`, `detail`, and nested `error` (`missingColumns`, `foundColumns`, `headerRowExcel`, `hints`, etc.) — not a plain `KeyError` string.
+1. **Sales account must exactly exist in the master workbook**
+   - issue: `INVALID_SALES_ACCOUNT`
+2. **Product must exist in the master workbook**
+   - issue: `PRODUCT_NOT_FOUND_IN_MASTER`
+3. **Product must belong to the uploaded sales account according to the master workbook**
+   - issue: `INVALID_PRODUCT_MAPPING`
+4. **Unit rate must be within the master-defined allowed deviation**
+   - issue: `RATE_DEVIATION_VIOLATION`
 
-### Rules (per non-blank data row)
+Allowed rate range is derived only from the master workbook:
 
-1. **Sales account mapping:** If the sales account text does not map to an expected category rule, the row is counted in **`skippedNoRule`** and does not get category mismatch issues.
-2. **Product category:** If a category cannot be inferred for the product → **`MISSING_PRODUCT_CATEGORY_FOR_VALIDATION`**.
-3. **Category vs account:** If predicted product category ≠ category implied by sales account → **`PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT`**.
-4. **Dominant account per product:** Across the file, the most common sales account per product wins when unambiguous; another account for the same product → **`CONFLICTING_SALES_ACCOUNT_FOR_PRODUCT`**.
-5. **Weights:** If both manual and auto parse as numbers and **|manual − auto| > `GROSS_WEIGHT_TOLERANCE`** → **`GROSS_WEIGHT_OUTSIDE_TOLERANCE`**.
+- minimum = `expected_rate * (1 - allowed_deviation_percent / 100)`
+- maximum = `expected_rate * (1 + allowed_deviation_percent / 100)`
 
-Messages for sales issues are in `app/utils/constants.SALES_ISSUE_MESSAGES`.
+Sales invalid-row records return:
 
-### Summary fields
+- `rowNumber`
+- `voucherNo`
+- `salesAccount`
+- `product`
+- `unitRate`
+- `issues`
+- `messages`
 
-e.g. `categoryBreakdown`, `skippedNoRule`, `salesAccountProductMismatches`, `conflictingSalesAccountForProduct`, `grossWeightMismatches`.
+Sales summary fields include:
 
----
+- `invalidSalesAccounts`
+- `invalidProductMappings`
+- `productsNotFoundInMaster`
+- `rateDeviationViolations`
+
+Missing required columns after header detection raise `SheetValidationError` with structured 422 details.
+
+## Enterprise issue model
+
+`app/core/issue_engine.py` centralizes issue definitions with:
+
+- `issue_code`
+- `severity`
+- `category`
+- default message
+- audit trace metadata
+
+Current registry covers PAN, gross-weight, legacy sales issue codes, and the strict sales codes:
+
+- `INVALID_SALES_ACCOUNT`
+- `INVALID_PRODUCT_MAPPING`
+- `PRODUCT_NOT_FOUND_IN_MASTER`
+- `RATE_DEVIATION_VIOLATION`
+
+## Enterprise reporting
+
+Invalid-row export endpoints generate downloadable Excel reports using `XlsxWriter` and `OpenPyXL`.
+
+Each workbook includes:
+
+- `Summary`
+- `Issue Breakdown`
+- `Issue Grouping`
+- `Processing Statistics`
+- `Execution Timing`
+- processor-specific invalid-row sheet
+
+Export payloads support optional:
+
+- `summary`
+- `processingStatistics`
+- `executionTiming`
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.10+
 - `pip`
-- Excel extensions: `.xlsx`, `.xlsm`, `.xls`
+- supported Excel uploads: `.xlsx`, `.xlsm`, `.xls`
 
 ## Setup
 
 From the repository root:
 
-**Windows (PowerShell)**
+### Windows (PowerShell)
 
 ```powershell
 cd python-service
@@ -172,7 +294,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-**Git Bash / Linux / macOS**
+### Git Bash / Linux / macOS
 
 ```bash
 cd python-service
@@ -183,7 +305,7 @@ pip install -r requirements.txt
 
 ## Environment variables
 
-Defaults live in `app/config/settings.py`; a `.env` file is optional.
+Defaults live in `app/config/settings.py`; `.env` is optional.
 
 ```env
 APP_ENV=development
@@ -191,12 +313,18 @@ APP_PORT=8000
 LOG_LEVEL=INFO
 CHUNK_SIZE=2500
 GROSS_WEIGHT_TOLERANCE=0.5
+GROSS_WEIGHT_MATCH_EPSILON=0.001
 ```
+
+Notes:
+
+- `CHUNK_SIZE` is still available for legacy/shared flows.
+- sales audit no longer uses `GROSS_WEIGHT_TOLERANCE`.
 
 ## Run the service
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 - API base: `http://127.0.0.1:8000`
@@ -207,31 +335,31 @@ uvicorn app.main:app --reload --port 8000
 
 | Status | Typical cause |
 | ------ | ------------- |
-| `400`  | `ValueError` — bad upload (extension/MIME, empty file), unreadable Excel, export with no invalid rows, etc. |
-| `422`  | Missing required columns: **`KeyError`** string for PAN/GST/gross (simple `{ "success": false, "detail": "..." }`); **`SheetValidationError`** for sales (structured `error` object with columns/hints). |
+| `400`  | Bad upload, unreadable Excel, empty export request, missing master workbook, etc. |
+| `422`  | Missing required columns or other structured sales sheet-shape failures |
 | `500`  | Unexpected processing failure |
 
 ## API endpoints
 
-Direct FastAPI paths and gateway-style paths (same handlers):
+Active endpoints:
 
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |
 | `GET`  | `/api/health` | Health check |
-| `POST` | `/api/process/pan` | PAN audit (`multipart/form-data`, field **`file`**) |
-| `POST` | `/api/v1/process/pan/validate` | Same as above (gateway prefix) |
-| `POST` | `/api/process/pan/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download |
+| `POST` | `/api/process/pan` | PAN audit |
+| `POST` | `/api/v1/process/pan/validate` | Same as above |
+| `POST` | `/api/process/pan/export-invalid` | Export PAN invalid rows as Excel |
 | `POST` | `/api/v1/process/pan/export-invalid` | Same |
-| `POST` | `/api/process/gst` | GST column presence (`file`) — skeleton processor |
-| `POST` | `/api/v1/process/gst/validate` | Same |
-| `POST` | `/api/process/gross-weight` | Gross weight audit (`file`) |
+| `POST` | `/api/process/gross-weight` | Gross-weight audit |
 | `POST` | `/api/v1/process/gross-weight/validate` | Same |
-| `POST` | `/api/process/gross-weight/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download |
+| `POST` | `/api/process/gross-weight/export-invalid` | Export gross-weight invalid rows as Excel |
 | `POST` | `/api/v1/process/gross-weight/export-invalid` | Same |
-| `POST` | `/api/process/sales` | Sales audit (`file`) |
+| `POST` | `/api/process/sales` | Strict master-rule sales audit |
 | `POST` | `/api/v1/process/sales/validate` | Same |
-| `POST` | `/api/process/sales/export-invalid` | JSON `{ "records": [ ... ] }` → Excel download |
+| `POST` | `/api/process/sales/export-invalid` | Export sales invalid rows as Excel |
 | `POST` | `/api/v1/process/sales/export-invalid` | Same |
+
+Legacy GST routes still exist in `process_router`, but GST is not registered as an active processor.
 
 ## Request examples
 
@@ -247,97 +375,69 @@ PAN validation:
 curl -s -X POST "http://127.0.0.1:8000/api/process/pan" -F "file=@./pan-file.xlsx"
 ```
 
-Gross weight:
+Gross weight validation:
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8000/api/process/gross-weight" -F "file=@./gross-weight-file.xlsx"
 ```
 
-Sales:
+Sales validation:
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8000/api/process/sales" -F "file=@./sales-file.xlsx"
 ```
 
-## Header normalization
-
-- Lowercase, trimmed
-- Non-alphanumeric characters → `_`
-- Leading/trailing `_` removed
-
-| Excel header          | Normalized            |
-| --------------------- | --------------------- |
-| `PAN`                 | `pan`                 |
-| `Manual Gross Weight` | `manual_gross_weight` |
-
-## Required columns (normalized)
-
-| Processor        | Required |
-| ---------------- | -------- |
-| **PAN**          | `total_value`; **both** columns `pan` **and** `pan1`; at least one of `add_proof`, `add_proof_2` |
-| **GST**          | `gst` |
-| **Gross weight** | `manual_gross_weight`, `auto_gross_weight` (or `manual_gross_wt` / `auto_gross_wt` before canonicalization) |
-| **Sales**        | `voucher_no`, `sales_account`, `product`, `manual_gross_wt`, `auto_gross_wt` (weight columns may appear as `manual_gross_weight` / `auto_gross_weight` in Excel and are aliased) |
-
-PAN treats empty-like cells (`na`, `pending`, `-`, etc.) as missing — see `SPREADSHEET_EMPTY_TOKENS` in `app/utils/constants.py`.
-
-## Successful PAN response shape
+Sales invalid-row export:
 
 ```json
 {
-  "success": true,
-  "fileType": "pan",
-  "totalRows": 3,
-  "errorRows": 1,
-  "summary": {
-    "missingPanCount": 0,
-    "invalidPanFormatCount": 1,
-    "missingAddressProofCount": 0,
-    "missingPanAbove2L": 0,
-    "invalidPanFormat": 1,
-    "missingAddressProofAbove50K": 0
-  },
   "records": [
     {
-      "rowNumber": 4,
-      "date": null,
-      "voucherNo": null,
-      "party": null,
-      "totalValue": 250000,
-      "pan": "ABCDE123",
-      "pan1": "",
-      "addProof": "",
-      "addProof2": "",
-      "issues": ["INVALID_PAN_FORMAT"],
-      "messages": ["No valid PAN found in PAN or PAN1 columns"]
+      "rowNumber": 2,
+      "voucherNo": "V1",
+      "salesAccount": "SALES A",
+      "product": "PRODUCT X",
+      "unitRate": 155,
+      "issues": ["INVALID_PRODUCT_MAPPING"],
+      "messages": [
+        "Product does not belong to the uploaded sales account in the master sales verification sheet."
+      ]
     }
-  ]
+  ],
+  "summary": {
+    "invalidProductMappings": 1
+  },
+  "processingStatistics": {
+    "totalRows": 7
+  },
+  "executionTiming": {
+    "validationMs": 15.0
+  }
 }
 ```
 
-Note: Example row shows `INVALID_PAN_FORMAT` only when **`totalValue` is above ₹2,00,000** and PAN cells are non-empty but invalid; GST skeleton responses still return `success: true` with empty `records` after column checks pass.
+## Header normalization
 
-## Error responses
+Headers are normalized with:
 
-Unsupported extension:
+- lowercase
+- trim
+- non-alphanumeric to `_`
+- strip leading/trailing `_`
 
-```json
-{
-  "success": false,
-  "detail": "Unsupported file extension. Use .xlsx, .xlsm, or .xls"
-}
-```
+Examples:
 
-Missing columns — PAN/Gross/GST (422):
+- `PAN` -> `pan`
+- `Manual Gross Weight` -> `manual_gross_weight`
+- `Unit Rate` -> `unit_rate`
 
-```json
-{
-  "success": false,
-  "detail": "Missing required columns: pan, pan1"
-}
-```
+## Required columns
 
-Sales missing columns (422) include structured `error` — see `SheetValidationError.to_response()` in `app/utils/sheet_validation_error.py`.
+| Processor | Required normalized columns |
+| --------- | --------------------------- |
+| PAN | `total_value`, `pan`, `pan1`, and one of `add_proof` / `add_proof_2` |
+| Gross weight | `manual_gross_weight`, `auto_gross_weight` |
+| Sales | `voucher_no`, `sales_account`, `product`, `unit_rate` |
 
 ## Tests
 
@@ -354,8 +454,8 @@ PYTHONPATH=. pytest
 
 ## Development notes
 
-- Add processors under `app/processors/` and register in `app/processors/factory.py`.
-- Reuse `app/utils/response_builder.build_processing_response()` for consistent JSON.
-- Extend `app/validators/` for shared checks; upload validation stays in `common_validator.py`.
-- Sales-specific UX errors: raise `SheetValidationError` with `code` and context keys for 422 responses.
-- Update this README when processor contracts or summary fields change.
+- Register new processors in `app/processors/factory.py`.
+- Keep `app/utils/response_builder.py` as the outward response contract helper.
+- Use `SheetValidationError` for sales sheet-shape errors that should surface as structured 422 responses.
+- Keep strict sales validation tied only to `app/data/master_sales_rules.xlsx`.
+- Update this README whenever processor contracts, export sheets, or summary fields change.
