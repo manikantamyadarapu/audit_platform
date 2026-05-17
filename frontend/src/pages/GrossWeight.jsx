@@ -74,12 +74,13 @@ export default function GrossWeight() {
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
   const errorRows = result?.errorRows ?? 0;
-  const manualAutoMismatch = summary.mismatchCount ?? 0;
+  const positiveValues = summary.mismatchCount ?? 0;
   const differenceViolations = summary.differenceViolations ?? 0;
   const negativeViolations = summary.negativeValueViolations ?? 0;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
 
+  console.log('Gross Weight API Response:', result);
   return (
     <div className="relative space-y-8">
       <AnimatePresence>
@@ -153,8 +154,8 @@ export default function GrossWeight() {
               />
               <KpiCard
                 label="Manual ≠ auto"
-                value={formatNumber(manualAutoMismatch)}
-                hint="Quantized mismatch"
+                value={formatNumber(positiveValues)}
+                hint="Gross weight mismatch"
                 icon={Scale}
                 accent="rose"
                 interactive

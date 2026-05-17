@@ -1,140 +1,409 @@
 from decimal import Decimal
+from io import BytesIO
 from typing import Any
 
 import pandas as pd
 
 from app.processors.base import BaseProcessor
 from app.utils.audit_row_skips import should_skip_audit_row
-from app.utils.constants import (
-    GROSS_WEIGHT_DIFFERENCE_MESSAGE,
-    GROSS_WEIGHT_MISMATCH_MESSAGE,
-    NEGATIVE_WEIGHT_MESSAGE,
-    SPREADSHEET_EMPTY_TOKENS,
-)
-from app.config.settings import get_settings
-from app.utils.excel_header_detection import find_header_row_index, load_excel_with_header_row
+from app.utils.constants import SPREADSHEET_EMPTY_TOKENS
 from app.utils.excel_reader import ExcelReader
+from app.utils.header_cleaner import normalize_headers
 from app.utils.response_builder import build_processing_response
 from app.utils.weight_decimal import parse_weight_decimal
 
 
-def _gross_header_row_ok(labels: set[str]) -> bool:
-    mg = 'manual_gross_weight' in labels or 'manual_gross_wt' in labels
-    ag = 'auto_gross_weight' in labels or 'auto_gross_wt' in labels
-    return mg and ag
-
-
 class GrossWeightProcessor(BaseProcessor):
-    REQUIRED_COLUMNS = {'manual_gross_weight', 'auto_gross_weight'}
-
     def __init__(self) -> None:
         self.reader = ExcelReader()
-        self._match_epsilon = Decimal(str(get_settings().gross_weight_match_epsilon))
+        self._match_epsilon = Decimal("0.002")
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
             return None
+
         if isinstance(value, float) and pd.isna(value):
             return None
+
         text = str(value).strip()
+
         if not text:
             return None
+
         if text.lower() in SPREADSHEET_EMPTY_TOKENS:
             return None
+
         return text
 
     def process(self, file_bytes: bytes) -> dict[str, Any]:
-        header_idx = find_header_row_index(file_bytes, _gross_header_row_ok)
-        if header_idx is not None:
-            df = load_excel_with_header_row(file_bytes, header_idx)
-        else:
-            df = self.reader.read_excel(file_bytes)
-            header_idx = 0
-
+        df = self._read_gross_weight_dataframe(file_bytes)
         df = self._canonical_gross_columns(df)
-        missing = self.REQUIRED_COLUMNS - set(df.columns)
-        if missing:
-            raise KeyError(f"Missing required columns: {', '.join(sorted(missing))}")
 
-        columns_set = set(df.columns)
+        normalized_df = self._normalize_cross_format_to_flat(df)
 
-        mismatch_count = 0
-        difference_violations = 0
-        negative_value_violations = 0
-        records: list[dict[str, Any]] = []
+        invalid_rows_df = self._filter_invalid_difference_rows(normalized_df)
+        negative_invalid_count, positive_invalid_count = self._count_invalid_rows_by_sign(
+            invalid_rows_df
+        )
 
-        for idx, row in df.iterrows():
-            if should_skip_audit_row(
-                row, columns_set, normalize_empty=self.normalize_empty_value
-            ):
-                continue
-
-            manual_cell = row.get('manual_gross_weight')
-            auto_cell = row.get('auto_gross_weight')
-
-            man_dec = parse_weight_decimal(manual_cell)
-            auto_dec = parse_weight_decimal(auto_cell)
-
-            if man_dec is None or auto_dec is None:
-                continue
-
-            diff_cell = row.get('difference') if 'difference' in columns_set else None
-            stated_diff = parse_weight_decimal(diff_cell)
-            derived_diff = man_dec - auto_dec
-            effective_diff = stated_diff if stated_diff is not None else derived_diff
-
-            issues: list[str] = []
-            messages: list[str] = []
-
-            if man_dec < 0 or auto_dec < 0 or effective_diff < 0:
-                negative_value_violations += 1
-                issues.append('NEGATIVE_WEIGHT_VALUES')
-                messages.append(NEGATIVE_WEIGHT_MESSAGE)
-            elif abs(man_dec - auto_dec) > self._match_epsilon:
-                mismatch_count += 1
-                issues.append('GROSS_WEIGHT_MISMATCH')
-                messages.append(GROSS_WEIGHT_MISMATCH_MESSAGE)
-            elif abs(effective_diff) > self._match_epsilon:
-                difference_violations += 1
-                issues.append('GROSS_WEIGHT_DIFFERENCE_VIOLATION')
-                messages.append(GROSS_WEIGHT_DIFFERENCE_MESSAGE)
-
-            if issues:
-                records.append(
-                    {
-                        'rowNumber': int(idx) + int(header_idx) + 2,
-                        'manualGrossWeight': float(man_dec),
-                        'autoGrossWeight': float(auto_dec),
-                        'difference': float(effective_diff),
-                        'issues': issues,
-                        'messages': messages,
-                    }
-                )
-
-        invalid_rows = negative_value_violations + mismatch_count + difference_violations
-        weight_mismatch_total = invalid_rows
+        records = self._records_from_invalid_rows(invalid_rows_df)
 
         return build_processing_response(
-            file_type='gross_weight',
-            total_rows=len(df),
-            error_rows=invalid_rows,
+            file_type="gross_weight",
+            total_rows=len(normalized_df),
+            error_rows=len(invalid_rows_df),
             summary={
-                'mismatchCount': mismatch_count,
-                'differenceViolations': difference_violations,
-                'negativeValueViolations': negative_value_violations,
-                'weightMismatch': weight_mismatch_total,
+                "mismatchCount": positive_invalid_count,
+                "differenceViolations": 0,
+                "negativeValueViolations": negative_invalid_count,
+                "positiveInvalidCount": positive_invalid_count,
+                "negativeInvalidCount": negative_invalid_count,
+                "weightMismatch": len(invalid_rows_df),
             },
             records=records,
         )
 
-    def _canonical_gross_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _read_gross_weight_dataframe(self, file_bytes: bytes) -> pd.DataFrame:
+        raw_df = pd.read_excel(BytesIO(file_bytes), engine="openpyxl", header=None)
+        header_row_index = self._find_gross_weight_header_row(raw_df)
+
+        if header_row_index is None:
+            dataframe = self.reader.read_excel(file_bytes)
+            return dataframe
+
+        dataframe = raw_df.iloc[header_row_index + 1 :].copy()
+        dataframe.columns = normalize_headers(raw_df.iloc[header_row_index].tolist())
+        dataframe = dataframe.reset_index(drop=True)
+
+        return dataframe
+
+    def _find_gross_weight_header_row(self, raw_df: pd.DataFrame) -> int | None:
+        for idx, row in raw_df.iterrows():
+            first_cell = row.iloc[0] if len(row) else None
+            if self._is_sno_header_cell(first_cell):
+                return int(idx)
+
+        return None
+
+    def _is_sno_header_cell(self, value: Any) -> bool:
+        if value is None:
+            return False
+
+        if isinstance(value, float) and pd.isna(value):
+            return False
+
+        normalized = "".join(
+            char for char in str(value).strip().lower() if char.isalnum()
+        )
+        return normalized in {"sno", "srno"}
+
+    def _filter_invalid_difference_rows(
+        self,
+        normalized_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        invalid_indexes: list[int] = []
+
+        for idx, row in normalized_df.iterrows():
+            effective_diff = parse_weight_decimal(row.get("difference"))
+            if effective_diff is None:
+                continue
+
+            if abs(effective_diff) > self._match_epsilon:
+                invalid_indexes.append(idx)
+
+        return normalized_df.loc[invalid_indexes].copy()
+
+    def _count_invalid_rows_by_sign(
+        self,
+        invalid_rows_df: pd.DataFrame,
+    ) -> tuple[int, int]:
+        negative_invalid_count = 0
+        positive_invalid_count = 0
+
+        for _, row in invalid_rows_df.iterrows():
+            effective_diff = parse_weight_decimal(row.get("difference"))
+            if effective_diff is None:
+                continue
+
+            if effective_diff < 0:
+                negative_invalid_count += 1
+            elif effective_diff > 0:
+                positive_invalid_count += 1
+
+        return negative_invalid_count, positive_invalid_count
+
+    def _records_from_invalid_rows(
+        self,
+        invalid_rows_df: pd.DataFrame,
+    ) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+
+        for _, row in invalid_rows_df.iterrows():
+            diff_val = parse_weight_decimal(row.get("difference"))
+
+            if diff_val is not None and diff_val < 0:
+                issues = ["NEGATIVE_WEIGHT_VALUES"]
+                messages = ["Negative weight values are not allowed"]
+            else:
+                issues = ["GROSS_WEIGHT_MISMATCH"]
+                messages = ["Manual gross weight does not match auto gross weight."]
+
+            records.append(
+                {
+                    "rowNumber": self._json_value(row.get("value_row_index")),
+                    "voucherNo": self._json_value(row.get("voucher_no")),
+                    "date": self._json_value(row.get("date")),
+                    "party": self._json_value(row.get("party")),
+                    "manualGrossWeight": self._json_value(row.get("manual_gross_weight")),
+                    "autoGrossWeight": self._json_value(row.get("auto_gross_weight")),
+                    "difference": self._json_value(row.get("difference")),
+                    "voucherRowIndex": self._json_value(row.get("voucher_row_index")),
+                    "valueRowIndex": self._json_value(row.get("value_row_index")),
+                    "issues": issues,
+                    "messages": messages,
+                }
+            )
+
+        return records
+
+    def _json_value(self, value: Any) -> Any:
+        if value is None:
+            return None
+
+        if isinstance(value, float) and pd.isna(value):
+            return None
+
+        if pd.isna(value):
+            return None
+
+        if isinstance(value, Decimal):
+            return float(value)
+
+        if hasattr(value, "item"):
+            return value.item()
+
+        return value
+
+    def _normalize_cross_format_to_flat(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        columns_set = set(df.columns)
+        difference_column = self._find_difference_column(columns_set)
+        flat_rows: list[dict[str, Any]] = []
+
+        for idx in range(len(df) - 1):
+            voucher_row = df.iloc[idx]
+            value_row = df.iloc[idx + 1]
+
+            if should_skip_audit_row(
+                voucher_row,
+                columns_set,
+                normalize_empty=self.normalize_empty_value,
+                check_missing_voucher=False,
+            ):
+                continue
+
+            if not self._is_voucher_row(voucher_row, columns_set):
+                continue
+
+            if should_skip_audit_row(
+                value_row,
+                columns_set,
+                normalize_empty=self.normalize_empty_value,
+                check_missing_voucher=False,
+            ):
+                continue
+
+            manual_raw = value_row.get("manual_gross_weight")
+            auto_raw = value_row.get("auto_gross_weight")
+            manual_dec = parse_weight_decimal(manual_raw)
+            auto_dec = parse_weight_decimal(auto_raw)
+
+            if manual_dec is None or auto_dec is None:
+                continue
+
+            difference_raw = (
+                value_row.get(difference_column)
+                if difference_column is not None
+                else None
+            )
+            difference = (
+                difference_raw
+                if self.normalize_empty_value(difference_raw) is not None
+                else manual_dec - auto_dec
+            )
+
+            voucher_no = self._voucher_value(voucher_row, columns_set)
+
+            flat_rows.append(
+                {
+                    "voucher_no": voucher_no,
+                    "date": voucher_row.get("date") if "date" in columns_set else None,
+                    "party": voucher_row.get("party") if "party" in columns_set else None,
+                    "manual_gross_weight": manual_raw,
+                    "auto_gross_weight": auto_raw,
+                    "difference": difference,
+                    "voucher_row_index": idx + 2,
+                    "value_row_index": idx + 3,
+                }
+            )
+
+        return pd.DataFrame(
+            flat_rows if flat_rows else self._normal_rows_to_flat(df, columns_set),
+            columns=[
+                "voucher_no",
+                "date",
+                "party",
+                "manual_gross_weight",
+                "auto_gross_weight",
+                "difference",
+                "voucher_row_index",
+                "value_row_index",
+            ],
+        )
+
+    def _normal_rows_to_flat(
+        self,
+        df: pd.DataFrame,
+        columns_set: set[str],
+    ) -> list[dict[str, Any]]:
+        flat_rows: list[dict[str, Any]] = []
+        difference_column = self._find_difference_column(columns_set)
+
+        for idx, row in df.iterrows():
+            if should_skip_audit_row(
+                row,
+                columns_set,
+                normalize_empty=self.normalize_empty_value,
+                check_missing_voucher=False,
+            ):
+                continue
+
+            manual_raw = row.get("manual_gross_weight")
+            auto_raw = row.get("auto_gross_weight")
+            manual_dec = parse_weight_decimal(manual_raw)
+            auto_dec = parse_weight_decimal(auto_raw)
+
+            if manual_dec is None or auto_dec is None:
+                continue
+
+            difference_raw = (
+                row.get(difference_column)
+                if difference_column is not None
+                else None
+            )
+            difference = (
+                difference_raw
+                if self.normalize_empty_value(difference_raw) is not None
+                else manual_dec - auto_dec
+            )
+
+            flat_rows.append(
+                {
+                    "voucher_no": self._voucher_value(row, columns_set),
+                    "date": row.get("date") if "date" in columns_set else None,
+                    "party": row.get("party") if "party" in columns_set else None,
+                    "manual_gross_weight": manual_raw,
+                    "auto_gross_weight": auto_raw,
+                    "difference": difference,
+                    "voucher_row_index": idx + 2,
+                    "value_row_index": idx + 2,
+                }
+            )
+
+        return flat_rows
+
+    def _find_difference_column(self, columns_set: set[str]) -> str | None:
+        for column in (
+            "difference",
+            "diff",
+            "difference_in_gross_wt",
+            "difference_in_gross_wt_",
+            "weight_difference",
+            "gross_difference",
+        ):
+            if column in columns_set:
+                return column
+
+        return None
+
+    def _voucher_value(
+        self,
+        row: pd.Series,
+        columns_set: set[str],
+    ) -> str | None:
+        if "voucher_no" in columns_set:
+            voucher = self.normalize_empty_value(row.get("voucher_no"))
+            if voucher is not None:
+                return voucher
+
+        first_cell = row.iloc[0] if len(row) else None
+        return self.normalize_empty_value(first_cell)
+
+    def _is_voucher_row(
+        self,
+        row: pd.Series,
+        columns_set: set[str],
+    ) -> bool:
+        voucher = self._voucher_value(row, columns_set)
+        if voucher is None:
+            return False
+
+        voucher_lower = voucher.lower()
+        if "total" in voucher_lower or "audit" in voucher_lower:
+            return False
+
+        if self._has_weight_values(row):
+            return False
+
+        return True
+
+    def _has_weight_values(self, row: pd.Series) -> bool:
+        return (
+            parse_weight_decimal(row.get("manual_gross_weight")) is not None
+            or parse_weight_decimal(row.get("auto_gross_weight")) is not None
+        )
+
+    def _is_valid_value_row(self, row: pd.Series) -> bool:
+        return (
+            parse_weight_decimal(row.get("manual_gross_weight")) is not None
+            and parse_weight_decimal(row.get("auto_gross_weight")) is not None
+        )
+
+    def _canonical_gross_columns(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         renames: dict[str, str] = {}
-        if 'manual_gross_wt' in df.columns:
-            renames['manual_gross_wt'] = 'manual_gross_weight'
-        if 'auto_gross_wt' in df.columns:
-            renames['auto_gross_wt'] = 'auto_gross_weight'
-        for alt in ('diff', 'weight_difference', 'gross_difference'):
-            if alt in df.columns and 'difference' not in df.columns:
-                renames[alt] = 'difference'
-                break
+
+        for col in df.columns:
+            col_lower = str(col).strip().lower()
+
+            if col_lower in (
+                "manual_gross_wt",
+                "manual gross wt.",
+                "manual gross wt",
+            ):
+                renames[col] = "manual_gross_weight"
+
+            elif col_lower in (
+                "auto_gross_wt",
+                "auto gross wt.",
+                "auto gross wt",
+            ):
+                renames[col] = "auto_gross_weight"
+
+            elif col_lower in (
+                "diff",
+                "difference",
+                "difference_in_gross_wt",
+                "difference_in_gross_wt_",
+                "difference in gross wt.",
+                "difference in gross wt",
+                "weight_difference",
+                "gross_difference",
+            ):
+                renames[col] = "difference"
+
         return df.rename(columns=renames) if renames else df

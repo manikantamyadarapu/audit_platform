@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -63,8 +64,11 @@ class PanProcessor(BaseProcessor):
                         invalid_pan_format_count += 1
                 issues.extend(pan_issues)
 
-                if total_value is not None and total_value > 50000 and not (add_proof or add_proof_2):
-                    issues.append('MISSING_ADDRESS_PROOF_ABOVE_50K')
+                address_issue = self._collect_address_proof_issue(
+                    total_value, add_proof, add_proof_2
+                )
+                if address_issue is not None:
+                    issues.append(address_issue)
                     missing_address_proof_count += 1
 
                 if issues:
@@ -94,6 +98,8 @@ class PanProcessor(BaseProcessor):
             'missingAddressProofAbove50K': missing_address_proof_count,
         }
 
+        self._export_issue_rows_debug(records)
+
         return build_processing_response(
             file_type='pan',
             total_rows=total_rows,
@@ -101,6 +107,18 @@ class PanProcessor(BaseProcessor):
             summary=summary,
             records=records,
         )
+
+    def _export_issue_rows_debug(self, records: list[dict[str, Any]]) -> None:
+        if not records:
+            return
+
+        issue_rows = pd.DataFrame(records).head(200)
+
+        output_path = (
+            Path(__file__).resolve().parents[2]
+            / "pan_issue_rows_debug.xlsx"
+        )
+        issue_rows.to_excel(output_path, index=False)
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
@@ -156,7 +174,7 @@ class PanProcessor(BaseProcessor):
     def _collect_pan_issues(
         self, total_value: float | int | None, pan_norm: str | None, pan1_norm: str | None
     ) -> list[str]:
-        if total_value is None or total_value <= 200000:
+        if total_value is None or total_value < 200000:
             return []
 
         pan_ok = pan_norm is not None and self.is_valid_pan(pan_norm)
@@ -167,6 +185,20 @@ class PanProcessor(BaseProcessor):
         if pan_norm is None and pan1_norm is None:
             return ['MISSING_PAN_ABOVE_2L']
         return ['INVALID_PAN_FORMAT']
+
+    def _collect_address_proof_issue(
+        self,
+        total_value: float | int | None,
+        add_proof: str | None,
+        add_proof_2: str | None,
+    ) -> str | None:
+        if total_value is None or total_value < 50000:
+            return None
+
+        if add_proof or add_proof_2:
+            return None
+
+        return 'MISSING_ADDRESS_PROOF_ABOVE_50K'
 
     def is_valid_pan(self, pan_value: str) -> bool:
         return is_acceptable_pan_equivalent(pan_value)
