@@ -71,16 +71,18 @@ export default function GrossWeight() {
     }
   }, [filteredRecords, activeFilter]);
 
-  const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
   const errorRows = result?.errorRows ?? 0;
-  const positiveValues = summary.mismatchCount ?? 0;
-  const differenceViolations = summary.differenceViolations ?? 0;
-  const negativeViolations = summary.negativeValueViolations ?? 0;
+  const invalidRecords = Array.isArray(rawRecords) ? rawRecords : [];
+  const isNegativeDifference = (record) => {
+    const difference = Number(record?.difference);
+    return Number.isFinite(difference) && difference < 0;
+  };
+  const negativeViolations = invalidRecords.filter(isNegativeDifference).length;
+  const positiveValues = invalidRecords.length - negativeViolations;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
 
-  console.log('Gross Weight API Response:', result);
   return (
     <div className="relative space-y-8">
       <AnimatePresence>
@@ -105,13 +107,6 @@ export default function GrossWeight() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
-              <p className="text-sm text-slate-500">
-                Strict manual vs auto gross (±0.01), optional{' '}
-                <code className="rounded bg-slate-100 px-1 font-mono text-xs">difference</code> must be 0.00. Connected to{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/process/gross-weight/validate
-                </code>
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
@@ -133,7 +128,7 @@ export default function GrossWeight() {
         <>
           <section>
             <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <KpiCard
                 label="Total rows"
                 value={formatNumber(totalRows)}
@@ -153,29 +148,19 @@ export default function GrossWeight() {
                 onClick={() => toggleCardFilter('errors')}
               />
               <KpiCard
-                label="Manual ≠ auto"
+                label="Positive values"
                 value={formatNumber(positiveValues)}
-                hint="Gross weight mismatch"
+                hint="Non-negative invalid rows"
                 icon={Scale}
                 accent="rose"
                 interactive
-                selected={activeFilter === 'grossMismatch'}
-                onClick={() => toggleCardFilter('grossMismatch')}
-              />
-              <KpiCard
-                label="Difference ≠ 0"
-                value={formatNumber(differenceViolations)}
-                hint="After manual=auto match"
-                icon={Scale}
-                accent="orange"
-                interactive
-                selected={activeFilter === 'differenceViolation'}
-                onClick={() => toggleCardFilter('differenceViolation')}
+                selected={activeFilter === 'positiveValues'}
+                onClick={() => toggleCardFilter('positiveValues')}
               />
               <KpiCard
                 label="Negative values"
                 value={formatNumber(negativeViolations)}
-                hint="Manual, auto, or difference"
+                hint="Negative invalid rows"
                 icon={Scale}
                 accent="violet"
                 interactive
@@ -200,7 +185,6 @@ export default function GrossWeight() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Issue register</h3>
-                  <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV & PDF export</p>
                 </div>
                 <Button
                   variant="primary"

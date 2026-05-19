@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -37,21 +37,20 @@ function issueTone(code) {
   return 'blue';
 }
 
-function panGlobalFilter(row, _columnId, filterValue) {
-  const q = String(filterValue || '').toLowerCase().trim();
-  if (!q) return true;
-  const r = row.original;
-  const blob = [
-    r.rowNumber,
-    r.date,
-    r.voucherNo,
-    r.party,
-    ...(Array.isArray(r.issues) ? r.issues : []),
-    ...(Array.isArray(r.messages) ? r.messages : []),
-  ]
-    .join(' ')
-    .toLowerCase();
-  return blob.includes(q);
+function normalizeSearchValue(value) {
+  if (value == null) return '';
+  const text = Array.isArray(value) ? value.join(' ') : String(value);
+  return text.replace(/_/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function valueForColumn(row, column) {
+  if (typeof column.accessorFn === 'function') {
+    return column.accessorFn(row.original, row.index);
+  }
+  if (column.accessorKey) {
+    return row.original?.[column.accessorKey];
+  }
+  return '';
 }
 
 export function PanResultsTable({ data }) {
@@ -124,6 +123,17 @@ export function PanResultsTable({ data }) {
     []
   );
 
+  const panGlobalFilter = useCallback(
+    (row, _columnId, filterValue) => {
+      const q = normalizeSearchValue(filterValue);
+      if (!q) return true;
+
+      const visibleText = columns.map((column) => normalizeSearchValue(valueForColumn(row, column))).join(' ');
+      return visibleText.includes(q);
+    },
+    [columns]
+  );
+
   const table = useReactTable({
     data,
     columns,
@@ -155,7 +165,7 @@ export function PanResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search party, voucher, issues…"
+            placeholder="Search row, date, voucher, total value, PAN, issues, messages..."
             className="pl-10"
           />
         </div>

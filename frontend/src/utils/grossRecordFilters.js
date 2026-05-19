@@ -3,11 +3,15 @@
 export const GROSS_FILTER_LABELS = {
   total: 'All rows',
   errors: 'Error rows',
-  grossMismatch: 'Manual ≠ auto',
-  differenceViolation: 'Difference ≠ 0',
+  positiveValues: 'Positive values',
   negativeWeight: 'Negative values',
   compliance: 'Compliance (no issues)',
 };
+
+function isNegativeDifference(record) {
+  const difference = Number(record?.difference);
+  return Number.isFinite(difference) && difference < 0;
+}
 
 /**
  * @param {Record<string, unknown>[] | undefined} records
@@ -22,16 +26,11 @@ export function filterGrossWeightRecords(records, filter) {
   if (filter === 'errors') {
     return list.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0);
   }
-  if (filter === 'grossMismatch') {
-    return list.filter((r) => Array.isArray(r.issues) && r.issues.includes('GROSS_WEIGHT_MISMATCH'));
-  }
-  if (filter === 'differenceViolation') {
-    return list.filter(
-      (r) => Array.isArray(r.issues) && r.issues.includes('GROSS_WEIGHT_DIFFERENCE_VIOLATION')
-    );
+  if (filter === 'positiveValues') {
+    return list.filter((r) => !isNegativeDifference(r));
   }
   if (filter === 'negativeWeight') {
-    return list.filter((r) => Array.isArray(r.issues) && r.issues.includes('NEGATIVE_WEIGHT_VALUES'));
+    return list.filter((r) => isNegativeDifference(r));
   }
   if (filter === 'compliance') {
     return list.filter((r) => !Array.isArray(r.issues) || r.issues.length === 0);

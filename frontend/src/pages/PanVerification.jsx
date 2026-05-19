@@ -115,9 +115,6 @@ export default function PanVerification() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
-              <p className="text-sm text-slate-500">
-                Connected to <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">POST /api/v1/process/pan/validate</code>
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
