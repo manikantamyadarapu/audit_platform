@@ -14,7 +14,7 @@ The **Node** gateway in this repo (`backend`) proxies some routes to this servic
 
 - **PAN:** full validation with header-row detection, row skipping, PAN format/equivalent checks, and address-proof rules.
 - **Gross weight:** full vectorized validation with header detection, alias handling, mismatch/difference/negative checks, and benchmark logging.
-- **Sales:** strict master-rule comparison only. Uploaded rows are validated only against `app/data/master_sales_rules.xlsx`.
+- **Sales:** official jewelry sales engine — account ↔ product mapping plus gemstone slab unit rates (±30%). Rules live in `app/sales_engine/config/` (see [`app/sales_engine/README.md`](app/sales_engine/README.md)).
 - **Enterprise reporting:** invalid-row exports are multi-sheet Excel workbooks with summary, issue breakdown, grouping, statistics, timing, and invalid-row sheets.
 - **GST:** not active in the current processor registry.
 
@@ -45,17 +45,16 @@ The **Node** gateway in this repo (`backend`) proxies some routes to this servic
 6. Return unchanged JSON response shape
 7. Export invalid rows as Excel when requested
 
-### Sales strict flow
+### Sales audit flow
 
 1. Upload sales Excel
-2. Detect header row
-3. Normalize uploaded `sales_account`, `product`, and `unit_rate`
-4. Load master verification workbook from `app/data/master_sales_rules.xlsx`
-5. Normalize master workbook values the same way
-6. Perform strict DuckDB joins
-7. Return only invalid sales rows
+2. Detect header row; assign immutable `source_excel_row_number` per physical row
+3. Normalize `sales_account`, `product`, and `unit_rate`
+4. Validate **mapping** against `app/sales_engine/config/mappings.json` (prefix families)
+5. Validate **gemstone unit rates** from slab digits in the product name (±30%; Rubies, Emeralds, Pearls, Color stones)
+6. Return only invalid rows (stable Excel row numbers + original cell snapshots)
 
-Sales audit does **not** validate GST, PAN, gross weight, tax calculations, or address proof.
+Sales audit does **not** validate GST, PAN, gross weight, voucher business rules, invoice totals, or external master Excel joins.
 
 ## Project structure
 
@@ -66,11 +65,15 @@ python-service/
     core/
       issue_engine.py       Central issue-code registry, severity/category metadata, audit trace helpers
     data/
-      master_sales_rules.csv    Legacy seed/reference data
-      master_sales_rules.xlsx   Active master verification workbook for sales audit
+      master_sales_rules.xlsx   Legacy reference (not used by current sales engine)
+    sales_engine/               Official sales audit (mapping + gemstone slab rates)
+      README.md                 Sales engine documentation
+      config/mappings.json
+      config/gemstone_rules.json
+      engine/vectorized_sales_engine.py
     engines/
-      vectorized_validation_engine.py  Shared OpenPyXL + Polars + DuckDB helpers
-      vectorized_sales_engine.py       Strict sales rule-comparison engine
+      vectorized_validation_engine.py  Shared OpenPyXL + Polars sheet loader
+      vectorized_sales_engine.py       Re-export of sales_engine entry point
     processors/
       pan_processor.py
       gross_weight_processor.py
@@ -168,20 +171,14 @@ Summary fields include:
 
 ### Sales audit
 
-**Module:** `app/processors/sales_audit_processor.py`
+**Module:** `app/processors/sales_audit_processor.py`  
+**Engine:** `app/sales_engine/engine/vectorized_sales_engine.py`  
+**Docs:** [`app/sales_engine/README.md`](app/sales_engine/README.md)
 
-**Supporting:** `app/engines/vectorized_sales_engine.py`, `app/services/master_rule_service.py`, `app/utils/normalization_engine.py`
+Rule sources (JSON, editable without code changes):
 
-Master rule source:
-
-- `app/data/master_sales_rules.xlsx`
-
-Expected master workbook columns:
-
-- `Sales Account Type`
-- `Product`
-- `Expected Rate`
-- `Allowed Deviation`
+- `app/sales_engine/config/mappings.json` — sales account ↔ product families
+- `app/sales_engine/config/gemstone_rules.json` — slab regex, ±30%, rate-skip tokens
 
 Required uploaded normalized columns:
 
@@ -197,45 +194,28 @@ Typical uploaded header examples:
 - `Product` -> `product`
 - `Unit Rate` -> `unit_rate`
 
-Strict normalization before comparison:
+Normalization (all compared text):
 
-- uppercase
-- trim leading/trailing spaces
-- collapse repeated spaces
-- remove hidden Excel characters
+- uppercase, trim, collapse spaces, remove hidden Unicode
 
-Strict validation rules:
+Validation rules:
 
-1. **Sales account must exactly exist in the master workbook**
-   - issue: `INVALID_SALES_ACCOUNT`
-2. **Product must exist in the master workbook**
-   - issue: `PRODUCT_NOT_FOUND_IN_MASTER`
-3. **Product must belong to the uploaded sales account according to the master workbook**
+1. **Sales account ↔ product mapping** (prefix families, no fuzzy match)
    - issue: `INVALID_PRODUCT_MAPPING`
-4. **Unit rate must be within the master-defined allowed deviation**
-   - issue: `RATE_DEVIATION_VIOLATION`
+2. **Gemstone unit rate** (Rubies, Emeralds, Pearls, Color stones; slab from product name; ±30%)
+   - issue: `INVALID_RATE_DEVIATION`
+   - skipped when product contains `CUSTOMER`, `MIX`, or `LOOSE`
+   - not applied to Gold, Silver, or Diamonds
 
-Allowed rate range is derived only from the master workbook:
+Slab rate example: `RUBIES JRU 3400` → slab `3400` → allowed unit rate **2380–4420**.
 
-- minimum = `expected_rate * (1 - allowed_deviation_percent / 100)`
-- maximum = `expected_rate * (1 + allowed_deviation_percent / 100)`
+Invalid-row records include `rowNumber`, `sourceExcelRowNumber`, `originalExcel*` / `validation*` fields, `unitRate`, slab band fields, `issues`, and `messages`.
 
-Sales invalid-row records return:
+Summary fields (API):
 
-- `rowNumber`
-- `voucherNo`
-- `salesAccount`
-- `product`
-- `unitRate`
-- `issues`
-- `messages`
-
-Sales summary fields include:
-
-- `invalidSalesAccounts`
 - `invalidProductMappings`
-- `productsNotFoundInMaster`
 - `rateDeviationViolations`
+- `invalidSalesAccounts`, `productsNotFoundInMaster`, `rateMasterNotFound` — kept for compatibility, always **0** with the current engine
 
 Missing required columns after header detection raise `SheetValidationError` with structured 422 details.
 
@@ -249,12 +229,12 @@ Missing required columns after header detection raise `SheetValidationError` wit
 - default message
 - audit trace metadata
 
-Current registry covers PAN, gross-weight, legacy sales issue codes, and the strict sales codes:
+Current registry covers PAN, gross-weight, and sales codes. **Active sales issues:**
 
-- `INVALID_SALES_ACCOUNT`
 - `INVALID_PRODUCT_MAPPING`
-- `PRODUCT_NOT_FOUND_IN_MASTER`
-- `RATE_DEVIATION_VIOLATION`
+- `INVALID_RATE_DEVIATION`
+
+Legacy codes (`INVALID_SALES_ACCOUNT`, `PRODUCT_NOT_FOUND_IN_MASTER`, `RATE_MASTER_NOT_FOUND`) remain in the registry for older clients but are not emitted by the current sales engine.
 
 ## Enterprise reporting
 
@@ -323,9 +303,13 @@ Notes:
 
 ## Run the service
 
+From `python-service` with the virtual environment activated:
+
 ```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+If you see `Unable to create process` pointing at another user’s path, recreate the venv on this machine (`rm -rf .venv`, then `python -m venv .venv` and `pip install -r requirements.txt`).
 
 - API base: `http://127.0.0.1:8000`
 - Swagger: `http://127.0.0.1:8000/docs`
@@ -354,7 +338,7 @@ Active endpoints:
 | `POST` | `/api/v1/process/gross-weight/validate` | Same |
 | `POST` | `/api/process/gross-weight/export-invalid` | Export gross-weight invalid rows as Excel |
 | `POST` | `/api/v1/process/gross-weight/export-invalid` | Same |
-| `POST` | `/api/process/sales` | Strict master-rule sales audit |
+| `POST` | `/api/process/sales` | Official sales audit (mapping + gemstone slab rates) |
 | `POST` | `/api/v1/process/sales/validate` | Same |
 | `POST` | `/api/process/sales/export-invalid` | Export sales invalid rows as Excel |
 | `POST` | `/api/v1/process/sales/export-invalid` | Same |
@@ -400,7 +384,7 @@ Sales invalid-row export:
       "unitRate": 155,
       "issues": ["INVALID_PRODUCT_MAPPING"],
       "messages": [
-        "Product does not belong to the uploaded sales account in the master sales verification sheet."
+        "Product does not belong to the selected sales account."
       ]
     }
   ],
@@ -457,5 +441,6 @@ PYTHONPATH=. pytest
 - Register new processors in `app/processors/factory.py`.
 - Keep `app/utils/response_builder.py` as the outward response contract helper.
 - Use `SheetValidationError` for sales sheet-shape errors that should surface as structured 422 responses.
-- Keep strict sales validation tied only to `app/data/master_sales_rules.xlsx`.
+- Change official sales rules in `app/sales_engine/config/mappings.json` and `gemstone_rules.json`.
+- See [`app/sales_engine/README.md`](app/sales_engine/README.md) for sales-specific architecture and examples.
 - Update this README whenever processor contracts, export sheets, or summary fields change.

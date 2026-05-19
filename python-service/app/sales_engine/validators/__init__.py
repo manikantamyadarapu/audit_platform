@@ -1,0 +1,1 @@
+"""Sales validation validators."""

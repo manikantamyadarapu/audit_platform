@@ -61,13 +61,16 @@ SALES_ISSUE_MESSAGES = {
         'Sales account was not found in the master sales verification sheet.'
     ),
     'INVALID_PRODUCT_MAPPING': (
-        'Product does not belong to the uploaded sales account in the master sales verification sheet.'
+        'Product does not belong to the selected sales account.'
     ),
     'PRODUCT_NOT_FOUND_IN_MASTER': (
-        'Product was not found in the master sales verification sheet.'
+        'Product does not belong to the selected sales account.'
     ),
     'INVALID_RATE_DEVIATION': (
-        'Unit rate is outside the allowed deviation band for this product in the master sales rate rules.'
+        'Unit rate is outside the allowed ±30% deviation band.'
+    ),
+    'INVALID_PRODUCT_PATTERN': (
+        'Product matches a gemstone slab shape but the slab price could not be extracted.'
     ),
     'RATE_MASTER_NOT_FOUND': (
         'No product-wise sales rate rule was found in the master sales rate rules for this row.'

@@ -10,8 +10,15 @@ export const SALES_FILTER_LABELS = {
 };
 
 const ACCOUNT_VS_PRODUCT_ISSUES = new Set([
+  'INVALID_PRODUCT_MAPPING',
   'MISSING_PRODUCT_CATEGORY_FOR_VALIDATION',
   'PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT',
+]);
+
+const RATE_DEVIATION_ISSUES = new Set([
+  'INVALID_RATE_DEVIATION',
+  'INVALID_PRODUCT_PATTERN',
+  'RATE_DEVIATION_VIOLATION',
 ]);
 
 /**
@@ -36,7 +43,9 @@ export function filterSalesRecords(records, filter) {
   }
   if (filter === 'mixedLedgers') {
     return list.filter(
-      (r) => Array.isArray(r.issues) && r.issues.includes('CONFLICTING_SALES_ACCOUNT_FOR_PRODUCT')
+      (r) =>
+        Array.isArray(r.issues) &&
+        r.issues.some((code) => RATE_DEVIATION_ISSUES.has(code))
     );
   }
   if (filter === 'grossWeightGaps') {

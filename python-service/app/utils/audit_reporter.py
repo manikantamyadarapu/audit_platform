@@ -220,7 +220,8 @@ def _derive_processing_statistics(
 ) -> dict[str, Any]:
     supplied = dict(processing_statistics or {})
     issue_codes = [code for record in records for code in _as_list(record.get('issues'))]
-    supplied.setdefault('invalidRowCount', len(records))
+    distinct_rows = len({int(r['rowNumber']) for r in records if r.get('rowNumber') is not None})
+    supplied.setdefault('invalidRowCount', distinct_rows)
     supplied.setdefault('totalIssueCount', len(issue_codes))
     supplied.setdefault('uniqueIssueCodeCount', len(set(issue_codes)))
     supplied.setdefault(
