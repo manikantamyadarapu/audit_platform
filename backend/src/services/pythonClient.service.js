@@ -154,6 +154,28 @@ async function postSalesExportInvalid(records, options = {}) {
   return postExportInvalidRows('/api/process/sales/export-invalid', records, options);
 }
 
+async function getRateRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/rate-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postRateRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/rate-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -161,4 +183,6 @@ module.exports = {
   postGrossWeightExportInvalid,
   postSalesValidate,
   postSalesExportInvalid,
+  getRateRules,
+  postRateRules,
 };

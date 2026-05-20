@@ -36,7 +36,13 @@ SALES_EXPORT_COLUMNS = [
     'originalExcelUnitRate',
     'validationSalesAccount',
     'validationProduct',
+    'currentMarketRate',
+    'minAllowedRate',
+    'maxAllowedRate',
     'unitRate',
+    'rateDifference',
+    'validationStatus',
+    'rateValidationSource',
     'issues',
     'messages',
 ]

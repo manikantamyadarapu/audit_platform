@@ -89,6 +89,84 @@ def deviation_fraction() -> float:
     return pct / 100.0
 
 
+@lru_cache(maxsize=1)
+def load_metal_account_rates_config() -> dict:
+    path = _CONFIG_DIR / 'metal_account_rates.json'
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def load_metal_market_rates_config() -> dict:
+    path = _CONFIG_DIR / 'metal_market_rates.json'
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def clear_metal_rate_caches() -> None:
+    load_metal_market_rates_config.cache_clear()
+    gold_account_standard_rates.cache_clear()
+    silver_account_standard_rate.cache_clear()
+    metal_deviation_fraction.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def metal_deviation_fraction() -> float:
+    market = load_metal_market_rates_config()
+    template = load_metal_account_rates_config()
+    pct = float(
+        market.get('allowed_variation_percent')
+        or template.get('allowed_variation_percent')
+        or 30
+    )
+    return pct / 100.0
+
+
+@lru_cache(maxsize=1)
+def gold_account_standard_rates() -> dict[str, float | None]:
+    template = load_metal_account_rates_config().get('gold_account_standard_rates') or {}
+    market = load_metal_market_rates_config().get('gold_account_standard_rates') or {}
+    merged_keys = {normalize_strict_text(str(k)) for k in template} | {
+        normalize_strict_text(str(k)) for k in market
+    }
+    rates: dict[str, float | None] = {}
+    for key in merged_keys:
+        if not key:
+            continue
+        value = market.get(key, template.get(key))
+        if value is None:
+            rates[key] = None
+        else:
+            rates[key] = float(value)
+    return rates
+
+
+@lru_cache(maxsize=1)
+def silver_account_standard_rate() -> float | None:
+    market = load_metal_market_rates_config()
+    template = load_metal_account_rates_config()
+    value = market.get('silver_account_standard_rate')
+    if value is None:
+        value = template.get('silver_account_standard_rate')
+    if value is None:
+        return None
+    return float(value)
+
+
+@lru_cache(maxsize=1)
+def metal_rate_product_patterns() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    cfg = load_metal_account_rates_config()
+    return (
+        ('GOLD', tuple(cfg.get('gold_rate_product_patterns') or ())),
+        ('SILVER', tuple(cfg.get('silver_rate_product_patterns') or ())),
+    )
+
+
+@lru_cache(maxsize=1)
+def metal_rate_skip_product_patterns() -> tuple[str, ...]:
+    return tuple(load_metal_account_rates_config().get('metal_rate_skip_product_patterns') or ())
+
+
 def catalog_accounts_and_patterns() -> list[tuple[str, tuple[str, ...]]]:
     """Account keys with all regex patterns (exact entries compiled as anchored patterns)."""
     rows: list[tuple[str, tuple[str, ...]]] = []

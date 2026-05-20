@@ -330,7 +330,11 @@ def test_sales_24k_account_normalization_allows_missing_space_after_hyphen():
     assert out['errorRows'] == 0
 
 
-def test_sales_gold_rows_ignore_product_wise_rate_rules():
+def test_sales_gold_misc_rows_skip_market_rate_check():
+    """Black beads / misc gold SKUs are mapping-only even when market rates are configured."""
+    from app.sales_engine.services.metal_rate_store import save_market_rates
+
+    save_market_rates({'gold_22k_rate': 9000})
     proc = SalesAuditProcessor()
     b = _wb_bytes(
         [_row(voucher='G', sales_account='Gold Sales Account - 22k', product='Black beads', unit_rate=999999)]
@@ -338,7 +342,6 @@ def test_sales_gold_rows_ignore_product_wise_rate_rules():
     out = proc.process(b)
     assert out['errorRows'] == 0
     assert out['summary']['rateDeviationViolations'] == 0
-    assert out['summary']['rateMasterNotFound'] == 0
 
 
 def test_sales_skips_repair_charge_rows_entirely():

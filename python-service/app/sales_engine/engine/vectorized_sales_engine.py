@@ -19,8 +19,13 @@ from app.sales_engine.parsers.product_category import (
     slab_family_expr,
 )
 from app.sales_engine.validators.audit_trace import audit_flag_columns, audit_trace_columns
+from app.sales_engine.parsers.metal_rate import account_standard_rate_expr, metal_rate_applies_expr
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
+from app.sales_engine.validators.metal_rate_validator import (
+    combine_rate_validation_columns,
+    enrich_metal_rate_columns,
+)
 from app.utils.constants import SALES_ISSUE_MESSAGES
 from app.utils.logger import get_logger
 from app.utils.normalization_engine import (
@@ -376,6 +381,8 @@ class VectorizedSalesEngine:
             )
             .with_columns([mapping_valid_expr()])
             .with_columns(audit_flag_columns(product_col='__product_norm'))
+            .with_columns([account_standard_rate_expr()])
+            .with_columns([metal_rate_applies_expr(product_col='__product_norm')])
             .with_columns(
                 enrich_rate_columns(
                     uploaded_unit_rate_col='__uploaded_unit_rate',
@@ -385,10 +392,18 @@ class VectorizedSalesEngine:
             )
             .with_columns(
                 [
-                    (pl.col('__rate_invalid_raw').fill_null(False) & ~pl.col('__has_mix')).alias(
-                        '__rate_invalid_raw'
-                    ),
+                    (
+                        pl.col('__gem_rate_invalid_raw').fill_null(False) & ~pl.col('__has_mix')
+                    ).alias('__gem_rate_invalid_raw'),
                 ]
+            )
+            .with_columns(enrich_metal_rate_columns(uploaded_unit_rate_col='__uploaded_unit_rate'))
+            .with_columns(
+                combine_rate_validation_columns(
+                    uploaded_unit_rate_col='__uploaded_unit_rate',
+                    product_col='__product_norm',
+                    family_col='__slab_family',
+                )
             )
             .with_columns(audit_trace_columns())
         )
@@ -424,6 +439,7 @@ class VectorizedSalesEngine:
         excel_row = int(row.get('__source_row_id') or row['__source_excel_row_number'])
         uploaded = row.get('__uploaded_unit_rate')
         standard = row.get('__extracted_master_price')
+        market_rate = row.get('__current_market_rate')
         rate_diff = None
         if uploaded is not None and standard is not None:
             try:
@@ -450,11 +466,13 @@ class VectorizedSalesEngine:
             'uploadedRate': uploaded,
             'masterStandardRate': standard,
             'standardRate': standard,
+            'currentMarketRate': market_rate,
             'minAllowedRate': row.get('__min_allowed_rate'),
             'maxAllowedRate': row.get('__max_allowed_rate'),
             'deviationPercent': self._deviation_percent(uploaded, standard),
             'rateDifference': rate_diff,
             'rateValidationSource': row.get('__rate_validation_source'),
+            'validationStatus': row.get('__validation_status'),
             'quantity': row.get('__parsed_quantity'),
             'parsedQuantity': row.get('__parsed_quantity'),
             'rawUnitRate': row.get('__unit_rate_raw'),

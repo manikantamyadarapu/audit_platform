@@ -46,6 +46,8 @@ def audit_trace_columns() -> list[pl.Expr]:
 
     invalid_mapping = is_txn & ~mapping_ok
     invalid_pattern = is_txn & mapping_ok & price_parse_failed
+    metal_applies = pl.col('__metal_rate_applies').fill_null(False)
+    metal_rate_no_unit = is_txn & mapping_ok & metal_applies & unit_rate_missing
     invalid_rate = is_txn & mapping_ok & rate_invalid.fill_null(False) & rate_deviation_applies
     invalid_rate_no_unit = (
         is_txn
@@ -55,6 +57,7 @@ def audit_trace_columns() -> list[pl.Expr]:
         & unit_rate_missing
         & rate_deviation_applies
     )
+    invalid_rate_no_unit = invalid_rate_no_unit | metal_rate_no_unit
     invalid_rate_flag = (invalid_rate | invalid_rate_no_unit).fill_null(False)
 
     unknown_mix = is_txn & pl.col('__has_mix') & slab_family.is_null()
@@ -92,6 +95,7 @@ def audit_trace_columns() -> list[pl.Expr]:
         & ~pl.col('__has_customer')
         & ~pl.col('__has_loose')
         & ~pl.col('__is_misc_product')
+        & ~metal_applies
         & ~invalid_rate_no_unit
     )
 
