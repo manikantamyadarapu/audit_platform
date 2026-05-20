@@ -1,4 +1,4 @@
-"""Strict sales validation against the master sales verification workbook only."""
+"""Official jewelry sales ledger validation (account mapping + gemstone slab rates)."""
 
 from typing import Any
 
@@ -11,7 +11,7 @@ _REQUIRED = frozenset({'voucher_no', 'sales_account', 'product', 'unit_rate'})
 
 
 class SalesAuditProcessor(BaseProcessor):
-    """Strictly compare uploaded sales rows to the master rule workbook."""
+    """Validate sales account ↔ product mapping and gemstone slab unit rates."""
 
     def __init__(self) -> None:
         self.engine = VectorizedSalesEngine()
@@ -31,8 +31,8 @@ class SalesAuditProcessor(BaseProcessor):
                 headerRowExcel=header_excel,
                 expectedColumns=sorted(_REQUIRED),
                 hints=[
-                    'The sales audit matches uploaded sales rows only against the master sales '
-                    'verification workbook in app/data/master_sales_rules.xlsx.',
+                    'Sales audit uses official account ↔ product families and gemstone slab rates '
+                    'embedded in product names (Rubies, Emeralds, Pearls, Color stones).',
                     'The uploaded sheet must provide voucher_no, sales_account, product, and '
                     'unit_rate after header normalization. Example: "Voucher No" → voucher_no, '
                     '"Unit Rate" → unit_rate.',
@@ -42,10 +42,15 @@ class SalesAuditProcessor(BaseProcessor):
             )
 
         result = self.engine.validate_loaded_sheet(loaded)
+        distinct_invalid = int(
+            result.summary.get('distinctInvalidRows')
+            or result.summary.get('errorRowsCount')
+            or len(result.records)
+        )
         return build_processing_response(
             file_type='sales',
             total_rows=result.total_rows,
-            error_rows=len(result.records),
+            error_rows=distinct_invalid,
             summary=result.summary,
             records=result.records,
         )

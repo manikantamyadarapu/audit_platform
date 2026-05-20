@@ -18,6 +18,7 @@ import { SalesResultsTable } from '../components/tables/SalesResultsTable';
 import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
+import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
@@ -59,7 +60,10 @@ export default function SalesLedger() {
     }
   }, [file]);
 
-  const rawRecords = result?.records;
+  const rawRecords = useMemo(
+    () => dedupeSalesRecordsByRowNumber(result?.records),
+    [result?.records]
+  );
   const filteredRecords = useMemo(
     () => filterSalesRecords(rawRecords, activeFilter),
     [rawRecords, activeFilter]
@@ -86,8 +90,13 @@ export default function SalesLedger() {
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
-  const errorRows = result?.errorRows ?? 0;
-  const catVsProduct = summary.salesAccountProductMismatches ?? 0;
+  const errorRows =
+    summary.distinctInvalidRows ??
+    summary.errorRowsCount ??
+    result?.errorRows ??
+    rawRecords.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0).length;
+  const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
+  const rateViolations = summary.rateDeviationViolations ?? 0;
   const accountConflicts = summary.conflictingSalesAccountForProduct ?? 0;
   const grossWt = summary.grossWeightMismatches ?? 0;
   const compliance =
@@ -106,7 +115,9 @@ export default function SalesLedger() {
             <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
               <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
               <p className="mt-4 text-sm font-semibold text-slate-800">Validating ledger…</p>
-              <p className="mt-1 text-xs text-slate-500">Forwarding multipart upload to gateway</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Large ledgers (4k+ rows) usually finish in under a minute. Keep Node and Python running.
+              </p>
             </div>
           </motion.div>
         ) : null}
@@ -205,9 +216,9 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('accountVsProduct')}
               />
               <KpiCard
-                label="Mixed ledgers"
-                value={formatNumber(accountConflicts)}
-                hint="Product vs dominant sales account"
+                label="Rate deviations"
+                value={formatNumber(rateViolations)}
+                hint="Unit rate outside ±30% slab band"
                 icon={BookOpen}
                 accent="amber"
                 interactive

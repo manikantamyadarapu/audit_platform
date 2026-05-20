@@ -1,0 +1,96 @@
+{
+  "sales_account_aliases": {
+    "JEWELS SALES ACCOUNT - COLOR STONE": "JEWELS SALES ACCOUNT - COLOR STONES",
+    "JEWELS SALES ACCOUNT - DIAMONDS": "JEWEL SALES ACCOUNT - DIAMONDS",
+    "JEWEL SALES ACCOUNT - COLOR STONES": "JEWELS SALES ACCOUNT - COLOR STONES",
+    "JEWEL SALES ACCOUNT - DIAMONDS": "JEWEL SALES ACCOUNT - DIAMONDS",
+    "GOLD SALES ACCOUNT -24K": "GOLD SALES ACCOUNT - 24K",
+    "GOLD SALES ACCOUNT-24K": "GOLD SALES ACCOUNT - 24K",
+    "GOLD SALES ACCOUNT - 18K": "GOLD SALES ACCOUNT - 18K",
+    "GOLD SALES ACCOUNT - 18k": "GOLD SALES ACCOUNT - 18K",
+    "GOLD SALES ACCOUNT - 22K": "GOLD SALES ACCOUNT - 22K",
+    "GOLD SALES ACCOUNT - 22k": "GOLD SALES ACCOUNT - 22K",
+    "GOLD SALES ACCOUNT - 14K": "GOLD SALES ACCOUNT - 14K",
+    "GOLD SALES ACCOUNT - 14k": "GOLD SALES ACCOUNT - 14K",
+    "SILVER SALES ACCOUNT": "SILVER SALES ACCOUNT",
+    "SILVER sales Account": "SILVER SALES ACCOUNT",
+    "Silver sales Account": "SILVER SALES ACCOUNT",
+    "Jewel sales account - Diamonds": "JEWEL SALES ACCOUNT - DIAMONDS",
+    "Jewels sales account - Color stones": "JEWELS SALES ACCOUNT - COLOR STONES",
+    "Jewels sales account - Emeralds": "JEWELS SALES ACCOUNT - EMERALDS",
+    "Jewels sales account - Pearls": "JEWELS SALES ACCOUNT - PEARLS",
+    " Jewels sales account - Rubies": "JEWELS SALES ACCOUNT - RUBIES",
+    "Jewels sales account - Rubies": "JEWELS SALES ACCOUNT - RUBIES",
+    "Gold Sales Account - Jadau": "GOLD SALES ACCOUNT - JADAU",
+    "Gold Sales Account - jadau": "GOLD SALES ACCOUNT - JADAU"
+  },
+  "account_product_rules": {
+    "GOLD SALES ACCOUNT - 14K": {
+      "patterns": ["^GOLD ORNAMENTS 14K$"]
+    },
+    "GOLD SALES ACCOUNT - 18K": {
+      "patterns": ["^GOLD ORNAMENTS 18K$", "^CUSTOMER GOLD ORNAMENTS 18K$"]
+    },
+    "GOLD SALES ACCOUNT - 22K": {
+      "patterns": [
+        "^BLACK BEADS$",
+        "^CUSTOMER GOLD ORNAMENTS 22K$",
+        "^DORI$",
+        "^GOLD ORNAMENTS 22K$",
+        "^LAC$",
+        "^WAX, DORI ETC$"
+      ]
+    },
+    "GOLD SALES ACCOUNT - JADAU": {
+      "patterns": ["^GOLD ORNAMENTS JADAU$"]
+    },
+    "GOLD SALES ACCOUNT - 24K": {
+      "patterns": ["^STANDARD GOLD 24K$"]
+    },
+    "SILVER SALES ACCOUNT": {
+      "patterns": ["^SILVER ARTICLES$"]
+    },
+    "JEWEL SALES ACCOUNT - DIAMONDS": {
+      "patterns": [
+        "^CHAKRI$",
+        "^CUSTOMER DIAMONDS$",
+        "^CUSTOMER FLAT POLKI$",
+        "^DI\\. RA \\d+$",
+        "^DI\\. RC \\d+$",
+        "^DIAMONDS LOOSE DI\\. RA \\d+$",
+        "^FLAT POLKI FP \\d+$",
+        "^POLKI A$",
+        "^SD DI\\. \\d+$",
+        "^SD DI\\. MIX$"
+      ]
+    },
+    "JEWELS SALES ACCOUNT - COLOR STONES": {
+      "patterns": [
+        "^CUSTOMER STONES$",
+        "^PRECIOUS STONES JOS \\d+$",
+        "^PRECIOUS STONES LOOSE JOS \\d+$",
+        "^SEMI PRECIOUS JSP \\d+$",
+        "^SYNTHETIC JSY \\d+$"
+      ]
+    },
+    "JEWELS SALES ACCOUNT - EMERALDS": {
+      "patterns": [
+        "^CUSTOMER EMERALDS$",
+        "^EMERALDS JEM \\d+$",
+        "^EMERALDS JEM LOOSE \\d+$",
+        "^EMERALDS JEM MIX$"
+      ]
+    },
+    "JEWELS SALES ACCOUNT - PEARLS": {
+      "patterns": ["^CUSTOMER PEARLS$", "^PEARLS JPS \\d+$"]
+    },
+    "JEWELS SALES ACCOUNT - RUBIES": {
+      "patterns": [
+        "^CUSTOMER RUBIES$",
+        "^RUBIES JRU \\d+$",
+        "^RUBIES JRU LOOSE \\d+$",
+        "^RUBIES JRU MIX$"
+      ]
+    }
+  }
+}
