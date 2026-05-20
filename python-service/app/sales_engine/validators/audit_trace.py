@@ -40,20 +40,20 @@ def audit_trace_columns() -> list[pl.Expr]:
 
     rate_expected = is_txn & mapping_ok & rate_family
     price_parse_failed = rate_expected & gem_shape & ~has_slab
+    # Loose rows with an extracted slab (e.g. Precious stones Loose JOS 3600) still get ±30% checks.
+    loose_slab_rate_check = pl.col('__has_loose') & pl.col('__extracted_master_price').is_not_null()
+    rate_deviation_applies = ~pl.col('__has_mix') & (~pl.col('__has_loose') | loose_slab_rate_check)
 
     invalid_mapping = is_txn & ~mapping_ok
     invalid_pattern = is_txn & mapping_ok & price_parse_failed
-    invalid_rate = (
-        is_txn & mapping_ok & rate_invalid.fill_null(False) & ~pl.col('__has_loose') & ~pl.col('__has_mix')
-    )
+    invalid_rate = is_txn & mapping_ok & rate_invalid.fill_null(False) & rate_deviation_applies
     invalid_rate_no_unit = (
         is_txn
         & mapping_ok
         & rate_family
         & has_slab
         & unit_rate_missing
-        & ~pl.col('__has_loose')
-        & ~pl.col('__has_mix')
+        & rate_deviation_applies
     )
     invalid_rate_flag = (invalid_rate | invalid_rate_no_unit).fill_null(False)
 
@@ -69,7 +69,12 @@ def audit_trace_columns() -> list[pl.Expr]:
         & ~pl.col('__has_mix')
     )
 
-    skipped_loose = is_txn & mapping_ok & pl.col('__has_loose')
+    skipped_loose = (
+        is_txn
+        & mapping_ok
+        & pl.col('__has_loose')
+        & pl.col('__extracted_master_price').is_null()
+    )
     skipped_customer = is_txn & mapping_ok & pl.col('__has_customer') & ~pl.col('__has_loose')
     skipped_misc = (
         is_txn

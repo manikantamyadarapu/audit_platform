@@ -8,7 +8,7 @@ PAN audit, gross weight audit, and GST are **not** handled here.
 
 | Validation | Scope |
 | ---------- | ----- |
-| **Product mapping** | Sales account must own the product (prefix-based family match) |
+| **Product mapping** | Sales account must own the product (official catalog in `sales_ledger_catalog.json`) |
 | **Unit rate (±30%)** | Rubies, Emeralds, Pearls, Color stones only — slab price taken from the product name |
 
 **No rate check** for Gold, Silver, or Diamonds (mapping only).
@@ -20,8 +20,9 @@ PAN audit, gross weight audit, and GST are **not** handled here.
 ```text
 sales_engine/
   config/
-    mappings.json           Official account → product families
-    gemstone_rules.json     Slab regex, ±30%, rate-skip tokens
+    sales_ledger_catalog.json  Authoritative account → product rules (Sales Ledger Verification)
+    mappings.json              Slab routing + legacy aliases
+    gemstone_rules.json        Slab regex, ±30%, rate-skip tokens
   config/loader.py          Cached JSON config access
   parsers/
     product_family_router.py  Strict regex → product_family
@@ -45,34 +46,39 @@ Shared Excel loading (immutable row numbers): `app/engines/vectorized_validation
 3. Assign **`source_excel_row_number`** = physical worksheet row (never regenerated).
 4. Normalize text: uppercase, trim, collapse spaces, strip hidden Unicode.
 5. Keep only **transaction rows**: voucher + sales account + product + quantity &gt; 0; skip subtotals, repair charges, blank rows, repeated headers.
-6. **Mapping:** match `sales_account` + `product` against `config/mappings.json` using prefix families (e.g. `RUBIES JRU 3400` → family `RUBIES JRU`).
+6. **Mapping:** match `sales_account` + `product` against `config/sales_ledger_catalog.json` (regex rules per account from the official verification sheet).
 7. **Rate (gemstones):** parse slab from product name; compare uploaded unit rate to slab × 0.70 … slab × 1.30 unless product contains `CUSTOMER`, `MIX`, or `LOOSE`.
 8. Return **only invalid rows** with stable Excel row identity and debug fields.
 
 ## Configuration
 
-### `config/mappings.json`
+### `config/sales_ledger_catalog.json`
+
+Authoritative **Sales Ledger Verification** mappings (all accounts and product patterns).
 
 | Section | Purpose |
 | ------- | ------- |
-| `account_families` | Sales account → allowed `product_family` codes |
-| `product_family_route_order` | Priority when multiple patterns could match |
-| `product_family_patterns` | Strict regex per family (full match via `str.contains`) |
-
-**Pipeline:** normalize product → route to `product_family` → check account allows that family.
+| `sales_account_aliases` | Upload spellings → canonical account keys (normalized at load) |
+| `account_product_rules` | Per-account regex patterns for allowed products |
 
 Examples:
 
-- `RUBIES JRU 3400` → family `RUBIES` → valid on `JEWELS SALES ACCOUNT - RUBIES`
-- `EMERALDS JEM 500` on Rubies account → `INVALID_PRODUCT_MAPPING`
-- `WIDGET X` → no family → `INVALID_PRODUCT_MAPPING`
+- `Gold Ornaments 14K` on `GOLD SALES ACCOUNT - 14K` → valid
+- `Gold Ornaments Jadau` on `GOLD SALES ACCOUNT - 14K` → `INVALID_PRODUCT_MAPPING`
+- `Chakri`, `Di. RA 15`, `Flat polki FP 10` on `JEWEL SALES ACCOUNT - DIAMONDS` → valid
+- `Precious stones Loose JOS 3600` on Color stones account → valid (rate-checked separately)
+- `Synthetic JSY 150` on Color stones account → valid
+
+### `config/mappings.json`
+
+Slab family routing for rate validation (`slab_route_patterns`, `slab_route_order`) and misc patterns.
 
 ### `config/gemstone_rules.json`
 
 | Field | Purpose |
 | ----- | ------- |
 | `deviation_percent` | Allowed band (default **30** → ±30%) |
-| `rate_skip_tokens` | Skip rate when product contains `CUSTOMER`, `MIX`, or `LOOSE` |
+| `rate_skip_tokens` | Skip rate when product contains `CUSTOMER` or `MIX`; `LOOSE` only when no slab can be parsed |
 | `rate_validation_families` | Families that get slab rate checks |
 | `price_patterns` | Per-family regex to extract slab (e.g. `JRU (\d+)$`) |
 

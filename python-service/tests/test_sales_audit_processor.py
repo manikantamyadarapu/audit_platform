@@ -159,7 +159,9 @@ def test_sales_product_not_found_in_master():
         ]
     )
     out = proc.process(b)
-    assert out['records'][0]['issues'] == ['INVALID_PRODUCT_MAPPING']
+    # Unrecognized SKUs are UNKNOWN (not in official catalog), not mapping violations.
+    assert out['errorRows'] == 0
+    assert out['records'] == []
 
 
 def test_sales_diamond_mapping_valid():
@@ -292,6 +294,24 @@ def test_sales_pearl_ruby_master_skus_validate(sales_account: str, product: str)
     assert out['errorRows'] == 0
     assert out['summary']['productsNotFoundInMaster'] == 0
     assert out['summary']['invalidProductMappings'] == 0
+
+
+def test_sales_loose_jos_with_slab_flags_rate_deviation():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='LJ1',
+                    sales_account='Jewels sales account - Color stones',
+                    product='Precious stones Loose JOS 3600',
+                    unit_rate=1642.89,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
+    assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
 
 
 def test_sales_24k_account_normalization_allows_missing_space_after_hyphen():
