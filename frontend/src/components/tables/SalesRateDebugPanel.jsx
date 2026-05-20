@@ -45,6 +45,8 @@ export function SalesRateDebugPanel({ record }) {
         <DebugRow label="Validation source" value={record.rateValidationSource} />
         <DebugRow label="Uploaded unit rate" value={formatNum(record.uploadedUnitRate ?? record.unitRate)} />
         <DebugRow label="Master standard rate" value={formatNum(record.masterStandardRate ?? record.standardRate)} />
+        <DebugRow label="Current market rate" value={formatNum(record.currentMarketRate)} />
+        <DebugRow label="Validation status" value={record.validationStatus} />
         <DebugRow label="Min allowed (70%)" value={formatNum(record.minAllowedRate)} />
         <DebugRow label="Max allowed (130%)" value={formatNum(record.maxAllowedRate)} />
         <DebugRow
