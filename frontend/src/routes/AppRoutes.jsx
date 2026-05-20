@@ -6,6 +6,7 @@ import VouchingHub from '../pages/VouchingHub';
 import PanVerification from '../pages/PanVerification';
 import GrossWeight from '../pages/GrossWeight';
 import SalesLedger from '../pages/SalesLedger';
+import RateRuleSheet from '../pages/RateRuleSheet';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 import ModuleSoon from '../pages/ModuleSoon';
@@ -25,6 +26,8 @@ export function AppRoutes() {
         <Route path="/scrutiny/pan" element={<PanVerification />} />
         <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />
         <Route path="/scrutiny/sales-ledger" element={<SalesLedger />} />
+        <Route path="/scrutiny/rate-rules" element={<RateRuleSheet />} />
+        <Route path="/scrutiny/rule-book" element={<RateRuleSheet />} />
         <Route path="/scrutiny/gst" element={<ModuleSoon />} />
         <Route path="/scrutiny/duplicate-invoice" element={<ModuleSoon />} />
         <Route path="/scrutiny/vendor-reconciliation" element={<ModuleSoon />} />

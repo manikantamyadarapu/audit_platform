@@ -42,14 +42,14 @@ def enrich_rate_columns(
         .otherwise(pl.lit('SKIPPED'))
     )
     return [
-        slab,
-        min_rate.alias('__min_allowed_rate'),
-        max_rate.alias('__max_allowed_rate'),
+        slab.alias('__gem_extracted_master_price'),
+        min_rate.alias('__gem_min_allowed_rate'),
+        max_rate.alias('__gem_max_allowed_rate'),
         pl.when(rate_ready)
         .then(pl.lit(_RATE_VALIDATION_SOURCE))
         .otherwise(pl.lit('skipped'))
-        .alias('__rate_validation_source'),
-        rate_valid.alias('__rate_valid'),
-        invalid_rate.alias('__rate_invalid_raw'),
-        rate_result.alias('__rate_validation_result'),
+        .alias('__gem_rate_validation_source'),
+        rate_valid.alias('__gem_rate_valid'),
+        invalid_rate.alias('__gem_rate_invalid_raw'),
+        rate_result.alias('__gem_rate_validation_result'),
     ]

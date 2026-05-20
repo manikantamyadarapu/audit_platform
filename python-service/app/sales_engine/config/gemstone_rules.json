@@ -7,7 +7,5 @@
     "COLOR_STONES",
     "SEMI_PRECIOUS"
   ],
-  "gold_rate_skip_families": ["GOLD"],
-  "diamond_rate_skip_families": ["DIAMONDS"],
-  "silver_rate_skip_families": ["SILVER"]
+  "diamond_rate_skip_families": ["DIAMONDS"]
 }

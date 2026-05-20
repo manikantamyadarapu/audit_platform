@@ -1,196 +1,264 @@
 # Official Jewelry Sales Audit Engine
 
-Vectorized sales validation for the enterprise sales ledger. This module implements the **official sales account ↔ product mapping** and **gemstone slab unit-rate** rules from the jewelry sales verification sheet.
+Vectorized sales validation for the enterprise sales ledger. The engine enforces **two** rule families only:
 
-PAN audit, gross weight audit, and GST are **not** handled here.
+1. **Sales account ↔ product mapping** (official Sales Ledger Verification catalog)
+2. **Unit rate ±30%** (gemstone slab from product name; gold/silver from employee-entered market rates)
+
+PAN, gross weight, GST, address proof, voucher logic, and external master Excel joins are **out of scope**.
 
 ## What it validates
 
-| Validation | Scope |
-| ---------- | ----- |
-| **Product mapping** | Sales account must own the product (official catalog in `sales_ledger_catalog.json`) |
-| **Unit rate (±30%)** | Rubies, Emeralds, Pearls, Color stones only — slab price taken from the product name |
+| Check | Accounts / products | How it works |
+| ----- | ------------------- | ------------ |
+| **Product mapping** | All 11 sales accounts in `sales_ledger_catalog.json` | Product must match that account’s catalog regex; wrong account for a known SKU → `INVALID_PRODUCT_MAPPING` |
+| **Unit rate ±30% (gem)** | Rubies, Emeralds, Pearls, Color stones, Semi precious | Slab = last number in product name; band = slab × 0.70 … slab × 1.30 |
+| **Unit rate ±30% (metal)** | Gold ornaments / Standard Gold; Silver articles | Band from **Rate Rule Sheet** market rate per account (`metal_market_rates.json`) |
+| **Mapping only** | Diamonds; misc gold SKUs (Black beads, Dori, Lac, Wax Dori, Customer gold) | Mapping checked; rate skipped for listed misc SKUs |
 
-**No rate check** for Gold, Silver, or Diamonds (mapping only).
+**Not validated:** PAN, gross weight, GST, tax, amount÷quantity inference, fuzzy matching, `master_sales_rules.xlsx` joins.
 
-**No** external master Excel joins, fuzzy matching, amount÷quantity, voucher logic, PAN, or gross weight.
+## Accounts covered (mapping catalog)
+
+| Sales account | Example products |
+| ------------- | ---------------- |
+| Gold 14K / 18K / 22K / Jadau / 24K | Gold Ornaments, Standard Gold 24K, Black beads, Wax Dori Etc, … |
+| Silver | Silver articles |
+| Diamonds | Chakri, Di. RA/RC, Flat polki FP, SD Di., loose diamonds, customer lines |
+| Color stones | Precious stones JOS/JSP, loose JOS, Synthetic JSY, Customer Stones |
+| Emeralds / Pearls / Rubies | JEM/JPS/JRU numbered SKUs, loose, mix, customer lines |
+
+Full patterns live in `config/sales_ledger_catalog.json` (from the verification sheet).
 
 ## Architecture
 
 ```text
 sales_engine/
   config/
-    sales_ledger_catalog.json  Authoritative account → product rules (Sales Ledger Verification)
-    mappings.json              Slab routing + legacy aliases
-    gemstone_rules.json        Slab regex, ±30%, rate-skip tokens
-  config/loader.py          Cached JSON config access
+    sales_ledger_catalog.json   Account → product regex (source of truth for mapping)
+    mappings.json                 Slab routing, misc patterns, legacy aliases
+    gemstone_rules.json           ±30% deviation, gemstone rate families
+    metal_account_rates.json      Gold/silver patterns, skip list, variation %
+    metal_market_rates.json       Runtime rates from POST /api/v1/rate-rules (gitignored in deploy)
+  config/loader.py                Cached JSON loaders
   parsers/
-    product_family_router.py  Strict regex → product_family
-    product_price_parser.py   Family-based slab extraction
+    product_category.py           Category, slab family, slab price extraction
+    product_family_router.py      Re-exports for compatibility
+    metal_rate.py                 Gold/silver account-rate expressions (helpers)
   validators/
-    mapping_validator.py      Account ↔ product_family
-    gemstone_rate_validator.py  Slab band + skip rules
+    mapping_validator.py          Catalog + cross-account mapping
+    gemstone_rate_validator.py    Gemstone slab ±30%
+    metal_rate_validator.py       Gold/silver market rate ±30% (combined with gem export cols)
+    audit_trace.py                Row-level flags, final issue, audit reason
   engine/
-    vectorized_sales_engine.py  Load, enrich, adjudicate, export invalid rows
+    vectorized_sales_engine.py    Load → enrich → adjudicate → API invalid rows
+    reconciliation.py             Input = valid + invalid + dropped
+    debug_trace.py                Debug columns / optional CSV
+    audit_workbook.py             Multi-sheet debug export
+    record_dedup.py               Optional API dedupe (not used on default export path)
 ```
 
-Entry point for the API: `app/processors/sales_audit_processor.py`  
-Compatibility re-export: `app/engines/vectorized_sales_engine.py`
-
-Shared Excel loading (immutable row numbers): `app/engines/vectorized_validation_engine.py`
+**Entry point:** `app/processors/sales_audit_processor.py`  
+**Compatibility:** `app/engines/vectorized_sales_engine.py`  
+**Excel load (immutable row numbers):** `app/engines/vectorized_validation_engine.py`
 
 ## Validation flow
 
 1. Upload sales Excel (`.xlsx` / `.xlsm` / `.xls`).
-2. Detect header row (supports title/preamble rows above the table).
-3. Assign **`source_excel_row_number`** = physical worksheet row (never regenerated).
-4. Normalize text: uppercase, trim, collapse spaces, strip hidden Unicode.
-5. Keep only **transaction rows**: voucher + sales account + product + quantity &gt; 0; skip subtotals, repair charges, blank rows, repeated headers.
-6. **Mapping:** match `sales_account` + `product` against `config/sales_ledger_catalog.json` (regex rules per account from the official verification sheet).
-7. **Rate (gemstones):** parse slab from product name; compare uploaded unit rate to slab × 0.70 … slab × 1.30 unless product contains `CUSTOMER`, `MIX`, or `LOOSE`.
-8. Return **only invalid rows** with stable Excel row identity and debug fields.
+2. Detect header row (title/preamble rows above the table are supported).
+3. Set **`__source_row_id`** = physical Excel row (1-based, never regenerated).
+4. Normalize text: uppercase, trim, collapse spaces, strip hidden characters.
+5. Keep **transaction rows** only: voucher + sales account + product + quantity &gt; 0; skip blanks, subtotals, repair charges, repeated headers.
+6. **Canonicalize** sales account via aliases (`Jewel sales account - Diamonds` → `JEWEL SALES ACCOUNT - DIAMONDS`, etc.).
+7. **Mapping:** product must match **this** account’s rules in `sales_ledger_catalog.json`.
+   - Product matches **another** account’s catalog → `INVALID_PRODUCT_MAPPING` (cross-account).
+   - Product matches **no** catalog pattern → `UNKNOWN_PRODUCT` (not a mapping hit).
+8. **Rate (gemstones):** extract slab from product name; compare uploaded unit rate to ±30% band.
+8b. **Rate (gold/silver):** when product matches `gold_rate_product_patterns` / `silver_rate_product_patterns` and a market rate is configured, compare **invoice unit rate only** to ±30% of that rate (skip misc SKUs in `metal_rate_skip_product_patterns`).
+9. Export **one invalid API record per Excel row** (no `group_by`, no dedupe on the default path).
+10. Write debug workbook: `app/debug/sales_audit_debug.xlsx` (all rows + trace columns).
+11. **Reconciliation** assertion: `input = valid + invalid + dropped` (logged on every run).
 
-## Configuration
+## Rate rules (gemstones)
 
-### `config/sales_ledger_catalog.json`
+Applies to families in `gemstone_rules.json` → `rate_validation_families`:
 
-Authoritative **Sales Ledger Verification** mappings (all accounts and product patterns).
+**RUBIES, EMERALDS, PEARLS, COLOR_STONES, SEMI_PRECIOUS**
+
+```text
+min_allowed = slab × (1 − 30%)
+max_allowed = slab × (1 + 30%)
+PASS when: min_allowed ≤ uploaded_unit_rate ≤ max_allowed
+```
+
+| Situation | Rate behaviour |
+| --------- | -------------- |
+| Numbered SKU (`Rubies JRU 800`) | Slab from product name; rate checked |
+| `Precious stones Loose JOS 3600` | Slab parsed from name; **rate checked** (loose + numeric slab) |
+| `LOOSE` with no parseable slab | `SKIPPED` (no rate deviation) |
+| `CUSTOMER …` | `SKIPPED` |
+| `… MIX` | `SKIPPED` |
+| Missing / zero unit rate on slab product | `INVALID_RATE_DEVIATION` (`UNIT_RATE_INVALID`) |
+| Slab shape but parse fails | `INVALID_PRODUCT_PATTERN` |
+
+`rateValidationSource` on invalid rows: **`product_slab`**.
+
+## Gold, silver, and diamonds
+
+| Material | Mapping | Unit rate |
+| -------- | ------- | --------- |
+| **Gold ornaments / Standard Gold** | Per-account catalog | ±30% vs employee market rate when configured |
+| **Misc gold** (Black beads, Dori, Lac, Wax Dori, Customer …) | Catalog | **Skipped** (mapping only) |
+| **Silver articles** | `Silver articles` | ±30% vs silver market rate |
+| **Diamonds** | Full diamond SKU catalog | Mapping only |
+
+### Rate Rule Sheet (market rates)
+
+Employees enter current rates in the UI (**Scrutiny → Rate Rule Sheet**) or via API:
+
+- `GET/POST /api/v1/rate-rules` (Node proxy → Python)
+- Payload: `gold_14k_rate`, `gold_18k_rate`, `gold_22k_rate`, `gold_jadau_rate`, `gold_24k_rate`, `silver_rate`
+- Persisted to `config/metal_market_rates.json`; cache cleared on save
+
+```text
+Example: Gold 22K market rate = 9000
+  min = 6300, max = 11700
+  invoice unit rate 5800 → INVALID_RATE_DEVIATION
+```
+
+| Config key | Purpose |
+| ---------- | ------- |
+| `metal_account_rates.json` | Product/skip patterns, default `allowed_variation_percent` |
+| `metal_market_rates.json` | Runtime gold/silver rates per account |
+| `gold_rate_product_patterns` | `^GOLD ORNAMENTS`, `^STANDARD GOLD` |
+| `silver_rate_product_patterns` | `^SILVER ARTICLES$` |
+| `metal_rate_skip_product_patterns` | Black beads, Dori, Lac, Wax Dori, Customer … |
+
+`parsers/metal_rate.py` + `validators/metal_rate_validator.py` merge metal checks with gemstone columns (`currentMarketRate`, `minAllowedRate`, `maxAllowedRate`, `rateValidationSource`: `account_market_rate`).
+
+## Configuration reference
+
+### `sales_ledger_catalog.json`
 
 | Section | Purpose |
 | ------- | ------- |
-| `sales_account_aliases` | Upload spellings → canonical account keys (normalized at load) |
-| `account_product_rules` | Per-account regex patterns for allowed products |
+| `sales_account_aliases` | Upload spellings → canonical keys (normalized at load) |
+| `account_product_rules` | Per-account regex list for allowed products |
 
-Examples:
+### `mappings.json`
 
-- `Gold Ornaments 14K` on `GOLD SALES ACCOUNT - 14K` → valid
-- `Gold Ornaments Jadau` on `GOLD SALES ACCOUNT - 14K` → `INVALID_PRODUCT_MAPPING`
-- `Chakri`, `Di. RA 15`, `Flat polki FP 10` on `JEWEL SALES ACCOUNT - DIAMONDS` → valid
-- `Precious stones Loose JOS 3600` on Color stones account → valid (rate-checked separately)
-- `Synthetic JSY 150` on Color stones account → valid
+| Section | Purpose |
+| ------- | ------- |
+| `slab_route_order` / `slab_route_patterns` | Regex to extract slab family + price from product name |
+| `misc_product_patterns` | e.g. `Wax, Dori Etc` (mapping via catalog; misc skip in audit trace) |
+| `sales_account_aliases` | Merged with catalog aliases at load |
 
-### `config/mappings.json`
+### `gemstone_rules.json`
 
-Slab family routing for rate validation (`slab_route_patterns`, `slab_route_order`) and misc patterns.
-
-### `config/gemstone_rules.json`
-
-| Field | Purpose |
-| ----- | ------- |
-| `deviation_percent` | Allowed band (default **30** → ±30%) |
-| `rate_skip_tokens` | Skip rate when product contains `CUSTOMER` or `MIX`; `LOOSE` only when no slab can be parsed |
-| `rate_validation_families` | Families that get slab rate checks |
-| `price_patterns` | Per-family regex to extract slab (e.g. `JRU (\d+)$`) |
-
-Rate validation applies only to: **RUBIES, EMERALDS, PEARLS, COLOR_STONES, SEMI_PRECIOUS, SYNTHETIC**.
-
-Rate formula:
-
-```text
-min_allowed = slab × (1 - deviation_percent/100)
-max_allowed = slab × (1 + deviation_percent/100)
-```
-
-`rateValidationSource` on invalid rows is `product_slab` (not an external rate workbook).
+| Field | Default | Purpose |
+| ----- | ------- | ------- |
+| `deviation_percent` | 30 | ±30% band |
+| `rate_validation_families` | RUBIES, EMERALDS, PEARLS, COLOR_STONES, SEMI_PRECIOUS | Who gets slab rate checks |
 
 ## Required upload columns
 
-After header normalization:
-
-| Column | Typical Excel header |
-| ------ | -------------------- |
+| Normalized column | Typical Excel header |
+| ----------------- | -------------------- |
 | `voucher_no` | Voucher No |
 | `sales_account` | Sales Account |
 | `product` | Product |
 | `unit_rate` | Unit Rate |
 
-`quantity` is used to identify transaction rows but is not validated against business rules.
+`quantity` &gt; 0 is required to treat a row as a transaction. Other columns (party name, GST, gross weight, …) are not validated but may appear on invalid-row output.
 
-Other columns (party name, GST, gross weight, etc.) are ignored for validation; party name may still appear on invalid-row output when present.
-
-## Issue codes (sales only)
+## Issue codes
 
 | Code | When |
 | ---- | ---- |
-| `INVALID_PRODUCT_MAPPING` | Unknown account, or product not in that account’s families |
-| `INVALID_RATE_DEVIATION` | Gemstone slab product: unit rate outside ±30% band |
+| `INVALID_PRODUCT_MAPPING` | Known account, product belongs on a **different** account (catalog hit elsewhere) |
+| `INVALID_RATE_DEVIATION` | Gemstone (or future metal) rate outside ±30%, or missing unit rate on slab product |
+| `INVALID_PRODUCT_PATTERN` | Gemstone-shaped product but slab price could not be parsed |
 
-Messages (see `app/utils/constants.py`):
+Internal / non-export statuses: `VALID`, `SKIPPED`, `UNKNOWN_PRODUCT` (see debug `__final_issue`).
+
+Messages (`app/utils/constants.py`):
 
 - *Product does not belong to the selected sales account.*
 - *Unit rate is outside the allowed ±30% deviation band.*
 
-## Invalid-row payload (API)
-
-Each invalid record includes:
+## API invalid-row payload
 
 | Field | Description |
 | ----- | ----------- |
-| `rowNumber` / `sourceExcelRowNumber` | Original Excel row (immutable) |
-| `voucherNo` / `voucherNorm` | Voucher display and normalized key |
-| `originalExcelSalesAccount` / `originalExcelProduct` / `originalExcelUnitRate` | Raw cell values from upload |
-| `validationSalesAccount` / `validationProduct` | Normalized values used for rules |
-| `unitRate` / `uploadedUnitRate` | Parsed unit rate |
-| `standardRate` / `masterStandardRate` | Slab from product name (gemstones) |
+| `rowNumber` / `sourceExcelRowNumber` | Physical Excel row |
+| `originalExcelSalesAccount` / `originalExcelProduct` / `originalExcelUnitRate` | Raw cells at load time |
+| `validationSalesAccount` / `validationProduct` | Normalized values used in rules |
+| `standardRate` / `masterStandardRate` | Reference slab (from product name for gems) |
 | `minAllowedRate` / `maxAllowedRate` | ±30% band |
+| `deviationPercent` / `rateDifference` | vs standard |
 | `rateValidationSource` | `product_slab` or `skipped` |
-| `issues` / `messages` | Codes and human-readable text |
+| `issues` / `messages` | Codes and text |
 
-## Row identity
+## Reconciliation (summary)
 
-`source_excel_row_number` is set once when the sheet is read (1-based physical row). It is **never** reset with `reset_index`, `enumerate`, or join row multiplication.
+Every upload logs:
 
-If export row **1382** shows the wrong product, compare `originalExcelProduct` to the workbook — that field is frozen at load time.
+```text
+TOTAL_INPUT_ROWS = TOTAL_VALID_ROWS + TOTAL_INVALID_ROWS + TOTAL_DROPPED_ROWS
+```
 
-## Performance
-
-- Polars expressions end-to-end for validation (no per-row Python loops).
-- No DuckDB master joins for sales adjudication.
-- Suitable for **10,000+** transaction rows.
-
-Benchmark logs: `[sales] vectorized validation benchmark ...`
-
-Debug CSV (optional): `app/debug/sales_transaction_pipeline.csv`
+`summary.reconciliation` and `summary.distinctInvalidRows` match exported invalid counts (row-preserving, no dedupe).
 
 ## Examples
 
-**Valid mapping + rate**
+**Valid — mapping + rate**
 
-- Account: `JEWELS SALES ACCOUNT - RUBIES`
-- Product: `RUBIES JRU 3400`
-- Unit rate: `4000` (within 2380–4420)
+- Account: `JEWELS SALES ACCOUNT - RUBIES`, product: `Rubies JRU 3400`, unit rate: `4000` → within 2380–4420
 
-**Invalid mapping**
+**Invalid — mapping**
 
-- Same product under `JEWELS SALES ACCOUNT - PEARLS` → `INVALID_PRODUCT_MAPPING`
+- `Gold Ornaments Jadau` on `GOLD SALES ACCOUNT - 14K` → `INVALID_PRODUCT_MAPPING`
+- `Emeralds JEM 500` on `JEWELS SALES ACCOUNT - PEARLS` → `INVALID_PRODUCT_MAPPING`
 
-**Invalid rate**
+**Invalid — rate**
 
-- Product: `RUBIES JRU 1000`, unit rate: `1500` → `INVALID_RATE_DEVIATION`
+- `Rubies JRU 1000`, unit rate `1500` → `INVALID_RATE_DEVIATION`
+- `Precious stones Loose JOS 3600`, unit rate `1642` → `INVALID_RATE_DEVIATION` (loose + parsed slab)
 
-**Rate skipped**
+**Valid — mapping only (no gem rate)**
 
-- Product: `CUSTOMER RUBIES` or `RUBIES JRU MIX` → mapping only
+- `GOLD SALES ACCOUNT - 22K` + `Black beads` + any unit rate → mapping OK, rate not checked
+- `JEWEL SALES ACCOUNT - DIAMONDS` + `Chakri` → mapping OK, rate not checked
 
-**Gold — rate ignored**
+**Skipped rate**
 
-- Account: `GOLD SALES ACCOUNT - 22K`, product: `BLACK BEADS`, any unit rate → mapping only
+- `Customer Rubies`, `Rubies JRU Mix` → mapping may pass; rate skipped
+
+## Performance and debug
+
+- Polars vectorized expressions (no per-row Python validation loops).
+- Suitable for **10,000+** rows.
+- Log line: `[sales] vectorized validation benchmark …`
+- Debug export: **`python-service/app/debug/sales_audit_debug.xlsx`** — filter `__final_issue` to tune rules.
 
 ## Tests
 
 ```bash
 cd python-service
-source .venv/Scripts/activate   # or PowerShell Activate.ps1
-python -m pytest tests/test_sales_audit_processor.py -q
+python -m pytest tests/test_sales_audit_processor.py tests/test_sales_ledger_catalog.py tests/test_sales_reconciliation.py -q
 ```
 
-## Legacy files (not used by this engine)
+## Changing rules
 
-These remain in the repo for reference or other tooling but are **not** loaded by the current sales audit path:
+Edit JSON under **`app/sales_engine/config/`** and restart the Python service. No code change needed for catalog or slab pattern updates.
 
-- `app/data/master_sales_rules.xlsx`
-- `app/data/master_sales_rate_rules.xlsx`
-- `app/services/master_rule_service.py`
-- `app/services/master_sales_rate_rule_service.py`
+## Legacy (not used by this engine)
 
-Update **`app/sales_engine/config/*.json`** to change official sales rules.
+| Path | Note |
+| ---- | ---- |
+| `app/data/master_sales_rules.xlsx` | Old hierarchical master |
+| `app/data/master_sales_rate_rules.xlsx` | Product-wise rate workbook builder |
+| `app/services/master_rule_service.py` | Legacy flattening |
+| `app/services/master_sales_rate_rule_service.py` | Legacy rate flattening |
+
+The sales audit path does **not** join these files at runtime.

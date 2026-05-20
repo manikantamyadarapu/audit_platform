@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Loader2,
@@ -136,6 +137,13 @@ export default function SalesLedger() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Link
+                to="/scrutiny/rule-book"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
+              >
+                <Coins className="h-4 w-4" />
+                Rule book
+              </Link>
               <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
                 Clear file
               </Button>
