@@ -385,11 +385,9 @@ class VectorizedSalesEngine:
             )
             .with_columns(
                 [
-                    (
-                        pl.col('__rate_invalid_raw').fill_null(False)
-                        & ~pl.col('__has_loose')
-                        & ~pl.col('__has_mix')
-                    ).alias('__rate_invalid_raw'),
+                    (pl.col('__rate_invalid_raw').fill_null(False) & ~pl.col('__has_mix')).alias(
+                        '__rate_invalid_raw'
+                    ),
                 ]
             )
             .with_columns(audit_trace_columns())

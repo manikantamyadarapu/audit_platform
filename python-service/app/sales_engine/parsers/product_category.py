@@ -4,7 +4,9 @@ import polars as pl
 
 from app.sales_engine.config.loader import misc_product_patterns, slab_route_order, slab_route_patterns
 
-_COLOR_STONE_COMBINED = r'^(PRECIOUS\s+STONES|SEMI\s+PRECIOUS)\s+(JOS|JSP)\s+(\d+)$'
+_COLOR_STONE_COMBINED = (
+    r'^(PRECIOUS\s+STONES|SEMI\s+PRECIOUS)(?:\s+LOOSE)?\s+(JOS|JSP)\s+(\d+)$'
+)
 
 _ACCOUNT_CATEGORY: dict[str, str] = {
     'JEWELS SALES ACCOUNT - RUBIES': 'RUBIES',
