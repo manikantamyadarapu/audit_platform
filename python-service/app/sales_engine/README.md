@@ -74,7 +74,7 @@ sales_engine/
    - Product matches **no** catalog pattern → `UNKNOWN_PRODUCT` (not a mapping hit).
 8. **Rate (gemstones):** extract slab from product name; compare uploaded unit rate to ±30% band.
 8b. **Rate (gold/silver):** when normalized product matches a rule-book SKU with a saved rate, compare **invoice unit rate only** to ±30% of that entered rate.
-9. Export **one invalid API record per Excel row** (no `group_by`, no dedupe on the default path).
+9. Export **one invalid API record per Excel row** (merge only duplicate pipeline rows for the same `rowNumber`; **never** dedupe by voucher alone — multi-line vouchers are valid).
 10. Write debug workbook: `app/debug/sales_audit_debug.xlsx` (all rows + trace columns).
 11. **Reconciliation** assertion: `input = valid + invalid + dropped` (logged on every run).
 
@@ -186,7 +186,10 @@ Internal / non-export statuses: `VALID`, `SKIPPED`, `UNKNOWN_PRODUCT` (see debug
 Messages (`app/utils/constants.py`):
 
 - *Product does not belong to the selected sales account.*
-- *Unit rate is outside the allowed ±30% deviation band.*
+- Rate below band: *Unit rate below allowed range.*
+- Rate above band: *Unit rate above allowed range.*
+- Mapping: *Product mapping mismatch.*
+- Missing unit rate: *Unit rate missing.*
 
 ## API invalid-row payload
 

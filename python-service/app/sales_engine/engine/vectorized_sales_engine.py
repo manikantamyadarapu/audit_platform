@@ -11,6 +11,7 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet, VectorizedValidationEngine
 from app.sales_engine.engine.audit_workbook import write_sales_audit_workbook
 from app.sales_engine.engine.debug_trace import attach_debug_identity_columns, write_sales_audit_debug_workbook
+from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
 from app.sales_engine.engine.reconciliation import log_reconciliation, reconcile_adjudicated_frame
 from app.sales_engine.parsers.product_category import (
     account_category_expr,
@@ -19,7 +20,12 @@ from app.sales_engine.parsers.product_category import (
     slab_family_expr,
 )
 from app.sales_engine.validators.audit_trace import audit_flag_columns, audit_trace_columns
-from app.sales_engine.parsers.metal_rate import metal_rate_applies_expr, product_rule_book_rate_expr
+from app.sales_engine.parsers.metal_rate import (
+    metal_rate_applies_expr,
+    metal_rate_expected_expr,
+    product_rule_book_rate_expr,
+)
+from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
 from app.sales_engine.validators.metal_rate_validator import (
@@ -96,8 +102,6 @@ def _sales_header_row_matches(labels: set[str]) -> bool:
     return _HEADER_CORE <= labels
 
 
-def _messages_for_issues(codes: list[str]) -> list[str]:
-    return [SALES_ISSUE_MESSAGES.get(code, code) for code in codes]
 
 
 @dataclass(slots=True)
@@ -382,7 +386,12 @@ class VectorizedSalesEngine:
             .with_columns([mapping_valid_expr()])
             .with_columns(audit_flag_columns(product_col='__product_norm'))
             .with_columns([product_rule_book_rate_expr(product_col='__product_norm')])
-            .with_columns([metal_rate_applies_expr(product_col='__product_norm')])
+            .with_columns(
+                [
+                    metal_rate_expected_expr(product_col='__product_norm'),
+                    metal_rate_applies_expr(product_col='__product_norm'),
+                ]
+            )
             .with_columns(
                 enrich_rate_columns(
                     uploaded_unit_rate_col='__uploaded_unit_rate',
@@ -409,7 +418,7 @@ class VectorizedSalesEngine:
         )
 
     def _records_from_invalid_frame(self, invalid_df: pl.DataFrame) -> list[dict[str, Any]]:
-        """One API record per adjudicated row — no group_by, no dedup."""
+        """One API record per Excel row; merge pipeline duplicates by row number (never by voucher)."""
         if invalid_df.is_empty():
             return []
         sort_col = '__source_row_id' if '__source_row_id' in invalid_df.columns else '__source_excel_row_number'
@@ -437,6 +446,12 @@ class VectorizedSalesEngine:
                 '__invalid_product_mapping',
                 '__invalid_product_pattern',
                 '__invalid_rate_deviation',
+                '__rate_below_min',
+                '__rate_above_max',
+                '__rate_unit_missing',
+                '__rate_valid',
+                '__metal_rate_applies',
+                '__metal_rate_expected',
                 '__raw_excel_row_json',
                 '__original_excel_sales_account',
                 '__original_excel_product',
@@ -445,7 +460,9 @@ class VectorizedSalesEngine:
             }
         ]
         slim = invalid_df.sort(sort_col).select(export_cols)
-        return [self._record_from_row(row) for row in slim.to_dicts()]
+        records = [self._record_from_row(row) for row in slim.to_dicts()]
+        records, _ = dedupe_invalid_records_by_row_number(records)
+        return records
 
     @staticmethod
     def _deviation_percent(uploaded: float | None, standard: float | None) -> float | None:
@@ -465,7 +482,7 @@ class VectorizedSalesEngine:
             issues.append('INVALID_PRODUCT_MAPPING')
         if row.get('__invalid_product_pattern'):
             issues.append('INVALID_PRODUCT_PATTERN')
-        if row.get('__invalid_rate_deviation'):
+        if row.get('__invalid_rate_deviation') or row.get('__rate_unit_missing'):
             issues.append('INVALID_RATE_DEVIATION')
 
         excel_row = int(row.get('__source_row_id') or row['__source_excel_row_number'])
@@ -512,7 +529,8 @@ class VectorizedSalesEngine:
             'auditStatus': row.get('__audit_status'),
             'auditReason': row.get('__audit_reason'),
             'issues': issues,
-            'messages': _messages_for_issues(issues),
+            'messages': (row_messages := build_row_messages(row, issues)),
+            'rateMessage': row_messages[0] if row_messages else '',
         }
 
     def _write_debug_exports(self, *, adjudicated_df: pl.DataFrame) -> dict[str, int]:

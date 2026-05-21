@@ -26,8 +26,11 @@ def enrich_rate_columns(
         & uploaded.is_not_null()
         & (uploaded > 0)
     )
-    rate_valid = rate_ready & (uploaded >= min_rate) & (uploaded <= max_rate)
-    invalid_rate = rate_ready & ~rate_valid
+    rate_below = rate_ready & (uploaded < min_rate)
+    rate_above = rate_ready & (uploaded > max_rate)
+    rate_valid = rate_ready & ~rate_below & ~rate_above
+    invalid_rate = rate_below | rate_above
+    gem_unit_missing = rate_families & slab.is_not_null() & (uploaded.is_null() | (uploaded <= 0))
     rate_result = (
         pl.when(~rate_families)
         .then(pl.lit('NOT_APPLICABLE'))
@@ -51,5 +54,8 @@ def enrich_rate_columns(
         .alias('__gem_rate_validation_source'),
         rate_valid.alias('__gem_rate_valid'),
         invalid_rate.alias('__gem_rate_invalid_raw'),
+        rate_below.alias('__gem_rate_below_min'),
+        rate_above.alias('__gem_rate_above_max'),
+        gem_unit_missing.alias('__gem_unit_rate_missing'),
         rate_result.alias('__gem_rate_validation_result'),
     ]
