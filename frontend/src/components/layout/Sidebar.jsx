@@ -31,7 +31,7 @@ const scrutinyItems = [
   { to: '/scrutiny/pan', label: 'PAN Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Sales Audit', icon: FileSpreadsheet },
-  { to: '/scrutiny/rule-book', label: 'Rule Book', icon: Coins },
+  { to: '/scrutiny/rate-rule-book', label: 'Rate Rule Book', icon: Coins },
 ];
 
 const vouchingItems = [

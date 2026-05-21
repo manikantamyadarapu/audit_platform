@@ -1,5 +1,5 @@
 const pythonClient = require('../services/pythonClient.service');
-const { getLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 async function getRateRules(req, res, next) {
   try {
@@ -12,8 +12,10 @@ async function getRateRules(req, res, next) {
 
 async function saveRateRules(req, res, next) {
   try {
-    const log = getLogger(req.requestId);
-    log.info('Rate rules save: forwarding to Python', { body: req.body });
+    logger.info('Rate rules save: forwarding to Python', {
+      requestId: req.requestId,
+      body: req.body,
+    });
     const data = await pythonClient.postRateRules(req.body, { requestId: req.requestId });
     res.json(data);
   } catch (err) {

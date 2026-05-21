@@ -101,51 +101,50 @@ class GrossWeightProcessor(BaseProcessor):
         )
         return normalized in {"sno", "srno"}
 
+    def _effective_difference_series(self, dataframe: pd.DataFrame) -> pd.Series:
+        if dataframe.empty or 'difference' not in dataframe.columns:
+            return pd.Series(dtype=object)
+        return dataframe['difference'].map(parse_weight_decimal)
+
     def _filter_invalid_difference_rows(
         self,
         normalized_df: pd.DataFrame,
     ) -> pd.DataFrame:
-        invalid_indexes: list[int] = []
+        if normalized_df.empty:
+            return normalized_df.copy()
 
-        for idx, row in normalized_df.iterrows():
-            effective_diff = parse_weight_decimal(row.get("difference"))
-            if effective_diff is None:
-                continue
-
-            if abs(effective_diff) > self._match_epsilon:
-                invalid_indexes.append(idx)
-
-        return normalized_df.loc[invalid_indexes].copy()
+        effective = self._effective_difference_series(normalized_df)
+        epsilon = float(self._match_epsilon)
+        mask = effective.notna() & (effective.abs() > epsilon)
+        return normalized_df.loc[mask].copy()
 
     def _count_invalid_rows_by_sign(
         self,
         invalid_rows_df: pd.DataFrame,
     ) -> tuple[int, int]:
-        negative_invalid_count = 0
-        positive_invalid_count = 0
+        if invalid_rows_df.empty:
+            return 0, 0
 
-        for _, row in invalid_rows_df.iterrows():
-            effective_diff = parse_weight_decimal(row.get("difference"))
-            if effective_diff is None:
-                continue
-
-            if effective_diff < 0:
-                negative_invalid_count += 1
-            elif effective_diff > 0:
-                positive_invalid_count += 1
-
+        effective = self._effective_difference_series(invalid_rows_df)
+        negative_invalid_count = int((effective < 0).sum())
+        positive_invalid_count = int((effective > 0).sum())
         return negative_invalid_count, positive_invalid_count
 
     def _records_from_invalid_rows(
         self,
         invalid_rows_df: pd.DataFrame,
     ) -> list[dict[str, Any]]:
+        if invalid_rows_df.empty:
+            return []
+
+        effective = self._effective_difference_series(invalid_rows_df)
         records: list[dict[str, Any]] = []
 
-        for _, row in invalid_rows_df.iterrows():
-            diff_val = parse_weight_decimal(row.get("difference"))
+        for row, diff_val in zip(invalid_rows_df.itertuples(index=False), effective):
+            if diff_val is None:
+                continue
 
-            if diff_val is not None and diff_val < 0:
+            if diff_val < 0:
                 issues = ["NEGATIVE_WEIGHT_VALUES"]
                 messages = ["Negative weight values are not allowed"]
             else:
@@ -154,15 +153,15 @@ class GrossWeightProcessor(BaseProcessor):
 
             records.append(
                 {
-                    "rowNumber": self._json_value(row.get("value_row_index")),
-                    "voucherNo": self._json_value(row.get("voucher_no")),
-                    "date": self._json_value(row.get("date")),
-                    "party": self._json_value(row.get("party")),
-                    "manualGrossWeight": self._json_value(row.get("manual_gross_weight")),
-                    "autoGrossWeight": self._json_value(row.get("auto_gross_weight")),
-                    "difference": self._json_value(row.get("difference")),
-                    "voucherRowIndex": self._json_value(row.get("voucher_row_index")),
-                    "valueRowIndex": self._json_value(row.get("value_row_index")),
+                    "rowNumber": self._json_value(getattr(row, "value_row_index", None)),
+                    "voucherNo": self._json_value(getattr(row, "voucher_no", None)),
+                    "date": self._json_value(getattr(row, "date", None)),
+                    "party": self._json_value(getattr(row, "party", None)),
+                    "manualGrossWeight": self._json_value(getattr(row, "manual_gross_weight", None)),
+                    "autoGrossWeight": self._json_value(getattr(row, "auto_gross_weight", None)),
+                    "difference": self._json_value(getattr(row, "difference", None)),
+                    "voucherRowIndex": self._json_value(getattr(row, "voucher_row_index", None)),
+                    "valueRowIndex": self._json_value(getattr(row, "value_row_index", None)),
                     "issues": issues,
                     "messages": messages,
                 }

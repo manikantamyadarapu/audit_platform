@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from app.core.issue_engine import messages_for_codes
+from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import VectorizedValidationEngine
 from app.processors.base import BaseProcessor
 from app.utils.constants import (
@@ -47,7 +48,15 @@ class PanProcessor(BaseProcessor):
         invalid_pan_format_count = int(invalid_df['invalid_pan_issue'].sum() or 0)
         missing_address_proof_count = int(invalid_df['missing_address_issue'].sum() or 0)
 
-        for row in invalid_df.to_dicts():
+        issue_cols = ['row_number', 'date', 'voucher_no', 'party', 'total_value', 'pan', 'pan1']
+        if 'add_proof' in invalid_df.columns:
+            issue_cols.append('add_proof')
+        if 'add_proof_2' in invalid_df.columns:
+            issue_cols.append('add_proof_2')
+        flag_cols = ['missing_pan_issue', 'invalid_pan_issue', 'missing_address_issue']
+        slim = invalid_df.select([c for c in issue_cols + flag_cols if c in invalid_df.columns])
+
+        for row in slim.to_dicts():
             issues: list[str] = []
             if row.get('missing_pan_issue'):
                 issues.append('MISSING_PAN_ABOVE_2L')
@@ -92,7 +101,8 @@ class PanProcessor(BaseProcessor):
             'missingAddressProofAbove50K': missing_address_proof_count,
         }
 
-        self._export_issue_rows_debug(records)
+        if get_settings().debug_exports_enabled():
+            self._export_issue_rows_debug(records)
 
         return build_processing_response(
             file_type='pan',

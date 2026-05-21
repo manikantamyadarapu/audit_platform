@@ -2,12 +2,7 @@ import api, { getApiErrorMessage } from './api';
 
 /**
  * @returns {Promise<{
- *   gold_14k_rate: number | null,
- *   gold_18k_rate: number | null,
- *   gold_22k_rate: number | null,
- *   gold_jadau_rate: number | null,
- *   gold_24k_rate: number | null,
- *   silver_rate: number | null,
+ *   rates: Record<string, number | null>,
  *   allowed_variation_percent: number,
  *   updated_at: string | null,
  * }>}
@@ -18,14 +13,7 @@ export async function fetchRateRules(signal) {
 }
 
 /**
- * @param {{
- *   gold_14k_rate?: number | null,
- *   gold_18k_rate?: number | null,
- *   gold_22k_rate?: number | null,
- *   gold_jadau_rate?: number | null,
- *   gold_24k_rate?: number | null,
- *   silver_rate?: number | null,
- * }} payload
+ * @param {{ rates: Record<string, number | null>, allowed_variation_percent?: number }} payload
  */
 export async function saveRateRules(payload, signal) {
   try {
