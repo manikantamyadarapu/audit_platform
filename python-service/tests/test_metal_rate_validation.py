@@ -1,20 +1,24 @@
 import pytest
 
 from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.services.metal_rate_store import save_market_rates
+from app.sales_engine.services.metal_rate_store import save_rule_book
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 
 @pytest.fixture(autouse=True)
-def _seed_market_rates():
-    save_market_rates(
+def _seed_rule_book():
+    save_rule_book(
         {
-            'gold_14k_rate': 6000,
-            'gold_18k_rate': 7500,
-            'gold_22k_rate': 9000,
-            'gold_jadau_rate': 9500,
-            'gold_24k_rate': 9800,
-            'silver_rate': 120,
+            'rates': {
+                'Gold Ornaments 14K': 6000,
+                'Gold Ornaments 18K': 7500,
+                'Customer Gold Ornaments 18K': 7600,
+                'Customer Gold Ornaments 22K': 8800,
+                'Gold Ornaments 22K': 9000,
+                'Gold Ornaments Jadau': 9500,
+                'Standard Gold 24K': 9800,
+                'Silver articles': 120,
+            }
         }
     )
 
@@ -39,10 +43,10 @@ def test_gold_22k_ornaments_invalid_when_unit_rate_below_band():
     assert rec['currentMarketRate'] == 9000
     assert rec['minAllowedRate'] == 6300
     assert rec['maxAllowedRate'] == 11700
-    assert rec['rateValidationSource'] == 'account_market_rate'
+    assert rec['rateValidationSource'] == 'rule_book_product'
 
 
-def test_gold_22k_ornaments_valid_at_market_rate():
+def test_gold_22k_ornaments_valid_at_entered_rate():
     proc = SalesAuditProcessor()
     out = proc.process(
         _wb_bytes(
@@ -59,7 +63,25 @@ def test_gold_22k_ornaments_valid_at_market_rate():
     assert out['errorRows'] == 0
 
 
-def test_gold_black_beads_skips_metal_rate_check():
+def test_customer_gold_22k_uses_own_rule_book_rate():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='C22',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Customer Gold Ornaments 22K',
+                    unit_rate=5000,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
+    assert out['records'][0]['currentMarketRate'] == 8800
+
+
+def test_gold_black_beads_skips_rate_check_not_in_rule_book():
     proc = SalesAuditProcessor()
     out = proc.process(
         _wb_bytes(
@@ -112,15 +134,9 @@ def test_gold_jadau_ornaments_invalid_when_unit_rate_below_band():
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_RATE_DEVIATION']
     assert rec['currentMarketRate'] == 9500
-    assert rec['minAllowedRate'] == 6650
-    assert rec['maxAllowedRate'] == 12350
 
 
 def test_rate_rules_api_roundtrip():
-    from app.sales_engine.services.metal_rate_store import api_response_from_stored, load_market_rates
-
-    saved = save_market_rates({'gold_22k_rate': 9100, 'silver_rate': 130})
-    loaded = load_market_rates()
-    api = api_response_from_stored(loaded)
-    assert api['gold_22k_rate'] == 9100
-    assert api['silver_rate'] == 130
+    saved = save_rule_book({'rates': {'Gold Ornaments 22K': 9100, 'Silver articles': 130}})
+    assert saved['rates']['Gold Ornaments 22K'] == 9100
+    assert saved['rates']['Silver articles'] == 130

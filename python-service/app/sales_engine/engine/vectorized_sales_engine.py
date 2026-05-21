@@ -19,7 +19,7 @@ from app.sales_engine.parsers.product_category import (
     slab_family_expr,
 )
 from app.sales_engine.validators.audit_trace import audit_flag_columns, audit_trace_columns
-from app.sales_engine.parsers.metal_rate import account_standard_rate_expr, metal_rate_applies_expr
+from app.sales_engine.parsers.metal_rate import metal_rate_applies_expr, product_rule_book_rate_expr
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
 from app.sales_engine.validators.metal_rate_validator import (
@@ -121,7 +121,8 @@ class VectorizedSalesEngine:
     def __init__(self) -> None:
         self.loader = VectorizedValidationEngine('sales')
         self._log = get_logger()
-        self._debug_export = get_settings().sales_debug_export
+        settings = get_settings()
+        self._debug_export = settings.debug_exports_enabled()
 
     def load_sales_sheet(self, file_bytes: bytes) -> LoadedValidationSheet:
         loaded = self.loader.load_sheet(file_bytes, row_matches=_sales_header_row_matches, scan_limit=100)
@@ -153,12 +154,11 @@ class VectorizedSalesEngine:
         log_reconciliation(reconciliation, logger=self._log)
         validation_ms = (perf_counter() - validation_start) * 1000
 
-        debug_path = _DEBUG_DIR / 'sales_audit_debug.xlsx'
-        write_sales_audit_debug_workbook(adjudicated, debug_path)
-        self._log.info('[sales] wrote row-preserving debug export path={path}'.format(path=debug_path))
-
         audit_counts: dict[str, int] = {}
         if self._debug_export:
+            debug_path = _DEBUG_DIR / 'sales_audit_debug.xlsx'
+            write_sales_audit_debug_workbook(adjudicated, debug_path)
+            self._log.info('[sales] wrote row-preserving debug export path={path}'.format(path=debug_path))
             debug_start = perf_counter()
             audit_counts = self._write_debug_exports(adjudicated_df=adjudicated)
             self._log.info(
@@ -307,7 +307,7 @@ class VectorizedSalesEngine:
             .alias('__uploaded_unit_rate')
         )
 
-        if self._debug_export or len(dataframe) <= 2500:
+        if self._debug_export:
             row_json_expr = (
                 pl.struct([pl.col(c).cast(pl.Utf8, strict=False).fill_null('') for c in data_columns])
                 .struct.json_encode()
@@ -381,7 +381,7 @@ class VectorizedSalesEngine:
             )
             .with_columns([mapping_valid_expr()])
             .with_columns(audit_flag_columns(product_col='__product_norm'))
-            .with_columns([account_standard_rate_expr()])
+            .with_columns([product_rule_book_rate_expr(product_col='__product_norm')])
             .with_columns([metal_rate_applies_expr(product_col='__product_norm')])
             .with_columns(
                 enrich_rate_columns(
@@ -413,7 +413,39 @@ class VectorizedSalesEngine:
         if invalid_df.is_empty():
             return []
         sort_col = '__source_row_id' if '__source_row_id' in invalid_df.columns else '__source_excel_row_number'
-        return [self._record_from_row(row) for row in invalid_df.sort(sort_col).to_dicts()]
+        export_cols = [
+            c
+            for c in invalid_df.columns
+            if not str(c).startswith('__') or c in {
+                '__source_row_id',
+                '__source_excel_row_number',
+                '__voucher_display',
+                '__voucher_norm',
+                '__sales_account_text',
+                '__product_text',
+                '__uploaded_unit_rate',
+                '__unit_rate_raw',
+                '__parsed_quantity',
+                '__extracted_master_price',
+                '__min_allowed_rate',
+                '__max_allowed_rate',
+                '__current_market_rate',
+                '__rate_validation_source',
+                '__validation_status',
+                '__audit_status',
+                '__audit_reason',
+                '__invalid_product_mapping',
+                '__invalid_product_pattern',
+                '__invalid_rate_deviation',
+                '__raw_excel_row_json',
+                '__original_excel_sales_account',
+                '__original_excel_product',
+                '__original_excel_unit_rate',
+                '__party_display',
+            }
+        ]
+        slim = invalid_df.sort(sort_col).select(export_cols)
+        return [self._record_from_row(row) for row in slim.to_dicts()]
 
     @staticmethod
     def _deviation_percent(uploaded: float | None, standard: float | None) -> float | None:

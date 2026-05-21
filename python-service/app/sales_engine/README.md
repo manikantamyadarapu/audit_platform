@@ -13,8 +13,8 @@ PAN, gross weight, GST, address proof, voucher logic, and external master Excel 
 | ----- | ------------------- | ------------ |
 | **Product mapping** | All 11 sales accounts in `sales_ledger_catalog.json` | Product must match that account’s catalog regex; wrong account for a known SKU → `INVALID_PRODUCT_MAPPING` |
 | **Unit rate ±30% (gem)** | Rubies, Emeralds, Pearls, Color stones, Semi precious | Slab = last number in product name; band = slab × 0.70 … slab × 1.30 |
-| **Unit rate ±30% (metal)** | Gold ornaments / Standard Gold; Silver articles | Band from **Rate Rule Sheet** market rate per account (`metal_market_rates.json`) |
-| **Mapping only** | Diamonds; misc gold SKUs (Black beads, Dori, Lac, Wax Dori, Customer gold) | Mapping checked; rate skipped for listed misc SKUs |
+| **Unit rate ±30% (metal)** | 8 rule-book products (Gold Ornaments 14K–Jadau, Customer 18K/22K, Standard 24K, Silver articles) | Band from **Rate Rule Book** entered rate per product (`metal_rate_rule_book.json`) |
+| **Mapping only** | Diamonds; Black beads, Dori, Lac, Wax Dori (not in rule book) | Mapping checked; no rate validation |
 
 **Not validated:** PAN, gross weight, GST, tax, amount÷quantity inference, fuzzy matching, `master_sales_rules.xlsx` joins.
 
@@ -38,8 +38,7 @@ sales_engine/
     sales_ledger_catalog.json   Account → product regex (source of truth for mapping)
     mappings.json                 Slab routing, misc patterns, legacy aliases
     gemstone_rules.json           ±30% deviation, gemstone rate families
-    metal_account_rates.json      Gold/silver patterns, skip list, variation %
-    metal_market_rates.json       Runtime rates from POST /api/v1/rate-rules (gitignored in deploy)
+    metal_rate_rule_book.json     Product → entered rate (8 SKUs) + variation %
   config/loader.py                Cached JSON loaders
   parsers/
     product_category.py           Category, slab family, slab price extraction
@@ -74,7 +73,7 @@ sales_engine/
    - Product matches **another** account’s catalog → `INVALID_PRODUCT_MAPPING` (cross-account).
    - Product matches **no** catalog pattern → `UNKNOWN_PRODUCT` (not a mapping hit).
 8. **Rate (gemstones):** extract slab from product name; compare uploaded unit rate to ±30% band.
-8b. **Rate (gold/silver):** when product matches `gold_rate_product_patterns` / `silver_rate_product_patterns` and a market rate is configured, compare **invoice unit rate only** to ±30% of that rate (skip misc SKUs in `metal_rate_skip_product_patterns`).
+8b. **Rate (gold/silver):** when normalized product matches a rule-book SKU with a saved rate, compare **invoice unit rate only** to ±30% of that entered rate.
 9. Export **one invalid API record per Excel row** (no `group_by`, no dedupe on the default path).
 10. Write debug workbook: `app/debug/sales_audit_debug.xlsx` (all rows + trace columns).
 11. **Reconciliation** assertion: `input = valid + invalid + dropped` (logged on every run).
@@ -112,29 +111,32 @@ PASS when: min_allowed ≤ uploaded_unit_rate ≤ max_allowed
 | **Silver articles** | `Silver articles` | ±30% vs silver market rate |
 | **Diamonds** | Full diamond SKU catalog | Mapping only |
 
-### Rate Rule Sheet (market rates)
+### Rate Rule Book (product rates)
 
-Employees enter current rates in the UI (**Scrutiny → Rate Rule Sheet**) or via API:
+Employees enter rates per product in the UI (**Scrutiny → Rate Rule Book**) or via API:
 
 - `GET/POST /api/v1/rate-rules` (Node proxy → Python)
-- Payload: `gold_14k_rate`, `gold_18k_rate`, `gold_22k_rate`, `gold_jadau_rate`, `gold_24k_rate`, `silver_rate`
-- Persisted to `config/metal_market_rates.json`; cache cleared on save
+- Payload: `{ "rates": { "Gold Ornaments 22K": 9000, ... } }`
+- Persisted to `config/metal_rate_rule_book.json`
+
+Rule-book products only:
+
+1. Gold Ornaments 14K  
+2. Gold Ornaments 18K  
+3. Customer Gold Ornaments 18K  
+4. Customer Gold Ornaments 22K  
+5. Gold Ornaments 22K  
+6. Gold Ornaments Jadau  
+7. Standard Gold 24K  
+8. Silver articles  
 
 ```text
-Example: Gold 22K market rate = 9000
+Example: Gold Ornaments 22K entered rate = 9000
   min = 6300, max = 11700
   invoice unit rate 5800 → INVALID_RATE_DEVIATION
 ```
 
-| Config key | Purpose |
-| ---------- | ------- |
-| `metal_account_rates.json` | Product/skip patterns, default `allowed_variation_percent` |
-| `metal_market_rates.json` | Runtime gold/silver rates per account |
-| `gold_rate_product_patterns` | `^GOLD ORNAMENTS`, `^STANDARD GOLD` |
-| `silver_rate_product_patterns` | `^SILVER ARTICLES$` |
-| `metal_rate_skip_product_patterns` | Black beads, Dori, Lac, Wax Dori, Customer … |
-
-`parsers/metal_rate.py` + `validators/metal_rate_validator.py` merge metal checks with gemstone columns (`currentMarketRate`, `minAllowedRate`, `maxAllowedRate`, `rateValidationSource`: `account_market_rate`).
+`parsers/metal_rate.py` matches `__product_norm` to rule-book keys; `rateValidationSource`: `rule_book_product`.
 
 ## Configuration reference
 
@@ -233,6 +235,11 @@ TOTAL_INPUT_ROWS = TOTAL_VALID_ROWS + TOTAL_INVALID_ROWS + TOTAL_DROPPED_ROWS
 **Skipped rate**
 
 - `Customer Rubies`, `Rubies JRU Mix` → mapping may pass; rate skipped
+
+## Performance
+
+- **Default (fast):** `AUDIT_DEBUG_EXPORT=false` — no `sales_audit_debug.xlsx` write on each upload; API returns invalid rows only.
+- **Debug (slow):** set `AUDIT_DEBUG_EXPORT=true` or `SALES_DEBUG_EXPORT=true` in `python-service/.env` when tuning rules.
 
 ## Performance and debug
 

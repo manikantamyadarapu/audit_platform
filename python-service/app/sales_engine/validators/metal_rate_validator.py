@@ -3,10 +3,10 @@ from __future__ import annotations
 import polars as pl
 
 from app.sales_engine.config.loader import metal_deviation_fraction, rate_validation_families
-from app.sales_engine.parsers.metal_rate import account_standard_rate_expr, metal_rate_applies_expr
+from app.sales_engine.parsers.metal_rate import metal_rate_applies_expr
 from app.sales_engine.parsers.product_category import extracted_slab_price_expr
 
-_METAL_RATE_SOURCE = 'account_market_rate'
+_METAL_RATE_SOURCE = 'rule_book_product'
 _GEM_RATE_SOURCE = 'product_slab'
 
 
@@ -15,7 +15,7 @@ def enrich_metal_rate_columns(
     uploaded_unit_rate_col: str = '__uploaded_unit_rate',
 ) -> list[pl.Expr]:
     fraction = metal_deviation_fraction()
-    standard = pl.col('__metal_account_standard_rate')
+    standard = pl.col('__metal_rule_book_rate')
     applies = pl.col('__metal_rate_applies').fill_null(False)
     uploaded = pl.col(uploaded_unit_rate_col)
     min_rate = standard * (1.0 - fraction)
@@ -61,7 +61,7 @@ def combine_rate_validation_columns(
     gem_source = pl.col('__gem_rate_validation_source')
 
     metal_applies = pl.col('__metal_rate_applies').fill_null(False)
-    metal_standard = pl.col('__metal_account_standard_rate')
+    metal_standard = pl.col('__metal_rule_book_rate')
     metal_invalid = pl.col('__metal_rate_invalid_raw').fill_null(False)
     metal_min = pl.col('__metal_min_allowed_rate')
     metal_max = pl.col('__metal_max_allowed_rate')
