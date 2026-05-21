@@ -57,8 +57,19 @@ def audit_trace_columns() -> list[pl.Expr]:
         & unit_rate_missing
         & rate_deviation_applies
     )
-    invalid_rate_no_unit = invalid_rate_no_unit | metal_rate_no_unit
-    invalid_rate_flag = (invalid_rate | invalid_rate_no_unit).fill_null(False)
+    rate_unit_missing_flag = pl.col('__rate_unit_missing').fill_null(False)
+    metal_expected = pl.col('__metal_rate_expected').fill_null(False)
+    metal_not_configured = is_txn & mapping_ok & metal_expected & ~metal_applies
+    invalid_rate_no_unit = (
+        invalid_rate_no_unit | metal_rate_no_unit | (is_txn & mapping_ok & rate_unit_missing_flag)
+    )
+    invalid_rate_metal = is_txn & mapping_ok & (rate_invalid | rate_unit_missing_flag) & (
+        metal_applies | metal_expected
+    )
+    invalid_rate_gem = is_txn & mapping_ok & rate_invalid & rate_deviation_applies & ~metal_applies
+    invalid_rate_flag = (invalid_rate_gem | invalid_rate_metal | invalid_rate_no_unit).fill_null(
+        False
+    )
 
     unknown_mix = is_txn & pl.col('__has_mix') & slab_family.is_null()
     unknown_pattern = (

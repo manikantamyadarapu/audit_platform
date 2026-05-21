@@ -26,8 +26,13 @@ def enrich_metal_rate_columns(
         & uploaded.is_not_null()
         & (uploaded > 0)
     )
-    metal_valid = metal_ready & (uploaded >= min_rate) & (uploaded <= max_rate)
-    metal_invalid = metal_ready & ~metal_valid
+    metal_below = metal_ready & (uploaded < min_rate)
+    metal_above = metal_ready & (uploaded > max_rate)
+    metal_valid = metal_ready & ~metal_below & ~metal_above
+    metal_invalid = metal_below | metal_above
+    metal_unit_missing = pl.col('__metal_rate_applies').fill_null(False) & (
+        uploaded.is_null() | (uploaded <= 0)
+    )
     metal_result = (
         pl.when(~applies | standard.is_null())
         .then(pl.lit('NOT_APPLICABLE'))
@@ -41,6 +46,9 @@ def enrich_metal_rate_columns(
     )
     return [
         metal_invalid.alias('__metal_rate_invalid_raw'),
+        metal_below.alias('__metal_rate_below_min'),
+        metal_above.alias('__metal_rate_above_max'),
+        metal_unit_missing.alias('__metal_unit_rate_missing'),
         min_rate.alias('__metal_min_allowed_rate'),
         max_rate.alias('__metal_max_allowed_rate'),
         metal_result.alias('__metal_rate_validation_result'),
@@ -78,7 +86,13 @@ def combine_rate_validation_columns(
     )
     combined_min = pl.when(metal_applies).then(metal_min).when(gem_rate_active).then(gem_min).otherwise(None)
     combined_max = pl.when(metal_applies).then(metal_max).when(gem_rate_active).then(gem_max).otherwise(None)
-    combined_invalid = gem_invalid | metal_invalid
+    gem_below = pl.col('__gem_rate_below_min').fill_null(False)
+    gem_above = pl.col('__gem_rate_above_max').fill_null(False)
+    gem_unit_missing = pl.col('__gem_unit_rate_missing').fill_null(False)
+    combined_below = metal_invalid & pl.col('__metal_rate_below_min').fill_null(False) | gem_below
+    combined_above = pl.col('__metal_rate_above_max').fill_null(False) | gem_above
+    combined_unit_missing = pl.col('__metal_unit_rate_missing').fill_null(False) | gem_unit_missing
+    combined_invalid = gem_invalid | metal_invalid | combined_unit_missing.fill_null(False)
     combined_source = (
         pl.when(metal_applies)
         .then(pl.lit(_METAL_RATE_SOURCE))
@@ -104,6 +118,9 @@ def combine_rate_validation_columns(
         combined_min.alias('__min_allowed_rate'),
         combined_max.alias('__max_allowed_rate'),
         combined_invalid.alias('__rate_invalid_raw'),
+        combined_below.alias('__rate_below_min'),
+        combined_above.alias('__rate_above_max'),
+        combined_unit_missing.alias('__rate_unit_missing'),
         combined_valid.alias('__rate_valid'),
         combined_source.alias('__rate_validation_source'),
         validation_status.alias('__validation_status'),

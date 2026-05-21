@@ -1,23 +1,47 @@
 /**
- * Ensure one UI/export record per Excel rowNumber (merge issues + messages).
+ * Dedupe key for sales invalid rows.
+ * Never use voucher alone — multiple lines per voucher are valid accounting.
+ *
+ * @param {Record<string, unknown>} record
+ * @returns {string}
+ */
+export function salesRecordDedupeKey(record) {
+  const rowNumber = Number(record.rowNumber ?? record.sourceExcelRowNumber ?? 0);
+  if (rowNumber > 0) {
+    return `row:${rowNumber}`;
+  }
+  const voucher = String(record.voucherNo ?? record.voucherNorm ?? '')
+    .trim()
+    .toUpperCase();
+  const product = String(record.validationProduct ?? record.product ?? '')
+    .trim()
+    .toUpperCase();
+  const amount = String(record.unitRate ?? record.uploadedUnitRate ?? '');
+  const weight = String(record.parsedQuantity ?? record.quantity ?? '');
+  return `biz:${voucher}|${product}|${amount}|${weight}`;
+}
+
+/**
+ * One UI/export record per Excel row (or composite line). Merges issue codes only for the same key.
  * @param {Record<string, unknown>[] | undefined} records
  * @returns {Record<string, unknown>[]}
  */
 export function dedupeSalesRecordsByRowNumber(records) {
   const list = Array.isArray(records) ? records : [];
-  const byRow = new Map();
+  const byKey = new Map();
 
   for (const record of list) {
-    const rowNumber = Number(record.rowNumber ?? record.sourceExcelRowNumber ?? 0);
-    if (!rowNumber) continue;
+    const key = salesRecordDedupeKey(record);
+    if (key === 'biz:|||') continue;
 
-    const existing = byRow.get(rowNumber);
+    const rowNumber = Number(record.rowNumber ?? record.sourceExcelRowNumber ?? 0);
+    const existing = byKey.get(key);
     if (!existing) {
-      byRow.set(rowNumber, {
+      byKey.set(key, {
         ...record,
-        rowNumber,
-        rowId: rowNumber,
-        sourceExcelRowNumber: rowNumber,
+        ...(rowNumber > 0
+          ? { rowNumber, rowId: rowNumber, sourceExcelRowNumber: rowNumber }
+          : {}),
         issues: Array.isArray(record.issues) ? [...record.issues] : [],
         messages: Array.isArray(record.messages) ? [...record.messages] : [],
       });
@@ -39,5 +63,5 @@ export function dedupeSalesRecordsByRowNumber(records) {
     }
   }
 
-  return [...byRow.values()].sort((a, b) => Number(a.rowNumber) - Number(b.rowNumber));
+  return [...byKey.values()].sort((a, b) => Number(a.rowNumber ?? 0) - Number(b.rowNumber ?? 0));
 }

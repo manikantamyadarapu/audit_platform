@@ -662,7 +662,7 @@ def test_sales_dedupe_merges_duplicate_row_numbers_in_api_output():
         {
             'rowNumber': 29,
             'issues': ['INVALID_RATE_DEVIATION'],
-            'messages': ['Unit rate is outside the allowed ±30% deviation band.'],
+            'messages': ['Unit rate below allowed range.'],
             'auditStatus': 'INVALID_RATE_DEVIATION',
         },
     ]
@@ -706,9 +706,33 @@ def test_sales_invalid_records_one_per_excel_row_when_pipeline_duplicates():
         }
     )
     records = engine._records_from_invalid_frame(duplicate)
-    assert len(records) == 2
-    assert all(rec['rowNumber'] == 29 for rec in records)
-    assert all(rec['issues'] == ['INVALID_PRODUCT_MAPPING'] for rec in records)
+    assert len(records) == 1
+    assert records[0]['rowNumber'] == 29
+    assert records[0]['issues'] == ['INVALID_PRODUCT_MAPPING']
+
+
+def test_sales_same_voucher_different_rows_are_not_merged():
+    from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+
+    records = [
+        {
+            'rowNumber': 10,
+            'voucherNo': 'INV-100',
+            'product': 'Gold Ornaments 22K',
+            'unitRate': 9000,
+            'issues': ['INVALID_RATE_DEVIATION'],
+        },
+        {
+            'rowNumber': 11,
+            'voucherNo': 'INV-100',
+            'product': 'Silver articles',
+            'unitRate': 120,
+            'issues': ['INVALID_RATE_DEVIATION'],
+        },
+    ]
+    merged, count = dedupe_invalid_records_by_row_number(records)
+    assert count == 2
+    assert {r['rowNumber'] for r in merged} == {10, 11}
 
 
 def test_sales_audit_trace_skipped_and_unknown_categories():

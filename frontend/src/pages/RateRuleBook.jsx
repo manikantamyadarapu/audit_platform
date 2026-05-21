@@ -86,7 +86,6 @@ export default function RateRuleBook() {
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               Enter today&apos;s unit rates for gold and silver products. Sales audit compares{' '}
               <strong>invoice unit rate only</strong> to ±{RULE_BOOK_VARIATION_PCT}% of the saved rate.
-              Black beads, Dori, Lac, and Wax are not listed — no rate check for those SKUs.
             </p>
           </div>
         </div>
