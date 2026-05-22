@@ -9,6 +9,10 @@ MSG_PRODUCT_MAPPING = 'Product mapping mismatch.'
 MSG_MARKET_RATE_MISSING = 'Market rate not configured.'
 MSG_UNIT_RATE_MISSING = 'Unit rate missing.'
 MSG_PRODUCT_PATTERN = 'Slab price could not be extracted from product name.'
+MSG_DIAMOND_VALID = 'Valid diamond rate.'
+MSG_DIAMOND_BELOW = 'Unit rate below allowed diamond range.'
+MSG_DIAMOND_ABOVE = 'Unit rate above allowed diamond range.'
+MSG_DIAMOND_RULE_MISSING = 'Diamond rule not configured.'
 
 _ISSUE_DEFAULTS: dict[str, str] = {
     'INVALID_PRODUCT_MAPPING': MSG_PRODUCT_MAPPING,
@@ -20,7 +24,15 @@ _ISSUE_DEFAULTS: dict[str, str] = {
 }
 
 
+def _is_diamond_row(row: dict[str, Any]) -> bool:
+    return (
+        row.get('__diamond_rate_applies')
+        or row.get('rateValidationSource') == 'diamond_rule_book'
+    )
+
+
 def _rate_message_from_row(row: dict[str, Any]) -> str | None:
+    diamond = _is_diamond_row(row)
     if row.get('__invalid_product_mapping'):
         return MSG_PRODUCT_MAPPING
     if row.get('__invalid_product_pattern'):
@@ -28,11 +40,13 @@ def _rate_message_from_row(row: dict[str, Any]) -> str | None:
     if row.get('__rate_unit_missing') or row.get('__invalid_rate_no_unit'):
         return MSG_UNIT_RATE_MISSING
     if row.get('__rate_below_min'):
-        return MSG_RATE_BELOW
+        return MSG_DIAMOND_BELOW if diamond else MSG_RATE_BELOW
     if row.get('__rate_above_max'):
-        return MSG_RATE_ABOVE
+        return MSG_DIAMOND_ABOVE if diamond else MSG_RATE_ABOVE
     if row.get('__invalid_rate_deviation'):
-        return MSG_RATE_BELOW
+        return MSG_DIAMOND_BELOW if diamond else MSG_RATE_BELOW
+    if row.get('__rate_valid') and diamond:
+        return MSG_DIAMOND_VALID
     if row.get('__rate_valid') and row.get('__metal_rate_applies'):
         return MSG_VALID_RATE
     return None

@@ -248,7 +248,7 @@ def test_sales_diamond_product_compact_dot_joins_master():
                 voucher='DD',
                 sales_account='Jewel sales account - Diamonds',
                 product='Di.RA 15',
-                unit_rate=15,
+                unit_rate=17500,
             )
         ]
     )

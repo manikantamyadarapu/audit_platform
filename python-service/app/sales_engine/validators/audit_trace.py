@@ -47,8 +47,16 @@ def audit_trace_columns() -> list[pl.Expr]:
     invalid_mapping = is_txn & ~mapping_ok
     invalid_pattern = is_txn & mapping_ok & price_parse_failed
     metal_applies = pl.col('__metal_rate_applies').fill_null(False)
+    diamond_applies = pl.col('__diamond_rate_applies').fill_null(False)
     metal_rate_no_unit = is_txn & mapping_ok & metal_applies & unit_rate_missing
-    invalid_rate = is_txn & mapping_ok & rate_invalid.fill_null(False) & rate_deviation_applies
+    diamond_rate_no_unit = is_txn & mapping_ok & diamond_applies & unit_rate_missing
+    invalid_rate = (
+        is_txn
+        & mapping_ok
+        & rate_invalid.fill_null(False)
+        & rate_deviation_applies
+        & ~diamond_applies
+    )
     invalid_rate_no_unit = (
         is_txn
         & mapping_ok
@@ -61,15 +69,31 @@ def audit_trace_columns() -> list[pl.Expr]:
     metal_expected = pl.col('__metal_rate_expected').fill_null(False)
     metal_not_configured = is_txn & mapping_ok & metal_expected & ~metal_applies
     invalid_rate_no_unit = (
-        invalid_rate_no_unit | metal_rate_no_unit | (is_txn & mapping_ok & rate_unit_missing_flag)
+        invalid_rate_no_unit
+        | metal_rate_no_unit
+        | diamond_rate_no_unit
+        | (is_txn & mapping_ok & rate_unit_missing_flag & ~diamond_applies)
     )
     invalid_rate_metal = is_txn & mapping_ok & (rate_invalid | rate_unit_missing_flag) & (
         metal_applies | metal_expected
     )
-    invalid_rate_gem = is_txn & mapping_ok & rate_invalid & rate_deviation_applies & ~metal_applies
-    invalid_rate_flag = (invalid_rate_gem | invalid_rate_metal | invalid_rate_no_unit).fill_null(
-        False
+    invalid_rate_gem = (
+        is_txn
+        & mapping_ok
+        & rate_invalid
+        & rate_deviation_applies
+        & ~metal_applies
+        & ~diamond_applies
     )
+    invalid_rate_diamond = (
+        is_txn
+        & mapping_ok
+        & diamond_applies
+        & (rate_invalid | rate_unit_missing_flag)
+    )
+    invalid_rate_flag = (
+        invalid_rate_gem | invalid_rate_metal | invalid_rate_diamond | invalid_rate_no_unit
+    ).fill_null(False)
 
     unknown_mix = is_txn & pl.col('__has_mix') & slab_family.is_null()
     unknown_pattern = (
@@ -107,6 +131,7 @@ def audit_trace_columns() -> list[pl.Expr]:
         & ~pl.col('__has_loose')
         & ~pl.col('__is_misc_product')
         & ~metal_applies
+        & ~diamond_applies
         & ~invalid_rate_no_unit
     )
 
@@ -137,6 +162,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .when(skipped_loose | skipped_customer | skipped_misc)
         .then(pl.lit('SKIPPED'))
         .when(has_slab & ~rate_invalid & unit_rate_ok)
+        .then(pl.lit('VALID'))
+        .when(diamond_applies & ~rate_invalid & unit_rate_ok)
         .then(pl.lit('VALID'))
         .when(gold_diamond_valid)
         .then(pl.lit('VALID'))
@@ -169,6 +196,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .then(pl.lit('GOLD_SKIPPED'))
         .when(has_slab & ~rate_invalid)
         .then(pl.lit(''))
+        .when(diamond_applies & ~rate_invalid & unit_rate_ok)
+        .then(pl.lit('DIAMOND_RULE_BOOK'))
         .when(gold_diamond_valid)
         .then(
             pl.when(pl.col('__sales_account_norm').str.contains('DIAMOND'))

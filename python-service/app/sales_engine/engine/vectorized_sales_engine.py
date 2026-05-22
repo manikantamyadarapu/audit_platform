@@ -28,6 +28,8 @@ from app.sales_engine.parsers.metal_rate import (
 from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
+from app.sales_engine.parsers.diamond_rate import diamond_band_column_exprs, diamond_rate_applies_expr
+from app.sales_engine.validators.diamond_rate_validator import enrich_diamond_rate_columns
 from app.sales_engine.validators.metal_rate_validator import (
     combine_rate_validation_columns,
     enrich_metal_rate_columns,
@@ -118,7 +120,7 @@ class SalesValidationResult:
 
 
 class VectorizedSalesEngine:
-    """Official jewelry sales ledger engine: mapping + gemstone slab rate only."""
+    """Official jewelry sales ledger engine: mapping + gemstone, metal, and diamond rates."""
 
     REQUIRED_COLUMNS = _REQUIRED
 
@@ -407,6 +409,9 @@ class VectorizedSalesEngine:
                 ]
             )
             .with_columns(enrich_metal_rate_columns(uploaded_unit_rate_col='__uploaded_unit_rate'))
+            .with_columns([diamond_rate_applies_expr(product_col='__product_norm')])
+            .with_columns(diamond_band_column_exprs(product_col='__product_norm'))
+            .with_columns(enrich_diamond_rate_columns(uploaded_unit_rate_col='__uploaded_unit_rate'))
             .with_columns(
                 combine_rate_validation_columns(
                     uploaded_unit_rate_col='__uploaded_unit_rate',
@@ -452,6 +457,7 @@ class VectorizedSalesEngine:
                 '__rate_valid',
                 '__metal_rate_applies',
                 '__metal_rate_expected',
+                '__diamond_rate_applies',
                 '__raw_excel_row_json',
                 '__original_excel_sales_account',
                 '__original_excel_product',

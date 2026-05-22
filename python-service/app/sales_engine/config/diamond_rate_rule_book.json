@@ -1,0 +1,33 @@
+{
+  "uplift_percent": 25,
+  "deviation_percent": 30,
+  "products": {
+    "DI. RA 10": { "min_rate": 10000, "max_rate": 15000 },
+    "DI. RA 100": { "min_rate": 100000, "max_rate": 110000 },
+    "DI. RA 110": { "min_rate": 110000, "max_rate": 120000 },
+    "DI. RA 120": { "min_rate": 120000, "max_rate": 130000 },
+    "DI. RA 130": { "min_rate": 130000, "max_rate": 140000 },
+    "DI. RA 140": { "min_rate": 140000, "max_rate": 150000 },
+    "DI. RA 15": { "min_rate": 15000, "max_rate": 20000 },
+    "DI. RA 150": { "min_rate": 150000, "max_rate": 160000 },
+    "DI. RA 160": { "min_rate": 160000, "max_rate": 170000 },
+    "DI. RA 170": { "min_rate": 170000, "max_rate": 180000 },
+    "DI. RA 180": { "min_rate": 180000, "max_rate": 190000 },
+    "DI. RA 190": { "min_rate": 190000, "max_rate": 200000 },
+    "DI. RA 20": { "min_rate": 20000, "max_rate": 25000 },
+    "DI. RA 25": { "min_rate": 25000, "max_rate": 30000 },
+    "DI. RA 30": { "min_rate": 30000, "max_rate": 35000 },
+    "DI. RA 35": { "min_rate": 35000, "max_rate": 40000 },
+    "DI. RA 40": { "min_rate": 40000, "max_rate": 45000 },
+    "DI. RA 45": { "min_rate": 45000, "max_rate": 50000 },
+    "DI. RA 50": { "min_rate": 50000, "max_rate": 60000 },
+    "DI. RA 60": { "min_rate": 60000, "max_rate": 70000 },
+    "DI. RA 70": { "min_rate": 70000, "max_rate": 80000 },
+    "DI. RA 80": { "min_rate": 80000, "max_rate": 90000 },
+    "DI. RA 90": { "min_rate": 90000, "max_rate": 100000 },
+    "SD DI. 200": { "min_rate": 200000, "max_rate": 225000 },
+    "SD DI. 225": { "min_rate": 225000, "max_rate": 250000 },
+    "SD DI. 250": { "min_rate": 250000, "max_rate": 275000 },
+    "SD DI. 275": { "min_rate": 275000, "max_rate": 300000 }
+  }
+}

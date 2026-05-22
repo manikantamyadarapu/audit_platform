@@ -24,6 +24,15 @@ def load_gemstone_config() -> dict:
 
 
 @lru_cache(maxsize=1)
+def load_gemstone_product_catalog() -> dict:
+    """Authoritative gemstone SKU lists (slab price is encoded in the product name)."""
+    path = _CONFIG_DIR / 'gemstone_product_catalog.json'
+    if not path.exists():
+        return {'accounts': {}}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
 def sales_account_aliases() -> dict[str, str]:
     """Normalized alias → canonical account (matches __sales_account_norm)."""
     catalog = load_sales_ledger_catalog().get('sales_account_aliases') or {}
@@ -109,10 +118,66 @@ def load_metal_rate_rule_book_config() -> dict:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def _diamond_band_values(
+    base_min: float,
+    base_max: float,
+    *,
+    uplift_percent: float,
+    deviation_percent: float,
+) -> dict[str, float]:
+    uplift = uplift_percent / 100.0
+    deviation = deviation_percent / 100.0
+    adjusted_min = base_min + (base_min * uplift)
+    adjusted_max = base_max + (base_max * uplift)
+    final_min = adjusted_min - (adjusted_min * deviation)
+    final_max = adjusted_max + (adjusted_max * deviation)
+    return {
+        'base_min': base_min,
+        'base_max': base_max,
+        'adjusted_min': adjusted_min,
+        'adjusted_max': adjusted_max,
+        'final_min': final_min,
+        'final_max': final_max,
+    }
+
+
+@lru_cache(maxsize=1)
+def load_diamond_rate_rule_book() -> dict:
+    path = _CONFIG_DIR / 'diamond_rate_rule_book.json'
+    if not path.exists():
+        return {'uplift_percent': 25, 'deviation_percent': 30, 'products': {}}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def diamond_final_bands_by_product() -> dict[str, dict[str, float]]:
+    """Normalized product name -> precomputed base and final allowed bands."""
+    cfg = load_diamond_rate_rule_book()
+    uplift = float(cfg.get('uplift_percent', 25))
+    deviation = float(cfg.get('deviation_percent', 30))
+    raw_products = cfg.get('products') or {}
+    bands: dict[str, dict[str, float]] = {}
+    for product_key, spec in raw_products.items():
+        norm = normalize_strict_text(product_key)
+        if not norm or not isinstance(spec, dict):
+            continue
+        base_min = float(spec['min_rate'])
+        base_max = float(spec['max_rate'])
+        bands[norm] = _diamond_band_values(
+            base_min,
+            base_max,
+            uplift_percent=uplift,
+            deviation_percent=deviation,
+        )
+    return bands
+
+
 def clear_metal_rate_caches() -> None:
     load_metal_rate_rule_book_config.cache_clear()
     product_rule_book_rates.cache_clear()
     metal_deviation_fraction.cache_clear()
+    load_diamond_rate_rule_book.cache_clear()
+    diamond_final_bands_by_product.cache_clear()
 
 
 @lru_cache(maxsize=1)

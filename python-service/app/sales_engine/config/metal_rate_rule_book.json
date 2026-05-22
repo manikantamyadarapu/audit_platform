@@ -1,12 +1,12 @@
 {
-  "Gold Ornaments 14K": 8950.0,
-  "Gold Ornaments 18K": 11800.0,
-  "Customer Gold Ornaments 18K": 11800.0,
-  "Customer Gold Ornaments 22K": 14500.0,
-  "Gold Ornaments 22K": 14500.0,
-  "Gold Ornaments Jadau": 14500.0,
-  "Standard Gold 24K": 15700.0,
-  "Silver articles": 170.0,
+  "Gold Ornaments 14K": null,
+  "Gold Ornaments 18K": null,
+  "Customer Gold Ornaments 18K": null,
+  "Customer Gold Ornaments 22K": null,
+  "Gold Ornaments 22K": 9000.0,
+  "Gold Ornaments Jadau": null,
+  "Standard Gold 24K": null,
+  "Silver articles": null,
   "allowed_variation_percent": 30,
-  "updated_at": "2026-05-21T17:02:43.188808+00:00"
+  "updated_at": "2026-05-22T07:11:00.304778+00:00"
 }

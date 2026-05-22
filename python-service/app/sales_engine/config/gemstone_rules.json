@@ -5,7 +5,8 @@
     "EMERALDS",
     "PEARLS",
     "COLOR_STONES",
-    "SEMI_PRECIOUS"
+    "SEMI_PRECIOUS",
+    "SYNTHETIC"
   ],
   "diamond_rate_skip_families": ["DIAMONDS"]
 }
