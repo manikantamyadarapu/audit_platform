@@ -130,17 +130,11 @@ export default function SalesLedger() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
-              <p className="text-sm text-slate-500">
-                Normalized headers: voucher, sales account, product, manual/auto gross weight. Connected to{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/process/sales/validate
-                </code>
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 to="/scrutiny/rate-rule-book"
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
+                className="inline-flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-5 text-sm font-medium text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-emerald-200/80 hover:bg-emerald-50/40 hover:text-emerald-800 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]"
               >
                 <Coins className="h-4 w-4" />
                 Rate rule book
