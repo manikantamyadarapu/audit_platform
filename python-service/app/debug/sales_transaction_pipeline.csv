@@ -1,2 +1,0 @@
-__source_excel_row_number,__voucher_display,__product_norm,__sales_account_norm,__slab_family,__extracted_master_price,__min_allowed_rate,__max_allowed_rate,__mapping_valid,__rate_valid,__audit_status,__audit_reason,__invalid_product_mapping,__invalid_rate_deviation,__uploaded_unit_rate,voucher_no,sales_account,product,quantity,unit_rate
-2,PD,PEARLS JPS 2000,JEWELS SALES ACCOUNT - PEARLS,PEARLS,2000.0,1400.0,2600.0,true,false,INVALID_RATE_DEVIATION,RATE_OUTSIDE_30_PERCENT,false,true,4416.03,PD,Jewels sales account - Pearls,Pearls JPS 2000,1,4416.03

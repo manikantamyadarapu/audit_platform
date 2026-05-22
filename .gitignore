@@ -15,3 +15,7 @@ venv/
 Thumbs.db
 # Logs
 *.log
+# Python debug exports (regenerated when AUDIT_DEBUG_EXPORT / SALES_DEBUG_EXPORT enabled)
+python-service/app/debug/*.csv
+python-service/app/debug/*.xlsx
+python-service/app/sales_engine/debug/

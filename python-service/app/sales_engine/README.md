@@ -42,8 +42,8 @@ sales_engine/
   config/loader.py                Cached JSON loaders
   parsers/
     product_category.py           Category, slab family, slab price extraction
-    product_family_router.py      Re-exports for compatibility
-    metal_rate.py                 Gold/silver account-rate expressions (helpers)
+    diamond_rate.py               Diamond rule-book band lookup
+    metal_rate.py                 Gold/silver rule-book rate expressions
   validators/
     mapping_validator.py          Catalog + cross-account mapping
     gemstone_rate_validator.py    Gemstone slab ±30%
