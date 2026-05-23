@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const backendPort = env.VITE_BACKEND_PORT || '4001';
+  const backendPort = env.VITE_BACKEND_PORT || '4000';
   const backendTarget = `http://127.0.0.1:${backendPort}`;
 
   return {

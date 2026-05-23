@@ -28,6 +28,12 @@ from app.sales_engine.parsers.metal_rate import (
 from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
+from app.sales_engine.parsers.diamond_rate import (
+    diamond_band_column_exprs,
+    diamond_rate_applies_expr,
+    diamond_rate_expected_expr,
+)
+from app.sales_engine.validators.diamond_rate_validator import enrich_diamond_rate_columns
 from app.sales_engine.validators.metal_rate_validator import (
     combine_rate_validation_columns,
     enrich_metal_rate_columns,
@@ -118,7 +124,7 @@ class SalesValidationResult:
 
 
 class VectorizedSalesEngine:
-    """Official jewelry sales ledger engine: mapping + gemstone slab rate only."""
+    """Official jewelry sales ledger engine: mapping + gemstone, metal, and diamond rates."""
 
     REQUIRED_COLUMNS = _REQUIRED
 
@@ -408,6 +414,14 @@ class VectorizedSalesEngine:
             )
             .with_columns(enrich_metal_rate_columns(uploaded_unit_rate_col='__uploaded_unit_rate'))
             .with_columns(
+                [
+                    diamond_rate_expected_expr(product_col='__product_norm'),
+                    diamond_rate_applies_expr(product_col='__product_norm'),
+                ]
+            )
+            .with_columns(diamond_band_column_exprs(product_col='__product_norm'))
+            .with_columns(enrich_diamond_rate_columns(uploaded_unit_rate_col='__uploaded_unit_rate'))
+            .with_columns(
                 combine_rate_validation_columns(
                     uploaded_unit_rate_col='__uploaded_unit_rate',
                     product_col='__product_norm',
@@ -452,6 +466,7 @@ class VectorizedSalesEngine:
                 '__rate_valid',
                 '__metal_rate_applies',
                 '__metal_rate_expected',
+                '__diamond_rate_applies',
                 '__raw_excel_row_json',
                 '__original_excel_sales_account',
                 '__original_excel_product',
@@ -482,8 +497,18 @@ class VectorizedSalesEngine:
             issues.append('INVALID_PRODUCT_MAPPING')
         if row.get('__invalid_product_pattern'):
             issues.append('INVALID_PRODUCT_PATTERN')
-        if row.get('__invalid_rate_deviation') or row.get('__rate_unit_missing'):
-            issues.append('INVALID_RATE_DEVIATION')
+
+        if not row.get('__invalid_product_mapping'):
+            rate_rule_missing = (
+                row.get('__diamond_rate_expected') and not row.get('__diamond_rate_applies')
+            ) or (row.get('__metal_rate_expected') and not row.get('__metal_rate_applies'))
+
+            if rate_rule_missing:
+                issues.append('MISSING_RATE_RULE')
+            elif row.get('__rate_unit_missing'):
+                issues.append('MISSING_UNIT_RATE')
+            elif row.get('__invalid_rate_deviation'):
+                issues.append('INVALID_RATE_DEVIATION')
 
         excel_row = int(row.get('__source_row_id') or row['__source_excel_row_number'])
         uploaded = row.get('__uploaded_unit_rate')

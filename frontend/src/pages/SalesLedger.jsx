@@ -143,7 +143,13 @@ export default function SalesLedger() {
                 className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
               >
                 <Coins className="h-4 w-4" />
-                Rate rule book
+                Gold & silver rates
+              </Link>
+              <Link
+                to="/scrutiny/diamond-rate-rule-book"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-800"
+              >
+                Diamond rule book
               </Link>
               <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
                 Clear file

@@ -133,6 +133,7 @@ def test_null_unit_rate_message():
     )
     assert out['errorRows'] == 1
     rec = out['records'][0]
+    assert rec['issues'] == ['MISSING_UNIT_RATE']
     assert MSG_UNIT_RATE_MISSING in rec['messages']
 
 
@@ -185,7 +186,7 @@ def test_duplicate_invalid_rows_merged_to_one_per_excel_row():
     merged, count = dedupe_invalid_records_by_row_number(records)
     assert count == 1
     assert set(merged[0]['issues']) == {'INVALID_RATE_DEVIATION', 'INVALID_PRODUCT_MAPPING'}
-    assert len(merged[0]['messages']) >= 2
+    assert merged[0]['messages'] == [MSG_PRODUCT_MAPPING]
 
 
 def test_messages_no_legacy_plus_minus_encoding():

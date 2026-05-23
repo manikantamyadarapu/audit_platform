@@ -75,6 +75,7 @@
     "PEARLS",
     "COLOR_STONES",
     "SEMI_PRECIOUS",
+    "SYNTHETIC",
     "DIAMONDS"
   ],
   "slab_route_patterns": {
@@ -83,6 +84,7 @@
     "PEARLS": "^PEARLS\\s+JPS\\s+(\\d+)$",
     "COLOR_STONES": "^PRECIOUS\\s+STONES(?:\\s+LOOSE)?\\s+JOS\\s+(\\d+)$",
     "SEMI_PRECIOUS": "^SEMI\\s+PRECIOUS\\s+JSP\\s+(\\d+)$",
+    "SYNTHETIC": "^SYNTHETIC\\s+JSY\\s+(\\d+)$",
     "DIAMONDS": "^DI\\.\\s*RA\\s+(\\d+)$"
   },
   "misc_product_patterns": ["^WAX,\\s+DORI\\s+ETC$"]

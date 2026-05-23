@@ -1,0 +1,127 @@
+{
+  "uplift_percent": 25,
+  "deviation_percent": 30,
+  "products": {
+    "CHAKRI": {
+      "min_rate": 15000.0,
+      "max_rate": 25000.0
+    },
+    "CUSTOMER FLAT POLKI": {
+      "min_rate": 20000.0,
+      "max_rate": 40000.0
+    },
+    "POLKI A": {
+      "min_rate": 30000.0,
+      "max_rate": 60000.0
+    },
+    "FLAT POLKI FP 1": {
+      "min_rate": 5000.0,
+      "max_rate": 10000.0
+    },
+    "FLAT POLKI FP 10": {
+      "min_rate": 50000.0,
+      "max_rate": 60000.0
+    },
+    "FLAT POLKI FP 11": {
+      "min_rate": 60000.0,
+      "max_rate": 70000.0
+    },
+    "FLAT POLKI FP 12": {
+      "min_rate": 70000.0,
+      "max_rate": 80000.0
+    },
+    "FLAT POLKI FP 13": {
+      "min_rate": 80000.0,
+      "max_rate": 90000.0
+    },
+    "FLAT POLKI FP 14": {
+      "min_rate": 90000.0,
+      "max_rate": 100000.0
+    },
+    "FLAT POLKI FP 15": {
+      "min_rate": 100000.0,
+      "max_rate": 110000.0
+    },
+    "FLAT POLKI FP 16": {
+      "min_rate": 110000.0,
+      "max_rate": 120000.0
+    },
+    "FLAT POLKI FP 17": {
+      "min_rate": 120000.0,
+      "max_rate": 130000.0
+    },
+    "FLAT POLKI FP 18": {
+      "min_rate": 130000.0,
+      "max_rate": 140000.0
+    },
+    "FLAT POLKI FP 19": {
+      "min_rate": 140000.0,
+      "max_rate": 150000.0
+    },
+    "FLAT POLKI FP 2": {
+      "min_rate": 10000.0,
+      "max_rate": 15000.0
+    },
+    "FLAT POLKI FP 20": {
+      "min_rate": 150000.0,
+      "max_rate": 160000.0
+    },
+    "FLAT POLKI FP 3": {
+      "min_rate": 15000.0,
+      "max_rate": 20000.0
+    },
+    "FLAT POLKI FP 4": {
+      "min_rate": 20000.0,
+      "max_rate": 25000.0
+    },
+    "FLAT POLKI FP 5": {
+      "min_rate": 25000.0,
+      "max_rate": 30000.0
+    },
+    "FLAT POLKI FP 6": {
+      "min_rate": 30000.0,
+      "max_rate": 35000.0
+    },
+    "FLAT POLKI FP 7": {
+      "min_rate": 35000.0,
+      "max_rate": 40000.0
+    },
+    "FLAT POLKI FP 8": {
+      "min_rate": 40000.0,
+      "max_rate": 45000.0
+    },
+    "FLAT POLKI FP 9": {
+      "min_rate": 45000.0,
+      "max_rate": 50000.0
+    },
+    "DIAMONDS LOOSE DI. RA 15": {
+      "min_rate": 15000.0,
+      "max_rate": 20000.0
+    },
+    "DIAMONDS LOOSE DI. RA 20": {
+      "min_rate": 20000.0,
+      "max_rate": 25000.0
+    },
+    "DIAMONDS LOOSE DI. RA 25": {
+      "min_rate": 25000.0,
+      "max_rate": 30000.0
+    },
+    "DIAMONDS LOOSE DI. RA 30": {
+      "min_rate": 30000.0,
+      "max_rate": 35000.0
+    },
+    "DIAMONDS LOOSE DI. RA 50": {
+      "min_rate": 50000.0,
+      "max_rate": 60000.0
+    },
+    "DI. RC 14": {
+      "min_rate": 70000.0,
+      "max_rate": 70000.0
+    },
+    "DI. RC 30": {
+      "min_rate": 165000.0,
+      "max_rate": 165000.0
+    }
+  },
+  "updated_at": "2026-05-23T03:11:56.776878+00:00"
+}

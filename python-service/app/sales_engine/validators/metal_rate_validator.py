@@ -8,6 +8,7 @@ from app.sales_engine.parsers.product_category import extracted_slab_price_expr
 
 _METAL_RATE_SOURCE = 'rule_book_product'
 _GEM_RATE_SOURCE = 'product_slab'
+_DIAMOND_RATE_SOURCE = 'diamond_rule_book'
 
 
 def enrich_metal_rate_columns(
@@ -74,28 +75,69 @@ def combine_rate_validation_columns(
     metal_min = pl.col('__metal_min_allowed_rate')
     metal_max = pl.col('__metal_max_allowed_rate')
 
+    diamond_applies = pl.col('__diamond_rate_applies').fill_null(False)
+    diamond_invalid = pl.col('__diamond_rate_invalid_raw').fill_null(False)
+    diamond_min = pl.col('__diamond_min_allowed_rate')
+    diamond_max = pl.col('__diamond_max_allowed_rate')
+    diamond_mid = (diamond_min + diamond_max) / 2.0
+
     rate_families = pl.col(family_col).is_in(list(rate_validation_families()))
-    gem_rate_active = rate_families & gem_slab.is_not_null()
+    gem_rate_active = rate_families & gem_slab.is_not_null() & ~diamond_applies
 
     combined_standard = (
         pl.when(metal_applies)
         .then(metal_standard)
+        .when(diamond_applies)
+        .then(diamond_mid)
         .when(gem_rate_active)
         .then(gem_slab)
         .otherwise(None)
     )
-    combined_min = pl.when(metal_applies).then(metal_min).when(gem_rate_active).then(gem_min).otherwise(None)
-    combined_max = pl.when(metal_applies).then(metal_max).when(gem_rate_active).then(gem_max).otherwise(None)
+    combined_min = (
+        pl.when(metal_applies)
+        .then(metal_min)
+        .when(diamond_applies)
+        .then(diamond_min)
+        .when(gem_rate_active)
+        .then(gem_min)
+        .otherwise(None)
+    )
+    combined_max = (
+        pl.when(metal_applies)
+        .then(metal_max)
+        .when(diamond_applies)
+        .then(diamond_max)
+        .when(gem_rate_active)
+        .then(gem_max)
+        .otherwise(None)
+    )
     gem_below = pl.col('__gem_rate_below_min').fill_null(False)
     gem_above = pl.col('__gem_rate_above_max').fill_null(False)
     gem_unit_missing = pl.col('__gem_unit_rate_missing').fill_null(False)
-    combined_below = metal_invalid & pl.col('__metal_rate_below_min').fill_null(False) | gem_below
-    combined_above = pl.col('__metal_rate_above_max').fill_null(False) | gem_above
-    combined_unit_missing = pl.col('__metal_unit_rate_missing').fill_null(False) | gem_unit_missing
-    combined_invalid = gem_invalid | metal_invalid | combined_unit_missing.fill_null(False)
+    diamond_below = pl.col('__diamond_rate_below_min').fill_null(False)
+    diamond_above = pl.col('__diamond_rate_above_max').fill_null(False)
+    diamond_unit_missing = pl.col('__diamond_unit_rate_missing').fill_null(False)
+    combined_below = (
+        (metal_invalid & pl.col('__metal_rate_below_min').fill_null(False))
+        | gem_below
+        | diamond_below
+    )
+    combined_above = (
+        pl.col('__metal_rate_above_max').fill_null(False) | gem_above | diamond_above
+    )
+    combined_unit_missing = (
+        pl.col('__metal_unit_rate_missing').fill_null(False)
+        | gem_unit_missing
+        | diamond_unit_missing
+    )
+    combined_invalid = (
+        gem_invalid | metal_invalid | diamond_invalid | combined_unit_missing.fill_null(False)
+    )
     combined_source = (
         pl.when(metal_applies)
         .then(pl.lit(_METAL_RATE_SOURCE))
+        .when(diamond_applies)
+        .then(pl.lit(_DIAMOND_RATE_SOURCE))
         .when(gem_rate_active)
         .then(pl.lit(_GEM_RATE_SOURCE))
         .otherwise(gem_source)
@@ -108,7 +150,7 @@ def combine_rate_validation_columns(
         .then(pl.lit('MAPPING_PENDING'))
         .when(combined_invalid)
         .then(pl.lit('INVALID'))
-        .when(metal_applies | gem_rate_active)
+        .when(metal_applies | diamond_applies | gem_rate_active)
         .then(pl.lit('VALID'))
         .otherwise(pl.lit('NOT_APPLICABLE'))
     )

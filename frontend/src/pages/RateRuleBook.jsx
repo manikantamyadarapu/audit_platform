@@ -82,7 +82,7 @@ export default function RateRuleBook() {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Scrutiny</p>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Rate Rule Book</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Gold & Silver Rates</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               Enter today&apos;s unit rates for gold and silver products. Sales audit compares{' '}
               <strong>invoice unit rate only</strong> to ±{RULE_BOOK_VARIATION_PCT}% of the saved rate.

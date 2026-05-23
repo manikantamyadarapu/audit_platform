@@ -24,18 +24,26 @@ import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
 import { exportRowsToPdf } from '../../utils/pdfExport';
 import { SalesRateDebugPanel } from './SalesRateDebugPanel';
+import { formatMessages } from '../../utils/salesXlsxExport';
 
 const SALES_EXPORT_COLS = [
-  { header: 'Row Number', accessor: (r) => r.rowNumber },
+  { header: 'Row Num', accessor: (r) => r.rowNumber ?? '' },
   { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
   { header: 'Party / Customer', accessor: (r) => r.partyName ?? '' },
-  { header: 'Excel sales account', accessor: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '' },
-  { header: 'Excel product', accessor: (r) => r.originalExcelProduct ?? r.product ?? '' },
-  { header: 'Excel unit rate', accessor: (r) => r.originalExcelUnitRate ?? '' },
-  { header: 'Expected Category', accessor: (r) => r.expectedSalesAccountCategory ?? '' },
-  { header: 'Predicted Category', accessor: (r) => r.predictedCategory ?? '' },
+  {
+    header: 'sales account',
+    accessor: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '',
+  },
+  { header: 'product', accessor: (r) => r.originalExcelProduct ?? r.product ?? '' },
+  {
+    header: 'unit rate',
+    accessor: (r) => r.originalExcelUnitRate ?? r.unitRate ?? r.uploadedUnitRate ?? '',
+  },
   { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-  { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
+  {
+    header: 'Messages',
+    accessor: (r) => formatMessages(r.messages ?? r.rateMessage),
+  },
 ];
 
 function salesGlobalFilter(row, _columnId, filterValue) {
@@ -50,10 +58,10 @@ function salesGlobalFilter(row, _columnId, filterValue) {
     r.originalExcelProduct,
     r.salesAccount,
     r.product,
-    r.expectedSalesAccountCategory,
-    r.predictedCategory,
+    r.originalExcelUnitRate,
+    r.unitRate,
     ...(Array.isArray(r.issues) ? r.issues : []),
-    ...(Array.isArray(r.messages) ? r.messages : []),
+    formatMessages(r.messages ?? r.rateMessage),
   ]
     .join(' ')
     .toLowerCase();
@@ -88,7 +96,7 @@ export function SalesResultsTable({ data }) {
       },
       {
         accessorKey: 'rowNumber',
-        header: 'Row',
+        header: 'Row Num',
         cell: (info) => (
           <span className="font-mono text-sm text-slate-700">{info.getValue()}</span>
         ),
@@ -108,38 +116,27 @@ export function SalesResultsTable({ data }) {
         ),
       },
       {
-        accessorKey: 'originalExcelSalesAccount',
-        header: 'Excel sales account',
+        id: 'salesAccount',
+        header: 'sales account',
+        accessorFn: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '',
         cell: (info) => (
           <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
-        accessorKey: 'originalExcelProduct',
-        header: 'Excel product',
+        id: 'product',
+        header: 'product',
+        accessorFn: (r) => r.originalExcelProduct ?? r.product ?? '',
         cell: (info) => (
           <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
         ),
       },
       {
-        accessorKey: 'originalExcelUnitRate',
-        header: 'Excel unit rate',
+        id: 'unitRate',
+        header: 'unit rate',
+        accessorFn: (r) => r.originalExcelUnitRate ?? r.unitRate ?? r.uploadedUnitRate ?? '',
         cell: (info) => (
           <span className="font-mono text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'expectedSalesAccountCategory',
-        header: 'Expected category',
-        cell: (info) => (
-          <span className="text-xs text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'predictedCategory',
-        header: 'Predicted category',
-        cell: (info) => (
-          <span className="text-xs text-slate-700">{info.getValue() ?? '—'}</span>
         ),
       },
       {
@@ -165,19 +162,14 @@ export function SalesResultsTable({ data }) {
         },
       },
       {
-        accessorKey: 'messages',
+        id: 'messages',
         header: 'Messages',
         enableSorting: false,
+        accessorFn: (r) => formatMessages(r.messages ?? r.rateMessage),
         cell: (info) => {
-          const msgs = info.getValue();
-          if (!Array.isArray(msgs) || msgs.length === 0) return <span className="text-slate-400">—</span>;
-          return (
-            <ul className="max-w-md list-disc space-y-1 pl-4 text-xs text-slate-700">
-              {msgs.map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
-          );
+          const text = info.getValue();
+          if (!text) return <span className="text-slate-400">—</span>;
+          return <span className="max-w-md text-sm text-slate-700">{text}</span>;
         },
       },
     ],
@@ -271,8 +263,8 @@ export function SalesResultsTable({ data }) {
                 </tr>
               ) : (
                 table.getRowModel().rows.map((row, i) => {
-                  const rowKey = row.original.rowId ?? row.original.rowNumber;
-                  const isOpen = expandedRowId === rowKey;
+                  const id = row.original.rowId ?? row.original.rowNumber;
+                  const isOpen = expandedRowId === id;
                   return (
                     <Fragment key={row.id}>
                       <tr
