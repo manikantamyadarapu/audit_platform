@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import polars as pl
 
-from app.sales_engine.config.loader import diamond_final_bands_by_product
+from app.sales_engine.config.loader import diamond_final_bands_by_product, diamond_rule_book_entries
+
+
+def diamond_rate_expected_expr(product_col: str = '__product_norm') -> pl.Expr:
+    """True when product is listed in the diamond rule book (including placeholders)."""
+    product = pl.col(product_col)
+    match = pl.lit(False)
+    for norm_product in diamond_rule_book_entries():
+        match = match | (product == norm_product)
+    return match.alias('__diamond_rate_expected')
 
 
 def diamond_rate_applies_expr(product_col: str = '__product_norm') -> pl.Expr:
-    """True when normalized product has a hard-coded diamond rule-book band."""
+    """True when rule-book SKU has configured min/max bands (not a placeholder)."""
     product = pl.col(product_col)
     match = pl.lit(False)
     for norm_product in diamond_final_bands_by_product():

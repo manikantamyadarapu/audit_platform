@@ -58,6 +58,8 @@
         "^DI\\. RA \\d+$",
         "^DI\\. RC \\d+$",
         "^DIAMONDS LOOSE DI\\. RA \\d+$",
+        "^DIAMONDS LOOSE DI\\. SD \\d+$",
+        "^DIAMONDS LOOSE SD DI\\. MIX$",
         "^FLAT POLKI FP \\d+$",
         "^POLKI A$",
         "^SD DI\\. \\d+$",

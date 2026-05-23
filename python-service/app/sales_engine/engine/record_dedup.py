@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Hashable
 
-from app.sales_engine.validators.sales_audit_messages import build_row_messages, merge_message_lists
+from app.sales_engine.validators.sales_audit_messages import build_row_messages
 
 
 def _audit_status_from_issues(issues: list[str]) -> str:
@@ -67,11 +67,7 @@ def dedupe_invalid_records_by_row_number(
             if code and code not in issue_set:
                 issue_set.append(str(code))
         existing['issues'] = issue_set
-        existing['messages'] = merge_message_lists(
-            existing.get('messages'),
-            record.get('messages'),
-            build_row_messages({**existing, **record}, issue_set),
-        )
+        existing['messages'] = build_row_messages({**existing, **record}, issue_set)
         existing['rateMessage'] = existing['messages'][0] if existing.get('messages') else ''
         existing['auditStatus'] = _audit_status_from_issues(issue_set)
 

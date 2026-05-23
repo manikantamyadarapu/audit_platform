@@ -8,6 +8,7 @@ import {
   FileCheck2,
   FileSpreadsheet,
   Coins,
+  Gem,
   GitBranch,
   LayoutDashboard,
   ListTree,
@@ -31,7 +32,8 @@ const scrutinyItems = [
   { to: '/scrutiny/pan', label: 'PAN Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Sales Audit', icon: FileSpreadsheet },
-  { to: '/scrutiny/rate-rule-book', label: 'Rate Rule Book', icon: Coins },
+  { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
+  { to: '/scrutiny/diamond-rate-rule-book', label: 'Diamond Rule Book', icon: Gem },
 ];
 
 const vouchingItems = [

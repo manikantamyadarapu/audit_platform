@@ -48,6 +48,7 @@ def audit_trace_columns() -> list[pl.Expr]:
     invalid_pattern = is_txn & mapping_ok & price_parse_failed
     metal_applies = pl.col('__metal_rate_applies').fill_null(False)
     diamond_applies = pl.col('__diamond_rate_applies').fill_null(False)
+    diamond_expected = pl.col('__diamond_rate_expected').fill_null(False)
     metal_rate_no_unit = is_txn & mapping_ok & metal_applies & unit_rate_missing
     diamond_rate_no_unit = is_txn & mapping_ok & diamond_applies & unit_rate_missing
     invalid_rate = (
@@ -132,6 +133,7 @@ def audit_trace_columns() -> list[pl.Expr]:
         & ~pl.col('__is_misc_product')
         & ~metal_applies
         & ~diamond_applies
+        & ~diamond_expected
         & ~invalid_rate_no_unit
     )
 

@@ -8,7 +8,19 @@ from tests.test_sales_audit_processor import _row, _wb_bytes
 
 def _catalog_unit_rate(product: str) -> float:
     """Use slab from product suffix when rate validation applies; else any positive rate."""
+    from app.sales_engine.config.loader import diamond_final_bands_by_product
+    from app.utils.normalization_engine import normalize_strict_text
+
+    norm = normalize_strict_text(product)
+    band = diamond_final_bands_by_product().get(norm)
+    if band is not None:
+        return (band['final_min'] + band['final_max']) / 2.0
+
     match = re.search(r'(\d+)\s*$', product.strip())
+    if match and re.search(r'\b(JEM|JRU|JPS|JOS|JSP|JSY)\s+\d+', product, re.I):
+        return float(match.group(1))
+    if match and re.search(r'\bDI\.\s*RA\s+\d+', product, re.I):
+        return float(match.group(1))
     return float(match.group(1)) if match else 100.0
 
 @pytest.mark.parametrize(
@@ -21,6 +33,9 @@ def _catalog_unit_rate(product: str) -> float:
         ('Gold Sales Account -24K', 'Standard Gold 24K'),
         ('Silver sales Account', 'Silver articles'),
         ('Jewel sales account - Diamonds', 'Chakri'),
+        ('Jewel sales account - Diamonds', 'Flat polki FP 12'),
+        ('Jewel sales account - Diamonds', 'Diamonds Loose Di. RA 30'),
+        ('Jewel sales account - Diamonds', 'Di. RC 30'),
         ('Jewel sales account - Diamonds', 'Di. RA 15'),
         ('Jewel sales account - Diamonds', 'Flat polki FP 10'),
         ('Jewel sales account - Diamonds', 'SD Di. Mix'),

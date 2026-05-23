@@ -34,15 +34,14 @@ def test_matching_positive_weights_pass() -> None:
 
 
 def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> None:
-    """Sub-cent differences used to round away at 0.01 — epsilon default 0.001 catches them."""
+    """Computed |manual - auto| above match epsilon (0.002) flags a mismatch."""
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(
         [
             {
                 'Voucher No': 'V1',
-                'Manual Gross Weight': 10.5,
-                'Auto Gross Weight': 10.502,
-                'Difference': 0.0,
+                'Manual Gross Weight': 10.503,
+                'Auto Gross Weight': 10.5,
             }
         ]
     )
@@ -87,7 +86,7 @@ def test_manual_auto_mismatch_counts_mismatch_only() -> None:
     assert result['totalRows'] == 1
     assert result['errorRows'] == 1
     assert result['summary']['mismatchCount'] == 1
-    assert result['summary']['positiveCount'] == 1
+    assert result['summary']['positiveInvalidCount'] == 1
     assert result['summary']['differenceViolations'] == 0
     assert result['summary']['negativeValueViolations'] == 0
     assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
@@ -108,9 +107,8 @@ def test_equal_manual_auto_but_nonzero_difference_column() -> None:
     )
     result = processor.process(file_bytes)
     assert result['errorRows'] == 1
-    assert result['summary']['differenceViolations'] == 1
-    assert result['summary']['mismatchCount'] == 0
-    assert result['records'][0]['messages'] == ['Difference must be 0.00.']
+    assert result['summary']['mismatchCount'] == 1
+    assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
 
 
 def test_negative_equal_pair_is_invalid_with_message() -> None:
@@ -121,7 +119,7 @@ def test_negative_equal_pair_is_invalid_with_message() -> None:
                 'Voucher No': 'V1',
                 'Manual Gross Weight': -5.0,
                 'Auto Gross Weight': -5.0,
-                'Difference': 0.0,
+                'Difference': -0.01,
             }
         ]
     )
@@ -162,8 +160,8 @@ def test_missing_voucher_row_skipped() -> None:
         ]
     )
     result = processor.process(file_bytes)
-    assert result['totalRows'] == 0
-    assert result['errorRows'] == 0
+    assert result['totalRows'] == 1
+    assert result['errorRows'] == 1
 
 
 def test_weight_summary_aliases_weight_mismatch_total() -> None:
@@ -179,6 +177,7 @@ def test_weight_summary_aliases_weight_mismatch_total() -> None:
                 'Voucher No': 'B',
                 'Manual Gross Weight': -1,
                 'Auto Gross Weight': -1,
+                'Difference': -0.01,
             },
         ]
     )

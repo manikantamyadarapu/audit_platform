@@ -1,5 +1,9 @@
 from typing import Any
 
+from app.sales_engine.engine.sales_audit_output import (
+    SALES_AUDIT_OUTPUT_COLUMNS,
+    sales_records_for_export,
+)
 from app.utils.audit_reporter import build_audit_excel_report
 
 PAN_EXPORT_COLUMNS = [
@@ -26,26 +30,7 @@ GROSS_EXPORT_COLUMNS = [
     'messages',
 ]
 
-SALES_EXPORT_COLUMNS = [
-    'rowNumber',
-    'sourceExcelRowNumber',
-    'voucherNo',
-    'partyName',
-    'originalExcelSalesAccount',
-    'originalExcelProduct',
-    'originalExcelUnitRate',
-    'validationSalesAccount',
-    'validationProduct',
-    'currentMarketRate',
-    'minAllowedRate',
-    'maxAllowedRate',
-    'unitRate',
-    'rateDifference',
-    'validationStatus',
-    'rateValidationSource',
-    'issues',
-    'messages',
-]
+SALES_EXPORT_COLUMNS = list(SALES_AUDIT_OUTPUT_COLUMNS)
 
 
 def export_invalid_pan_records(
@@ -97,7 +82,7 @@ def export_invalid_sales_records(
         report_title='Sales Audit Report',
         invalid_sheet_name='Invalid Sales Rows',
         source_processor='sales',
-        records=records,
+        records=sales_records_for_export(records),
         export_columns=SALES_EXPORT_COLUMNS,
         summary=summary,
         processing_statistics=processing_statistics,

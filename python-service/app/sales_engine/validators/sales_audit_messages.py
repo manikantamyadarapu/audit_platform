@@ -2,78 +2,73 @@ from __future__ import annotations
 
 from typing import Any
 
-MSG_VALID_RATE = 'Valid rate.'
-MSG_RATE_BELOW = 'Unit rate below allowed range.'
-MSG_RATE_ABOVE = 'Unit rate above allowed range.'
-MSG_PRODUCT_MAPPING = 'Product mapping mismatch.'
-MSG_MARKET_RATE_MISSING = 'Market rate not configured.'
-MSG_UNIT_RATE_MISSING = 'Unit rate missing.'
-MSG_PRODUCT_PATTERN = 'Slab price could not be extracted from product name.'
-MSG_DIAMOND_VALID = 'Valid diamond rate.'
-MSG_DIAMOND_BELOW = 'Unit rate below allowed diamond range.'
-MSG_DIAMOND_ABOVE = 'Unit rate above allowed diamond range.'
-MSG_DIAMOND_RULE_MISSING = 'Diamond rule not configured.'
+MSG_VALID = 'Valid'
+MSG_RATE_BELOW = 'Rate below allowed range'
+MSG_RATE_ABOVE = 'Rate above allowed range'
+MSG_PRODUCT_MAPPING = 'Product mapping mismatch'
+MSG_RATE_RULE_MISSING = 'Rate rule not configured'
+MSG_UNIT_RATE_MISSING = 'Unit rate missing'
+MSG_PRODUCT_PATTERN = 'Product pattern invalid'
 
-_ISSUE_DEFAULTS: dict[str, str] = {
+_ISSUE_MESSAGE: dict[str, str] = {
     'INVALID_PRODUCT_MAPPING': MSG_PRODUCT_MAPPING,
     'INVALID_PRODUCT_PATTERN': MSG_PRODUCT_PATTERN,
     'INVALID_RATE_DEVIATION': MSG_RATE_BELOW,
-    'UNIT_RATE_MISSING': MSG_UNIT_RATE_MISSING,
-    'RATE_BELOW_MINIMUM': MSG_RATE_BELOW,
-    'RATE_ABOVE_MAXIMUM': MSG_RATE_ABOVE,
+    'MISSING_UNIT_RATE': MSG_UNIT_RATE_MISSING,
+    'MISSING_RATE_RULE': MSG_RATE_RULE_MISSING,
 }
 
+_ISSUE_PRIORITY: tuple[str, ...] = (
+    'INVALID_PRODUCT_MAPPING',
+    'INVALID_PRODUCT_PATTERN',
+    'MISSING_RATE_RULE',
+    'MISSING_UNIT_RATE',
+    'INVALID_RATE_DEVIATION',
+)
 
-def _is_diamond_row(row: dict[str, Any]) -> bool:
-    return (
-        row.get('__diamond_rate_applies')
-        or row.get('rateValidationSource') == 'diamond_rule_book'
-    )
+
+def _rate_direction_message(row: dict[str, Any]) -> str:
+    if row.get('__rate_above_max'):
+        return MSG_RATE_ABOVE
+    if row.get('__rate_below_min') or row.get('__invalid_rate_deviation'):
+        return MSG_RATE_BELOW
+    return MSG_RATE_BELOW
 
 
-def _rate_message_from_row(row: dict[str, Any]) -> str | None:
-    diamond = _is_diamond_row(row)
+def primary_audit_message(row: dict[str, Any], issues: list[str]) -> str | None:
+    """One short message per row — no duplicates, no diamond/metal variants."""
+    issue_set = {str(c) for c in issues if c}
+
+    for code in _ISSUE_PRIORITY:
+        if code not in issue_set:
+            continue
+        if code == 'INVALID_RATE_DEVIATION':
+            return _rate_direction_message(row)
+        return _ISSUE_MESSAGE[code]
+
     if row.get('__invalid_product_mapping'):
         return MSG_PRODUCT_MAPPING
     if row.get('__invalid_product_pattern'):
         return MSG_PRODUCT_PATTERN
+    if (row.get('__diamond_rate_expected') and not row.get('__diamond_rate_applies')) or (
+        row.get('__metal_rate_expected') and not row.get('__metal_rate_applies')
+    ):
+        return MSG_RATE_RULE_MISSING
     if row.get('__rate_unit_missing') or row.get('__invalid_rate_no_unit'):
         return MSG_UNIT_RATE_MISSING
-    if row.get('__rate_below_min'):
-        return MSG_DIAMOND_BELOW if diamond else MSG_RATE_BELOW
     if row.get('__rate_above_max'):
-        return MSG_DIAMOND_ABOVE if diamond else MSG_RATE_ABOVE
-    if row.get('__invalid_rate_deviation'):
-        return MSG_DIAMOND_BELOW if diamond else MSG_RATE_BELOW
-    if row.get('__rate_valid') and diamond:
-        return MSG_DIAMOND_VALID
-    if row.get('__rate_valid') and row.get('__metal_rate_applies'):
-        return MSG_VALID_RATE
+        return MSG_RATE_ABOVE
+    if row.get('__rate_below_min') or row.get('__invalid_rate_deviation'):
+        return _rate_direction_message(row)
+    if row.get('__rate_valid'):
+        return MSG_VALID
     return None
 
 
 def build_row_messages(row: dict[str, Any], issues: list[str]) -> list[str]:
-    """Short UTF-8 messages for API export (no +/- symbols)."""
-    messages: list[str] = []
-    primary = _rate_message_from_row(row)
-    if primary:
-        messages.append(primary)
-
-    for code in issues:
-        text = _ISSUE_DEFAULTS.get(code)
-        if text and text not in messages:
-            messages.append(text)
-
-    if not messages and issues:
-        messages = [_ISSUE_DEFAULTS.get(code, code) for code in issues]
-
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for msg in messages:
-        if msg and msg not in seen:
-            seen.add(msg)
-            ordered.append(msg)
-    return ordered
+    """Return at most one clean audit message."""
+    msg = primary_audit_message(row, issues)
+    return [msg] if msg else []
 
 
 def merge_message_lists(*parts: list[str] | None) -> list[str]:
@@ -86,4 +81,10 @@ def merge_message_lists(*parts: list[str] | None) -> list[str]:
             if msg and msg not in seen:
                 seen.add(msg)
                 merged.append(msg)
-    return merged
+    return merged[:1]
+
+
+def format_messages_field(messages: list[str] | None) -> str:
+    if not messages:
+        return ''
+    return messages[0] if messages else ''

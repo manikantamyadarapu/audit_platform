@@ -61,9 +61,10 @@ def test_export_sales_invalid_rows() -> None:
     workbook = load_workbook(BytesIO(response.content))
     sheet = workbook['Invalid Sales Rows']
     headers = [cell.value for cell in sheet[1]]
-    assert 'originalExcelProduct' in headers
-    assert 'partyName' in headers
-    assert 'sourceExcelRowNumber' in headers
+    assert 'rowNumber' in headers
+    assert 'salesAccount' in headers
+    assert 'product' in headers
+    assert 'unitRate' in headers
     assert 'messages' in headers
     summary_sheet = workbook['Summary']
     summary_metrics = [cell.value for cell in summary_sheet['A'] if cell.value]

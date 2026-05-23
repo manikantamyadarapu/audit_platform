@@ -15,6 +15,19 @@ def test_diamond_band_precompute_di_ra_10():
     assert band['final_max'] == pytest.approx(24375.0)
 
 
+def test_diamond_hardcoded_di_rc_10_uses_sheet_price():
+    band = diamond_final_bands_by_product()['DI. RC 10']
+    assert band['base_min'] == 54000
+    assert band['base_max'] == 54000
+
+
+def test_flat_polki_fp_1_and_fp_10_distinct_bands():
+    bands = diamond_final_bands_by_product()
+    assert bands['FLAT POLKI FP 1']['final_min'] == pytest.approx(4375.0)
+    assert bands['FLAT POLKI FP 10']['final_min'] == pytest.approx(43750.0)
+    assert bands['FLAT POLKI FP 1']['final_min'] != bands['FLAT POLKI FP 10']['final_min']
+
+
 def test_valid_diamond_rate_inside_band():
     proc = SalesAuditProcessor()
     out = proc.process(
@@ -53,7 +66,7 @@ def test_diamond_rate_below_minimum():
     assert rec['rateValidationSource'] == 'diamond_rule_book'
     assert rec['minAllowedRate'] == pytest.approx(8750.0)
     assert rec['maxAllowedRate'] == pytest.approx(24375.0)
-    assert 'below allowed diamond range' in rec['rateMessage'].lower()
+    assert 'rate below allowed range' in rec['rateMessage'].lower()
 
 
 def test_diamond_rate_above_maximum():
@@ -71,7 +84,7 @@ def test_diamond_rate_above_maximum():
         )
     )
     assert out['errorRows'] == 1
-    assert 'above allowed diamond range' in out['records'][0]['rateMessage'].lower()
+    assert 'rate above allowed range' in out['records'][0]['rateMessage'].lower()
 
 
 def test_diamond_without_rule_book_skips_rate_check():
@@ -82,13 +95,135 @@ def test_diamond_without_rule_book_skips_rate_check():
                 _row(
                     voucher='DC1',
                     sales_account=_DIAMOND_ACCOUNT,
-                    product='Chakri',
+                    product='Customer Diamonds Special Order',
                     unit_rate=999999,
                 )
             ]
         )
     )
     assert out['errorRows'] == 0
+
+
+@pytest.mark.parametrize(
+    'product,unit_rate',
+    [
+        ('Chakri', 20000),
+        ('Customer Flat Polki', 30000),
+        ('Polki a', 45000),
+        ('Flat polki FP 7', 37500),
+        ('SD Di. Mix', 300000),
+        ('Diamonds Loose SD Di. Mix', 300000),
+    ],
+)
+def test_diamond_polki_mix_valid_at_sheet_midpoint(product: str, unit_rate: float):
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='PM',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product=product,
+                    unit_rate=unit_rate,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+@pytest.mark.parametrize(
+    'product',
+    [
+        'Chakri',
+        'Flat polki FP 1',
+        'SD Di. Mix',
+    ],
+)
+def test_diamond_polki_mix_rejects_out_of_band(product: str):
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='PX',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product=product,
+                    unit_rate=999999,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
+    assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
+
+
+def test_diamond_loose_di_ra_100_hardcoded_valid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='L100',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='Diamonds Loose Di. RA 100',
+                    unit_rate=105000,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_diamond_loose_di_ra_25_valid_at_sheet_midpoint():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='L25',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='Diamonds Loose Di. RA 25',
+                    unit_rate=27500,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_diamond_di_rc_14_valid_at_sheet_base_point():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='RC14',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='Di. RC 14',
+                    unit_rate=70000,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_diamond_loose_di_sd_200_outside_band_fails():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='LSD',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='Diamonds Loose Di. SD 200',
+                    unit_rate=100000,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
 
 
 def test_diamond_missing_unit_rate():
@@ -106,8 +241,9 @@ def test_diamond_missing_unit_rate():
         )
     )
     assert out['errorRows'] == 1
-    assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
-    assert 'missing' in out['records'][0]['rateMessage'].lower()
+    rec = out['records'][0]
+    assert rec['issues'] == ['MISSING_UNIT_RATE']
+    assert 'unit rate missing' in rec['rateMessage'].lower()
 
 
 def test_same_voucher_multiple_diamond_rows_stay_separate():
