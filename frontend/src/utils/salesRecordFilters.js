@@ -5,7 +5,7 @@ export const SALES_FILTER_LABELS = {
   errors: 'Error rows',
   accountVsProduct: 'Account vs product',
   mixedLedgers: 'Mixed ledgers',
-  grossWeightGaps: 'Gross weight gaps',
+  caratGemErrors: 'Carat & gem errors',
   compliance: 'Compliance (no issues)',
 };
 
@@ -22,6 +22,8 @@ const RATE_DEVIATION_ISSUES = new Set([
   'MISSING_RATE_RULE',
   'RATE_DEVIATION_VIOLATION',
 ]);
+
+const CARAT_GEM_ISSUES = new Set(['INVALID_UOM']);
 
 /**
  * @param {Record<string, unknown>[] | undefined} records
@@ -50,9 +52,11 @@ export function filterSalesRecords(records, filter) {
         r.issues.some((code) => RATE_DEVIATION_ISSUES.has(code))
     );
   }
-  if (filter === 'grossWeightGaps') {
+  if (filter === 'caratGemErrors') {
     return list.filter(
-      (r) => Array.isArray(r.issues) && r.issues.includes('GROSS_WEIGHT_OUTSIDE_TOLERANCE')
+      (r) =>
+        Array.isArray(r.issues) &&
+        r.issues.some((code) => CARAT_GEM_ISSUES.has(code))
     );
   }
   if (filter === 'compliance') {
