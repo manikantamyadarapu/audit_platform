@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Coins,
+  Gem,
   Loader2,
   AlertTriangle,
   Rows3,
@@ -99,8 +100,10 @@ export default function SalesLedger() {
     rawRecords.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0).length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
-  const accountConflicts = summary.conflictingSalesAccountForProduct ?? 0;
-  const grossWt = summary.grossWeightMismatches ?? 0;
+  const caratGemErrors =
+    summary.invalidUomRows ??
+    summary.caratGemErrorRows ??
+    filterSalesRecords(rawRecords, 'caratGemErrors').length;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
 
@@ -241,14 +244,14 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('mixedLedgers')}
               />
               <KpiCard
-                label="Gross weight gaps"
-                value={formatNumber(grossWt)}
-                hint="Manual vs auto exceeds tolerance"
-                icon={BookOpen}
+                label="Carat & gem errors"
+                value={formatNumber(caratGemErrors)}
+                hint="Invalid UOM on carat/gem rows"
+                icon={Gem}
                 accent="violet"
                 interactive
-                selected={activeFilter === 'grossWeightGaps'}
-                onClick={() => toggleCardFilter('grossWeightGaps')}
+                selected={activeFilter === 'caratGemErrors'}
+                onClick={() => toggleCardFilter('caratGemErrors')}
               />
               <KpiCard
                 label="Compliance"
