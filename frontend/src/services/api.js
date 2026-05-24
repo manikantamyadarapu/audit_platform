@@ -2,6 +2,10 @@ import axios from 'axios';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
+const apiTimeout =
+  Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 900_000;
+
 const api = axios.create({
   baseURL,
   /** Server can spend several minutes on large ledgers before Node returns (see PYTHON_SERVICE_TIMEOUT_MS). */

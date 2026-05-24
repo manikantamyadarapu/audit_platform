@@ -1,11 +1,10 @@
-import { NavLink } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BarChart3,
   BellRing,
-  Bot,
+  ChevronDown,
   ClipboardCheck,
-  FileCheck2,
   FileSpreadsheet,
   Coins,
   Gem,
@@ -13,20 +12,13 @@ import {
   LayoutDashboard,
   ListTree,
   PanelLeftClose,
+  Scale,
   Settings,
   Weight,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { HaaLogoMark } from '../ui/HaaLogoMark';
 import { useAppUi } from '../../context/AppUiContext';
-
-const menuItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/reports', label: 'Reports', icon: BellRing },
-  { to: '/team-activity', label: 'Analytics', icon: BarChart3 },
-  { to: '/clients', label: 'AI Insights', icon: Bot },
-  { to: '/settings', label: 'Settings', icon: Settings },
-];
 
 const scrutinyItems = [
   { to: '/scrutiny/pan', label: 'PAN Audit', icon: ClipboardCheck },
@@ -39,27 +31,9 @@ const scrutinyItems = [
 const vouchingItems = [
   { label: 'Voucher Matching', icon: GitBranch },
   { label: 'Ledger Review', icon: ListTree },
-  { label: 'Entry Verification', icon: FileCheck2 },
 ];
 
-function SectionTitle({ children, collapsed, badge }) {
-  if (collapsed) {
-    return <div className="my-4 h-px w-8 self-center bg-slate-200" />;
-  }
-
-  return (
-    <div className="mb-3 mt-7 flex items-center justify-between gap-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</p>
-      {badge ? (
-        <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-          {badge}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate }) {
+function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) {
   return (
     <NavLink
       to={to}
@@ -69,6 +43,7 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate }) {
       className={({ isActive }) =>
         cn(
           'group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
+          nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
           isActive
             ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
@@ -81,11 +56,14 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate }) {
   );
 }
 
-function DisabledItem({ label, icon: Icon, collapsed }) {
+function DisabledItem({ label, icon: Icon, collapsed, nested }) {
   return (
     <div
       title={collapsed ? `${label} - On hold` : undefined}
-      className="flex h-11 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-400 opacity-70"
+      className={cn(
+        'flex h-11 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-400 opacity-70',
+        nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]'
+      )}
     >
       <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
       {!collapsed ? (
@@ -98,9 +76,82 @@ function DisabledItem({ label, icon: Icon, collapsed }) {
   );
 }
 
+function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, children }) {
+  if (collapsed) {
+    return (
+      <NavLink
+        to={label === 'Scrutiny' ? '/scrutiny' : '/vouching'}
+        title={label}
+        className={({ isActive }) =>
+          cn(
+            'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
+            isActive || active
+              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          )
+        }
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+      </NavLink>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
+          active
+            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+        )}
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+        <span className="flex-1 truncate text-left">{label}</span>
+        {badge ? (
+          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+            {badge}
+          </span>
+        ) : null}
+        <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden space-y-1"
+          >
+            {children}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, setDivision } = useAppUi();
+  const { pathname } = useLocation();
   const ensureScrutiny = () => setDivision('scrutiny');
+
+  const scrutinyActive = pathname.startsWith('/scrutiny');
+  const vouchingActive = pathname.startsWith('/vouching');
+
+  const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
+  const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
+
+  useEffect(() => {
+    if (scrutinyActive) setScrutinyOpen(true);
+  }, [scrutinyActive]);
+
+  useEffect(() => {
+    if (vouchingActive) setVouchingOpen(true);
+  }, [vouchingActive]);
 
   return (
     <motion.aside
@@ -141,36 +192,45 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col overflow-y-auto px-7 pb-7 scrollbar-thin">
-        <SectionTitle collapsed={sidebarCollapsed}>Menu</SectionTitle>
         <div className="space-y-1">
-          {menuItems.map((item) => (
-            <NavItem
-              key={item.to}
-              {...item}
-              collapsed={sidebarCollapsed}
-              onNavigate={() => {
-                if (item.to.startsWith('/scrutiny')) ensureScrutiny();
-              }}
-            />
-          ))}
-        </div>
+          <NavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} end collapsed={sidebarCollapsed} />
 
-        <SectionTitle collapsed={sidebarCollapsed}>Scrutiny</SectionTitle>
-        <div className="space-y-1">
-          {scrutinyItems.map((item) => (
-            <NavItem key={item.to} {...item} collapsed={sidebarCollapsed} onNavigate={ensureScrutiny} />
-          ))}
-        </div>
+          <NavGroup
+            label="Scrutiny"
+            icon={Scale}
+            collapsed={sidebarCollapsed}
+            open={scrutinyOpen}
+            onToggle={() => setScrutinyOpen((v) => !v)}
+            active={scrutinyActive}
+          >
+            {scrutinyItems.map((item) => (
+              <NavItem
+                key={item.to}
+                {...item}
+                collapsed={sidebarCollapsed}
+                nested
+                onNavigate={ensureScrutiny}
+              />
+            ))}
+          </NavGroup>
 
-        <SectionTitle collapsed={sidebarCollapsed} badge="Hold">
-          Vouching
-        </SectionTitle>
-        <div className="space-y-1">
-          {vouchingItems.map((item) => (
-            <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} />
-          ))}
-        </div>
+          <NavGroup
+            label="Vouching"
+            icon={GitBranch}
+            collapsed={sidebarCollapsed}
+            open={vouchingOpen}
+            onToggle={() => setVouchingOpen((v) => !v)}
+            active={vouchingActive}
+            badge="Hold"
+          >
+            {vouchingItems.map((item) => (
+              <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} nested />
+            ))}
+          </NavGroup>
 
+          <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
+          <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
+        </div>
       </nav>
 
       {!sidebarCollapsed ? (

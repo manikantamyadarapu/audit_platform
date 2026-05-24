@@ -113,105 +113,81 @@ export default function RateRuleBook() {
         ) : null}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <h2 className="text-lg font-semibold text-slate-900">Product rates</h2>
-            <p className="text-sm text-slate-600">
-              After saving, run{' '}
-              <Link to="/scrutiny/sales-ledger" className="font-medium text-emerald-700 hover:underline">
-                Sales Audit
-              </Link>{' '}
-              on your ledger upload.
-            </p>
-          </CardHeader>
-          <CardBody>
-            {loading ? (
-              <div className="flex items-center gap-2 py-8 text-sm text-slate-600">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading…
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold text-slate-900">Rule book ranges</h2>
+          <p className="text-sm text-slate-600">
+            Edit base min/max, then run{' '}
+            <Link to="/scrutiny/sales-ledger" className="font-medium text-emerald-700 hover:underline">
+              Sales Audit
+            </Link>
+            .
+          </p>
+        </CardHeader>
+        <CardBody>
+          {loading ? (
+            <div className="flex items-center gap-2 py-8 text-sm text-slate-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading…
+            </div>
+          ) : (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onSave();
+              }}
+            >
+              <div className="hidden gap-3 border-b border-slate-200 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_120px]">
+                <span>Product</span>
+                <span>Min</span>
+                <span>Max</span>
               </div>
-            ) : (
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onSave();
-                }}
-              >
-                <div className="hidden gap-3 border-b border-slate-100 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(0,1fr)_140px_140px]">
-                  <span>Product</span>
-                  <span>Min rate</span>
-                  <span>Max rate</span>
-                </div>
+              <div className="space-y-3">
                 {RULE_BOOK_PRODUCTS.map((product) => (
                   <div
                     key={product}
-                    className="grid gap-3 border-b border-slate-100 pb-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_140px_140px] sm:items-center"
+                    className="grid gap-2 border-b border-slate-100 pb-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_120px_120px] sm:items-center sm:gap-3"
                   >
-                    <label className="text-sm font-medium text-slate-800">{product}</label>
+                    <span className="text-sm font-medium text-slate-800">{product}</span>
                     <Input
                       type="number"
                       min="0"
                       step="any"
+                      aria-label={`${product} min`}
+                      placeholder="Min"
                       className="w-full"
                       value={form[product].min}
                       onChange={(e) => setField(product, 'min', e.target.value)}
-                      placeholder="Min rate"
                       disabled={saving}
-                      aria-label={`${product} min rate`}
                     />
                     <Input
                       type="number"
                       min="0"
                       step="any"
+                      aria-label={`${product} max`}
+                      placeholder="Max"
                       className="w-full"
                       value={form[product].max}
                       onChange={(e) => setField(product, 'max', e.target.value)}
-                      placeholder="Max rate"
                       disabled={saving}
-                      aria-label={`${product} max rate`}
                     />
                   </div>
                 ))}
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <Button type="submit" disabled={loading || saving} loading={saving}>
-                    <Save className="h-4 w-4" />
-                    Save rule book
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={load} disabled={loading || saving}>
-                    Reload
-                  </Button>
-                </div>
-              </form>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <h3 className="text-base font-semibold text-slate-900">Validation rule</h3>
-          </CardHeader>
-          <CardBody className="space-y-3 text-sm text-slate-700">
-            <p>
-              Apply <strong>−{RULE_BOOK_VARIATION_PCT}%</strong> on min rate and{' '}
-              <strong>+{RULE_BOOK_VARIATION_PCT}%</strong> on max rate.
-            </p>
-            <p>
-              <code className="rounded bg-slate-100 px-1 text-xs">final_min</code> = min × 0.70
-              <br />
-              <code className="rounded bg-slate-100 px-1 text-xs">final_max</code> = max × 1.30
-            </p>
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-rose-900">
-              Outside band → <strong>INVALID_RATE_DEVIATION</strong>
-            </p>
-            <p className="text-xs text-slate-500">
-              Example: min 14000, max 15000 → valid unit rates 9800–19500. Unit rate 16000 is valid; 9000
-              is invalid.
-            </p>
-          </CardBody>
-        </Card>
-      </div>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Button type="submit" disabled={loading || saving} loading={saving}>
+                  <Save className="h-4 w-4" />
+                  Save
+                </Button>
+                <Button type="button" variant="secondary" onClick={load} disabled={loading || saving}>
+                  Reload
+                </Button>
+              </div>
+            </form>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }
