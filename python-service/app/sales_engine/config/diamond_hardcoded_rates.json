@@ -68,11 +68,11 @@
     "DIAMONDS LOOSE DI. SD 225": { "min_rate": 225000, "max_rate": 250000 },
     "DIAMONDS LOOSE DI. SD 250": { "min_rate": 250000, "max_rate": 275000 },
     "DIAMONDS LOOSE DI. SD 275": { "min_rate": 275000, "max_rate": 300000 },
-    "DIAMONDS LOOSE SD DI. MIX": { "min_rate": 300000, "max_rate": 400000 },
+    "DIAMONDS LOOSE SD DI. MIX": { "min_rate": 300000, "min_only": true },
     "SD DI. 200": { "min_rate": 200000, "max_rate": 225000 },
     "SD DI. 225": { "min_rate": 225000, "max_rate": 250000 },
     "SD DI. 250": { "min_rate": 250000, "max_rate": 275000 },
     "SD DI. 275": { "min_rate": 275000, "max_rate": 300000 },
-    "SD DI. MIX": { "min_rate": 300000, "max_rate": 400000 }
+    "SD DI. MIX": { "min_rate": 300000, "min_only": true }
   }
 }

@@ -9,7 +9,7 @@ import { fetchRateRules, saveRateRules } from '../services/rateRuleService';
 import { RULE_BOOK_PRODUCTS, RULE_BOOK_VARIATION_PCT } from '../constants/metalRateRuleBook';
 
 function emptyForm() {
-  return Object.fromEntries(RULE_BOOK_PRODUCTS.map((p) => [p, '']));
+  return Object.fromEntries(RULE_BOOK_PRODUCTS.map((p) => [p, { min: '', max: '' }]));
 }
 
 function toForm(data) {
@@ -17,21 +17,32 @@ function toForm(data) {
   const rates = data?.rates ?? data ?? {};
   for (const product of RULE_BOOK_PRODUCTS) {
     const v = rates[product];
-    next[product] = v == null || v === '' ? '' : String(v);
+    if (v && typeof v === 'object') {
+      next[product] = {
+        min: v.min_rate == null || v.min_rate === '' ? '' : String(v.min_rate),
+        max: v.max_rate == null || v.max_rate === '' ? '' : String(v.max_rate),
+      };
+    } else if (v != null && v !== '') {
+      next[product] = { min: String(v), max: String(v) };
+    }
   }
   return next;
+}
+
+function parseRate(raw) {
+  if (raw === '' || raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function toPayload(form) {
   const rates = {};
   for (const product of RULE_BOOK_PRODUCTS) {
-    const raw = form[product];
-    if (raw === '' || raw == null) {
-      rates[product] = null;
-    } else {
-      const n = Number(raw);
-      rates[product] = Number.isFinite(n) && n > 0 ? n : null;
-    }
+    const entry = form[product] ?? { min: '', max: '' };
+    rates[product] = {
+      min_rate: parseRate(entry.min),
+      max_rate: parseRate(entry.max),
+    };
   }
   return { rates, allowed_variation_percent: RULE_BOOK_VARIATION_PCT };
 }
@@ -73,6 +84,13 @@ export default function RateRuleBook() {
     }
   };
 
+  const setField = (product, field, value) => {
+    setForm((f) => ({
+      ...f,
+      [product]: { ...f[product], [field]: value },
+    }));
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -84,8 +102,9 @@ export default function RateRuleBook() {
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Scrutiny</p>
             <h1 className="text-2xl font-bold tracking-tight text-slate-950">Gold & Silver Rates</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Enter today&apos;s unit rates for gold and silver products. Sales audit compares{' '}
-              <strong>invoice unit rate only</strong> to ±{RULE_BOOK_VARIATION_PCT}% of the saved rate.
+              Enter min and max unit rates for gold and silver products. Sales audit compares{' '}
+              <strong>invoice unit rate only</strong> after −{RULE_BOOK_VARIATION_PCT}% on min and +
+              {RULE_BOOK_VARIATION_PCT}% on max.
             </p>
           </div>
         </div>
@@ -120,24 +139,38 @@ export default function RateRuleBook() {
                   onSave();
                 }}
               >
+                <div className="hidden gap-3 border-b border-slate-100 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(0,1fr)_140px_140px]">
+                  <span>Product</span>
+                  <span>Min rate</span>
+                  <span>Max rate</span>
+                </div>
                 {RULE_BOOK_PRODUCTS.map((product) => (
                   <div
                     key={product}
-                    className="grid gap-3 border-b border-slate-100 pb-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_200px] sm:items-center"
+                    className="grid gap-3 border-b border-slate-100 pb-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_140px_140px] sm:items-center"
                   >
-                    <label htmlFor={`rate-${product}`} className="text-sm font-medium text-slate-800">
-                      {product}
-                    </label>
+                    <label className="text-sm font-medium text-slate-800">{product}</label>
                     <Input
-                      id={`rate-${product}`}
                       type="number"
                       min="0"
                       step="any"
                       className="w-full"
-                      value={form[product]}
-                      onChange={(e) => setForm((f) => ({ ...f, [product]: e.target.value }))}
-                      placeholder="Rate"
+                      value={form[product].min}
+                      onChange={(e) => setField(product, 'min', e.target.value)}
+                      placeholder="Min rate"
                       disabled={saving}
+                      aria-label={`${product} min rate`}
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="w-full"
+                      value={form[product].max}
+                      onChange={(e) => setField(product, 'max', e.target.value)}
+                      placeholder="Max rate"
+                      disabled={saving}
+                      aria-label={`${product} max rate`}
                     />
                   </div>
                 ))}
@@ -161,18 +194,20 @@ export default function RateRuleBook() {
           </CardHeader>
           <CardBody className="space-y-3 text-sm text-slate-700">
             <p>
-              Allowed variation: <strong>−{RULE_BOOK_VARIATION_PCT}% to +{RULE_BOOK_VARIATION_PCT}%</strong>
+              Apply <strong>−{RULE_BOOK_VARIATION_PCT}%</strong> on min rate and{' '}
+              <strong>+{RULE_BOOK_VARIATION_PCT}%</strong> on max rate.
             </p>
             <p>
-              <code className="rounded bg-slate-100 px-1 text-xs">min</code> = rate × 0.70
+              <code className="rounded bg-slate-100 px-1 text-xs">final_min</code> = min × 0.70
               <br />
-              <code className="rounded bg-slate-100 px-1 text-xs">max</code> = rate × 1.30
+              <code className="rounded bg-slate-100 px-1 text-xs">final_max</code> = max × 1.30
             </p>
             <p className="rounded-lg bg-rose-50 px-3 py-2 text-rose-900">
               Outside band → <strong>INVALID_RATE_DEVIATION</strong>
             </p>
             <p className="text-xs text-slate-500">
-              Example: Gold Ornaments 22K rate 9000 → valid unit rates 6300–11700.
+              Example: min 14000, max 15000 → valid unit rates 9800–19500. Unit rate 16000 is valid; 9000
+              is invalid.
             </p>
           </CardBody>
         </Card>

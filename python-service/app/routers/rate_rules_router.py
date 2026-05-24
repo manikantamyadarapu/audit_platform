@@ -11,8 +11,13 @@ router = APIRouter(prefix='/api/rate-rules', tags=['rate-rules'])
 gateway_router = APIRouter(prefix='/api/v1/rate-rules', tags=['rate-rules'])
 
 
+class ProductRateSpec(BaseModel):
+    min_rate: float | None = None
+    max_rate: float | None = None
+
+
 class RateRuleBookPayload(BaseModel):
-    rates: dict[str, float | None] = Field(default_factory=dict)
+    rates: dict[str, ProductRateSpec | float | None] = Field(default_factory=dict)
     allowed_variation_percent: int | None = None
 
     model_config = {'populate_by_name': True}
@@ -32,6 +37,12 @@ async def get_rate_rules() -> dict[str, Any]:
 @router.post('')
 @gateway_router.post('')
 async def post_rate_rules(payload: RateRuleBookPayload) -> dict[str, Any]:
-    body: dict[str, Any] = {'rates': payload.rates, 'allowed_variation_percent': payload.allowed_variation_percent}
+    rates: dict[str, Any] = {}
+    for key, value in payload.rates.items():
+        if isinstance(value, ProductRateSpec):
+            rates[key] = value.model_dump()
+        else:
+            rates[key] = value
+    body: dict[str, Any] = {'rates': rates, 'allowed_variation_percent': payload.allowed_variation_percent}
     saved = save_rule_book(body)
     return _success(saved)
