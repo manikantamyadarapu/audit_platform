@@ -169,8 +169,8 @@ def diamond_editable_product_keys() -> frozenset[str]:
     return frozenset(normalize_strict_text(k) for k in raw if normalize_strict_text(k))
 
 
-def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, float | None]]:
-    entries: dict[str, dict[str, float | None]] = {}
+def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, float | bool | None]]:
+    entries: dict[str, dict[str, float | bool | None]] = {}
     for product_key, spec in raw_products.items():
         norm = normalize_strict_text(product_key)
         if not norm or not isinstance(spec, dict):
@@ -180,12 +180,13 @@ def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, floa
         entries[norm] = {
             'min_rate': None if min_raw is None else float(min_raw),
             'max_rate': None if max_raw is None else float(max_raw),
+            'min_only': bool(spec.get('min_only', False)),
         }
     return entries
 
 
 @lru_cache(maxsize=1)
-def diamond_rule_book_entries() -> dict[str, dict[str, float | None]]:
+def diamond_rule_book_entries() -> dict[str, dict[str, float | bool | None]]:
     """
     Merged Type 1 (Rule Book JSON) + Type 2 (hardcoded JSON).
     Rule Book values override hardcoded keys for editable SKUs only.
@@ -200,29 +201,101 @@ def diamond_rule_book_entries() -> dict[str, dict[str, float | None]]:
 
 
 @lru_cache(maxsize=1)
-def diamond_final_bands_by_product() -> dict[str, dict[str, float]]:
+def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]]:
     """Normalized product name -> precomputed bands (configured SKUs only)."""
     cfg = load_diamond_rate_rule_book()
     uplift = float(cfg.get('uplift_percent', 25))
     deviation = float(cfg.get('deviation_percent', 30))
-    bands: dict[str, dict[str, float]] = {}
+    bands: dict[str, dict[str, float | bool | None]] = {}
     for norm, spec in diamond_rule_book_entries().items():
         base_min = spec.get('min_rate')
         base_max = spec.get('max_rate')
-        if base_min is None or base_max is None:
+        min_only = bool(spec.get('min_only', False))
+        if base_min is None:
             continue
-        bands[norm] = _diamond_band_values(
+        if min_only:
+            bands[norm] = {
+                'base_min': base_min,
+                'base_max': None,
+                'final_min': base_min,
+                'final_max': None,
+                'min_only': True,
+            }
+            continue
+        if base_max is None:
+            continue
+        band = _diamond_band_values(
             base_min,
             base_max,
             uplift_percent=uplift,
             deviation_percent=deviation,
         )
+        band['min_only'] = False
+        bands[norm] = band
+    return bands
+
+
+def _parse_metal_rate_entry(raw: object) -> dict[str, float | None]:
+    """Single legacy rate or {min_rate, max_rate} object."""
+    if isinstance(raw, dict):
+        min_raw = raw.get('min_rate')
+        max_raw = raw.get('max_rate')
+        min_rate = None if min_raw is None else float(min_raw)
+        max_rate = None if max_raw is None else float(max_raw)
+        return {'min_rate': min_rate, 'max_rate': max_rate}
+    if raw is None or raw == '':
+        return {'min_rate': None, 'max_rate': None}
+    try:
+        rate = float(raw)
+    except (TypeError, ValueError):
+        return {'min_rate': None, 'max_rate': None}
+    if rate <= 0:
+        return {'min_rate': None, 'max_rate': None}
+    return {'min_rate': rate, 'max_rate': rate}
+
+
+def _metal_band_values(base_min: float, base_max: float, *, deviation_fraction: float) -> dict[str, float]:
+    return {
+        'base_min': base_min,
+        'base_max': base_max,
+        'final_min': base_min * (1.0 - deviation_fraction),
+        'final_max': base_max * (1.0 + deviation_fraction),
+    }
+
+
+@lru_cache(maxsize=1)
+def product_rule_book_specs() -> dict[str, dict[str, float | None]]:
+    """Normalized product name → configured min/max rates (null when unset)."""
+    cfg = load_metal_rate_rule_book_config()
+    specs: dict[str, dict[str, float | None]] = {}
+    for product in METAL_RATE_RULE_BOOK_PRODUCTS:
+        norm = normalize_strict_text(product)
+        if not norm:
+            continue
+        raw = cfg.get(product, cfg.get(norm))
+        specs[norm] = _parse_metal_rate_entry(raw)
+    return specs
+
+
+@lru_cache(maxsize=1)
+def metal_final_bands_by_product() -> dict[str, dict[str, float]]:
+    """Normalized product → bands after -30% on min and +30% on max."""
+    fraction = metal_deviation_fraction()
+    bands: dict[str, dict[str, float]] = {}
+    for norm, spec in product_rule_book_specs().items():
+        base_min = spec.get('min_rate')
+        base_max = spec.get('max_rate')
+        if base_min is None or base_max is None:
+            continue
+        bands[norm] = _metal_band_values(base_min, base_max, deviation_fraction=fraction)
     return bands
 
 
 def clear_metal_rate_caches() -> None:
     load_metal_rate_rule_book_config.cache_clear()
+    product_rule_book_specs.cache_clear()
     product_rule_book_rates.cache_clear()
+    metal_final_bands_by_product.cache_clear()
     metal_deviation_fraction.cache_clear()
     load_diamond_rate_rule_book.cache_clear()
     load_diamond_hardcoded_rates.cache_clear()
@@ -239,18 +312,15 @@ def metal_deviation_fraction() -> float:
 
 @lru_cache(maxsize=1)
 def product_rule_book_rates() -> dict[str, float | None]:
-    """Normalized product name → entered rate (null when not configured)."""
-    cfg = load_metal_rate_rule_book_config()
+    """Midpoint of configured min/max — for backwards-compatible callers."""
     rates: dict[str, float | None] = {}
-    for product in METAL_RATE_RULE_BOOK_PRODUCTS:
-        norm = normalize_strict_text(product)
-        if not norm:
-            continue
-        raw = cfg.get(product, cfg.get(norm))
-        if raw is None:
+    for norm, spec in product_rule_book_specs().items():
+        base_min = spec.get('min_rate')
+        base_max = spec.get('max_rate')
+        if base_min is None or base_max is None:
             rates[norm] = None
         else:
-            rates[norm] = float(raw)
+            rates[norm] = (base_min + base_max) / 2.0
     return rates
 
 

@@ -10,7 +10,6 @@ from app.sales_engine.config.loader import (
     clear_metal_rate_caches,
     load_metal_rate_rule_book_config,
 )
-from app.utils.normalization_engine import normalize_strict_text
 
 _CONFIG_DIR = Path(__file__).resolve().parents[1] / 'config'
 _RULE_BOOK_PATH = _CONFIG_DIR / 'metal_rate_rule_book.json'
@@ -26,6 +25,18 @@ def _parse_optional_rate(value: Any) -> float | None:
     return rate if rate > 0 else None
 
 
+def _parse_product_rates(raw: Any) -> dict[str, float | None]:
+    if isinstance(raw, dict):
+        return {
+            'min_rate': _parse_optional_rate(raw.get('min_rate')),
+            'max_rate': _parse_optional_rate(raw.get('max_rate')),
+        }
+    rate = _parse_optional_rate(raw)
+    if rate is None:
+        return {'min_rate': None, 'max_rate': None}
+    return {'min_rate': rate, 'max_rate': rate}
+
+
 def load_rule_book() -> dict[str, Any]:
     if not _RULE_BOOK_PATH.exists():
         return _empty_rule_book()
@@ -34,19 +45,19 @@ def load_rule_book() -> dict[str, Any]:
 
 def _empty_rule_book() -> dict[str, Any]:
     return {
-        **{product: None for product in METAL_RATE_RULE_BOOK_PRODUCTS},
+        **{product: {'min_rate': None, 'max_rate': None} for product in METAL_RATE_RULE_BOOK_PRODUCTS},
         'allowed_variation_percent': 30,
         'updated_at': None,
     }
 
 
 def save_rule_book(payload: dict[str, Any]) -> dict[str, Any]:
-    """Persist employee-entered product rates for gold/silver rule book validation."""
+    """Persist employee-entered min/max rates for gold/silver rule book validation."""
     rates_in = payload.get('rates') if isinstance(payload.get('rates'), dict) else payload
-    product_rates: dict[str, float | None] = {}
+    product_rates: dict[str, dict[str, float | None]] = {}
     for product in METAL_RATE_RULE_BOOK_PRODUCTS:
         raw = rates_in.get(product) if isinstance(rates_in, dict) else payload.get(product)
-        product_rates[product] = _parse_optional_rate(raw)
+        product_rates[product] = _parse_product_rates(raw)
 
     stored = {
         **product_rates,
@@ -63,7 +74,10 @@ def save_rule_book(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def api_response_from_stored(stored: dict[str, Any]) -> dict[str, Any]:
-    rates = {product: stored.get(product) for product in METAL_RATE_RULE_BOOK_PRODUCTS}
+    rates: dict[str, dict[str, float | None]] = {}
+    for product in METAL_RATE_RULE_BOOK_PRODUCTS:
+        raw = stored.get(product)
+        rates[product] = _parse_product_rates(raw)
     return {
         'rates': rates,
         'allowed_variation_percent': stored.get('allowed_variation_percent', 30),

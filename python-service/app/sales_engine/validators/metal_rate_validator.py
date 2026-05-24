@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from app.sales_engine.config.loader import metal_deviation_fraction, rate_validation_families
-from app.sales_engine.parsers.metal_rate import metal_rate_applies_expr
-from app.sales_engine.parsers.product_category import extracted_slab_price_expr
+from app.sales_engine.config.loader import rate_validation_families
 
 _METAL_RATE_SOURCE = 'rule_book_product'
 _GEM_RATE_SOURCE = 'product_slab'
@@ -15,15 +13,14 @@ def enrich_metal_rate_columns(
     *,
     uploaded_unit_rate_col: str = '__uploaded_unit_rate',
 ) -> list[pl.Expr]:
-    fraction = metal_deviation_fraction()
-    standard = pl.col('__metal_rule_book_rate')
     applies = pl.col('__metal_rate_applies').fill_null(False)
     uploaded = pl.col(uploaded_unit_rate_col)
-    min_rate = standard * (1.0 - fraction)
-    max_rate = standard * (1.0 + fraction)
+    min_rate = pl.col('__metal_min_allowed_rate')
+    max_rate = pl.col('__metal_max_allowed_rate')
     metal_ready = (
         applies
-        & standard.is_not_null()
+        & min_rate.is_not_null()
+        & max_rate.is_not_null()
         & uploaded.is_not_null()
         & (uploaded > 0)
     )
@@ -35,7 +32,7 @@ def enrich_metal_rate_columns(
         uploaded.is_null() | (uploaded <= 0)
     )
     metal_result = (
-        pl.when(~applies | standard.is_null())
+        pl.when(~applies)
         .then(pl.lit('NOT_APPLICABLE'))
         .when(uploaded.is_null() | (uploaded <= 0))
         .then(pl.lit('UNIT_RATE_INVALID'))
@@ -50,8 +47,6 @@ def enrich_metal_rate_columns(
         metal_below.alias('__metal_rate_below_min'),
         metal_above.alias('__metal_rate_above_max'),
         metal_unit_missing.alias('__metal_unit_rate_missing'),
-        min_rate.alias('__metal_min_allowed_rate'),
-        max_rate.alias('__metal_max_allowed_rate'),
         metal_result.alias('__metal_rate_validation_result'),
     ]
 
@@ -79,7 +74,8 @@ def combine_rate_validation_columns(
     diamond_invalid = pl.col('__diamond_rate_invalid_raw').fill_null(False)
     diamond_min = pl.col('__diamond_min_allowed_rate')
     diamond_max = pl.col('__diamond_max_allowed_rate')
-    diamond_mid = (diamond_min + diamond_max) / 2.0
+    diamond_min_only = pl.col('__diamond_min_only').fill_null(False)
+    diamond_mid = pl.when(diamond_min_only).then(diamond_min).otherwise((diamond_min + diamond_max) / 2.0)
 
     rate_families = pl.col(family_col).is_in(list(rate_validation_families()))
     gem_rate_active = rate_families & gem_slab.is_not_null() & ~diamond_applies
@@ -105,7 +101,7 @@ def combine_rate_validation_columns(
     combined_max = (
         pl.when(metal_applies)
         .then(metal_max)
-        .when(diamond_applies)
+        .when(diamond_applies & ~diamond_min_only)
         .then(diamond_max)
         .when(gem_rate_active)
         .then(gem_max)
@@ -168,5 +164,3 @@ def combine_rate_validation_columns(
         validation_status.alias('__validation_status'),
         metal_standard.alias('__current_market_rate'),
     ]
-
-

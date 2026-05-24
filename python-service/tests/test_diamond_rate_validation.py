@@ -137,7 +137,6 @@ def test_diamond_polki_mix_valid_at_sheet_midpoint(product: str, unit_rate: floa
     [
         'Chakri',
         'Flat polki FP 1',
-        'SD Di. Mix',
     ],
 )
 def test_diamond_polki_mix_rejects_out_of_band(product: str):
@@ -156,6 +155,41 @@ def test_diamond_polki_mix_rejects_out_of_band(product: str):
     )
     assert out['errorRows'] == 1
     assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
+
+
+def test_sd_di_mix_above_300000_valid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='SDM',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='SD Di. Mix',
+                    unit_rate=999999,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_sd_di_mix_below_300000_invalid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='SDM-L',
+                    sales_account=_DIAMOND_ACCOUNT,
+                    product='SD Di. Mix',
+                    unit_rate=299999,
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
+    assert 'rate below allowed range' in out['records'][0]['rateMessage'].lower()
 
 
 def test_diamond_loose_di_ra_100_hardcoded_valid():

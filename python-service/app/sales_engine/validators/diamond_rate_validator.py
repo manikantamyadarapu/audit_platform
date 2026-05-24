@@ -9,20 +9,21 @@ def enrich_diamond_rate_columns(
     *,
     uploaded_unit_rate_col: str = '__uploaded_unit_rate',
 ) -> list[pl.Expr]:
-    """Validate invoice unit rate against hard-coded diamond bands (+25%, then +/-30%)."""
+    """Validate invoice unit rate against diamond rule-book bands."""
     applies = pl.col('__diamond_rate_applies').fill_null(False)
     uploaded = pl.col(uploaded_unit_rate_col)
     min_rate = pl.col('__diamond_min_allowed_rate')
     max_rate = pl.col('__diamond_max_allowed_rate')
+    min_only = pl.col('__diamond_min_only').fill_null(False)
     ready = (
         applies
         & min_rate.is_not_null()
-        & max_rate.is_not_null()
         & uploaded.is_not_null()
         & (uploaded > 0)
+        & (min_only | max_rate.is_not_null())
     )
     below = ready & (uploaded < min_rate)
-    above = ready & (uploaded > max_rate)
+    above = ready & ~min_only & max_rate.is_not_null() & (uploaded > max_rate)
     valid = ready & ~below & ~above
     invalid = below | above
     unit_missing = applies & (uploaded.is_null() | (uploaded <= 0))

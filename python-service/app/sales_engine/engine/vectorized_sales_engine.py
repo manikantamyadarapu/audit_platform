@@ -21,9 +21,9 @@ from app.sales_engine.parsers.product_category import (
 )
 from app.sales_engine.validators.audit_trace import audit_flag_columns, audit_trace_columns
 from app.sales_engine.parsers.metal_rate import (
+    metal_band_column_exprs,
     metal_rate_applies_expr,
     metal_rate_expected_expr,
-    product_rule_book_rate_expr,
 )
 from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
@@ -391,7 +391,7 @@ class VectorizedSalesEngine:
             )
             .with_columns([mapping_valid_expr()])
             .with_columns(audit_flag_columns(product_col='__product_norm'))
-            .with_columns([product_rule_book_rate_expr(product_col='__product_norm')])
+            .with_columns(metal_band_column_exprs(product_col='__product_norm'))
             .with_columns(
                 [
                     metal_rate_expected_expr(product_col='__product_norm'),

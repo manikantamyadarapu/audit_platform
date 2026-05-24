@@ -137,6 +137,48 @@ def test_gold_jadau_ornaments_invalid_when_unit_rate_below_band():
 
 
 def test_rate_rules_api_roundtrip():
-    saved = save_rule_book({'rates': {'Gold Ornaments 22K': 9100, 'Silver articles': 130}})
-    assert saved['rates']['Gold Ornaments 22K'] == 9100
-    assert saved['rates']['Silver articles'] == 130
+    saved = save_rule_book(
+        {
+            'rates': {
+                'Gold Ornaments 22K': {'min_rate': 9100, 'max_rate': 9200},
+                'Silver articles': {'min_rate': 130, 'max_rate': 130},
+            }
+        }
+    )
+    assert saved['rates']['Gold Ornaments 22K']['min_rate'] == 9100
+    assert saved['rates']['Gold Ornaments 22K']['max_rate'] == 9200
+    assert saved['rates']['Silver articles']['min_rate'] == 130
+
+
+def test_metal_min_max_band_user_example():
+    save_rule_book({'rates': {'Gold Ornaments 22K': {'min_rate': 14000, 'max_rate': 15000}}})
+    proc = SalesAuditProcessor()
+    out_ok = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='MM-OK',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Gold Ornaments 22K',
+                    unit_rate=16000,
+                )
+            ]
+        )
+    )
+    assert out_ok['errorRows'] == 0
+    out_bad = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='MM-BAD',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Gold Ornaments 22K',
+                    unit_rate=9000,
+                )
+            ]
+        )
+    )
+    assert out_bad['errorRows'] == 1
+    rec = out_bad['records'][0]
+    assert rec['minAllowedRate'] == 9800
+    assert rec['maxAllowedRate'] == 19500
