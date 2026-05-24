@@ -46,6 +46,7 @@ def audit_trace_columns() -> list[pl.Expr]:
 
     invalid_mapping = is_txn & ~mapping_ok
     invalid_pattern = is_txn & mapping_ok & price_parse_failed
+    invalid_uom = is_txn & pl.col('__invalid_uom').fill_null(False)
     metal_applies = pl.col('__metal_rate_applies').fill_null(False)
     diamond_applies = pl.col('__diamond_rate_applies').fill_null(False)
     diamond_expected = pl.col('__diamond_rate_expected').fill_null(False)
@@ -157,6 +158,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .then(pl.lit('INVALID_PRODUCT_MAPPING'))
         .when(invalid_pattern)
         .then(pl.lit('INVALID_PRODUCT_PATTERN'))
+        .when(invalid_uom)
+        .then(pl.lit('INVALID_UOM'))
         .when(invalid_rate_flag)
         .then(pl.lit('INVALID_RATE_DEVIATION'))
         .when(unknown_mix | unknown_pattern)
@@ -182,6 +185,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .then(pl.lit('ACCOUNT_PRODUCT_MISMATCH'))
         .when(invalid_pattern)
         .then(pl.lit('PRICE_PARSE_FAILED'))
+        .when(invalid_uom)
+        .then(pl.lit('UOM_MISMATCH'))
         .when(invalid_rate)
         .then(pl.lit('RATE_OUTSIDE_30_PERCENT'))
         .when(invalid_rate_no_unit)

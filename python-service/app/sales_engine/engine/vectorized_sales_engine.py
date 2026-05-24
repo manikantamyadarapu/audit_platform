@@ -34,6 +34,11 @@ from app.sales_engine.parsers.diamond_rate import (
     diamond_rate_expected_expr,
 )
 from app.sales_engine.validators.diamond_rate_validator import enrich_diamond_rate_columns
+from app.sales_engine.validators.uom_validator import (
+    enrich_uom_validation_columns,
+    expected_uom_expr,
+    invoice_uom_expr,
+)
 from app.sales_engine.validators.metal_rate_validator import (
     combine_rate_validation_columns,
     enrich_metal_rate_columns,
@@ -185,6 +190,7 @@ class VectorizedSalesEngine:
         invalid_df = txn_df.filter(
             pl.col('__invalid_product_mapping').fill_null(False)
             | pl.col('__invalid_product_pattern').fill_null(False)
+            | pl.col('__invalid_uom').fill_null(False)
             | pl.col('__invalid_rate_deviation').fill_null(False)
         )
         records = self._records_from_invalid_frame(invalid_df)
@@ -378,7 +384,23 @@ class VectorizedSalesEngine:
             .with_columns([is_transaction_row, repeated_header])
         )
 
+    @staticmethod
+    def _apply_uom_validation(enriched_df: pl.DataFrame) -> pl.DataFrame:
+        if 'uom' not in enriched_df.columns:
+            return enriched_df.with_columns(
+                [
+                    pl.lit(None).cast(pl.Utf8).alias('__invoice_uom'),
+                    pl.lit(None).cast(pl.Utf8).alias('__expected_uom'),
+                    pl.lit(False).alias('__invalid_uom'),
+                ]
+            )
+        return (
+            enriched_df.with_columns([invoice_uom_expr('uom'), expected_uom_expr()])
+            .with_columns(enrich_uom_validation_columns())
+        )
+
     def _adjudicate(self, enriched_df: pl.DataFrame) -> pl.DataFrame:
+        enriched_df = self._apply_uom_validation(enriched_df)
         return (
             enriched_df.with_columns([sales_account_canonical_expr()])
             .with_columns(
@@ -459,6 +481,9 @@ class VectorizedSalesEngine:
                 '__audit_reason',
                 '__invalid_product_mapping',
                 '__invalid_product_pattern',
+                '__invalid_uom',
+                '__expected_uom',
+                '__invoice_uom',
                 '__invalid_rate_deviation',
                 '__rate_below_min',
                 '__rate_above_max',
@@ -497,6 +522,8 @@ class VectorizedSalesEngine:
             issues.append('INVALID_PRODUCT_MAPPING')
         if row.get('__invalid_product_pattern'):
             issues.append('INVALID_PRODUCT_PATTERN')
+        if row.get('__invalid_uom'):
+            issues.append('INVALID_UOM')
 
         if not row.get('__invalid_product_mapping'):
             rate_rule_missing = (

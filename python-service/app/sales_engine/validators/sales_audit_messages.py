@@ -9,10 +9,12 @@ MSG_PRODUCT_MAPPING = 'Product mapping mismatch'
 MSG_RATE_RULE_MISSING = 'Rate rule not configured'
 MSG_UNIT_RATE_MISSING = 'Unit rate missing'
 MSG_PRODUCT_PATTERN = 'Product pattern invalid'
+MSG_INVALID_UOM = 'Invalid UOM for product.'
 
 _ISSUE_MESSAGE: dict[str, str] = {
     'INVALID_PRODUCT_MAPPING': MSG_PRODUCT_MAPPING,
     'INVALID_PRODUCT_PATTERN': MSG_PRODUCT_PATTERN,
+    'INVALID_UOM': MSG_INVALID_UOM,
     'INVALID_RATE_DEVIATION': MSG_RATE_BELOW,
     'MISSING_UNIT_RATE': MSG_UNIT_RATE_MISSING,
     'MISSING_RATE_RULE': MSG_RATE_RULE_MISSING,
@@ -21,6 +23,7 @@ _ISSUE_MESSAGE: dict[str, str] = {
 _ISSUE_PRIORITY: tuple[str, ...] = (
     'INVALID_PRODUCT_MAPPING',
     'INVALID_PRODUCT_PATTERN',
+    'INVALID_UOM',
     'MISSING_RATE_RULE',
     'MISSING_UNIT_RATE',
     'INVALID_RATE_DEVIATION',
@@ -50,6 +53,8 @@ def primary_audit_message(row: dict[str, Any], issues: list[str]) -> str | None:
         return MSG_PRODUCT_MAPPING
     if row.get('__invalid_product_pattern'):
         return MSG_PRODUCT_PATTERN
+    if row.get('__invalid_uom'):
+        return MSG_INVALID_UOM
     if (row.get('__diamond_rate_expected') and not row.get('__diamond_rate_applies')) or (
         row.get('__metal_rate_expected') and not row.get('__metal_rate_applies')
     ):
