@@ -44,6 +44,7 @@ def _invalid_mask(dataframe: pl.DataFrame) -> pl.Expr:
     return (
         pl.col('__invalid_product_mapping').fill_null(False)
         | pl.col('__invalid_product_pattern').fill_null(False)
+        | pl.col('__invalid_uom').fill_null(False)
         | pl.col('__invalid_rate_deviation').fill_null(False)
     )
 

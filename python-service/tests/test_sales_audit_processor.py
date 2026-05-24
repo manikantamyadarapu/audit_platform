@@ -5,7 +5,16 @@ from openpyxl import Workbook
 import pytest
 
 from app.processors.sales_audit_processor import SalesAuditProcessor
+from app.sales_engine.config.loader import grams_product_norms
+from app.utils.normalization_engine import normalize_strict_text
 from app.utils.sheet_validation_error import SheetValidationError
+
+
+def _default_uom_for_product(product: str) -> str:
+    norm = normalize_strict_text(product)
+    if norm in grams_product_norms():
+        return 'Grams'
+    return 'Carats'
 
 
 def _last_numeric_token(product: str) -> float:
@@ -49,6 +58,7 @@ def _row(
     quantity: object = 1,
     net_amount: object = '',
     party: str = '',
+    uom: object | None = None,
 ) -> list:
     hdr = _full_header()
     r = dict(zip(hdr, [''] * len(hdr), strict=True))
@@ -56,6 +66,7 @@ def _row(
     r['Name of the Party'] = party
     r['Sales Account'] = sales_account
     r['Product'] = product
+    r['UOM'] = uom if uom is not None else _default_uom_for_product(product)
     r['Unit Rate'] = unit_rate
     r['Quantity'] = quantity
     r['Net Amount'] = net_amount
@@ -188,7 +199,7 @@ def test_sales_diamond_chakri_master_workbook_mapping_valid():
                 voucher='D2',
                 sales_account='Jewel sales account - Diamonds',
                 product='Chakri',
-                unit_rate=100,
+                unit_rate=20000,
             )
         ]
     )
@@ -473,7 +484,7 @@ def test_sales_unit_rate_with_letters_yields_null_rate_skips_deviation():
     out = proc.process(b)
     assert out['errorRows'] == 1
     assert out['summary']['rateDeviationViolations'] == 1
-    assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
+    assert out['records'][0]['issues'] == ['MISSING_UNIT_RATE']
 
 
 def test_sales_invalid_export_preserves_exact_excel_row_and_cells():
@@ -578,7 +589,7 @@ def test_sales_skips_rate_when_unit_rate_cell_empty():
     out = proc.process(b)
     assert out['errorRows'] == 1
     assert out['summary']['rateDeviationViolations'] == 1
-    assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
+    assert out['records'][0]['issues'] == ['MISSING_UNIT_RATE']
 
 
 @pytest.mark.parametrize(

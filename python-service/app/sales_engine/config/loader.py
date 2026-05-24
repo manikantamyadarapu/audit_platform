@@ -111,6 +111,20 @@ METAL_RATE_RULE_BOOK_PRODUCTS: tuple[str, ...] = (
 
 
 @lru_cache(maxsize=1)
+def load_uom_rules_config() -> dict:
+    path = _CONFIG_DIR / 'uom_rules.json'
+    if not path.exists():
+        return {'grams_products': list(METAL_RATE_RULE_BOOK_PRODUCTS) + ['Black beads', 'Dori', 'Lac', 'Wax, Dori Etc', 'Pearls']}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def grams_product_norms() -> frozenset[str]:
+    raw = load_uom_rules_config().get('grams_products') or []
+    return frozenset(normalize_strict_text(name) for name in raw if normalize_strict_text(name))
+
+
+@lru_cache(maxsize=1)
 def load_metal_rate_rule_book_config() -> dict:
     path = _CONFIG_DIR / 'metal_rate_rule_book.json'
     if not path.exists():
@@ -302,6 +316,8 @@ def clear_metal_rate_caches() -> None:
     diamond_editable_product_keys.cache_clear()
     diamond_rule_book_entries.cache_clear()
     diamond_final_bands_by_product.cache_clear()
+    load_uom_rules_config.cache_clear()
+    grams_product_norms.cache_clear()
 
 
 @lru_cache(maxsize=1)
