@@ -134,33 +134,29 @@ export default function SalesLedger() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
               <p className="text-sm text-slate-500">
-                Normalized headers: voucher, sales account, product, manual/auto gross weight. Connected to{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/process/sales/validate
-                </code>
+                Normalized headers: voucher, sales account, product, manual/auto gross weight.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link
                 to="/scrutiny/rate-rule-book"
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
               >
                 <Coins className="h-4 w-4" />
                 Gold & silver rates
               </Link>
-              <Link
-                to="/scrutiny/diamond-rate-rule-book"
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-800"
-              >
-                Diamond rule book
-              </Link>
-              <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
-                Clear file
-              </Button>
-              <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runValidation}>
-                <FileSpreadsheet className="h-4 w-4" />
-                Run validation
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  to="/scrutiny/diamond-rate-rule-book"
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-800"
+                >
+                  Diamond rule book
+                </Link>
+                <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runValidation}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Run validation
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -181,7 +177,7 @@ export default function SalesLedger() {
           <CardHeader>
             <h3 className="text-base font-semibold text-rose-950">Sheet did not match required layout</h3>
             <p className="mt-1 text-sm text-rose-900/80">
-              Fix the workbook using the checklist below — this is returned by the API as structured JSON.
+              Fix the workbook using the checklist below.
             </p>
           </CardHeader>
           <CardBody className="space-y-4">
@@ -259,9 +255,6 @@ export default function SalesLedger() {
                 hint="Clean rows / total rows"
                 icon={Rows3}
                 accent="emerald"
-                interactive
-                selected={activeFilter === 'compliance'}
-                onClick={() => toggleCardFilter('compliance')}
               />
             </div>
           </section>

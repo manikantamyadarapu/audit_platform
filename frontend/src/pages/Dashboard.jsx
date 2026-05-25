@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { useCurrentDateTime } from '../utils/dateTime';
 
 const kpis = [
   { label: 'Total Audits', value: '124', delta: '18%', tone: 'green', icon: FileSpreadsheet },
@@ -64,7 +65,7 @@ function ButtonPill({ children, className = '' }) {
     <button
       type="button"
       className={cn(
-        'inline-flex h-12 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50',
+        'inline-flex h-12 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50',
         className
       )}
     >
@@ -203,12 +204,14 @@ function DonutChart() {
 }
 
 export default function Dashboard() {
+  const { greeting, shortDate } = useCurrentDateTime();
+
   return (
     <div className="min-h-[calc(100svh-3rem)] space-y-6 pb-2">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-[32px] font-bold tracking-tight text-slate-950">
-            Good Afternoon, Admin <span aria-hidden="true">{'\u{1F44B}'}</span>
+            {greeting}, Admin
           </h1>
           <p className="mt-2 text-base font-medium text-slate-600">Here's what's happening with your audits today.</p>
         </div>
@@ -216,7 +219,7 @@ export default function Dashboard() {
           <ThemeToggle compact className="h-14 w-14" />
           <button
             type="button"
-            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50"
+            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
@@ -241,7 +244,7 @@ export default function Dashboard() {
           </ButtonPill>
           <ButtonPill>
             <Calendar className="h-4 w-4" />
-            Dec 10, 2024 - Dec 16, 2024
+            {shortDate}
           </ButtonPill>
         </div>
       </div>

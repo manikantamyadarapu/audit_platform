@@ -96,7 +96,7 @@ export default function GrossWeight() {
             <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
               <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
               <p className="mt-4 text-sm font-semibold text-slate-800">Comparing weights…</p>
-              <p className="mt-1 text-xs text-slate-500">Forwarding multipart upload to gateway</p>
+              <p className="mt-1 text-xs text-slate-500">Securely checking your workbook</p>
             </div>
           </motion.div>
         ) : null}
@@ -109,9 +109,6 @@ export default function GrossWeight() {
               <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="md" disabled={loading} onClick={() => setFile(null)}>
-                Clear file
-              </Button>
               <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runComparison}>
                 <FileSpreadsheet className="h-4 w-4" />
                 Run comparison
@@ -173,9 +170,6 @@ export default function GrossWeight() {
                 hint="Clean rows / total rows"
                 icon={Rows3}
                 accent="emerald"
-                interactive
-                selected={activeFilter === 'compliance'}
-                onClick={() => toggleCardFilter('compliance')}
               />
             </div>
           </section>

@@ -17,7 +17,6 @@ import {
   Weight,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import { HaaLogoMark } from '../ui/HaaLogoMark';
 import { useAppUi } from '../../context/AppUiContext';
 
 const scrutinyItems = [
@@ -160,20 +159,17 @@ export function Sidebar() {
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
       className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[10px_0_35px_rgba(15,23,42,0.04)]"
     >
-      <div className={cn('flex items-start gap-3 px-8 pb-8 pt-9', sidebarCollapsed && 'flex-col items-center px-4')}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#37c96b] to-[#1fa64f] text-white shadow-lg shadow-green-500/20">
-          <HaaLogoMark className="h-[22px] w-[22px]" />
-        </div>
+      <div className={cn('flex items-start gap-3 px-7 pb-8 pt-9', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
           <>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-bold tracking-tight text-slate-950">HAA Audit</p>
-              <p className="text-xs font-medium text-slate-600">Audit Management System</p>
+            <div className="min-w-0 flex-1 py-3">
+              <p className="truncate text-lg font-bold tracking-tight text-[#07812f]">HAA Audit</p>
+              <p className="text-xs font-medium text-emerald-700">Audit Management System</p>
             </div>
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="h-4 w-4" />
@@ -183,7 +179,7 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => setSidebarCollapsed(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
             aria-label="Expand sidebar"
           >
             <PanelLeftClose className="h-4 w-4 rotate-180" />

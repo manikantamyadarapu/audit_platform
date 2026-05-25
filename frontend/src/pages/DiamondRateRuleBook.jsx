@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { fetchDiamondRateRules, saveDiamondRateRules } from '../services/diamondRateRuleService';
 import { DIAMOND_RULE_BOOK_EDITABLE_PRODUCTS } from '../constants/diamondRuleBookEditable';
+import { formatSavedDateTime } from '../utils/dateTime';
 
 function emptyForm() {
   return Object.fromEntries(DIAMOND_RULE_BOOK_EDITABLE_PRODUCTS.map((p) => [p, { min_rate: '', max_rate: '' }]));
@@ -114,9 +115,7 @@ export default function DiamondRateRuleBook() {
             </p>
           </div>
         </div>
-        {updatedAt ? (
-          <p className="text-xs text-slate-500">Last saved: {new Date(updatedAt).toLocaleString()}</p>
-        ) : null}
+        {updatedAt ? <p className="text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p> : null}
       </div>
 
       <Card>

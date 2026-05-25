@@ -2,11 +2,11 @@ import { cn } from '../../utils/cn';
 
 const variants = {
   primary:
-    'bg-emerald-500 text-white shadow-[0_10px_24px_rgba(16,185,129,0.24)] hover:bg-emerald-600 hover:shadow-[0_12px_28px_rgba(16,185,129,0.28)] active:scale-[0.98]',
+    'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98]',
   secondary:
-    'border border-slate-200 bg-white text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-slate-50/90 active:scale-[0.98]',
+    'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/90 active:scale-[0.98]',
   ghost: 'text-slate-600 hover:bg-slate-100 active:scale-[0.98]',
-  danger: 'bg-rose-500 text-white hover:bg-rose-600 shadow-[0_10px_24px_rgba(244,63,94,0.22)] active:scale-[0.98]',
+  danger: 'bg-rose-500 text-white hover:bg-rose-600 active:scale-[0.98]',
 };
 
 const sizes = {
