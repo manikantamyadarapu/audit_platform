@@ -29,6 +29,7 @@ def build_audit_excel_report(
     source_processor: str,
     records: list[dict[str, Any]],
     export_columns: list[str],
+    header_map: dict[str, str] | None = None,
     summary: dict[str, Any] | None = None,
     processing_statistics: dict[str, Any] | None = None,
     execution_timing: dict[str, Any] | None = None,
@@ -37,7 +38,7 @@ def build_audit_excel_report(
         raise ValueError('No invalid records found to export')
 
     report_build_start = perf_counter()
-    invalid_rows_df = _build_invalid_rows_frame(records, export_columns)
+    invalid_rows_df = _build_invalid_rows_frame(records, export_columns, header_map=header_map)
     issue_rows = _build_issue_rows(records, source_processor=source_processor)
     issue_breakdown_df = _build_issue_breakdown_frame(issue_rows)
     issue_grouping_df = _build_issue_grouping_frame(records)
@@ -97,7 +98,7 @@ def build_audit_excel_report(
 
 
 def _build_invalid_rows_frame(
-    records: list[dict[str, Any]], export_columns: list[str]
+    records: list[dict[str, Any]], export_columns: list[str], header_map: dict[str, str] | None = None
 ) -> pd.DataFrame:
     dataframe = pd.DataFrame(records).copy()
     for column in export_columns:
@@ -107,7 +108,11 @@ def _build_invalid_rows_frame(
         dataframe['issues'] = dataframe['issues'].apply(_stringify_listish)
     if 'messages' in dataframe.columns:
         dataframe['messages'] = dataframe['messages'].apply(_stringify_listish)
-    return dataframe[export_columns]
+    # Select only export columns and rename if header_map provided
+    result_df = dataframe[export_columns]
+    if header_map:
+        result_df = result_df.rename(columns=header_map)
+    return result_df
 
 
 def _build_issue_rows(

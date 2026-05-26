@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Scale, Loader2, AlertTriangle, Rows3, Download, FileSpreadsheet } from 'lucide-react';
+import { Scale, Loader2, Rows3, Download, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
@@ -72,16 +72,9 @@ export default function GrossWeight() {
   }, [filteredRecords, activeFilter]);
 
   const totalRows = result?.totalRows ?? 0;
-  const errorRows = result?.errorRows ?? 0;
-  const invalidRecords = Array.isArray(rawRecords) ? rawRecords : [];
-  const isNegativeDifference = (record) => {
-    const difference = Number(record?.difference);
-    return Number.isFinite(difference) && difference < 0;
-  };
-  const negativeViolations = invalidRecords.filter(isNegativeDifference).length;
-  const positiveValues = invalidRecords.length - negativeViolations;
+  const weightMismatch = result?.summary?.weightMismatch ?? result?.errorRows ?? 0;
   const compliance =
-    totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
+    totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - weightMismatch) / totalRows) * 100)) : null;
 
   return (
     <div className="relative space-y-8">
@@ -125,7 +118,7 @@ export default function GrossWeight() {
         <>
           <section>
             <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <KpiCard
                 label="Total rows"
                 value={formatNumber(totalRows)}
@@ -136,33 +129,14 @@ export default function GrossWeight() {
                 onClick={() => toggleCardFilter('total')}
               />
               <KpiCard
-                label="Error rows"
-                value={formatNumber(errorRows)}
-                icon={AlertTriangle}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'errors'}
-                onClick={() => toggleCardFilter('errors')}
-              />
-              <KpiCard
-                label="Positive values"
-                value={formatNumber(positiveValues)}
-                hint="Non-negative invalid rows"
+                label="Weight mismatches"
+                value={formatNumber(weightMismatch)}
+                hint="Manual ≠ Auto Gross Wt."
                 icon={Scale}
                 accent="rose"
                 interactive
-                selected={activeFilter === 'positiveValues'}
-                onClick={() => toggleCardFilter('positiveValues')}
-              />
-              <KpiCard
-                label="Negative values"
-                value={formatNumber(negativeViolations)}
-                hint="Negative invalid rows"
-                icon={Scale}
-                accent="violet"
-                interactive
-                selected={activeFilter === 'negativeWeight'}
-                onClick={() => toggleCardFilter('negativeWeight')}
+                selected={activeFilter === 'mismatch'}
+                onClick={() => toggleCardFilter('mismatch')}
               />
               <KpiCard
                 label="Compliance"
