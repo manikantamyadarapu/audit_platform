@@ -14,7 +14,7 @@ export function ThemeToggle({ compact = false, className }) {
       title={isDark ? 'Light mode' : 'Dark mode'}
       onClick={toggleTheme}
       className={cn(
-        'inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
+        'inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
         compact ? 'w-12' : 'gap-2 px-4',
         className
       )}

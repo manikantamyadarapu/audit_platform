@@ -23,12 +23,21 @@ PAN_EXPORT_COLUMNS = [
 
 GROSS_EXPORT_COLUMNS = [
     'rowNumber',
+    'voucherNo',
     'manualGrossWeight',
     'autoGrossWeight',
     'difference',
     'issues',
-    'messages',
 ]
+
+GROSS_EXPORT_HEADER_MAP = {
+    'rowNumber': 'SNo',
+    'voucherNo': 'Voucher No',
+    'manualGrossWeight': 'Manual Gross Wt.',
+    'autoGrossWeight': 'Auto Gross Wt.',
+    'difference': 'Difference in Gross Wt.',
+    'issues': 'Issue',
+}
 
 SALES_EXPORT_COLUMNS = list(SALES_AUDIT_OUTPUT_COLUMNS)
 
@@ -65,6 +74,7 @@ def export_invalid_gross_weight_records(
         source_processor='gross_weight',
         records=records,
         export_columns=GROSS_EXPORT_COLUMNS,
+        header_map=GROSS_EXPORT_HEADER_MAP,
         summary=summary,
         processing_statistics=processing_statistics,
         execution_timing=execution_timing,

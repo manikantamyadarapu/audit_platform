@@ -53,75 +53,73 @@ function valueForColumn(row, column) {
   return '';
 }
 
+function getCellClass(key) {
+  if (key === 'rowNumber') return 'font-mono text-sm text-slate-700';
+  if (key === 'issues') return '';
+  if (key === 'messages') return '';
+  return 'text-sm text-slate-700';
+}
+
+function formatValue(value, key) {
+  if (value == null || value === '') return '—';
+  if (key === 'issues') {
+    if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {value.map((issue) => (
+          <Badge key={issue} tone={issueTone(issue)} caps={false} className="text-[10px] font-medium">
+            {issue.replace(/_/g, ' ')}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+  if (key === 'messages') {
+    if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+    return (
+      <ul className="max-w-xs list-disc space-y-1 pl-4 text-xs text-slate-700">
+        {value.map((m) => (
+          <li key={m}>{m}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function toHeaderLabel(key) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+}
+
 export function PanResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
 
-  const columns = useMemo(
-    () => [
-      {
-        accessorKey: 'rowNumber',
-        header: 'Row',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-700">{info.getValue()}</span>
-        ),
+  const columns = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    const allKeys = new Set();
+    data.forEach((row) => Object.keys(row).forEach((k) => allKeys.add(k)));
+    const priority = ['rowNumber', 'date', 'voucherNo', 'party', 'issues', 'messages'];
+    const sortedKeys = [
+      ...priority.filter((k) => allKeys.has(k)),
+      ...Array.from(allKeys).filter((k) => !priority.includes(k)).sort(),
+    ];
+    return sortedKeys.map((key) => ({
+      accessorKey: key,
+      header: toHeaderLabel(key),
+      enableSorting: key !== 'issues' && key !== 'messages',
+      cell: (info) => {
+        const value = info.getValue();
+        const formatted = formatValue(value, key);
+        return <span className={getCellClass(key)}>{formatted}</span>;
       },
-      {
-        accessorKey: 'date',
-        header: 'Date',
-        cell: (info) => (
-          <span className="text-sm text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'voucherNo',
-        header: 'Voucher No',
-        cell: (info) => (
-          <span className="text-sm text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'party',
-        header: 'Party',
-        cell: (info) => (
-          <span className="max-w-[200px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'issues',
-        header: 'Issues',
-        enableSorting: false,
-        cell: (info) => {
-          const issues = info.getValue() || [];
-          return (
-            <div className="flex flex-wrap gap-1">
-              {issues.map((issue) => (
-                <Badge key={issue} tone={issueTone(issue)} caps={false} className="text-[10px] font-medium">
-                  {issue.replace(/_/g, ' ')}
-                </Badge>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'messages',
-        header: 'Messages',
-        enableSorting: false,
-        cell: (info) => {
-          const msgs = info.getValue();
-          if (!Array.isArray(msgs) || msgs.length === 0) return <span className="text-slate-400">—</span>;
-          return (
-            <ul className="max-w-xs list-disc space-y-1 pl-4 text-xs text-slate-700">
-              {msgs.map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
-          );
-        },
-      },
-    ],
-    []
-  );
+    }));
+  }, [data]);
 
   const panGlobalFilter = useCallback(
     (row, _columnId, filterValue) => {
@@ -182,8 +180,8 @@ export function PanResultsTable({ data }) {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
-        <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[640px] w-full text-left text-sm">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          <table className="data-table min-w-max w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">

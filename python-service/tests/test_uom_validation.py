@@ -100,3 +100,42 @@ def test_di_ra_20_grams_uom_invalid():
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_UOM']
     assert 'Invalid UOM for product.' in rec['messages']
+
+
+def test_pearls_jps_grams_uom_valid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='U5',
+                    sales_account='Jewels sales account - Pearls',
+                    product='Pearls JPS 2000',
+                    unit_rate=2000,
+                    uom='Grams',
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_pearls_jps_carats_uom_invalid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='U6',
+                    sales_account='Jewels sales account - Pearls',
+                    product='Pearls JPS 2000',
+                    unit_rate=2000,
+                    uom='Carats',
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 1
+    rec = out['records'][0]
+    assert rec['issues'] == ['INVALID_UOM']
+    assert 'Invalid UOM for product.' in rec['messages']

@@ -458,48 +458,7 @@ class VectorizedSalesEngine:
         if invalid_df.is_empty():
             return []
         sort_col = '__source_row_id' if '__source_row_id' in invalid_df.columns else '__source_excel_row_number'
-        export_cols = [
-            c
-            for c in invalid_df.columns
-            if not str(c).startswith('__') or c in {
-                '__source_row_id',
-                '__source_excel_row_number',
-                '__voucher_display',
-                '__voucher_norm',
-                '__sales_account_text',
-                '__product_text',
-                '__uploaded_unit_rate',
-                '__unit_rate_raw',
-                '__parsed_quantity',
-                '__extracted_master_price',
-                '__min_allowed_rate',
-                '__max_allowed_rate',
-                '__current_market_rate',
-                '__rate_validation_source',
-                '__validation_status',
-                '__audit_status',
-                '__audit_reason',
-                '__invalid_product_mapping',
-                '__invalid_product_pattern',
-                '__invalid_uom',
-                '__expected_uom',
-                '__invoice_uom',
-                '__invalid_rate_deviation',
-                '__rate_below_min',
-                '__rate_above_max',
-                '__rate_unit_missing',
-                '__rate_valid',
-                '__metal_rate_applies',
-                '__metal_rate_expected',
-                '__diamond_rate_applies',
-                '__raw_excel_row_json',
-                '__original_excel_sales_account',
-                '__original_excel_product',
-                '__original_excel_unit_rate',
-                '__party_display',
-            }
-        ]
-        slim = invalid_df.sort(sort_col).select(export_cols)
+        slim = invalid_df.sort(sort_col).select(invalid_df.columns)
         records = [self._record_from_row(row) for row in slim.to_dicts()]
         records, _ = dedupe_invalid_records_by_row_number(records)
         return records
@@ -548,7 +507,7 @@ class VectorizedSalesEngine:
             except (TypeError, ValueError):
                 rate_diff = None
 
-        return {
+        record = {
             'rowNumber': excel_row,
             'rowId': excel_row,
             'sourceExcelRowNumber': excel_row,
@@ -584,6 +543,18 @@ class VectorizedSalesEngine:
             'messages': (row_messages := build_row_messages(row, issues)),
             'rateMessage': row_messages[0] if row_messages else '',
         }
+        for col, value in row.items():
+            if col not in record:
+                camel_col = self._to_camel_case(col)
+                record[camel_col] = value
+        
+        return record
+
+    @staticmethod
+    def _to_camel_case(snake_str: str) -> str:
+        """Convert snake_case to camelCase."""
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.title() for x in components[1:])
 
     def _write_debug_exports(self, *, adjudicated_df: pl.DataFrame) -> dict[str, int]:
         _DEBUG_DIR.mkdir(parents=True, exist_ok=True)

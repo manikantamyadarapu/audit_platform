@@ -190,11 +190,24 @@ table.data-table {
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  height: 8px;
+  height: 10px;
   width: 8px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: rgb(203 213 225 / 0.85);
   border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgb(241 245 249 / 0.5);
+  border-radius: 999px;
+}
+
+.scrollbar-thumb-slate-300::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225 / 0.9);
+}
+
+.scrollbar-track-slate-100::-webkit-scrollbar-track {
+  background: rgb(241 245 249 / 0.8);
 }

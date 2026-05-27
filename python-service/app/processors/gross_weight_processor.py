@@ -57,11 +57,8 @@ class GrossWeightProcessor(BaseProcessor):
             total_rows=len(normalized_df),
             error_rows=len(invalid_rows_df),
             summary={
-                "mismatchCount": positive_invalid_count,
+                "mismatchCount": len(invalid_rows_df),
                 "differenceViolations": 0,
-                "negativeValueViolations": negative_invalid_count,
-                "positiveInvalidCount": positive_invalid_count,
-                "negativeInvalidCount": negative_invalid_count,
                 "weightMismatch": len(invalid_rows_df),
             },
             records=records,
@@ -144,30 +141,28 @@ class GrossWeightProcessor(BaseProcessor):
             if diff_val is None:
                 continue
 
-            if diff_val < 0:
-                issues = ["NEGATIVE_WEIGHT_VALUES"]
-                messages = ["Negative weight values are not allowed"]
-            else:
-                issues = ["GROSS_WEIGHT_MISMATCH"]
-                messages = ["Manual gross weight does not match auto gross weight."]
-
-            records.append(
-                {
-                    "rowNumber": self._json_value(getattr(row, "value_row_index", None)),
-                    "voucherNo": self._json_value(getattr(row, "voucher_no", None)),
-                    "date": self._json_value(getattr(row, "date", None)),
-                    "party": self._json_value(getattr(row, "party", None)),
-                    "manualGrossWeight": self._json_value(getattr(row, "manual_gross_weight", None)),
-                    "autoGrossWeight": self._json_value(getattr(row, "auto_gross_weight", None)),
-                    "difference": self._json_value(getattr(row, "difference", None)),
-                    "voucherRowIndex": self._json_value(getattr(row, "voucher_row_index", None)),
-                    "valueRowIndex": self._json_value(getattr(row, "value_row_index", None)),
-                    "issues": issues,
-                    "messages": messages,
-                }
-            )
+            # Build record with all columns from the row
+            record = {}
+            
+            # Add all attributes from the row
+            for col in invalid_rows_df.columns:
+                col_value = getattr(row, col, None)
+                # Convert column name to camelCase for output
+                camel_col = self._to_camel_case(col)
+                record[camel_col] = self._json_value(col_value)
+            
+            # Add rowNumber for SNo column (use valueRowIndex which has the actual Excel row number)
+            record["rowNumber"] = record.get("valueRowIndex") if record.get("valueRowIndex") is not None else ""
+            record["issues"] = ["GROSS WEIGHT MISMATCH"]
+            records.append(record)
 
         return records
+
+    @staticmethod
+    def _to_camel_case(snake_str: str) -> str:
+        """Convert snake_case to camelCase."""
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.title() for x in components[1:])
 
     def _json_value(self, value: Any) -> Any:
         if value is None:
@@ -239,31 +234,46 @@ class GrossWeightProcessor(BaseProcessor):
 
             voucher_no = self._voucher_value(voucher_row, columns_set)
 
-            flat_rows.append(
-                {
-                    "voucher_no": voucher_no,
-                    "date": voucher_row.get("date") if "date" in columns_set else None,
-                    "party": voucher_row.get("party") if "party" in columns_set else None,
-                    "manual_gross_weight": manual_raw,
-                    "auto_gross_weight": auto_raw,
-                    "difference": difference,
-                    "voucher_row_index": idx + 2,
-                    "value_row_index": idx + 3,
-                }
-            )
+            # Include all columns from both rows (value row preferred for overlaps)
+            row_dict = {}
+            for col in df.columns:
+                row_dict[col] = value_row.get(col) if value_row.get(col) is not None else voucher_row.get(col)
+            
+            row_dict.update({
+                "voucher_no": voucher_no,
+                "date": voucher_row.get("date") if "date" in columns_set else None,
+                "party": voucher_row.get("party") if "party" in columns_set else None,
+                "manual_gross_weight": manual_raw,
+                "auto_gross_weight": auto_raw,
+                "difference": difference,
+                "voucher_row_index": idx + 2,
+                "value_row_index": idx + 3,
+            })
+            
+            flat_rows.append(row_dict)
+
+        # Get all columns from df plus our calculated columns
+        all_cols = list(df.columns) + [
+            "voucher_no",
+            "date",
+            "party",
+            "manual_gross_weight",
+            "auto_gross_weight",
+            "difference",
+            "voucher_row_index",
+            "value_row_index",
+        ]
+        # Remove duplicates while preserving order
+        seen = set()
+        final_cols = []
+        for col in all_cols:
+            if col not in seen:
+                final_cols.append(col)
+                seen.add(col)
 
         return pd.DataFrame(
             flat_rows if flat_rows else self._normal_rows_to_flat(df, columns_set),
-            columns=[
-                "voucher_no",
-                "date",
-                "party",
-                "manual_gross_weight",
-                "auto_gross_weight",
-                "difference",
-                "voucher_row_index",
-                "value_row_index",
-            ],
+            columns=final_cols,
         )
 
     def _normal_rows_to_flat(
@@ -302,20 +312,23 @@ class GrossWeightProcessor(BaseProcessor):
                 else manual_dec - auto_dec
             )
 
-            flat_rows.append(
-                {
-                    "voucher_no": self._voucher_value(row, columns_set),
-                    "date": row.get("date") if "date" in columns_set else None,
-                    "party": row.get("party") if "party" in columns_set else None,
-                    "manual_gross_weight": manual_raw,
-                    "auto_gross_weight": auto_raw,
-                    "difference": difference,
-                    "voucher_row_index": idx + 2,
-                    "value_row_index": idx + 2,
-                }
-            )
-
-        return flat_rows
+            # Include all columns from the original row
+            row_dict = {}
+            for col in df.columns:
+                row_dict[col] = row.get(col)
+            
+            row_dict.update({
+                "voucher_no": self._voucher_value(row, columns_set),
+                "date": row.get("date") if "date" in columns_set else None,
+                "party": row.get("party") if "party" in columns_set else None,
+                "manual_gross_weight": manual_raw,
+                "auto_gross_weight": auto_raw,
+                "difference": difference,
+                "voucher_row_index": idx + 2,
+                "value_row_index": idx + 2,
+            })
+            
+            flat_rows.append(row_dict)
 
     def _find_difference_column(self, columns_set: set[str]) -> str | None:
         for column in (

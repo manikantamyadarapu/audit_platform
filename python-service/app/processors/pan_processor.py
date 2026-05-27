@@ -48,38 +48,43 @@ class PanProcessor(BaseProcessor):
         invalid_pan_format_count = int(invalid_df['invalid_pan_issue'].sum() or 0)
         missing_address_proof_count = int(invalid_df['missing_address_issue'].sum() or 0)
 
-        issue_cols = ['row_number', 'date', 'voucher_no', 'party', 'total_value', 'pan', 'pan1']
-        if 'add_proof' in invalid_df.columns:
-            issue_cols.append('add_proof')
-        if 'add_proof_2' in invalid_df.columns:
-            issue_cols.append('add_proof_2')
+        # Include all columns from original dataframe
         flag_cols = ['missing_pan_issue', 'invalid_pan_issue', 'missing_address_issue']
-        slim = invalid_df.select([c for c in issue_cols + flag_cols if c in invalid_df.columns])
+        
+        # Convert original df to dict format for quick row lookup by row_number (Polars uses .to_dicts())
+        df_dict_list = df.to_dicts()
+        df_by_row_num = {}
+        for idx, row_dict in enumerate(df_dict_list, 1):
+            df_by_row_num[idx] = row_dict
 
-        for row in slim.to_dicts():
+        for invalid_row in invalid_df.to_dicts():
+            row_num = invalid_row.get('row_number')
+            original_row = df_by_row_num.get(row_num, {})
+            
             issues: list[str] = []
-            if row.get('missing_pan_issue'):
+            if invalid_row.get('missing_pan_issue'):
                 issues.append('MISSING_PAN_ABOVE_2L')
-            if row.get('invalid_pan_issue'):
+            if invalid_row.get('invalid_pan_issue'):
                 issues.append('INVALID_PAN_FORMAT')
-            if row.get('missing_address_issue'):
+            if invalid_row.get('missing_address_issue'):
                 issues.append('MISSING_ADDRESS_PROOF_ABOVE_50K')
 
-            records.append(
-                {
-                    'rowNumber': self._json_value(row.get('row_number')),
-                    'date': self._format_cell_value(row.get('date')),
-                    'voucherNo': self._format_cell_value(row.get('voucher_no')),
-                    'party': self._format_cell_value(row.get('party')),
-                    'totalValue': self._json_value(row.get('total_value')),
-                    'pan': self._format_cell_value(row.get('pan')),
-                    'pan1': self._format_cell_value(row.get('pan1')),
-                    'addProof': self._format_cell_value(row.get('add_proof')),
-                    'addProof2': self._format_cell_value(row.get('add_proof_2')),
-                    'issues': issues,
-                    'messages': self._messages_for_issues(issues),
-                }
-            )
+            # Build record with all original columns
+            record = {'rowNumber': self._json_value(row_num)}
+            
+            # Add all columns from original dataframe
+            for col in data_columns:
+                col_value = original_row.get(col)
+                # Use camelCase for output
+                camel_col = self._to_camel_case(col)
+                if col in ['date']:
+                    record[camel_col] = self._format_cell_value(col_value)
+                else:
+                    record[camel_col] = self._json_value(col_value) if isinstance(col_value, (int, float)) else self._format_cell_value(col_value)
+            
+            record['issues'] = issues
+            record['messages'] = self._messages_for_issues(issues)
+            records.append(record)
 
         extraction_ms = (perf_counter() - extraction_start) * 1000
         self.engine.log_benchmark(
@@ -342,3 +347,9 @@ ORDER BY row_number
         if column not in columns:
             return 'NULL'
         return self.engine.quote_identifier(column)
+
+    @staticmethod
+    def _to_camel_case(snake_str: str) -> str:
+        """Convert snake_case to camelCase."""
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.title() for x in components[1:])

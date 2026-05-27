@@ -6,6 +6,7 @@ from app.sales_engine.config.loader import grams_product_norms
 
 UOM_GRAMS = 'GRAMS'
 UOM_CARATS = 'CARATS'
+PEARLS_JPS_PATTERN = r'^PEARLS\s+JPS\s+\d+$'
 
 
 def normalize_uom_value(value: object) -> str | None:
@@ -47,6 +48,7 @@ def expected_uom_expr(product_col: str = '__product_norm') -> pl.Expr:
     expected = pl.lit(UOM_CARATS)
     for norm_product in grams_product_norms():
         expected = pl.when(product == norm_product).then(pl.lit(UOM_GRAMS)).otherwise(expected)
+    expected = pl.when(product.str.contains(PEARLS_JPS_PATTERN)).then(pl.lit(UOM_GRAMS)).otherwise(expected)
     return expected.alias('__expected_uom')
 
 

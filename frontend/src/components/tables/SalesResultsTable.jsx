@@ -50,30 +50,81 @@ function salesGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
   if (!q) return true;
   const r = row.original;
-  const blob = [
-    r.rowNumber,
-    r.voucherNo,
-    r.partyName,
-    r.originalExcelSalesAccount,
-    r.originalExcelProduct,
-    r.salesAccount,
-    r.product,
-    r.originalExcelUnitRate,
-    r.unitRate,
-    ...(Array.isArray(r.issues) ? r.issues : []),
-    formatMessages(r.messages ?? r.rateMessage),
-  ]
+  const blob = Object.values(r)
+    .map((v) => {
+      if (Array.isArray(v)) return v.join(' ');
+      if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+      return String(v ?? '');
+    })
     .join(' ')
     .toLowerCase();
   return blob.includes(q);
+}
+
+function getCellClass(key) {
+  if (key === 'rowNumber') return 'font-mono text-sm text-slate-700';
+  if (key === 'issues' || key === 'messages') return '';
+  if (['unitRate', 'uploadedUnitRate', 'masterStandardRate', 'rateDifference', 'deviationPercent'].includes(key)) return 'font-mono text-sm text-slate-800';
+  return 'text-sm text-slate-700';
+}
+
+function formatValue(value, key) {
+  if (value == null || value === '') return '—';
+  if (key === 'issues') {
+    if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+    return (
+      <div className="flex max-w-[220px] flex-wrap gap-1">
+        {value.map((issue) => (
+          <Badge key={issue} tone={auditIssueTone(issue)} caps={false} className="text-[10px] font-medium">
+            {issue.replace(/_/g, ' ')}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+  if (key === 'messages') {
+    const text = Array.isArray(value) ? value.join('; ') : String(value ?? '');
+    if (!text) return <span className="text-slate-400">—</span>;
+    return <span className="max-w-md text-sm text-slate-700">{text}</span>;
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function toHeaderLabel(key) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
 }
 
 export function SalesResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [expandedRowId, setExpandedRowId] = useState(null);
 
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    const allKeys = new Set();
+    data.forEach((row) => Object.keys(row).forEach((k) => allKeys.add(k)));
+    const priority = ['rowNumber', 'voucherNo', 'partyName', 'salesAccount', 'product', 'unitRate', 'issues', 'messages'];
+    const sortedKeys = [
+      ...priority.filter((k) => allKeys.has(k)),
+      ...Array.from(allKeys).filter((k) => !priority.includes(k)).sort(),
+    ];
+    const dynamicCols = sortedKeys.map((key) => ({
+      accessorKey: key,
+      header: toHeaderLabel(key),
+      enableSorting: key !== 'issues' && key !== 'messages',
+      cell: (info) => {
+        const value = info.getValue();
+        const formatted = formatValue(value, key);
+        return <span className={getCellClass(key)}>{formatted}</span>;
+      },
+    }));
+    // Prepend expand column
+    return [
       {
         id: 'expand',
         header: '',
@@ -94,87 +145,9 @@ export function SalesResultsTable({ data }) {
           );
         },
       },
-      {
-        accessorKey: 'rowNumber',
-        header: 'Row Num',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-700">{info.getValue()}</span>
-        ),
-      },
-      {
-        accessorKey: 'voucherNo',
-        header: 'Voucher No',
-        cell: (info) => (
-          <span className="text-sm text-slate-700">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'partyName',
-        header: 'Party / Customer',
-        cell: (info) => (
-          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        id: 'salesAccount',
-        header: 'sales account',
-        accessorFn: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '',
-        cell: (info) => (
-          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        id: 'product',
-        header: 'product',
-        accessorFn: (r) => r.originalExcelProduct ?? r.product ?? '',
-        cell: (info) => (
-          <span className="max-w-[160px] truncate text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        id: 'unitRate',
-        header: 'unit rate',
-        accessorFn: (r) => r.originalExcelUnitRate ?? r.unitRate ?? r.uploadedUnitRate ?? '',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{info.getValue() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'issues',
-        header: 'Issues',
-        enableSorting: false,
-        cell: (info) => {
-          const issues = info.getValue() || [];
-          return (
-            <div className="flex max-w-[220px] flex-wrap gap-1">
-              {issues.map((issue) => (
-                <Badge
-                  key={issue}
-                  tone={auditIssueTone(issue)}
-                  caps={false}
-                  className="text-[10px] font-medium"
-                >
-                  {issue.replace(/_/g, ' ')}
-                </Badge>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        id: 'messages',
-        header: 'Messages',
-        enableSorting: false,
-        accessorFn: (r) => formatMessages(r.messages ?? r.rateMessage),
-        cell: (info) => {
-          const text = info.getValue();
-          if (!text) return <span className="text-slate-400">—</span>;
-          return <span className="max-w-md text-sm text-slate-700">{text}</span>;
-        },
-      },
-    ],
-    [expandedRowId]
-  );
+      ...dynamicCols,
+    ];
+  }, [data, expandedRowId]);
 
   const table = useReactTable({
     data,
@@ -229,8 +202,8 @@ export function SalesResultsTable({ data }) {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
-        <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[900px] w-full text-left text-sm">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          <table className="data-table min-w-max w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">

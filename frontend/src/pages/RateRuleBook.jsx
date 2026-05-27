@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { fetchRateRules, saveRateRules } from '../services/rateRuleService';
 import { RULE_BOOK_PRODUCTS, RULE_BOOK_VARIATION_PCT } from '../constants/metalRateRuleBook';
+import { formatSavedDateTime } from '../utils/dateTime';
 
 function emptyForm() {
   return Object.fromEntries(RULE_BOOK_PRODUCTS.map((p) => [p, { min: '', max: '' }]));
@@ -108,9 +109,7 @@ export default function RateRuleBook() {
             </p>
           </div>
         </div>
-        {updatedAt ? (
-          <p className="text-xs text-slate-500">Last saved: {new Date(updatedAt).toLocaleString()}</p>
-        ) : null}
+        {updatedAt ? <p className="text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p> : null}
       </div>
 
       <Card>
