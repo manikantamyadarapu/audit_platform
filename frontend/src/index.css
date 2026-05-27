@@ -70,9 +70,9 @@ body {
   --color-border-soft: rgba(51, 65, 85, 0.78);
   --color-border-strong: rgba(71, 85, 105, 0.86);
   --color-text-primary: #f8fafc;
-  --color-text-secondary: #cbd5e1;
-  --color-text-muted: #94a3b8;
-  --color-text-faint: #64748b;
+  --color-text-secondary: #d7dde8;
+  --color-text-muted: #b6c0ce;
+  --color-text-faint: #94a3b8;
   --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.28), 0 16px 42px rgba(0, 0, 0, 0.28);
   --shadow-float: 0 18px 55px rgba(0, 0, 0, 0.34);
 }
@@ -88,11 +88,13 @@ body {
   [class~="bg-white"],
   [class~="bg-white/80"],
   [class~="bg-white/90"],
+  [class~="bg-white/95"],
   [class~="bg-slate-50"],
   [class~="bg-slate-50/40"],
   [class~="bg-slate-50/50"],
   [class~="bg-slate-50/60"],
   [class~="bg-slate-50/70"],
+  [class~="bg-slate-50/80"],
   [class~="bg-slate-50/90"]
 ) {
   background-color: var(--color-surface-elevated);
@@ -100,6 +102,8 @@ body {
 
 .dark :where(
   [class~="bg-slate-100"],
+  [class~="bg-slate-100/70"],
+  [class~="bg-slate-100/80"],
   [class~="bg-slate-100/90"]
 ) {
   background-color: var(--color-surface-subtle);
@@ -150,6 +154,47 @@ body {
   [class~="placeholder:text-slate-400"]::placeholder
 ) {
   color: var(--color-text-faint);
+  opacity: 1;
+}
+
+.dark :where(
+  [class~="text-emerald-600"],
+  [class~="text-emerald-700"],
+  [class~="text-green-600"],
+  [class~="text-green-700"]
+) {
+  color: #6ee7b7;
+}
+
+.dark :where([class~="text-amber-700"]) {
+  color: #fcd34d;
+}
+
+.dark :where(
+  [class~="text-red-500"],
+  [class~="text-rose-800"],
+  [class~="text-rose-900"],
+  [class~="text-rose-950"]
+) {
+  color: #fda4af;
+}
+
+.dark :where(
+  [class~="fill-slate-800"],
+  [class~="fill-slate-700"]
+) {
+  fill: var(--color-text-secondary);
+}
+
+.dark :where(
+  [class~="fill-slate-600"],
+  [class~="fill-slate-500"]
+) {
+  fill: var(--color-text-muted);
+}
+
+.dark :where([class~="fill-slate-400"]) {
+  fill: var(--color-text-faint);
 }
 
 .dark :where(
@@ -160,10 +205,26 @@ body {
 
 .dark :where(
   [class~="hover:bg-slate-50"]:hover,
+  [class~="hover:bg-slate-50/80"]:hover,
   [class~="hover:bg-slate-50/90"]:hover,
-  [class~="hover:bg-slate-100"]:hover
+  [class~="hover:bg-slate-100"]:hover,
+  [class~="hover:bg-slate-100/70"]:hover
 ) {
   background-color: #1e293b;
+}
+
+.dark :where(
+  [class~="hover:bg-emerald-50/40"]:hover,
+  [class~="hover:bg-emerald-50/50"]:hover
+) {
+  background-color: rgba(6, 78, 59, 0.42);
+}
+
+.dark :where(
+  [class~="hover:text-emerald-800"]:hover,
+  [class~="hover:text-emerald-900"]:hover
+) {
+  color: #a7f3d0;
 }
 
 .dark :where(
@@ -176,6 +237,22 @@ body {
 
 .dark :where([class~="hover:border-slate-300"]:hover) {
   border-color: var(--color-border-strong);
+}
+
+.dark :where([class~="opacity-40"]) {
+  opacity: 0.62;
+}
+
+.dark :where([class~="opacity-50"]) {
+  opacity: 0.7;
+}
+
+.dark :where([class~="opacity-60"]) {
+  opacity: 0.72;
+}
+
+.dark :where([class~="opacity-70"]) {
+  opacity: 0.78;
 }
 
 /* TanStack table density */

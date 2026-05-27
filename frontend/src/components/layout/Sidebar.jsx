@@ -44,8 +44,8 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) 
           'group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
           nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
           isActive
-            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
-            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+            ? 'bg-[#dff5df]/80 text-[#07812f]'
+            : 'text-slate-700 transition-colors duration-200 ease-out hover:bg-slate-100/70 hover:text-slate-950'
         )
       }
     >
@@ -169,7 +169,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/95 text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]"
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="h-4 w-4" />
@@ -179,7 +179,7 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => setSidebarCollapsed(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/95 text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]"
             aria-label="Expand sidebar"
           >
             <PanelLeftClose className="h-4 w-4 rotate-180" />
@@ -231,7 +231,7 @@ export function Sidebar() {
 
       {!sidebarCollapsed ? (
         <div className="m-7">
-          <div className="rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
+          <div className="rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700">
                 AD
