@@ -94,7 +94,7 @@ export default function ScrutinyHub() {
                 key={s.to}
                 type="button"
                 onClick={() => navigate(s.to)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 text-xs font-semibold text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-emerald-200/80 hover:bg-emerald-50/40 hover:text-emerald-900 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-900"
               >
                 <s.Icon className="h-3.5 w-3.5 text-emerald-600" />
                 {s.title}

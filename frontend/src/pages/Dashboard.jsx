@@ -65,7 +65,7 @@ function ButtonPill({ children, className = '' }) {
     <button
       type="button"
       className={cn(
-        'inline-flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-5 text-sm font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]',
+        'inline-flex h-12 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50',
         className
       )}
     >
@@ -213,12 +213,13 @@ export default function Dashboard() {
           <h1 className="text-[32px] font-bold tracking-tight text-slate-950">
             {greeting}, Admin
           </h1>
+          <p className="mt-2 text-base font-medium text-slate-600">Here's what's happening with your audits today.</p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact className="h-14 w-14" />
           <button
             type="button"
-            className="relative flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200 bg-white/95 text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[background-color,border-color,box-shadow,color] duration-200 ease-out hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]"
+            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
