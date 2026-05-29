@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. USERS - Authentication & authorization
+model User {
+  id            Int         @id @default(autoincrement())
+  name          String      @db.VarChar(100)
+  email         String      @unique @db.VarChar(255)
+  role          UserRole    @default(AUDITOR)
+  passwordHash  String      @map("password_hash") @db.VarChar(255)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  auditRuns     AuditRun[]
+  ruleUpdates   RuleBook[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  AUDITOR
+  VIEWER
+}
+
+// 2. AUDIT_RUNS - Main tracking for each validation job
+model AuditRun {
+  id              Int           @id @default(autoincrement())
+  auditType       AuditType     @map("audit_type")
+  fileName        String        @map("file_name") @db.VarChar(255)
+  
+  // User relation
+  uploadedBy      Int?          @map("uploaded_by")
+  user            User?         @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  
+  // Metrics
+  totalRows       Int           @default(0) @map("total_rows")
+  invalidRows     Int           @default(0) @map("invalid_rows")
+  
+  // Status tracking
+  status          AuditStatus   @default(PENDING)
+  errorMessage    String?       @map("error_message") @db.Text
+  
+  // Processing time
+  startedAt       DateTime?     @map("started_at")
+  completedAt     DateTime?     @map("completed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  uploadedFile    UploadedFile?
+  issues          ValidationIssue[]
+
+  @@index([auditType, createdAt])
+  @@index([status])
+  @@index([uploadedBy])
+  @@index([createdAt])
+  @@map("audit_runs")
+}
+
+enum AuditType {
+  SALES
+  GROSS_WEIGHT
+  PAN_AUDIT
+  DIAMOND_RATE
+}
+
+enum AuditStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// 3. RULE_BOOK - Gold, Silver, Diamond rates (editable)
+model RuleBook {
+  id              Int       @id @default(autoincrement())
+  ruleType        RuleType  @map("rule_type")
+  productName     String    @map("product_name") @db.VarChar(100)
+  productNorm     String    @map("product_norm") @db.VarChar(100)
+  
+  // Rate bands
+  minRate         Decimal?  @map("min_rate") @db.Decimal(12, 2)
+  maxRate         Decimal?  @map("max_rate") @db.Decimal(12, 2)
+  variationPct    Decimal   @default(15.00) @map("variation_pct") @db.Decimal(5, 2)
+  
+  // Audit trail
+  updatedBy       Int?      @map("updated_by")
+  updatedByUser     User?     @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  @@unique([productNorm, ruleType])
+  @@index([ruleType, isActive])
+  @@index([productNorm])
+  @@map("rule_book")
+}
+
+enum RuleType {
+  GOLD
+  SILVER
+  DIAMOND
+  GEMSTONE
+  UOM
+}
+
+// 4. UPLOADED_FILES - File storage tracking
+model UploadedFile {
+  id              Int       @id @default(autoincrement())
+  auditRunId      Int       @unique @map("audit_run_id")
+  auditRun        AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  
+  fileName        String    @map("file_name") @db.VarChar(255)
+  originalName    String    @map("original_name") @db.VarChar(255)
+  storagePath     String    @map("storage_path") @db.VarChar(500)
+  fileSizeBytes   BigInt?   @map("file_size_bytes")
+  fileHash        String?   @map("file_hash") @db.VarChar(64)
+  uploadedAt      DateTime  @default(now()) @map("uploaded_at")
+
+  @@index([auditRunId])
+  @@index([fileHash])
+  @@map("uploaded_files")
+}
+
+// 5. DASHBOARD_METRICS - Daily aggregates for charts
+model DashboardMetric {
+  id                  Int       @id @default(autoincrement())
+  auditDate           DateTime  @unique @map("audit_date") @db.Date
+  
+  // Volume metrics
+  totalFiles          Int       @default(0) @map("total_files")
+  totalRows           Int       @default(0) @map("total_rows")
+  invalidRows         Int       @default(0) @map("invalid_rows")
+  
+  // Breakdown by type
+  salesAudits         Int       @default(0) @map("sales_audits")
+  gwAudits            Int       @default(0) @map("gw_audits")
+  panAudits           Int       @default(0) @map("pan_audits")
+  
+  // Avg processing time in seconds
+  avgProcessingSec    Decimal?  @map("avg_processing_sec") @db.Decimal(10, 2)
+  
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([auditDate])
+  @@map("dashboard_metrics")
+}
+
+// 6. VALIDATION_ISSUES - Detailed validation errors
+model ValidationIssue {
+  id              Int         @id @default(autoincrement())
+  auditRunId      Int         @map("audit_run_id")
+  auditRun        AuditRun    @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  
+  rowNumber       Int         @map("row_number")
+  issueType       IssueType   @map("issue_type")
+  severity        Severity    @default(ERROR)
+  message         String?     @db.Text
+  fieldName       String?     @map("field_name") @db.VarChar(50)
+  expectedValue   String?     @map("expected_value") @db.Text
+  actualValue     String?     @map("actual_value") @db.Text
+  
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([auditRunId])
+  @@index([issueType])
+  @@index([auditRunId, rowNumber])
+  @@map("validation_issues")
+}
+
+enum IssueType {
+  INVALID_PRODUCT_MAPPING
+  INVALID_UOM
+  INVALID_RATE_DEVIATION
+  INVALID_UNIT_RATE_RANGE
+  MISSING_RATE_RULE
+  MISSING_UNIT_RATE
+}
+
+enum Severity {
+  ERROR
+  WARNING
+}

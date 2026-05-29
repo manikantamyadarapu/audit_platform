@@ -181,11 +181,11 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 84 : 300 }}
+      animate={{ width: sidebarCollapsed ? 80 : 260 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
       className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[10px_0_35px_rgba(15,23,42,0.04)]"
     >
-      <div className={cn('flex items-start gap-3 px-7 pb-8 pt-9', sidebarCollapsed && 'flex-col items-center px-4')}>
+      <div className={cn('flex items-start gap-3 px-6 pb-6 pt-7', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
           <>
             <div className="min-w-0 flex-1 py-3">
@@ -213,7 +213,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex flex-1 flex-col overflow-y-auto px-7 pb-7 scrollbar-thin">
+      <nav className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 scrollbar-thin">
         <div className="space-y-1">
           <NavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} end collapsed={sidebarCollapsed} />
 
