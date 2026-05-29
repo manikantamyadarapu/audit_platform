@@ -18,10 +18,13 @@ import {
 import { cn } from '../../utils/cn';
 import { useAppUi } from '../../context/AppUiContext';
 
-const scrutinyItems = [
-  { to: '/scrutiny/pan', label: 'PAN Audit', icon: ClipboardCheck },
+const salesItems = [
+  { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Sales Audit', icon: FileSpreadsheet },
+];
+
+const scrutinyItems = [
   { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
 ];
 
@@ -73,11 +76,29 @@ function DisabledItem({ label, icon: Icon, collapsed, nested }) {
   );
 }
 
-function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, children }) {
+function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, children, to, nested }) {
   if (collapsed) {
+    if (nested) {
+      return (
+        <button
+          type="button"
+          onClick={onToggle}
+          title={label}
+          className={cn(
+            'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
+            active
+              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          )}
+        >
+          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+        </button>
+      );
+    }
+
     return (
       <NavLink
-        to={label === 'Scrutiny' ? '/scrutiny' : '/vouching'}
+        to={to ?? (label === 'Scrutiny' ? '/scrutiny' : '/vouching')}
         title={label}
         className={({ isActive }) =>
           cn(
@@ -100,6 +121,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
         onClick={onToggle}
         className={cn(
           'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
+          nested && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
           active
             ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
@@ -138,9 +160,11 @@ export function Sidebar() {
 
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
+  const salesActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
+  const [salesOpen, setSalesOpen] = useState(salesActive);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -149,6 +173,10 @@ export function Sidebar() {
   useEffect(() => {
     if (vouchingActive) setVouchingOpen(true);
   }, [vouchingActive]);
+
+  useEffect(() => {
+    if (salesActive) setSalesOpen(true);
+  }, [salesActive]);
 
   return (
     <motion.aside
@@ -197,6 +225,26 @@ export function Sidebar() {
             onToggle={() => setScrutinyOpen((v) => !v)}
             active={scrutinyActive}
           >
+            <NavGroup
+              label="Sales"
+              icon={FileSpreadsheet}
+              collapsed={sidebarCollapsed}
+              open={salesOpen}
+              onToggle={() => setSalesOpen((v) => !v)}
+              active={salesActive}
+              nested
+            >
+              {salesItems.map((item) => (
+                <div key={item.to} className="ml-3">
+                  <NavItem
+                    {...item}
+                    collapsed={sidebarCollapsed}
+                    nested
+                    onNavigate={ensureScrutiny}
+                  />
+                </div>
+              ))}
+            </NavGroup>
             {scrutinyItems.map((item) => (
               <NavItem
                 key={item.to}
