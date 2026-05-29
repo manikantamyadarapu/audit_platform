@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Gem, Scale, Shield, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Scale, Shield, Users } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -33,13 +33,6 @@ const modules = [
     path: '/scrutiny/rate-rule-book',
     icon: Coins,
     tone: 'emerald',
-  },
-  {
-    title: 'Diamond Rule Book',
-    description: 'Edit diamond base min/max ranges (+25%, then ±30% on unit rate).',
-    path: '/scrutiny/diamond-rate-rule-book',
-    icon: Gem,
-    tone: 'violet',
   },
 ];
 

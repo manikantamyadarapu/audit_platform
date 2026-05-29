@@ -157,11 +157,8 @@ def _diamond_band_values(
 
 @lru_cache(maxsize=1)
 def load_diamond_rate_rule_book() -> dict:
-    """Employee-editable ranges (Type 1) saved from the frontend Rule Book."""
-    path = _CONFIG_DIR / 'diamond_rate_rule_book.json'
-    if not path.exists():
-        return {'uplift_percent': 25, 'deviation_percent': 30, 'products': {}}
-    return json.loads(path.read_text(encoding='utf-8'))
+    """DEPRECATED: All diamond rates are now hardcoded. Returns empty config."""
+    return {'uplift_percent': 25, 'deviation_percent': 15, 'products': {}}
 
 
 @lru_cache(maxsize=1)
@@ -175,12 +172,8 @@ def load_diamond_hardcoded_rates() -> dict:
 
 @lru_cache(maxsize=1)
 def diamond_editable_product_keys() -> frozenset[str]:
-    """Normalized product names that use the frontend Rule Book."""
-    path = _CONFIG_DIR / 'diamond_editable_products.json'
-    if not path.exists():
-        return frozenset()
-    raw = json.loads(path.read_text(encoding='utf-8')).get('products') or []
-    return frozenset(normalize_strict_text(k) for k in raw if normalize_strict_text(k))
+    """DEPRECATED: Returns empty set. All diamonds are hardcoded."""
+    return frozenset()
 
 
 def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, float | bool | None]]:
@@ -202,24 +195,20 @@ def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, floa
 @lru_cache(maxsize=1)
 def diamond_rule_book_entries() -> dict[str, dict[str, float | bool | None]]:
     """
-    Merged Type 1 (Rule Book JSON) + Type 2 (hardcoded JSON).
-    Rule Book values override hardcoded keys for editable SKUs only.
+    All diamond rates are hardcoded. Returns hardcoded product specs only.
+    Rule Book and editable products are deprecated.
     """
-    merged = _parse_diamond_product_specs(load_diamond_hardcoded_rates().get('products') or {})
-    editable = diamond_editable_product_keys()
-    rule_book = _parse_diamond_product_specs(load_diamond_rate_rule_book().get('products') or {})
-    for norm, spec in rule_book.items():
-        if norm in editable:
-            merged[norm] = spec
-    return merged
+    return _parse_diamond_product_specs(load_diamond_hardcoded_rates().get('products') or {})
 
 
 @lru_cache(maxsize=1)
 def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]]:
-    """Normalized product name -> precomputed bands (configured SKUs only)."""
-    cfg = load_diamond_rate_rule_book()
-    uplift = float(cfg.get('uplift_percent', 25))
-    deviation = float(cfg.get('deviation_percent', 30))
+    """
+    Normalized product name -> precomputed bands (configured SKUs only).
+    All diamonds use hardcoded rates with +25% uplift then ±15% deviation.
+    """
+    uplift = 25.0  # Fixed uplift percentage
+    deviation = 15.0  # Fixed deviation percentage (±15%)
     bands: dict[str, dict[str, float | bool | None]] = {}
     for norm, spec in diamond_rule_book_entries().items():
         base_min = spec.get('min_rate')
@@ -293,7 +282,7 @@ def product_rule_book_specs() -> dict[str, dict[str, float | None]]:
 
 @lru_cache(maxsize=1)
 def metal_final_bands_by_product() -> dict[str, dict[str, float]]:
-    """Normalized product → bands after -30% on min and +30% on max."""
+    """Normalized product → bands after -15% on min and +15% on max."""
     fraction = metal_deviation_fraction()
     bands: dict[str, dict[str, float]] = {}
     for norm, spec in product_rule_book_specs().items():
