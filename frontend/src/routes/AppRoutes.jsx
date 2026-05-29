@@ -7,7 +7,6 @@ import PanVerification from '../pages/PanVerification';
 import GrossWeight from '../pages/GrossWeight';
 import SalesLedger from '../pages/SalesLedger';
 import RateRuleBook from '../pages/RateRuleBook';
-import DiamondRateRuleBook from '../pages/DiamondRateRuleBook';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 import ModuleSoon from '../pages/ModuleSoon';
@@ -28,7 +27,6 @@ export function AppRoutes() {
         <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />
         <Route path="/scrutiny/sales-ledger" element={<SalesLedger />} />
         <Route path="/scrutiny/rate-rule-book" element={<RateRuleBook />} />
-        <Route path="/scrutiny/diamond-rate-rule-book" element={<DiamondRateRuleBook />} />
         <Route path="/scrutiny/rate-rules" element={<RateRuleBook />} />
         <Route path="/scrutiny/rule-book" element={<RateRuleBook />} />
         <Route path="/scrutiny/gst" element={<ModuleSoon />} />

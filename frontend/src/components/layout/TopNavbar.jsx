@@ -16,7 +16,6 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/pan/, title: 'PAN Verification' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
   { test: /^\/scrutiny\/sales-ledger/, title: 'Sales Ledger' },
-  { test: /^\/scrutiny\/diamond-rate-rule-book/, title: 'Diamond Rule Book' },
   { test: /^\/scrutiny\/(rate-rule-book|rate-rules|rule-book)/, title: 'Gold & Silver Rates' },
   { test: /^\/scrutiny\/gst/, title: 'GST Verification' },
   { test: /^\/scrutiny\/duplicate-invoice/, title: 'Duplicate Invoice Check' },
@@ -37,8 +36,8 @@ export function TopNavbar() {
   const { greeting } = useCurrentDateTime();
 
   return (
-    <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
-      <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-start lg:justify-between">
+    <header className="sticky top-0 z-10 h-20 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
+      <div className="flex h-full flex-col gap-5 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem]">
             {greeting}, HAA

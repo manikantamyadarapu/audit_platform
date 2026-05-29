@@ -24,34 +24,50 @@ import { auditIssueTone } from '../../utils/auditIssueTone';
 import { exportRowsToCsv } from '../../utils/csvExport';
 import { exportRowsToPdf } from '../../utils/pdfExport';
 import { SalesRateDebugPanel } from './SalesRateDebugPanel';
-import { formatMessages } from '../../utils/salesXlsxExport';
 
-const SALES_EXPORT_COLS = [
-  { header: 'Row Num', accessor: (r) => r.rowNumber ?? '' },
-  { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
-  { header: 'Party / Customer', accessor: (r) => r.partyName ?? '' },
-  {
-    header: 'sales account',
-    accessor: (r) => r.originalExcelSalesAccount ?? r.salesAccount ?? '',
-  },
-  { header: 'product', accessor: (r) => r.originalExcelProduct ?? r.product ?? '' },
-  {
-    header: 'unit rate',
-    accessor: (r) => r.originalExcelUnitRate ?? r.unitRate ?? r.uploadedUnitRate ?? '',
-  },
-  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-  {
-    header: 'Messages',
-    accessor: (r) => formatMessages(r.messages ?? r.rateMessage),
-  },
+// Fixed 24 columns for sales audit output
+const SALES_TABLE_COLS = [
+  { key: 'sNo', header: 'SNo' },
+  { key: 'date', header: 'Date' },
+  { key: 'voucherNo', header: 'Voucher No' },
+  { key: 'nameOfParty', header: 'Name of Party' },
+  { key: 'salesAccount', header: 'Sales Account' },
+  { key: 'otherAccount', header: 'Other Account' },
+  { key: 'product', header: 'Product' },
+  { key: 'uom', header: 'UOM' },
+  { key: 'quantity', header: 'Quantity' },
+  { key: 'freeQuantity', header: 'Free Quantity' },
+  { key: 'unitRate', header: 'Unit Rate' },
+  { key: 'grossAmount', header: 'Gross Amount' },
+  { key: 'cgst', header: 'CGST' },
+  { key: 'sgst', header: 'SGST' },
+  { key: 'igst', header: 'IGST' },
+  { key: 'gstAmount', header: 'GST Amount' },
+  { key: 'netAmount', header: 'Net Amount' },
+  { key: 'manualGrossWt', header: 'Manual Gross Wt.' },
+  { key: 'autoGrossWt', header: 'Auto Gross Wt.' },
+  { key: 'differenceInGrossWt', header: 'Difference in Gross wt' },
+  { key: 'pan', header: 'PAN' },
+  { key: 'addressProof', header: 'Address Proof' },
+  { key: 'address', header: 'Address' },
+  { key: 'messages', header: 'messages' },
 ];
+
+// Export columns (same order as table)
+const SALES_EXPORT_COLS = SALES_TABLE_COLS.map((c) => ({
+  header: c.header,
+  accessor: (r) => r[c.key] ?? '',
+}));
 
 function salesGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
   if (!q) return true;
   const r = row.original;
-  const blob = Object.values(r)
-    .map((v) => {
+  // Search only the 24 visible columns
+  const searchableKeys = SALES_TABLE_COLS.map((c) => c.key);
+  const blob = searchableKeys
+    .map((k) => {
+      const v = r[k];
       if (Array.isArray(v)) return v.join(' ');
       if (typeof v === 'object' && v !== null) return JSON.stringify(v);
       return String(v ?? '');
@@ -62,9 +78,11 @@ function salesGlobalFilter(row, _columnId, filterValue) {
 }
 
 function getCellClass(key) {
-  if (key === 'rowNumber') return 'font-mono text-sm text-slate-700';
-  if (key === 'issues' || key === 'messages') return '';
-  if (['unitRate', 'uploadedUnitRate', 'masterStandardRate', 'rateDifference', 'deviationPercent'].includes(key)) return 'font-mono text-sm text-slate-800';
+  if (key === 'sNo') return 'font-mono text-sm text-slate-700';
+  if (key === 'messages') return '';
+  // Numeric columns
+  const numericCols = ['unitRate', 'quantity', 'freeQuantity', 'grossAmount', 'cgst', 'sgst', 'igst', 'gstAmount', 'netAmount', 'manualGrossWt', 'autoGrossWt', 'differenceInGrossWt'];
+  if (numericCols.includes(key)) return 'font-mono text-sm text-slate-800 text-right';
   return 'text-sm text-slate-700';
 }
 
@@ -93,34 +111,20 @@ function formatValue(value, key) {
   return String(value);
 }
 
-function toHeaderLabel(key) {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (str) => str.toUpperCase())
-    .trim();
-}
-
 export function SalesResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [expandedRowId, setExpandedRowId] = useState(null);
 
   const columns = useMemo(() => {
-    if (!data || data.length === 0) return [];
-    const allKeys = new Set();
-    data.forEach((row) => Object.keys(row).forEach((k) => allKeys.add(k)));
-    const priority = ['rowNumber', 'voucherNo', 'partyName', 'salesAccount', 'product', 'unitRate', 'issues', 'messages'];
-    const sortedKeys = [
-      ...priority.filter((k) => allKeys.has(k)),
-      ...Array.from(allKeys).filter((k) => !priority.includes(k)).sort(),
-    ];
-    const dynamicCols = sortedKeys.map((key) => ({
-      accessorKey: key,
-      header: toHeaderLabel(key),
-      enableSorting: key !== 'issues' && key !== 'messages',
+    // Fixed 24 columns - no dynamic generation
+    const fixedCols = SALES_TABLE_COLS.map((col) => ({
+      accessorKey: col.key,
+      header: col.header,
+      enableSorting: col.key !== 'messages',
       cell: (info) => {
         const value = info.getValue();
-        const formatted = formatValue(value, key);
-        return <span className={getCellClass(key)}>{formatted}</span>;
+        const formatted = formatValue(value, col.key);
+        return <span className={getCellClass(col.key)}>{formatted}</span>;
       },
     }));
     // Prepend expand column
@@ -145,9 +149,9 @@ export function SalesResultsTable({ data }) {
           );
         },
       },
-      ...dynamicCols,
+      ...fixedCols,
     ];
-  }, [data, expandedRowId]);
+  }, [expandedRowId]);
 
   const table = useReactTable({
     data,

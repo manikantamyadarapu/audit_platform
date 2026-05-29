@@ -145,18 +145,10 @@ export default function SalesLedger() {
                 <Coins className="h-4 w-4" />
                 Gold & silver rates
               </Link>
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  to="/scrutiny/diamond-rate-rule-book"
-                  className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-800"
-                >
-                  Diamond rule book
-                </Link>
-                <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runValidation}>
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Run validation
-                </Button>
-              </div>
+              <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runValidation}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Run validation
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -230,9 +222,9 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('accountVsProduct')}
               />
               <KpiCard
-                label="Rate deviations"
+                label="Range deviations"
                 value={formatNumber(rateViolations)}
-                hint="Unit rate outside ±30% slab band"
+                hint="Unit rate outside allowed range"
                 icon={BookOpen}
                 accent="amber"
                 interactive
@@ -240,9 +232,9 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('mixedLedgers')}
               />
               <KpiCard
-                label="Carat & gem errors"
+                label="Unit of measurement deviations"
                 value={formatNumber(caratGemErrors)}
-                hint="Invalid UOM on carat/gem rows"
+                hint="Invalid UOM on rows"
                 icon={Gem}
                 accent="violet"
                 interactive

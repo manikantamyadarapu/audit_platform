@@ -43,6 +43,7 @@ from app.sales_engine.validators.metal_rate_validator import (
     combine_rate_validation_columns,
     enrich_metal_rate_columns,
 )
+from app.sales_engine.validators.unit_rate_range_validator import zero_to_one_product_validator
 from app.utils.constants import SALES_ISSUE_MESSAGES
 from app.utils.logger import get_logger
 from app.utils.normalization_engine import (
@@ -273,11 +274,35 @@ class VectorizedSalesEngine:
         freeze_exprs: list[pl.Expr] = [
             pl.col('source_excel_row_number').cast(pl.Int64).alias('__source_excel_row_number'),
         ]
-        for column, alias in (
-            ('sales_account', '__original_excel_sales_account'),
-            ('product', '__original_excel_product'),
-            ('unit_rate', '__original_excel_unit_rate'),
-        ):
+        # All columns to preserve from original Excel
+        original_columns = [
+            ('s_no', '__original_s_no'),
+            ('date', '__original_date'),
+            ('voucher_no', '__original_voucher_no'),
+            ('name_of_party', '__original_name_of_party'),
+            ('party_name', '__original_name_of_party'),
+            ('sales_account', '__original_sales_account'),
+            ('other_account', '__original_other_account'),
+            ('product', '__original_product'),
+            ('uom', '__original_uom'),
+            ('quantity', '__original_quantity'),
+            ('free_quantity', '__original_free_quantity'),
+            ('unit_rate', '__original_unit_rate'),
+            ('gross_amount', '__original_gross_amount'),
+            ('cgst', '__original_cgst'),
+            ('sgst', '__original_sgst'),
+            ('igst', '__original_igst'),
+            ('gst_amount', '__original_gst_amount'),
+            ('net_amount', '__original_net_amount'),
+            ('manual_gross_wt', '__original_manual_gross_wt'),
+            ('auto_gross_wt', '__original_auto_gross_wt'),
+            ('difference_in_gross_wt', '__original_difference_in_gross_wt'),
+            ('diff_gross_wt', '__original_difference_in_gross_wt'),
+            ('pan', '__original_pan'),
+            ('address_proof', '__original_address_proof'),
+            ('address', '__original_address'),
+        ]
+        for column, alias in original_columns:
             if column in dataframe.columns:
                 freeze_exprs.append(
                     pl.col(column).cast(pl.Utf8, strict=False).fill_null('').alias(alias)
@@ -450,6 +475,12 @@ class VectorizedSalesEngine:
                     family_col='__slab_family',
                 )
             )
+            .with_columns(
+                zero_to_one_product_validator(
+                    uploaded_unit_rate_col='__uploaded_unit_rate',
+                    product_col='__product_norm',
+                )
+            )
             .with_columns(audit_trace_columns())
         )
 
@@ -491,6 +522,8 @@ class VectorizedSalesEngine:
 
             if rate_rule_missing:
                 issues.append('MISSING_RATE_RULE')
+            elif row.get('__invalid_unit_rate_range'):
+                issues.append('INVALID_UNIT_RATE_RANGE')
             elif row.get('__rate_unit_missing'):
                 issues.append('MISSING_UNIT_RATE')
             elif row.get('__invalid_rate_deviation'):
@@ -511,12 +544,37 @@ class VectorizedSalesEngine:
             'rowNumber': excel_row,
             'rowId': excel_row,
             'sourceExcelRowNumber': excel_row,
+            # Original Excel columns
+            '__original_s_no': row.get('__original_s_no') or '',
+            '__original_date': row.get('__original_date') or '',
+            '__original_voucher_no': row.get('__original_voucher_no') or '',
+            '__original_name_of_party': row.get('__original_name_of_party') or '',
+            '__original_sales_account': row.get('__original_sales_account') or '',
+            '__original_other_account': row.get('__original_other_account') or '',
+            '__original_product': row.get('__original_product') or '',
+            '__original_uom': row.get('__original_uom') or '',
+            '__original_quantity': row.get('__original_quantity') or '',
+            '__original_free_quantity': row.get('__original_free_quantity') or '',
+            '__original_unit_rate': row.get('__original_unit_rate') or '',
+            '__original_gross_amount': row.get('__original_gross_amount') or '',
+            '__original_cgst': row.get('__original_cgst') or '',
+            '__original_sgst': row.get('__original_sgst') or '',
+            '__original_igst': row.get('__original_igst') or '',
+            '__original_gst_amount': row.get('__original_gst_amount') or '',
+            '__original_net_amount': row.get('__original_net_amount') or '',
+            '__original_manual_gross_wt': row.get('__original_manual_gross_wt') or '',
+            '__original_auto_gross_wt': row.get('__original_auto_gross_wt') or '',
+            '__original_difference_in_gross_wt': row.get('__original_difference_in_gross_wt') or '',
+            '__original_pan': row.get('__original_pan') or '',
+            '__original_address_proof': row.get('__original_address_proof') or '',
+            '__original_address': row.get('__original_address') or '',
+            # Legacy fields
             'voucherNo': row.get('__voucher_display') or '',
             'voucherNorm': row.get('__voucher_norm') or '',
             'partyName': row.get('__party_display') or '',
-            'originalExcelSalesAccount': row.get('__original_excel_sales_account') or '',
-            'originalExcelProduct': row.get('__original_excel_product') or '',
-            'originalExcelUnitRate': row.get('__original_excel_unit_rate') or '',
+            'originalExcelSalesAccount': row.get('__original_sales_account') or '',
+            'originalExcelProduct': row.get('__original_product') or '',
+            'originalExcelUnitRate': row.get('__original_unit_rate') or '',
             'validationSalesAccount': row.get('__sales_account_text') or '',
             'validationProduct': row.get('__product_text') or '',
             'salesAccount': row.get('__sales_account_text') or '',

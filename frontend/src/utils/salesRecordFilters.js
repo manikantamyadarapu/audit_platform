@@ -4,8 +4,8 @@ export const SALES_FILTER_LABELS = {
   total: 'All rows',
   errors: 'Error rows',
   accountVsProduct: 'Account vs product',
-  mixedLedgers: 'Mixed ledgers',
-  caratGemErrors: 'Carat & gem errors',
+  mixedLedgers: 'Range deviations',
+  caratGemErrors: 'Unit of measurement deviations',
   compliance: 'Compliance (no issues)',
 };
 

@@ -1,8 +1,9 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', 'DM Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* Apple San Francisco font stack */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Monaco, monospace;
 
   --color-surface-page: #f8fafc;
   --color-surface-elevated: #ffffff;
@@ -27,6 +28,9 @@ html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  letter-spacing: -0.01em;
 }
 
 body {
@@ -37,6 +41,10 @@ body {
     var(--color-surface-page);
   color: var(--color-text-primary);
   transition: background-color 180ms ease, color 180ms ease;
+  /* Apple-style text */
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  line-height: 1.47059;
+  font-weight: 400;
 }
 
 #root {
