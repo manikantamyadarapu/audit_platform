@@ -9,8 +9,6 @@ import {
 } from '@tanstack/react-table';
 import {
   ArrowDownUp,
-  ChevronLeft,
-  ChevronRight,
   Download,
   FileText,
   Search,
@@ -18,6 +16,7 @@ import {
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
+import { Pagination } from '../ui/Pagination';
 import { cn } from '../../utils/cn';
 import { formatNumber } from '../../utils/format';
 import { auditIssueTone } from '../../utils/auditIssueTone';
@@ -57,7 +56,7 @@ export function GrossWeightResultsTable({ data }) {
       accessorKey: 'rowNumber',
       header: 'SNo',
       enableSorting: true,
-      cell: (info) => <span className="font-mono text-sm text-slate-700">{info.getValue()}</span>,
+      cell: (info) => <span className="text-sm text-slate-700" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{info.getValue()}</span>,
     },
     {
       accessorKey: 'voucherNo',
@@ -69,19 +68,19 @@ export function GrossWeightResultsTable({ data }) {
       accessorKey: 'manualGrossWeight',
       header: 'Manual Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
     },
     {
       accessorKey: 'autoGrossWeight',
       header: 'Auto Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
     },
     {
       accessorKey: 'difference',
       header: 'Difference in Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
     },
     {
       accessorKey: 'issues',
@@ -210,32 +209,7 @@ export function GrossWeightResultsTable({ data }) {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-        <p className="text-xs text-slate-500">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1} ·{' '}
-          {table.getFilteredRowModel().rows.length} rows
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <Pagination table={table} totalLabel="Total" />
     </div>
   );
 }

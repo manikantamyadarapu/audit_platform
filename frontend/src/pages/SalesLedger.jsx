@@ -132,7 +132,7 @@ export default function SalesLedger() {
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
+              <h2 className="text-lg font-bold text-emerald-700">Upload &amp; validate</h2>
               <p className="text-sm text-slate-500">
                 Normalized headers: voucher, sales account, product, manual/auto gross weight.
               </p>
@@ -191,16 +191,13 @@ export default function SalesLedger() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
+            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <KpiCard
                 label="Total rows"
                 value={formatNumber(totalRows)}
                 icon={Rows3}
                 accent="blue"
-                interactive
-                selected={activeFilter === 'total'}
-                onClick={() => toggleCardFilter('total')}
               />
               <KpiCard
                 label="Error rows"
@@ -255,7 +252,7 @@ export default function SalesLedger() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900">Issue register</h3>
+                  <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
                   <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV & PDF export</p>
                 </div>
                 <Button
