@@ -20,7 +20,7 @@ export function AppLayout() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.22 }}
-              className="relative mx-auto max-w-[1440px]"
+              className="relative w-full"
             >
               <Outlet />
             </motion.div>

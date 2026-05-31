@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileSpreadsheet,
   Coins,
+  Gem,
   GitBranch,
   LayoutDashboard,
   ListTree,
@@ -21,11 +22,14 @@ import { useAppUi } from '../../context/AppUiContext';
 const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
-  { to: '/scrutiny/sales-ledger', label: 'Sales Audit', icon: FileSpreadsheet },
+  { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: FileSpreadsheet },
+  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: FileSpreadsheet },
+  { to: '/scrutiny/sales-return-rate', label: 'Sales Return Rate Audit', icon: FileSpreadsheet },
 ];
 
 const scrutinyItems = [
   { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
+  { to: '/scrutiny/diamond-gem-rates', label: 'Diamond & Gemstone Rates', icon: Gem },
 ];
 
 const vouchingItems = [
@@ -160,11 +164,11 @@ export function Sidebar() {
 
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
-  const salesActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger'].some((path) => pathname.startsWith(path));
+  const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
-  const [salesOpen, setSalesOpen] = useState(salesActive);
+  const [salesOpen, setSalesOpen] = useState(salesChildActive);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -175,17 +179,17 @@ export function Sidebar() {
   }, [vouchingActive]);
 
   useEffect(() => {
-    if (salesActive) setSalesOpen(true);
-  }, [salesActive]);
+    if (salesChildActive) setSalesOpen(true);
+  }, [salesChildActive]);
 
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 80 : 260 }}
+      animate={{ width: sidebarCollapsed ? 80 : 280 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
       className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[10px_0_35px_rgba(15,23,42,0.04)]"
     >
-      <div className={cn('flex items-start gap-3 px-6 pb-6 pt-7', sidebarCollapsed && 'flex-col items-center px-4')}>
+      <div className={cn('flex items-start gap-3 px-6 pb-4 pt-4', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
           <>
             <div className="min-w-0 flex-1 py-3">
@@ -231,7 +235,7 @@ export function Sidebar() {
               collapsed={sidebarCollapsed}
               open={salesOpen}
               onToggle={() => setSalesOpen((v) => !v)}
-              active={salesActive}
+              active={false}
               nested
             >
               {salesItems.map((item) => (
