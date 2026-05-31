@@ -37,7 +37,7 @@ export function TopNavbar() {
     <header className="sticky top-0 z-10 h-20 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
       <div className="flex h-full items-center justify-between px-5 sm:px-8">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Current view · {viewTitle}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Current view · <span className="text-slate-800">{viewTitle}</span></p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
