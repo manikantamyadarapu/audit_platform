@@ -25,10 +25,41 @@ def load_gemstone_config() -> dict:
 
 @lru_cache(maxsize=1)
 def load_gemstone_product_catalog() -> dict:
-    """Authoritative gemstone SKU lists (slab price is encoded in the product name)."""
+    """
+    Load gemstone catalog. First checks rate book (auditor-editable rates),
+    falls back to hardcoded defaults if not edited yet.
+    """
+    # First check if rate book exists (auditor edits)
+    if _GEMSTONE_BOOK_PATH.exists():
+        book = json.loads(_GEMSTONE_BOOK_PATH.read_text(encoding='utf-8'))
+        accounts = book.get('accounts', {})
+        deviation = book.get('deviation_percent', 15)
+        # Only use rate book if it has actual data
+        if accounts:
+            # Transform rate book format to catalog format
+            catalog_accounts = {}
+            for account_name, account_data in accounts.items():
+                slabs = account_data.get('slabs', {})
+                # Extract slab values from the rate book
+                slab_values = []
+                for slab_str in sorted(slabs.keys(), key=lambda x: float(x) if x.replace('.', '').isdigit() else 0):
+                    try:
+                        slab_values.append(float(slab_str))
+                    except ValueError:
+                        pass
+                catalog_accounts[account_name] = {'precious_stones_jos': slab_values}
+            
+            return {
+                'accounts': catalog_accounts,
+                'deviation_percent': deviation,
+                'version': 1,
+                'rate_model': 'slab_in_product_name',
+            }
+    
+    # Fall back to hardcoded defaults
     path = _CONFIG_DIR / 'gemstone_product_catalog.json'
     if not path.exists():
-        return {'accounts': {}}
+        return {'accounts': {}, 'deviation_percent': 15, 'version': 1, 'rate_model': 'slab_in_product_name'}
     return json.loads(path.read_text(encoding='utf-8'))
 
 
@@ -155,18 +186,34 @@ def _diamond_band_values(
     }
 
 
+# Rate book paths (auditor-editable)
+_DIAMOND_BOOK_PATH = _CONFIG_DIR / 'diamond_rate_book.json'
+_GEMSTONE_BOOK_PATH = _CONFIG_DIR / 'gemstone_rate_book.json'
+
+
 @lru_cache(maxsize=1)
 def load_diamond_rate_rule_book() -> dict:
-    """Employee-editable ranges (Type 1) saved from the frontend Rule Book."""
-    path = _CONFIG_DIR / 'diamond_rate_rule_book.json'
-    if not path.exists():
-        return {'uplift_percent': 25, 'deviation_percent': 30, 'products': {}}
-    return json.loads(path.read_text(encoding='utf-8'))
+    """Load diamond rates from rate book if exists, else return empty for fallback to hardcoded."""
+    if not _DIAMOND_BOOK_PATH.exists():
+        return {'uplift_percent': 25, 'deviation_percent': 15, 'products': {}}
+    return json.loads(_DIAMOND_BOOK_PATH.read_text(encoding='utf-8'))
 
 
 @lru_cache(maxsize=1)
 def load_diamond_hardcoded_rates() -> dict:
-    """Sheet-backed ranges (Type 2) — not edited in the Rule Book UI."""
+    """
+    Load diamond rates. First checks rate book (auditor-editable),
+    falls back to hardcoded defaults if not edited yet.
+    """
+    # First check if rate book exists (auditor edits)
+    if _DIAMOND_BOOK_PATH.exists():
+        book = json.loads(_DIAMOND_BOOK_PATH.read_text(encoding='utf-8'))
+        products = book.get('products', {})
+        # Only use rate book if it has actual data
+        if products:
+            return {'products': products}
+    
+    # Fall back to hardcoded defaults
     path = _CONFIG_DIR / 'diamond_hardcoded_rates.json'
     if not path.exists():
         return {'products': {}}
@@ -175,12 +222,8 @@ def load_diamond_hardcoded_rates() -> dict:
 
 @lru_cache(maxsize=1)
 def diamond_editable_product_keys() -> frozenset[str]:
-    """Normalized product names that use the frontend Rule Book."""
-    path = _CONFIG_DIR / 'diamond_editable_products.json'
-    if not path.exists():
-        return frozenset()
-    raw = json.loads(path.read_text(encoding='utf-8')).get('products') or []
-    return frozenset(normalize_strict_text(k) for k in raw if normalize_strict_text(k))
+    """DEPRECATED: Returns empty set. All diamonds are hardcoded."""
+    return frozenset()
 
 
 def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, float | bool | None]]:
@@ -202,24 +245,22 @@ def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, floa
 @lru_cache(maxsize=1)
 def diamond_rule_book_entries() -> dict[str, dict[str, float | bool | None]]:
     """
-    Merged Type 1 (Rule Book JSON) + Type 2 (hardcoded JSON).
-    Rule Book values override hardcoded keys for editable SKUs only.
+    All diamond rates are hardcoded. Returns hardcoded product specs only.
+    Rule Book and editable products are deprecated.
     """
-    merged = _parse_diamond_product_specs(load_diamond_hardcoded_rates().get('products') or {})
-    editable = diamond_editable_product_keys()
-    rule_book = _parse_diamond_product_specs(load_diamond_rate_rule_book().get('products') or {})
-    for norm, spec in rule_book.items():
-        if norm in editable:
-            merged[norm] = spec
-    return merged
+    return _parse_diamond_product_specs(load_diamond_hardcoded_rates().get('products') or {})
 
 
 @lru_cache(maxsize=1)
 def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]]:
-    """Normalized product name -> precomputed bands (configured SKUs only)."""
-    cfg = load_diamond_rate_rule_book()
-    uplift = float(cfg.get('uplift_percent', 25))
-    deviation = float(cfg.get('deviation_percent', 30))
+    """
+    Normalized product name -> precomputed bands (configured SKUs only).
+    Uses rate book settings if available, else defaults to +25% uplift and ±15% deviation.
+    """
+    # Load settings from rate book if available
+    book = load_diamond_rate_rule_book()
+    uplift = float(book.get('uplift_percent', 25))  # Default 25%
+    deviation = float(book.get('deviation_percent', 15))  # Default ±15%
     bands: dict[str, dict[str, float | bool | None]] = {}
     for norm, spec in diamond_rule_book_entries().items():
         base_min = spec.get('min_rate')
@@ -293,7 +334,7 @@ def product_rule_book_specs() -> dict[str, dict[str, float | None]]:
 
 @lru_cache(maxsize=1)
 def metal_final_bands_by_product() -> dict[str, dict[str, float]]:
-    """Normalized product → bands after -30% on min and +30% on max."""
+    """Normalized product → bands after -15% on min and +15% on max."""
     fraction = metal_deviation_fraction()
     bands: dict[str, dict[str, float]] = {}
     for norm, spec in product_rule_book_specs().items():
@@ -316,6 +357,7 @@ def clear_metal_rate_caches() -> None:
     diamond_editable_product_keys.cache_clear()
     diamond_rule_book_entries.cache_clear()
     diamond_final_bands_by_product.cache_clear()
+    load_gemstone_product_catalog.cache_clear()
     load_uom_rules_config.cache_clear()
     grams_product_norms.cache_clear()
 

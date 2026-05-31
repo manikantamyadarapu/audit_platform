@@ -1,12 +1,9 @@
 import { useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, UploadCloud, User } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Bell, User } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Input } from '../ui/Input';
-import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../utils/cn';
-import { useCurrentDateTime } from '../../utils/dateTime';
 
 const TITLE_MAP = [
   { test: /^\/dashboard\/?$/, title: 'Dashboard' },
@@ -15,9 +12,11 @@ const TITLE_MAP = [
   { test: /^\/scrutiny$/, title: 'Scrutiny' },
   { test: /^\/scrutiny\/pan/, title: 'PAN Verification' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
-  { test: /^\/scrutiny\/sales-ledger/, title: 'Sales Ledger' },
-  { test: /^\/scrutiny\/diamond-rate-rule-book/, title: 'Diamond Rule Book' },
+  { test: /^\/scrutiny\/sales-ledger/, title: 'Rate and Ledger Audit' },
+  { test: /^\/scrutiny\/making-charges/, title: 'Audit for Making Charges' },
+  { test: /^\/scrutiny\/sales-return-rate/, title: 'Sales Return Rate Audit' },
   { test: /^\/scrutiny\/(rate-rule-book|rate-rules|rule-book)/, title: 'Gold & Silver Rates' },
+  { test: /^\/scrutiny\/diamond-gem-rates/, title: 'Diamond & Gemstone Rate Book' },
   { test: /^\/scrutiny\/gst/, title: 'GST Verification' },
   { test: /^\/scrutiny\/duplicate-invoice/, title: 'Duplicate Invoice Check' },
   { test: /^\/scrutiny\/vendor-reconciliation/, title: 'Vendor Reconciliation' },
@@ -32,59 +31,34 @@ function matchTitle(pathname) {
 
 export function TopNavbar() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const viewTitle = useMemo(() => matchTitle(pathname), [pathname]);
-  const { greeting } = useCurrentDateTime();
 
   return (
-    <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
-      <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-start lg:justify-between">
+    <header className="sticky top-0 z-10 h-20 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
+      <div className="flex h-full items-center justify-between px-5 sm:px-8">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem]">
-            {greeting}, HAA
-          </h1>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Current view · {viewTitle}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Current view · <span className="text-slate-800">{viewTitle}</span></p>
         </div>
 
-        <div className="flex w-full flex-col gap-3 lg:max-w-xl lg:flex-row lg:items-center lg:justify-end">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="border-slate-200/90 bg-white pl-11"
-              placeholder="Search modules, reports…"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  toast('Search is not wired yet — module registry coming next.', { icon: '🔎' });
-                }
-              }}
-            />
-          </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle compact />
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button variant="primary" size="md" onClick={() => navigate('/scrutiny/pan')}>
-              <UploadCloud className="h-4 w-4" />
-              Quick upload
-            </Button>
+          <button
+            type="button"
+            className={cn(
+              'flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
+            )}
+            aria-label="Notifications"
+            onClick={() => toast('No new notifications.', { icon: '🔔' })}
+          >
+            <Bell className="h-5 w-5" strokeWidth={1.5} />
+          </button>
 
-            <ThemeToggle compact />
-
-            <button
-              type="button"
-              className={cn(
-                'flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
-              )}
-              aria-label="Notifications"
-              onClick={() => toast('No new notifications.', { icon: '🔔' })}
-            >
-              <Bell className="h-5 w-5" strokeWidth={1.5} />
-            </button>
-
-            <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-1.5 pr-5">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <User className="h-4 w-4" strokeWidth={1.75} />
-              </span>
-              <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-800 sm:inline">Audit operator</span>
-            </div>
+          <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-1.5 pr-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <User className="h-4 w-4" strokeWidth={1.75} />
+            </span>
+            <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-800 sm:inline">Audit operator</span>
           </div>
         </div>
       </div>

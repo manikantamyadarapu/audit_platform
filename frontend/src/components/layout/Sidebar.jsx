@@ -3,17 +3,21 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BellRing,
+  BookOpen,
+  Calculator,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
-  FileSpreadsheet,
   Coins,
+  FileSpreadsheet,
   Gem,
   GitBranch,
   LayoutDashboard,
   ListTree,
-  PanelLeftClose,
   Scale,
   Settings,
+  Undo2,
   Weight,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -22,12 +26,14 @@ import { useAppUi } from '../../context/AppUiContext';
 const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
-  { to: '/scrutiny/sales-ledger', label: 'Sales Audit', icon: FileSpreadsheet },
+  { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
+  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
+  { to: '/scrutiny/sales-return-rate', label: 'Sales Return Rate Audit', icon: Undo2 },
 ];
 
 const scrutinyItems = [
   { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
-  { to: '/scrutiny/diamond-rate-rule-book', label: 'Diamond Rule Book', icon: Gem },
+  { to: '/scrutiny/diamond-gem-rates', label: 'Rate Master ', icon: Gem },
 ];
 
 const vouchingItems = [
@@ -162,11 +168,11 @@ export function Sidebar() {
 
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
-  const salesActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger'].some((path) => pathname.startsWith(path));
+  const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
-  const [salesOpen, setSalesOpen] = useState(salesActive);
+  const [salesOpen, setSalesOpen] = useState(salesChildActive);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -177,30 +183,30 @@ export function Sidebar() {
   }, [vouchingActive]);
 
   useEffect(() => {
-    if (salesActive) setSalesOpen(true);
-  }, [salesActive]);
+    if (salesChildActive) setSalesOpen(true);
+  }, [salesChildActive]);
 
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 84 : 300 }}
+      animate={{ width: sidebarCollapsed ? 80 : 280 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
       className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[10px_0_35px_rgba(15,23,42,0.04)]"
     >
-      <div className={cn('flex items-start gap-3 px-7 pb-8 pt-9', sidebarCollapsed && 'flex-col items-center px-4')}>
+      <div className={cn('flex items-center justify-between gap-3 px-6 pb-4 pt-5', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
           <>
-            <div className="min-w-0 flex-1 py-3">
-              <p className="truncate text-lg font-bold tracking-tight text-[#07812f]">HAA Audit</p>
-              <p className="text-xs font-medium text-emerald-700">Audit Management System</p>
+            <div className="flex flex-col">
+              <p className="text-xl font-semibold tracking-tight text-[#07812f]">HAA</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
             </div>
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
               aria-label="Collapse sidebar"
             >
-              <PanelLeftClose className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
           </>
         ) : (
@@ -210,12 +216,12 @@ export function Sidebar() {
             className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
             aria-label="Expand sidebar"
           >
-            <PanelLeftClose className="h-4 w-4 rotate-180" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         )}
       </div>
 
-      <nav className="flex flex-1 flex-col overflow-y-auto px-7 pb-7 scrollbar-thin">
+      <nav className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 scrollbar-thin">
         <div className="space-y-1">
           <NavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} end collapsed={sidebarCollapsed} />
 
@@ -233,7 +239,7 @@ export function Sidebar() {
               collapsed={sidebarCollapsed}
               open={salesOpen}
               onToggle={() => setSalesOpen((v) => !v)}
-              active={salesActive}
+              active={false}
               nested
             >
               {salesItems.map((item) => (

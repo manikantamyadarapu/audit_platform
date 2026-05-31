@@ -10,6 +10,7 @@ MSG_RATE_RULE_MISSING = 'Rate rule not configured'
 MSG_UNIT_RATE_MISSING = 'Unit rate missing'
 MSG_PRODUCT_PATTERN = 'Product pattern invalid'
 MSG_INVALID_UOM = 'Invalid UOM for product.'
+MSG_INVALID_UNIT_RATE_RANGE = 'Unit rate must be between 0 and 1 for this product.'
 
 _ISSUE_MESSAGE: dict[str, str] = {
     'INVALID_PRODUCT_MAPPING': MSG_PRODUCT_MAPPING,
@@ -18,6 +19,7 @@ _ISSUE_MESSAGE: dict[str, str] = {
     'INVALID_RATE_DEVIATION': MSG_RATE_BELOW,
     'MISSING_UNIT_RATE': MSG_UNIT_RATE_MISSING,
     'MISSING_RATE_RULE': MSG_RATE_RULE_MISSING,
+    'INVALID_UNIT_RATE_RANGE': MSG_INVALID_UNIT_RATE_RANGE,
 }
 
 _ISSUE_PRIORITY: tuple[str, ...] = (
@@ -25,6 +27,7 @@ _ISSUE_PRIORITY: tuple[str, ...] = (
     'INVALID_PRODUCT_PATTERN',
     'INVALID_UOM',
     'MISSING_RATE_RULE',
+    'INVALID_UNIT_RATE_RANGE',
     'MISSING_UNIT_RATE',
     'INVALID_RATE_DEVIATION',
 )

@@ -97,6 +97,10 @@ def audit_trace_columns() -> list[pl.Expr]:
         invalid_rate_gem | invalid_rate_metal | invalid_rate_diamond | invalid_rate_no_unit
     ).fill_null(False)
 
+    # Unit rate range validation for specific products (0-1 range)
+    zero_to_one_product = pl.col('__zero_to_one_product').fill_null(False)
+    invalid_unit_rate_range = pl.col('__invalid_unit_rate_range').fill_null(False)
+
     unknown_mix = is_txn & pl.col('__has_mix') & slab_family.is_null()
     unknown_pattern = (
         is_txn
@@ -160,6 +164,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .then(pl.lit('INVALID_PRODUCT_PATTERN'))
         .when(invalid_uom)
         .then(pl.lit('INVALID_UOM'))
+        .when(invalid_unit_rate_range)
+        .then(pl.lit('INVALID_UNIT_RATE_RANGE'))
         .when(invalid_rate_flag)
         .then(pl.lit('INVALID_RATE_DEVIATION'))
         .when(unknown_mix | unknown_pattern)
@@ -187,6 +193,8 @@ def audit_trace_columns() -> list[pl.Expr]:
         .then(pl.lit('PRICE_PARSE_FAILED'))
         .when(invalid_uom)
         .then(pl.lit('UOM_MISMATCH'))
+        .when(invalid_unit_rate_range)
+        .then(pl.lit('UNIT_RATE_RANGE_0_1'))
         .when(invalid_rate)
         .then(pl.lit('RATE_OUTSIDE_30_PERCENT'))
         .when(invalid_rate_no_unit)

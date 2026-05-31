@@ -99,7 +99,7 @@ export default function GrossWeight() {
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Upload &amp; validate</h2>
+              <h2 className="text-lg font-bold text-emerald-700">Upload &amp; validate</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runComparison}>
@@ -117,16 +117,13 @@ export default function GrossWeight() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-semibold text-slate-900">Summary</h3>
+            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <KpiCard
                 label="Total rows"
                 value={formatNumber(totalRows)}
                 icon={Rows3}
                 accent="blue"
-                interactive
-                selected={activeFilter === 'total'}
-                onClick={() => toggleCardFilter('total')}
               />
               <KpiCard
                 label="Weight mismatches"
@@ -152,7 +149,7 @@ export default function GrossWeight() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900">Issue register</h3>
+                  <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
                 </div>
                 <Button
                   variant="primary"
