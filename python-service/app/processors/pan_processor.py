@@ -44,7 +44,10 @@ class PanProcessor(BaseProcessor):
         total_rows = len(df)
 
         validation_start = perf_counter()
+        self._log.info(f"Data columns before validation: {data_columns}")
+        self._log.info(f"DataFrame columns: {df.columns}")
         invalid_df = self._validate_dataframe(df, data_columns)
+        self._log.info(f"Invalid DataFrame columns: {invalid_df.columns}")
         validation_ms = (perf_counter() - validation_start) * 1000
 
 
@@ -116,19 +119,28 @@ class PanProcessor(BaseProcessor):
             # Build record with all original columns
             record = {'rowNumber': self._json_value(row_num)}
             
+            # Debug: log the invalid_row keys for first few rows
+            if len(records) < 3:
+                self._log.info(f"Invalid row keys: {list(invalid_row.keys())}")
+            
             # Add all columns from original dataframe
             for col in data_columns:
-                col_value = invalid_row.get(col)
-                if col == 'total_value':
-                    col_value = invalid_row.get('__total_value_amount')
-                elif col == 'gross_amount':
-                    col_value = invalid_row.get('__gross_amount_amount')
-                # Use camelCase for output
-                camel_col = self._to_camel_case(col)
-                if col in ['date']:
-                    record[camel_col] = self._format_cell_value(col_value)
-                else:
-                    record[camel_col] = self._json_value(col_value) if isinstance(col_value, (int, float)) else self._format_cell_value(col_value)
+                try:
+                    col_value = invalid_row.get(col)
+                    if col == 'total_value':
+                        col_value = invalid_row.get('__total_value_amount')
+                    elif col == 'gross_amount':
+                        col_value = invalid_row.get('__gross_amount_amount')
+                    # Use camelCase for output
+                    camel_col = self._to_camel_case(col)
+                    if col in ['date']:
+                        record[camel_col] = self._format_cell_value(col_value)
+                    else:
+                        record[camel_col] = self._json_value(col_value) if isinstance(col_value, (int, float)) else self._format_cell_value(col_value)
+                except Exception as e:
+                    # Log the error and set empty value
+                    self._log.error(f"Error processing column '{col}': {e}. Invalid row has keys: {list(invalid_row.keys())}")
+                    record[camel_col] = ''
             
             record['issues'] = issues
             record['messages'] = self._messages_for_issues(issues)

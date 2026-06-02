@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "HAA — Audit Platform — Node API (PAN)",
+    "title": "HAA-Audit-Platfrom",
     "description": "Proxies PAN Excel validation and invalid-row export to the FastAPI `python-service`. Use **Try it out** to upload a file or POST JSON.",
     "version": "1.0.0"
   },
@@ -24,7 +24,11 @@
     {
       "name": "Sales",
       "description": "Sales ledger audit Excel forwarded to FastAPI `POST /api/process/sales`. Field **`file`**; requires `expected_rate`, `actual_rate`, `sales_value`."
-    }
+    },
+    { "name": "Auth", "description": "User authentication (JWT)." },
+    { "name": "Users", "description": "User administration (ADMIN only)." },
+    { "name": "Rate rules", "description": "Metal rate rule book (proxy to python-service)." },
+    { "name": "Diamond rate rules", "description": "Diamond rate rule book (proxy to python-service)." }
   ],
   "paths": {
     "/api/health": {
@@ -302,6 +306,50 @@
         }
       }
     },
+    "/api/v1/process/gross-weight/export-invalid": {
+      "post": {
+        "operationId": "grossWeightExportInvalid",
+        "tags": ["Gross weight"],
+        "summary": "Export invalid gross-weight rows as Excel",
+        "description": "Send **`records`** exactly as returned by **Validate**. Request body must be `{ \"records\": [ ... ] }`. Response is binary `.xlsx`.",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["records"],
+                "properties": {
+                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excel workbook download (`invalid` rows sheet)",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": { "description": "Bad request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "502": { "description": "Python service unreachable or error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
     "/api/v1/process/sales/validate": {
       "post": {
         "operationId": "salesValidateExcel",
@@ -370,9 +418,186 @@
           }
         }
       }
+    },
+    "/api/v1/process/sales/export-invalid": {
+      "post": {
+        "operationId": "salesExportInvalid",
+        "tags": ["Sales"],
+        "summary": "Export invalid sales rows as Excel",
+        "description": "Send **`records`** exactly as returned by **Validate**. Request body must be `{ \"records\": [ ... ] }`. Response is binary `.xlsx`.",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["records"],
+                "properties": {
+                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excel workbook download (`invalid` rows sheet)",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": { "description": "Bad request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "502": { "description": "Python service unreachable or error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "authLogin",
+        "tags": ["Auth"],
+        "summary": "Login (JWT)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "admin@audit.com" },
+                  "password": { "type": "string", "format": "password", "example": "Admin@123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "authMe",
+        "tags": ["Auth"],
+        "summary": "Get current user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Current user", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "usersList",
+        "tags": ["Users"],
+        "summary": "List users (ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": { "description": "Users", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      },
+      "post": {
+        "operationId": "usersCreate",
+        "tags": ["Users"],
+        "summary": "Create user (ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "409": { "description": "Email exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/rate-rules": {
+      "get": {
+        "operationId": "rateRulesGet",
+        "tags": ["Rate rules"],
+        "summary": "Get rate rules",
+        "responses": {
+          "200": { "description": "Rate rules", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      },
+      "post": {
+        "operationId": "rateRulesSave",
+        "tags": ["Rate rules"],
+        "summary": "Save rate rules",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
+        },
+        "responses": {
+          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/diamond-rate-rules": {
+      "get": {
+        "operationId": "diamondRateRulesGet",
+        "tags": ["Diamond rate rules"],
+        "summary": "Get diamond rate rules",
+        "responses": {
+          "200": { "description": "Diamond rate rules", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      },
+      "post": {
+        "operationId": "diamondRateRulesSave",
+        "tags": ["Diamond rate rules"],
+        "summary": "Save diamond rate rules",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
+        },
+        "responses": {
+          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
       "PanInvalidRecord": {
         "type": "object",

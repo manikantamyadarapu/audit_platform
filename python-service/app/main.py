@@ -54,13 +54,16 @@ async def sheet_validation_handler(_: Request, exc: SheetValidationError):
 
 @app.exception_handler(KeyError)
 async def key_error_handler(_: Request, exc: KeyError):
+    import traceback
     detail = str(exc).replace("'", '')
+    tb = traceback.format_exc()
+    print(f"KeyError: {detail}\nTraceback:\n{tb}")  # Log to console
     return JSONResponse(
         status_code=422,
         content={
             'success': False,
-            'detail': detail,
-            'error': {'code': 'KEY_ERROR', 'message': detail},
+            'detail': f"Missing column: {detail}. Check your Excel headers.",
+            'error': {'code': 'KEY_ERROR', 'message': detail, 'traceback': tb},
         },
     )
 

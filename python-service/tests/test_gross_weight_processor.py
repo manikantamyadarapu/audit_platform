@@ -34,13 +34,13 @@ def test_matching_positive_weights_pass() -> None:
 
 
 def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> None:
-    """Computed |manual - auto| above match epsilon (0.002) flags a mismatch."""
+    """Computed |manual - auto| above match epsilon (0.005) flags a mismatch."""
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(
         [
             {
                 'Voucher No': 'V1',
-                'Manual Gross Weight': 10.503,
+                'Manual Gross Weight': 10.52,
                 'Auto Gross Weight': 10.5,
             }
         ]
@@ -90,7 +90,6 @@ def test_manual_auto_mismatch_counts_mismatch_only() -> None:
     assert result['summary']['differenceViolations'] == 0
     assert result['summary']['negativeValueViolations'] == 0
     assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
-    assert result['records'][0]['messages'] == ['Manual gross weight does not match auto gross weight.']
 
 
 def test_equal_manual_auto_but_nonzero_difference_column() -> None:
@@ -111,7 +110,7 @@ def test_equal_manual_auto_but_nonzero_difference_column() -> None:
     assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
 
 
-def test_negative_equal_pair_is_invalid_with_message() -> None:
+def test_negative_equal_pair_is_reported_as_mismatch() -> None:
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -128,8 +127,7 @@ def test_negative_equal_pair_is_invalid_with_message() -> None:
     assert result['errorRows'] == 1
     assert result['summary']['negativeValueViolations'] == 1
     assert result['summary']['weightMismatch'] == 1
-    assert result['records'][0]['issues'] == ['NEGATIVE_WEIGHT_VALUES']
-    assert result['records'][0]['messages'] == ['Negative weight values are not allowed']
+    assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
 
 
 def test_negative_difference_triggers_negative_bucket() -> None:

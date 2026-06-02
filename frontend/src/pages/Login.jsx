@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import '../styles/fonts.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -35,49 +36,94 @@ export default function Login() {
         }),
       });
 
-      const data = await response.json();
+      // Check if response is OK but empty
+      const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
 
+      // Handle network errors or empty responses
       if (!response.ok) {
-        throw new Error(data.message || 'Invalid credentials');
+        let errorMessage = 'Invalid credentials';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.detail || `Server error: ${response.status}`;
+        } catch (jsonError) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || `Server error: ${response.status}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Try to parse JSON response
+      let data;
+      try {
+        const text = await response.text();
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError);
+        throw new Error('Invalid response from server. Please try again.');
       }
 
       if (data.success) {
-        // Store JWT token and user info
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('isAuthenticated', 'true');
         navigate('/dashboard');
       } else {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || data.detail || 'Login failed');
       }
     } catch (err) {
-      setError(err.message || 'Invalid credentials. Please try again.');
+      // Simple error messages
+      if (err.name === 'TypeError' || err.message === 'Failed to fetch' || err.message.includes('Network')) {
+        setError('Network Error');
+      } else {
+        setError(err.message || 'Login failed');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-white">
-      {/* Left side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-8 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-2">Welcome back!</h1>
-            <p className="text-sm text-gray-500">Enter your Credentials to access your account</p>
+    <div className="min-h-screen w-full flex bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 font-manrope">
+      {/* Left side - Marketing Content */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 py-12 relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute top-20 left-10 w-64 h-64 bg-green-200/30 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 right-10 w-80 h-80 bg-emerald-300/20 rounded-full blur-3xl"></div>
+
+        <div className="relative z-10 max-w-lg mx-auto px-8">
+          <h1 className="text-5xl font-bold text-green-600 leading-tight mb-6 whitespace-nowrap">
+            Smart Audit Management
+          </h1>
+          <p className="text-lg text-green-600/80 leading-relaxed">
+            Simplify complex enterprise compliance with AI-driven validation and real-time risk assessment tools.
+          </p>
+        </div>
+      </div>
+
+      {/* Right side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div className="w-full max-w-md bg-white/30 backdrop-blur-md rounded-[2.5rem] shadow-xl shadow-gray-900/5 border border-white/40 p-10">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back!</h2>
+            <p className="text-sm text-gray-500">Sign in to access your audit dashboard</p>
           </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {error}
+          {error && ( 
+            <div className="mb-6 text-center">
+              <p className="text-red-500 text-sm font-medium">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-xs font-medium text-gray-700 mb-1.5">
-                Email address
+              <label htmlFor="email" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Email Address
               </label>
               <input
                 id="email"
@@ -85,7 +131,7 @@ export default function Login() {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#2d5016] focus:border-[#2d5016] transition-colors text-sm outline-none"
+                className="block w-full px-5 py-3.5 bg-white/70 backdrop-blur-sm border border-gray-200 rounded-full focus:ring-2 focus:ring-gray-400/50 focus:border-gray-300 focus:bg-white/90 transition-all text-sm text-gray-900 placeholder-gray-400 outline-none shadow-inner shadow-gray-100/50"
                 placeholder="Enter your email"
                 required
               />
@@ -93,7 +139,7 @@ export default function Login() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1.5">
+              <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
                 Password
               </label>
               <div className="relative">
@@ -103,54 +149,35 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleChange}
-                  className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#2d5016] focus:border-[#2d5016] transition-colors text-sm outline-none pr-10"
+                  className="block w-full px-5 py-3.5 bg-white/70 backdrop-blur-sm border border-gray-200 rounded-full focus:ring-2 focus:ring-gray-400/50 focus:border-gray-300 focus:bg-white/90 transition-all text-sm text-gray-900 placeholder-gray-400 outline-none pr-12 shadow-inner shadow-gray-100/50"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
-            </div>
-
-            {/* Remember me & Forgot password */}
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 text-[#2d5016] border-gray-300 rounded focus:ring-[#2d5016]"
-                />
-                <span className="ml-2 text-sm text-gray-600">Remember me for 30 days</span>
-              </label>
-              <button type="button" className="text-xs text-[#2d5016] hover:text-[#1a3009] font-medium">
-                Forgot Password?
-              </button>
             </div>
 
             {/* Login Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-[#3d6b1f] hover:bg-[#2d5016] text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-[#3d6b1f] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full py-4 px-8 bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black text-white font-semibold rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400/50 disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg shadow-gray-800/20 hover:shadow-xl hover:shadow-gray-800/30 backdrop-blur-sm border border-gray-700/30 mt-6"
             >
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-        </div>
-      </div>
 
-      {/* Right side - Plant Image */}
-      <div className="hidden lg:flex lg:w-[40%] xl:w-[35%] relative overflow-hidden rounded-3xl my-8 mr-8 border-2 border-white shadow-2xl">
-        <img
-          src="/src/assets/login-image.jpg"
-          alt="Tropical plant leaves"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-l from-transparent to-white/10"></div>
+          {/* Footer */}
+          <p className="mt-8 text-center text-xs text-gray-500">
+            Secure audit platform for compliance and validation
+          </p>
+        </div>
       </div>
     </div>
   );
