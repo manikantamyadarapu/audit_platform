@@ -159,7 +159,7 @@ def grams_product_norms() -> frozenset[str]:
 def load_metal_rate_rule_book_config() -> dict:
     path = _CONFIG_DIR / 'metal_rate_rule_book.json'
     if not path.exists():
-        return {'allowed_variation_percent': 30}
+        return {'allowed_variation_percent': 15}
     return json.loads(path.read_text(encoding='utf-8'))
 
 

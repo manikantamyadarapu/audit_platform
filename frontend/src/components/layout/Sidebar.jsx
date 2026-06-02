@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BellRing,
@@ -19,6 +19,9 @@ import {
   Settings,
   Undo2,
   Weight,
+  LogOut,
+  X,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useAppUi } from '../../context/AppUiContext';
@@ -162,6 +165,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
 }
 
 export function Sidebar() {
+  const navigate = useNavigate();
   const { sidebarCollapsed, setSidebarCollapsed, setDivision } = useAppUi();
   const { pathname } = useLocation();
   const ensureScrutiny = () => setDivision('scrutiny');
@@ -173,6 +177,7 @@ export function Sidebar() {
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -279,24 +284,78 @@ export function Sidebar() {
           </NavGroup>
 
           <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
+          <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>
       </nav>
 
       {!sidebarCollapsed ? (
-        <div className="m-7">
-          <div className="rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
+        <div className="m-7 relative">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="w-full rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)] hover:bg-slate-50 transition-colors"
+          >
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700">
                 AD
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 text-left">
                 <p className="truncate text-sm font-bold text-slate-950">Admin User</p>
                 <p className="truncate text-xs text-slate-600">admin@haa.com</p>
               </div>
-              <span className="text-sm text-slate-500">v</span>
+              <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
             </div>
-          </div>
+          </button>
+
+          {/* Dropdown Menu */}
+          {showUserMenu && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-blue-100 bg-white shadow-xl overflow-hidden">
+              {/* User Profile Header */}
+              <div className="flex flex-col items-center py-6 border-b border-gray-100">
+                <div className="h-16 w-16 rounded-full bg-blue-400 flex items-center justify-center text-white font-semibold text-xl mb-3">
+                  AD
+                </div>
+                <p className="text-gray-700 font-medium">Admin User</p>
+              </div>
+
+              {/* Menu Items */}
+              <div className="py-2">
+                <button
+                  onClick={() => {
+                    navigate('/users');
+                    setShowUserMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <UserCircle className="h-4 w-4" />
+                  <span>My Profile</span>
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/settings');
+                    setShowUserMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('isAuthenticated');
+                    navigate('/login');
+                    setShowUserMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Log Out</span>
+                </button>
+              </div>
+
+              {/* Footer Links */}
+            </div>
+          )}
         </div>
       ) : null}
     </motion.aside>

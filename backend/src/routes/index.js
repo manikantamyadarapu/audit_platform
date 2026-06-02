@@ -4,6 +4,8 @@ const grossWeightRoutes = require('./grossWeight.routes');
 const salesRoutes = require('./sales.routes');
 const rateRulesRoutes = require('./rateRules.routes');
 const diamondRateRulesRoutes = require('./diamondRateRules.routes');
+const authRoutes = require('./auth.routes');
+const userRoutes = require('./user.routes');
 
 const router = express.Router();
 
@@ -12,5 +14,7 @@ router.use('/process/gross-weight', grossWeightRoutes);
 router.use('/process/sales', salesRoutes);
 router.use('/rate-rules', rateRulesRoutes);
 router.use('/diamond-rate-rules', diamondRateRulesRoutes);
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
 
 module.exports = router;

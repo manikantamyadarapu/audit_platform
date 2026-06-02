@@ -3,74 +3,149 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// 1. USERS - Authentication & authorization
-model User {
-  id            Int         @id @default(autoincrement())
-  name          String      @db.VarChar(100)
-  email         String      @unique @db.VarChar(255)
-  role          UserRole    @default(AUDITOR)
-  passwordHash  String      @map("password_hash") @db.VarChar(255)
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+// ============================================================================
+// 1. ROLES - Master table for user roles
+// ============================================================================
+model Role {
+  id          Int       @id @default(autoincrement())
+  roleName    String    @unique @map("role_name") @db.VarChar(50)
+  description String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
+  users       User[]
+
+  @@index([roleName])
+  @@map("roles")
+}
+
+// ============================================================================
+// 2. USERS - Authentication & authorization
+// ============================================================================
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String    @db.VarChar(100)
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  roleId        Int       @map("role_id")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  role          Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
   auditRuns     AuditRun[]
-  ruleUpdates   RuleBook[]
+  uploadedFiles UploadedFile[]
+  ruleUpdates   MasterRule[]
 
   @@index([email])
-  @@index([role])
+  @@index([roleId])
+  @@index([isActive])
   @@map("users")
 }
 
-enum UserRole {
-  ADMIN
-  AUDITOR
-  VIEWER
+// ============================================================================
+// 3. AUDIT_TYPES - Master table for audit types
+// ============================================================================
+model AuditType {
+  id          Int       @id @default(autoincrement())
+  auditCode   String    @unique @map("audit_code") @db.VarChar(50)
+  auditName   String    @map("audit_name") @db.VarChar(100)
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  auditRuns       AuditRun[]
+  masterRules     MasterRule[]
+  dashboardMetrics DashboardAuditMetric[]
+
+  @@index([auditCode])
+  @@index([isActive])
+  @@map("audit_types")
 }
 
-// 2. AUDIT_RUNS - Main tracking for each validation job
+// ============================================================================
+// 4. MASTER_RULES - Single place for all audit rules
+// ============================================================================
+model MasterRule {
+  id                  Int       @id @default(autoincrement())
+  auditTypeId         Int       @map("audit_type_id")
+  ruleName            String    @map("rule_name") @db.VarChar(100)
+  productNorm         String?   @map("product_norm") @db.VarChar(100)
+  
+  // Value ranges
+  minValue            Decimal?  @map("min_value") @db.Decimal(15, 4)
+  maxValue            Decimal?  @map("max_value") @db.Decimal(15, 4)
+  variationPercent    Decimal?  @map("variation_percent") @db.Decimal(5, 2)
+  
+  // Additional rule config (JSON for flexibility)
+  ruleConfig          Json?     @map("rule_config")
+  
+  isActive            Boolean   @default(true) @map("is_active")
+  updatedBy           Int?      @map("updated_by")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  auditType           AuditType @relation(fields: [auditTypeId], references: [id], onDelete: Cascade)
+  updatedByUser       User?     @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([auditTypeId, isActive])
+  @@index([ruleName])
+  @@index([productNorm])
+  @@map("master_rules")
+}
+
+// ============================================================================
+// 5. AUDIT_RUNS - Main table for each uploaded file/audit
+// ============================================================================
 model AuditRun {
   id              Int           @id @default(autoincrement())
-  auditType       AuditType     @map("audit_type")
+  auditTypeId     Int           @map("audit_type_id")
   fileName        String        @map("file_name") @db.VarChar(255)
   
   // User relation
-  uploadedBy      Int?          @map("uploaded_by")
-  user            User?         @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
-  
-  // Metrics
-  totalRows       Int           @default(0) @map("total_rows")
-  invalidRows     Int           @default(0) @map("invalid_rows")
+  uploadedBy      Int           @map("uploaded_by")
   
   // Status tracking
   status          AuditStatus   @default(PENDING)
   errorMessage    String?       @map("error_message") @db.Text
   
+  // Metrics
+  totalRows       Int           @default(0) @map("total_rows")
+  invalidRows     Int           @default(0) @map("invalid_rows")
+  
   // Processing time
   startedAt       DateTime?     @map("started_at")
   completedAt     DateTime?     @map("completed_at")
   createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   // Relations
+  auditType       AuditType     @relation(fields: [auditTypeId], references: [id], onDelete: Restrict)
+  uploader        User          @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
   uploadedFile    UploadedFile?
-  issues          ValidationIssue[]
+  issueCounts     AuditIssueCount[]
+  performance     AuditPerformance?
+  
+  // Summary tables
+  grossSummary    GrossAuditSummary?
+  rateSummary     RateAuditSummary?
+  idProofSummary  IdProofAuditSummary?
 
-  @@index([auditType, createdAt])
+  @@index([auditTypeId, createdAt])
   @@index([status])
   @@index([uploadedBy])
   @@index([createdAt])
   @@map("audit_runs")
-}
-
-enum AuditType {
-  SALES
-  GROSS_WEIGHT
-  PAN_AUDIT
-  DIAMOND_RATE
 }
 
 enum AuditStatus {
@@ -80,113 +155,227 @@ enum AuditStatus {
   FAILED
 }
 
-// 3. RULE_BOOK - Gold, Silver, Diamond rates (editable)
-model RuleBook {
-  id              Int       @id @default(autoincrement())
-  ruleType        RuleType  @map("rule_type")
-  productName     String    @map("product_name") @db.VarChar(100)
-  productNorm     String    @map("product_norm") @db.VarChar(100)
-  
-  // Rate bands
-  minRate         Decimal?  @map("min_rate") @db.Decimal(12, 2)
-  maxRate         Decimal?  @map("max_rate") @db.Decimal(12, 2)
-  variationPct    Decimal   @default(15.00) @map("variation_pct") @db.Decimal(5, 2)
-  
-  // Audit trail
-  updatedBy       Int?      @map("updated_by")
-  updatedByUser     User?     @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  isActive        Boolean   @default(true) @map("is_active")
-
-  @@unique([productNorm, ruleType])
-  @@index([ruleType, isActive])
-  @@index([productNorm])
-  @@map("rule_book")
-}
-
-enum RuleType {
-  GOLD
-  SILVER
-  DIAMOND
-  GEMSTONE
-  UOM
-}
-
-// 4. UPLOADED_FILES - File storage tracking
+// ============================================================================
+// 6. UPLOADED_FILES - File upload history
+// ============================================================================
 model UploadedFile {
   id              Int       @id @default(autoincrement())
   auditRunId      Int       @unique @map("audit_run_id")
-  auditRun        AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
-  
   fileName        String    @map("file_name") @db.VarChar(255)
   originalName    String    @map("original_name") @db.VarChar(255)
-  storagePath     String    @map("storage_path") @db.VarChar(500)
-  fileSizeBytes   BigInt?   @map("file_size_bytes")
-  fileHash        String?   @map("file_hash") @db.VarChar(64)
+  fileSize        BigInt    @map("file_size")
+  fileHash        String    @map("file_hash") @db.VarChar(64)
+  storagePath     String?   @map("storage_path") @db.VarChar(500)
+  mimeType        String?   @map("mime_type") @db.VarChar(100)
+  uploadedBy      Int       @map("uploaded_by")
   uploadedAt      DateTime  @default(now()) @map("uploaded_at")
+
+  // Relations
+  auditRun        AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  uploader        User      @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
 
   @@index([auditRunId])
   @@index([fileHash])
   @@map("uploaded_files")
 }
 
-// 5. DASHBOARD_METRICS - Daily aggregates for charts
-model DashboardMetric {
-  id                  Int       @id @default(autoincrement())
-  auditDate           DateTime  @unique @map("audit_date") @db.Date
-  
-  // Volume metrics
-  totalFiles          Int       @default(0) @map("total_files")
-  totalRows           Int       @default(0) @map("total_rows")
-  invalidRows         Int       @default(0) @map("invalid_rows")
-  
-  // Breakdown by type
-  salesAudits         Int       @default(0) @map("sales_audits")
-  gwAudits            Int       @default(0) @map("gw_audits")
-  panAudits           Int       @default(0) @map("pan_audits")
-  
-  // Avg processing time in seconds
-  avgProcessingSec    Decimal?  @map("avg_processing_sec") @db.Decimal(10, 2)
-  
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+// ============================================================================
+// 7. AUDIT_ISSUE_COUNTS - Summary of issues (no row storage)
+// ============================================================================
+model AuditIssueCount {
+  id              Int       @id @default(autoincrement())
+  auditRunId      Int       @map("audit_run_id")
+  issueCode       String    @map("issue_code") @db.VarChar(50)
+  issueName       String    @map("issue_name") @db.VarChar(100)
+  issueCount      Int       @default(0) @map("issue_count")
+  severity        Severity  @default(ERROR)
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  @@index([auditDate])
-  @@map("dashboard_metrics")
-}
+  // Relations
+  auditRun        AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
 
-// 6. VALIDATION_ISSUES - Detailed validation errors
-model ValidationIssue {
-  id              Int         @id @default(autoincrement())
-  auditRunId      Int         @map("audit_run_id")
-  auditRun        AuditRun    @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
-  
-  rowNumber       Int         @map("row_number")
-  issueType       IssueType   @map("issue_type")
-  severity        Severity    @default(ERROR)
-  message         String?     @db.Text
-  fieldName       String?     @map("field_name") @db.VarChar(50)
-  expectedValue   String?     @map("expected_value") @db.Text
-  actualValue     String?     @map("actual_value") @db.Text
-  
-  createdAt       DateTime    @default(now()) @map("created_at")
-
+  @@unique([auditRunId, issueCode])
   @@index([auditRunId])
-  @@index([issueType])
-  @@index([auditRunId, rowNumber])
-  @@map("validation_issues")
-}
-
-enum IssueType {
-  INVALID_PRODUCT_MAPPING
-  INVALID_UOM
-  INVALID_RATE_DEVIATION
-  INVALID_UNIT_RATE_RANGE
-  MISSING_RATE_RULE
-  MISSING_UNIT_RATE
+  @@index([issueCode])
+  @@map("audit_issue_counts")
 }
 
 enum Severity {
   ERROR
   WARNING
+  INFO
+}
+
+// ============================================================================
+// 8. GROSS_AUDIT_SUMMARY - Gross weight audit summary
+// ============================================================================
+model GrossAuditSummary {
+  id                  Int       @id @default(autoincrement())
+  auditRunId          Int       @unique @map("audit_run_id")
+  
+  // Mismatch counts
+  grossMismatchCount  Int       @default(0) @map("gross_mismatch_count")
+  netMismatchCount    Int       @default(0) @map("net_mismatch_count")
+  stoneMismatchCount  Int       @default(0) @map("stone_mismatch_count")
+  
+  // Summary
+  validRows           Int       @default(0) @map("valid_rows")
+  invalidRows         Int       @default(0) @map("invalid_rows")
+  
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  auditRun            AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@map("gross_audit_summary")
+}
+
+// ============================================================================
+// 9. RATE_AUDIT_SUMMARY - Rate verification summary
+// ============================================================================
+model RateAuditSummary {
+  id                  Int       @id @default(autoincrement())
+  auditRunId          Int       @unique @map("audit_run_id")
+  
+  // Deviation counts
+  goldDeviationCount    Int       @default(0) @map("gold_deviation_count")
+  silverDeviationCount  Int       @default(0) @map("silver_deviation_count")
+  diamondDeviationCount Int       @default(0) @map("diamond_deviation_count")
+  
+  // Other issues
+  missingRuleCount      Int       @default(0) @map("missing_rule_count")
+  rateOutOfRangeCount   Int       @default(0) @map("rate_out_of_range_count")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  auditRun              AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@map("rate_audit_summary")
+}
+
+// ============================================================================
+// 10. ID_PROOF_AUDIT_SUMMARY - ID proof audit summary
+// ============================================================================
+model IdProofAuditSummary {
+  id                      Int       @id @default(autoincrement())
+  auditRunId              Int       @unique @map("audit_run_id")
+  
+  // Invalid counts
+  invalidPanCount         Int       @default(0) @map("invalid_pan_count")
+  invalidAadharCount      Int       @default(0) @map("invalid_aadhar_count")
+  invalidGstCount         Int       @default(0) @map("invalid_gst_count")
+  
+  // Duplicate counts
+  duplicatePanCount       Int       @default(0) @map("duplicate_pan_count")
+  duplicateAadharCount    Int       @default(0) @map("duplicate_aadhar_count")
+  
+  // Missing ID
+  missingIdCount          Int       @default(0) @map("missing_id_count")
+  
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  auditRun                AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@map("id_proof_audit_summary")
+}
+
+// ============================================================================
+// 11. AUDIT_PERFORMANCE - Performance metrics per audit
+// ============================================================================
+model AuditPerformance {
+  id                Int       @id @default(autoincrement())
+  auditRunId        Int       @unique @map("audit_run_id")
+  
+  // Processing metrics
+  processingTimeMs  Int       @map("processing_time_ms")
+  memoryUsageMb     Decimal?  @map("memory_usage_mb") @db.Decimal(10, 2)
+  
+  // Throughput
+  rowsProcessed   Int       @map("rows_processed")
+  rowsPerSecond   Decimal?  @map("rows_per_second") @db.Decimal(10, 2)
+  
+  // Resource usage
+  cpuUsagePercent Decimal?  @map("cpu_usage_percent") @db.Decimal(5, 2)
+  
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  auditRun        AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@map("audit_performance")
+}
+
+// ============================================================================
+// 12. DASHBOARD_SUMMARY - Daily dashboard cards data
+// ============================================================================
+model DashboardSummary {
+  id                      Int       @id @default(autoincrement())
+  summaryDate             DateTime  @unique @map("summary_date") @db.Date
+  
+  // File metrics
+  totalFilesUploaded      Int       @default(0) @map("total_files_uploaded")
+  
+  // Audit metrics
+  totalAudits             Int       @default(0) @map("total_audits")
+  completedAudits         Int       @default(0) @map("completed_audits")
+  failedAudits            Int       @default(0) @map("failed_audits")
+  processingAudits        Int       @default(0) @map("processing_audits")
+  
+  // Row metrics
+  totalRowsProcessed      Int       @default(0) @map("total_rows_processed")
+  totalInvalidRows        Int       @default(0) @map("total_invalid_rows")
+  
+  // User metrics
+  totalUsers              Int       @default(0) @map("total_users")
+  
+  // Performance
+  avgProcessingTimeSec    Decimal?  @map("avg_processing_time_sec") @db.Decimal(10, 2)
+  successRate             Decimal?  @map("success_rate") @db.Decimal(5, 2)
+  
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  auditMetrics            DashboardAuditMetric[]
+
+  @@index([summaryDate])
+  @@map("dashboard_summary")
+}
+
+// ============================================================================
+// 13. DASHBOARD_AUDIT_METRICS - Metrics by audit type for charts
+// ============================================================================
+model DashboardAuditMetric {
+  id                      Int       @id @default(autoincrement())
+  dashboardSummaryId      Int       @map("dashboard_summary_id")
+  auditTypeId           Int       @map("audit_type_id")
+  
+  // Counts
+  totalAudits           Int       @default(0) @map("total_audits")
+  totalRows             Int       @default(0) @map("total_rows")
+  totalInvalidRows      Int       @default(0) @map("total_invalid_rows")
+  
+  // Performance
+  avgProcessingTime     Decimal?  @map("avg_processing_time") @db.Decimal(10, 2)
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  dashboardSummary      DashboardSummary @relation(fields: [dashboardSummaryId], references: [id], onDelete: Cascade)
+  auditType             AuditType        @relation(fields: [auditTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([dashboardSummaryId, auditTypeId])
+  @@index([dashboardSummaryId])
+  @@index([auditTypeId])
+  @@map("dashboard_audit_metrics")
 }

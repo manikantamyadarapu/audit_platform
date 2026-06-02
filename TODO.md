@@ -1,5 +1,0 @@
-- [ ] Add strict PAN format regex validation (trim + uppercase) in python-service/app/processors/pan_processor.py
-- [ ] Wire strict format validation into __pan_ok/__pan1_ok so INVALID_PAN_FORMAT is triggered per new pattern when Total Value > 200000 and PAN present
-- [ ] Ensure validation runs only when PAN value is present (blank should not trigger invalid pan format)
-- [ ] Update/extend python-service/tests/test_pan_processor.py with the provided valid/invalid examples and trimming/uppercase behavior
-- [ ] Run python-service unit tests for pan processor
