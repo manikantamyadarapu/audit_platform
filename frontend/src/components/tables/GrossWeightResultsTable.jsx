@@ -68,19 +68,19 @@ export function GrossWeightResultsTable({ data }) {
       accessorKey: 'manualGrossWeight',
       header: 'Manual Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
     },
     {
       accessorKey: 'autoGrossWeight',
       header: 'Auto Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
     },
     {
       accessorKey: 'difference',
       header: 'Difference in Gross Wt.',
       enableSorting: true,
-      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue())}</span>,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
     },
     {
       accessorKey: 'issues',

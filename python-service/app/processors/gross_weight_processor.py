@@ -20,7 +20,9 @@ from app.utils.weight_decimal import parse_weight_decimal
 class GrossWeightProcessor(BaseProcessor):
     def __init__(self) -> None:
         self.reader = ExcelReader()
-        self._match_epsilon = Decimal("0.002")
+        # Treat tiny rounding/noise differences as valid.
+        # Business expectation: values like 0.003 / -0.004 should not be flagged.
+        self._match_epsilon = Decimal("0.005")
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
@@ -59,6 +61,8 @@ class GrossWeightProcessor(BaseProcessor):
             summary={
                 "mismatchCount": len(invalid_rows_df),
                 "differenceViolations": 0,
+                "negativeValueViolations": negative_invalid_count,
+                "positiveInvalidCount": positive_invalid_count,
                 "weightMismatch": len(invalid_rows_df),
             },
             records=records,
@@ -153,7 +157,7 @@ class GrossWeightProcessor(BaseProcessor):
             
             # Add rowNumber for SNo column (use valueRowIndex which has the actual Excel row number)
             record["rowNumber"] = record.get("valueRowIndex") if record.get("valueRowIndex") is not None else ""
-            record["issues"] = ["GROSS WEIGHT MISMATCH"]
+            record["issues"] = ["GROSS_WEIGHT_MISMATCH"]
             records.append(record)
 
         return records
@@ -329,6 +333,7 @@ class GrossWeightProcessor(BaseProcessor):
             })
             
             flat_rows.append(row_dict)
+        return flat_rows
 
     def _find_difference_column(self, columns_set: set[str]) -> str | None:
         for column in (
