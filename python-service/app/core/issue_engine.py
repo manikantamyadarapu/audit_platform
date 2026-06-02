@@ -87,11 +87,48 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         category=IssueCategory.COMPLIANCE,
         default_message=PAN_MISSING_OR_INVALID_MESSAGE,
     ),
+    'MISSING_FORM_60': IssueDefinition(
+        issue_code='MISSING_FORM_60',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.COMPLIANCE,
+        default_message='PAN is missing/invalid; Form 60 should be provided.',
+    ),
+    'NO_PAN_NO_FORM60': IssueDefinition(
+        issue_code='NO_PAN_NO_FORM60',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.COMPLIANCE,
+        default_message='No PAN and no Form 60 available.',
+    ),
+    'NO_PAN_FORM60_AVAILABLE': IssueDefinition(
+        issue_code='NO_PAN_FORM60_AVAILABLE',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.COMPLIANCE,
+        default_message='No PAN but Form 60 is available.',
+    ),
+    'NO_PAN_INVALID_FORM60': IssueDefinition(
+        issue_code='NO_PAN_INVALID_FORM60',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.COMPLIANCE,
+        default_message='No PAN and Form 60 is invalid (too short).',
+    ),
+
     'MISSING_ADDRESS_PROOF_ABOVE_50K': IssueDefinition(
         issue_code='MISSING_ADDRESS_PROOF_ABOVE_50K',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
         default_message=ADDRESS_PROOF_MISSING_MESSAGE,
+    ),
+    'INVALID_ADDRESS': IssueDefinition(
+        issue_code='INVALID_ADDRESS',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.COMPLIANCE,
+        default_message='Address is missing or too short (must be more than 15 characters)',
+    ),
+    'VALID_ADDRESS_FORMAT': IssueDefinition(
+        issue_code='VALID_ADDRESS_FORMAT',
+        severity=IssueSeverity.LOW,
+        category=IssueCategory.COMPLIANCE,
+        default_message='Address proof present and appears valid.',
     ),
     'NEGATIVE_WEIGHT_VALUES': IssueDefinition(
         issue_code='NEGATIVE_WEIGHT_VALUES',
