@@ -1,13 +1,16 @@
-/** @typedef {'total' | 'errors' | 'missingPan' | 'invalidPan' | 'missingAddress' | 'compliance' | null} PanCardFilter */
+/** @typedef {'total' | 'validPan' | 'invalidPan' | 'noPanNoForm60' | 'noPanForm60Available' | 'noPanInvalidForm60' | 'gst50kAddressMissing' | 'incorrectAddressFormat' | 'validAddressFormat' | null} PanCardFilter */
 
 /** @type {Record<NonNullable<PanCardFilter>, string>} */
 export const PAN_FILTER_LABELS = {
-  total: 'All rows',
-  errors: 'Error rows',
-  missingPan: 'Missing PAN (> ₹2L)',
-  invalidPan: 'Invalid PAN format',
-  missingAddress: 'Missing address (> ₹50k)',
-  compliance: 'Compliance (no issues)',
+  total: 'Eligible PAN rows',
+  validPan: 'Valid PAN',
+  invalidPan: 'Incorrect PAN format',
+  noPanNoForm60: 'No PAN & No Form 60 (No Proof)',
+  noPanForm60Available: 'No PAN & Form 60 Available (Valid Proof)',
+  noPanInvalidForm60: 'No PAN & Invalid Form 60 (Short Proof)',
+  gst50kAddressMissing: 'gst>=50k address missing',
+  incorrectAddressFormat: 'incorrect address format',
+  validAddressFormat: 'valid address format',
 };
 
 /**
@@ -20,20 +23,30 @@ export function filterPanRecords(records, filter) {
   if (filter == null || filter === 'total') {
     return list;
   }
-  if (filter === 'errors') {
-    return list.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0);
-  }
-  if (filter === 'missingPan') {
-    return list.filter((r) => Array.isArray(r.issues) && r.issues.includes('MISSING_PAN_ABOVE_2L'));
+  if (filter === 'validPan') {
+    return list.filter((r) => r.panReport === 'validPan');
   }
   if (filter === 'invalidPan') {
-    return list.filter((r) => Array.isArray(r.issues) && r.issues.includes('INVALID_PAN_FORMAT'));
+    return list.filter((r) => r.panReport === 'invalidPan');
   }
-  if (filter === 'missingAddress') {
-    return list.filter((r) => Array.isArray(r.issues) && r.issues.includes('MISSING_ADDRESS_PROOF_ABOVE_50K'));
+  if (filter === 'noPanNoForm60') {
+    return list.filter((r) => r.panReport === 'noPanNoForm60');
   }
-  if (filter === 'compliance') {
-    return list.filter((r) => !Array.isArray(r.issues) || r.issues.length === 0);
+  if (filter === 'noPanForm60Available') {
+    return list.filter((r) => r.panReport === 'noPanForm60Available');
   }
+  if (filter === 'noPanInvalidForm60') {
+    return list.filter((r) => r.panReport === 'noPanInvalidForm60');
+  }
+  if (filter === 'gst50kAddressMissing') {
+    return list.filter((r) => r.addressReport === 'gst50kAddressMissing');
+  }
+  if (filter === 'incorrectAddressFormat') {
+    return list.filter((r) => r.addressReport === 'incorrectAddressFormat');
+  }
+  if (filter === 'validAddressFormat') {
+    return list.filter((r) => r.addressReport === 'validAddressFormat');
+  }
+
   return list;
 }

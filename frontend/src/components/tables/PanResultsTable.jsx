@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Badge } from '../ui/Badge';
 import { Pagination } from '../ui/Pagination';
 import { cn } from '../../utils/cn';
 import { exportRowsToCsv } from '../../utils/csvExport';
@@ -26,14 +25,16 @@ const PAN_EXPORT_COLS = [
   { header: 'Date', accessor: (r) => r.date ?? '' },
   { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
   { header: 'Party', accessor: (r) => r.party ?? '' },
-  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
+  { header: 'Issues', accessor: (r) => (r.issues || []).map(formatIssueLabel).join('; ') },
   { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
 ];
 
-function issueTone(code) {
-  if (code?.includes('MISSING')) return 'amber';
-  if (code?.includes('INVALID')) return 'rose';
-  return 'blue';
+const ISSUE_LABELS = {
+  MISSING_FORM_60: 'Form 60',
+};
+
+function formatIssueLabel(issue) {
+  return ISSUE_LABELS[issue] ?? String(issue).replace(/_/g, ' ');
 }
 
 function normalizeSearchValue(value) {
@@ -63,26 +64,26 @@ function formatValue(value, key) {
   if (value == null || value === '') return '—';
   if (key === 'issues') {
     if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+    // Single-line rendering (no wrapping) for the PAN audit widgets.
+    const issues = value.map(formatIssueLabel);
+    const text = issues.join('; ');
     return (
-      <div className="flex flex-wrap gap-1">
-        {value.map((issue) => (
-          <Badge key={issue} tone={issueTone(issue)} caps={false} className="text-[10px] font-medium">
-            {issue.replace(/_/g, ' ')}
-          </Badge>
-        ))}
-      </div>
+      <span className="block max-w-[420px] overflow-hidden text-ellipsis whitespace-nowrap" title={text}>
+        {text}
+      </span>
     );
   }
   if (key === 'messages') {
     if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+    // Single-line rendering (no wrapping) for the PAN audit widgets.
+    const text = value.join('; ');
     return (
-      <ul className="max-w-xs list-disc space-y-1 pl-4 text-xs text-slate-700">
-        {value.map((m) => (
-          <li key={m}>{m}</li>
-        ))}
-      </ul>
+      <span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap" title={text}>
+        {text}
+      </span>
     );
   }
+
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
@@ -188,7 +189,7 @@ export function PanResultsTable({ data }) {
                     <th
                       key={header.id}
                       className={cn(
-                        'whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500',
+                        'whitespace-nowrap overflow-hidden text-ellipsis px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500',
                         header.column.getCanSort() && 'cursor-pointer select-none hover:text-slate-800'
                       )}
                       onClick={header.column.getToggleSortingHandler()}
@@ -222,7 +223,9 @@ export function PanResultsTable({ data }) {
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-4 py-3 align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </div>
                       </td>
                     ))}
                   </tr>

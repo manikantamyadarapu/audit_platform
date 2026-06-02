@@ -4,7 +4,7 @@ PAN_REGEX = r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$'
 _PAN_COMPILED = re.compile(PAN_REGEX)
 
 # Non-PAN declarations treated as valid when a PAN is required (e.g. >₹2L), after normalizing spaces/hyphens.
-PAN_ALTERNATIVE_NORMALIZED = frozenset({'formno60', 'usdl'})
+PAN_ALTERNATIVE_NORMALIZED = frozenset({'usdl'})
 
 
 def compact_pan_input_for_validation(value: object) -> str:
@@ -22,13 +22,12 @@ def normalize_pan_alternative_key(value: object) -> str:
 
 
 def is_acceptable_pan_equivalent(value: object) -> bool:
-    """Indian PAN format, or accepted alternatives (Form No-60, US DL — spacing/hyphens ignored)."""
+    """Indian PAN format, or accepted alternatives (US DL — spacing/hyphens ignored)."""
     compact = compact_pan_input_for_validation(value)
     if compact and _PAN_COMPILED.fullmatch(compact):
         return True
     key = normalize_pan_alternative_key(value)
     return bool(key) and key in PAN_ALTERNATIVE_NORMALIZED
-
 
 # Human-readable PAN / address messages (codes remain in records['issues'] for API compatibility)
 PAN_MISSING_OR_INVALID_MESSAGE = 'No valid PAN found in PAN or PAN1 columns'
