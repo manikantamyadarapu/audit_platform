@@ -2,10 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
-  BadgeAlert,
   Download,
   FileSpreadsheet,
-  Home,
   Loader2,
   Rows3,
 } from 'lucide-react';
@@ -17,7 +15,7 @@ import { PanResultsTable } from '../components/tables/PanResultsTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import { KpiCard } from '../components/cards/KpiCard';
 import { validatePanExcel } from '../services/panService';
-import { formatNumber, formatPercent } from '../utils/format';
+import { formatNumber } from '../utils/format';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { filterPanRecords, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
 import { downloadPanRecordsXlsx } from '../utils/panXlsxExport';
@@ -87,9 +85,12 @@ export default function PanVerification() {
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
-  const errorRows = result?.errorRows ?? 0;
-  const compliance =
-    totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
+  const noPanNoForm60Count = summary.noPanNoForm60Count ?? 0;
+  const noPanForm60AvailableCount = summary.noPanForm60AvailableCount ?? 0;
+  const noPanInvalidForm60Count = summary.noPanInvalidForm60Count ?? 0;
+  const gst50kAddressMissingCount = summary.gst50kAddressMissingCount ?? 0;
+  const incorrectAddressFormatCount = summary.incorrectAddressFormatCount ?? 0;
+  const validAddressFormatCount = summary.validAddressFormatCount ?? 0;
 
   return (
     <div className="relative space-y-8">
@@ -133,58 +134,94 @@ export default function PanVerification() {
         <>
           <section>
             <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <KpiCard
-                label="Total rows"
-                value={formatNumber(totalRows)}
-                icon={Rows3}
-                accent="blue"
-              />
-              <KpiCard
-                label="Error rows"
-                value={formatNumber(errorRows)}
-                icon={AlertTriangle}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'errors'}
-                onClick={() => toggleCardFilter('errors')}
-              />
-              <KpiCard
-                label={'Missing PAN (> ₹2L)'}
-                value={formatNumber(summary.missingPanCount ?? summary.missingPanAbove2L ?? 0)}
-                icon={BadgeAlert}
-                accent="rose"
-                interactive
-                selected={activeFilter === 'missingPan'}
-                onClick={() => toggleCardFilter('missingPan')}
-              />
-              <KpiCard
-                label="Invalid PAN format"
-                value={formatNumber(summary.invalidPanFormatCount ?? summary.invalidPanFormat ?? 0)}
-                icon={AlertTriangle}
-                accent="rose"
-                interactive
-                selected={activeFilter === 'invalidPan'}
-                onClick={() => toggleCardFilter('invalidPan')}
-              />
-              <KpiCard
-                label={'Missing address (> ₹50k)'}
-                value={formatNumber(
-                  summary.missingAddressProofCount ?? summary.missingAddressProofAbove50K ?? 0
-                )}
-                icon={Home}
-                accent="violet"
-                interactive
-                selected={activeFilter === 'missingAddress'}
-                onClick={() => toggleCardFilter('missingAddress')}
-              />
-              <KpiCard
-                label="Compliance"
-                value={compliance != null ? formatPercent(compliance) : '—'}
-                hint="Clean rows / total rows"
-                icon={Rows3}
-                accent="emerald"
-              />
+
+            {/* KPI widgets arranged in two labeled rows for clarity */}
+            <div>
+              <div className="mb-2 text-sm font-semibold text-slate-700">PAN summary</div>
+              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-1">
+                <KpiCard
+                  label="Total workbook rows"
+                  value={formatNumber(totalRows)}
+                  icon={Rows3}
+                  accent="blue"
+                />
+                <KpiCard
+                  label="Valid PAN"
+                  value={formatNumber(summary.validPanCount ?? 0)}
+                  icon={Rows3}
+                  accent="emerald"
+                  interactive
+                  selected={activeFilter === 'validPan'}
+                  onClick={() => toggleCardFilter('validPan')}
+                />
+                <KpiCard
+                  label="Incorrect PAN format"
+                  value={formatNumber(summary.incorrectPanFormatCount ?? summary.invalidPanFormatCount ?? summary.invalidPanFormat ?? 0)}
+                  icon={AlertTriangle}
+                  accent="rose"
+                  interactive
+                  selected={activeFilter === 'invalidPan'}
+                  onClick={() => toggleCardFilter('invalidPan')}
+                />
+                <KpiCard
+                  label="No PAN & Form 60 Available"
+                  value={formatNumber(noPanForm60AvailableCount)}
+                  icon={AlertTriangle}
+                  accent="emerald"
+                  interactive
+                  selected={activeFilter === 'noPanForm60Available'}
+                  onClick={() => toggleCardFilter('noPanForm60Available')}
+                />
+                <KpiCard
+                  label="No PAN & Invalid Form 60"
+                  value={formatNumber(noPanInvalidForm60Count)}
+                  icon={AlertTriangle}
+                  accent="rose"
+                  interactive
+                  selected={activeFilter === 'noPanInvalidForm60'}
+                  onClick={() => toggleCardFilter('noPanInvalidForm60')}
+                />
+                <KpiCard
+                  label="No PAN & No Form 60"
+                  value={formatNumber(noPanNoForm60Count)}
+                  icon={AlertTriangle}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'noPanNoForm60'}
+                  onClick={() => toggleCardFilter('noPanNoForm60')}
+                />
+              </div>
+
+              <div className="mt-4 mb-2 text-sm font-semibold text-slate-700">Address checks</div>
+              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-1">
+                <KpiCard
+                  label="gst>=50k address missing"
+                  value={formatNumber(gst50kAddressMissingCount)}
+                  icon={AlertTriangle}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'gst50kAddressMissing'}
+                  onClick={() => toggleCardFilter('gst50kAddressMissing')}
+                />
+                <KpiCard
+                  label="incorrect address format"
+                  value={formatNumber(incorrectAddressFormatCount)}
+                  icon={AlertTriangle}
+                  accent="rose"
+                  interactive
+                  selected={activeFilter === 'incorrectAddressFormat'}
+                  onClick={() => toggleCardFilter('incorrectAddressFormat')}
+                />
+                <KpiCard
+                  label="valid address format"
+                  value={formatNumber(validAddressFormatCount)}
+                  icon={AlertTriangle}
+                  accent="emerald"
+                  interactive
+                  selected={activeFilter === 'validAddressFormat'}
+                  onClick={() => toggleCardFilter('validAddressFormat')}
+                />
+              </div>
             </div>
           </section>
 
@@ -192,8 +229,8 @@ export default function PanVerification() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
-                  <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV & PDF export</p>
+                  <h3 className="text-base font-bold text-emerald-700">PAN reports</h3>
+                  <p className="text-sm text-slate-500">Rows where Total Value is above ₹2L and PAN/PAN1 is present or Form 60 status</p>
                 </div>
                 <Button
                   variant="primary"
@@ -203,25 +240,27 @@ export default function PanVerification() {
                   onClick={runExport}
                 >
                   <Download className="h-4 w-4" />
-                  Export invalid rows (.xlsx)
+                  Export shown rows (.xlsx)
                 </Button>
               </div>
             </CardHeader>
             <CardBody>
               {result.records?.length || activeFilter != null ? (
                 <div className="space-y-4">
-                  <AuditFilterStrip
-                    activeFilter={activeFilter}
-                    labels={PAN_FILTER_LABELS}
-                    count={filteredRecords.length}
-                    onClear={() => setActiveFilter(null)}
-                  />
-                  <PanResultsTable data={filteredRecords} />
+                  <div className="space-y-3">
+                    <AuditFilterStrip
+                      activeFilter={activeFilter}
+                      labels={PAN_FILTER_LABELS}
+                      count={filteredRecords.length}
+                      onClear={() => setActiveFilter(null)}
+                    />
+                    <PanResultsTable data={filteredRecords} />
+                  </div>
                 </div>
               ) : (
                 <EmptyState
-                  title="No issues detected"
-                  description="Every normalized row satisfied PAN and address checks for this upload."
+                  title="No PAN report rows"
+                  description="No rows matched Total Value > ₹2L with PAN or PAN1 present."
                 />
               )}
             </CardBody>

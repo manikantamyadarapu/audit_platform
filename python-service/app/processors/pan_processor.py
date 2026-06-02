@@ -14,10 +14,9 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.engines.vectorized_validation_engine import VectorizedValidationEngine
 from app.processors.base import BaseProcessor
-from app.utils.constants import (
-    SPREADSHEET_EMPTY_TOKENS,
-    is_acceptable_pan_equivalent,
-)
+from app.utils.constants import SPREADSHEET_EMPTY_TOKENS, compact_pan_input_for_validation
+
+
 from app.utils.header_cleaner import normalize_header
 from app.utils.logger import get_logger
 from app.utils.response_builder import build_processing_response
@@ -48,6 +47,7 @@ class PanProcessor(BaseProcessor):
         invalid_df = self._validate_dataframe(df, data_columns)
         validation_ms = (perf_counter() - validation_start) * 1000
 
+
         # Debug: print a small preview of the read/validated data in terminal
         if get_settings().debug_exports_enabled():
             try:
@@ -61,33 +61,57 @@ class PanProcessor(BaseProcessor):
                 print('PAN audit - invalid rows preview (first 20 rows):')
                 for r in invalid_preview:
                     print(r)
+
             except Exception as exc:
                 print(f'PAN audit debug print failed: {exc}')
+
 
         extraction_start = perf_counter()
 
         records: list[dict[str, Any]] = []
-        missing_pan_count = int(invalid_df['missing_pan_issue'].sum() or 0)
+        valid_pan_count = int(invalid_df['valid_pan_issue'].sum() or 0)
         invalid_pan_format_count = int(invalid_df['invalid_pan_issue'].sum() or 0)
-        missing_address_proof_count = int(invalid_df['missing_address_issue'].sum() or 0)
-        invalid_address_count = int(invalid_df['invalid_address_issue'].sum() or 0)
-        self._log.info(f'Missing Address Proof count: {missing_address_proof_count}')
-        self._log.info(f'Invalid Address count: {invalid_address_count}')
-        print(f'Missing Address Proof count: {missing_address_proof_count}')
-        print(f'Invalid Address count: {invalid_address_count}')
+        no_pan_no_form60_count = int(invalid_df['no_pan_no_form60_issue'].sum() or 0)
+        no_pan_form60_available_count = int(invalid_df['no_pan_form60_available_issue'].sum() or 0)
+        no_pan_invalid_form60_count = int(invalid_df['no_pan_invalid_form60_issue'].sum() or 0)
+        # GST >= 50k address-related counts
+        gst50k_address_missing_count = int(invalid_df['gst50k_address_missing_issue'].sum() or 0) if 'gst50k_address_missing_issue' in invalid_df.columns else 0
+        incorrect_address_format_count = int(invalid_df['incorrect_address_format_issue'].sum() or 0) if 'incorrect_address_format_issue' in invalid_df.columns else 0
+        valid_address_format_count = int(invalid_df['valid_address_format_issue'].sum() or 0) if 'valid_address_format_issue' in invalid_df.columns else 0
+        eligible_pan_count = valid_pan_count + invalid_pan_format_count
 
         for invalid_row in invalid_df.to_dicts():
             row_num = invalid_row.get('row_number')
             
             issues: list[str] = []
-            if invalid_row.get('missing_pan_issue'):
-                issues.append('MISSING_PAN_ABOVE_2L')
+            report_type = None
+            address_report = None
+            
             if invalid_row.get('invalid_pan_issue'):
                 issues.append('INVALID_PAN_FORMAT')
-            if invalid_row.get('missing_address_issue'):
+                report_type = 'invalidPan'
+            elif invalid_row.get('valid_pan_issue'):
+                report_type = 'validPan'
+            elif invalid_row.get('no_pan_no_form60_issue'):
+                issues.append('NO_PAN_NO_FORM60')
+                report_type = 'noPanNoForm60'
+            elif invalid_row.get('no_pan_form60_available_issue'):
+                issues.append('NO_PAN_FORM60_AVAILABLE')
+                report_type = 'noPanForm60Available'
+            elif invalid_row.get('no_pan_invalid_form60_issue'):
+                issues.append('NO_PAN_INVALID_FORM60')
+                report_type = 'noPanInvalidForm60'
+
+            # GST >= 50k address checks
+            if invalid_row.get('gst50k_address_missing_issue'):
                 issues.append('MISSING_ADDRESS_PROOF_ABOVE_50K')
-            if invalid_row.get('invalid_address_issue'):
+                address_report = 'gst50kAddressMissing'
+            elif invalid_row.get('incorrect_address_format_issue'):
                 issues.append('INVALID_ADDRESS')
+                address_report = 'incorrectAddressFormat'
+            elif invalid_row.get('valid_address_format_issue'):
+                issues.append('VALID_ADDRESS_FORMAT')
+                address_report = 'validAddressFormat'
 
             # Build record with all original columns
             record = {'rowNumber': self._json_value(row_num)}
@@ -108,13 +132,13 @@ class PanProcessor(BaseProcessor):
             
             record['issues'] = issues
             record['messages'] = self._messages_for_issues(issues)
+            record['panReport'] = report_type or 'invalidPan'
+            if address_report is not None:
+                record['addressReport'] = address_report
             records.append(record)
 
-        missing_address_proof_records = self._records_with_issue(
-            records,
-            'MISSING_ADDRESS_PROOF_ABOVE_50K',
-        )
-        invalid_address_records = self._records_with_issue(records, 'INVALID_ADDRESS')
+        missing_address_proof_records: list[dict[str, Any]] = []
+        invalid_address_records: list[dict[str, Any]] = []
 
         extraction_ms = (perf_counter() - extraction_start) * 1000
         self.engine.log_benchmark(
@@ -128,15 +152,27 @@ class PanProcessor(BaseProcessor):
         )
 
         summary = {
-            'missingPanCount': missing_pan_count,
+            'eligiblePanCount': eligible_pan_count,
+            'validPanCount': valid_pan_count,
+            'incorrectPanFormatCount': invalid_pan_format_count,
+            'missingPanCount': 0,
+            'missingForm60Count': 0,
             'invalidPanFormatCount': invalid_pan_format_count,
-            'missingAddressProofCount': missing_address_proof_count,
-            'invalidAddressCount': invalid_address_count,
-            'missingPanAbove2L': missing_pan_count,
+            'missingAddressProofCount': 0,
+            'invalidAddressCount': 0,
+            'missingPanAbove2L': 0,
+            'missingForm60': 0,
             'invalidPanFormat': invalid_pan_format_count,
-            'missingAddressProofAbove50K': missing_address_proof_count,
-            'invalidAddress': invalid_address_count,
+            'noPanNoForm60Count': no_pan_no_form60_count,
+            'noPanForm60AvailableCount': no_pan_form60_available_count,
+            'noPanInvalidForm60Count': no_pan_invalid_form60_count,
+            'gst50kAddressMissingCount': gst50k_address_missing_count,
+            'incorrectAddressFormatCount': incorrect_address_format_count,
+            'validAddressFormatCount': valid_address_format_count,
+            'missingAddressProofAbove50K': 0,
+            'invalidAddress': 0,
         }
+
 
         if get_settings().debug_exports_enabled():
             self._export_issue_rows_debug(
@@ -148,7 +184,7 @@ class PanProcessor(BaseProcessor):
         response = build_processing_response(
             file_type='pan',
             total_rows=total_rows,
-            error_rows=len(records),
+            error_rows=invalid_pan_format_count,
             summary=summary,
             records=records,
         )
@@ -335,19 +371,7 @@ class PanProcessor(BaseProcessor):
         )
 
     def _validate_dataframe(self, df: pl.DataFrame, data_columns: list[str]) -> pl.DataFrame:
-        working = self._ensure_columns(
-            df,
-            [
-                'total_value',
-                'gross_amount',
-                'pan',
-                'pan1',
-                'add_proof',
-                'add_proof_2',
-                'address',
-                '__excel_row_number__',
-            ],
-        )
+        working = self._ensure_columns(df, ['total_value', 'pan', 'pan1', '__excel_row_number__', 'add_proof', 'add_proof_2', 'address'])
         column_set = set(data_columns)
 
         validated = working.with_columns(
@@ -372,45 +396,91 @@ class PanProcessor(BaseProcessor):
                 lambda value: value is not None and self.is_valid_pan(value),
                 return_dtype=pl.Boolean,
             ).alias('__pan1_ok'),
+            pl.col('__add_proof_text').map_elements(
+                lambda value: value is not None and len(value) > 5,
+                return_dtype=pl.Boolean,
+            ).alias('__add_proof_valid'),
+            pl.col('__add_proof_2_text').map_elements(
+                lambda value: value is not None and len(value) > 5,
+                return_dtype=pl.Boolean,
+            ).alias('__add_proof_2_valid'),
+            pl.col('__address_text').map_elements(
+                lambda value: value is not None and len(value) > 5,
+                return_dtype=pl.Boolean,
+            ).alias('__address_valid'),
         )
+
         
 
         should_check = pl.col('__should_skip').fill_null(False).not_()
         pan_needed = pl.col('__total_value_amount') > 200000
-        address_needed = pl.col('__gross_amount_amount') >= 50000
-        address_column_available = pl.lit('address' in column_set)
         pan_valid = pl.col('__pan_ok').fill_null(False) | pl.col('__pan1_ok').fill_null(False)
-        pan_missing = pl.col('__pan_text').is_null() & pl.col('__pan1_text').is_null()
-        address_missing_or_short = (
-            pl.col('__address_text').is_null()
-            | (pl.col('__address_text').str.len_chars() <= 15)
+        pan_present = pl.col('__pan_text').is_not_null() | pl.col('__pan1_text').is_not_null()
+        pan_invalid_specific = (
+            (pl.col('__pan_text').is_not_null() & pl.col('__pan_ok').fill_null(False).not_())
+            | (pl.col('__pan1_text').is_not_null() & pl.col('__pan1_ok').fill_null(False).not_())
         )
+        
+        # Only check add_proof/add_proof_2/address when BOTH pan and pan1 are blank
+        pan_both_blank = pl.col('__pan_text').is_null() & pl.col('__pan1_text').is_null()
+
+        # Form 60 validation logic (only when pan_needed AND pan_both_blank)
+        add_proof_text = pl.col('__add_proof_text')
+        add_proof_2_text = pl.col('__add_proof_2_text')
+        address_text = pl.col('__address_text')
+        add_proof_valid = pl.col('__add_proof_valid').fill_null(False)
+        add_proof_2_valid = pl.col('__add_proof_2_valid').fill_null(False)
+        address_valid = pl.col('__address_valid').fill_null(False)
+        
+        # All three are blank (add_proof, add_proof_2, address)
+        all_form60_blank = add_proof_text.is_null() & add_proof_2_text.is_null() & address_text.is_null()
+        
+        # Any of the three has length > 5 (form 60 available)
+        form60_available = add_proof_valid | add_proof_2_valid | address_valid
+        
+        # Any of the three is not blank but has length <= 5, AND none have length > 5 (form 60 invalid)
+        form60_has_short = (
+            (add_proof_text.is_not_null() & add_proof_valid.not_())
+            | (add_proof_2_text.is_not_null() & add_proof_2_valid.not_())
+            | (address_text.is_not_null() & address_valid.not_())
+        )
+        form60_invalid = form60_has_short & form60_available.not_()
+
+        # Gross amount checks for address validation when gross_amount >= 50000
+        gross_needed = pl.col('__gross_amount_amount') >= 50000
 
         with_issues = validated.with_columns(
-            (should_check & pan_needed & pan_valid.not_() & pan_missing)
+            (should_check & pan_needed & pan_present & pan_valid & pan_invalid_specific.not_())
             .fill_null(False)
-            .alias('missing_pan_issue'),
-            (should_check & pan_needed & pan_valid.not_() & pan_missing.not_())
+            .alias('valid_pan_issue'),
+            (should_check & pan_needed & pan_present & pan_invalid_specific)
             .fill_null(False)
             .alias('invalid_pan_issue'),
-            (
-                should_check
-                & address_needed
-                & pl.col('__add_proof_text').is_null()
-                & pl.col('__add_proof_2_text').is_null()
-            )
+            (should_check & pan_needed & pan_both_blank & all_form60_blank)
             .fill_null(False)
-            .alias('missing_address_issue'),
-            (should_check & address_column_available & address_needed & address_missing_or_short)
+            .alias('no_pan_no_form60_issue'),
+            (should_check & pan_needed & pan_both_blank & form60_available & all_form60_blank.not_())
             .fill_null(False)
-            .alias('invalid_address_issue'),
+            .alias('no_pan_form60_available_issue'),
+            (should_check & pan_needed & pan_both_blank & form60_invalid)
+            .fill_null(False)
+            .alias('no_pan_invalid_form60_issue'),
+            # GST >= 50k address checks
+            (should_check & gross_needed & all_form60_blank)
+            .fill_null(False)
+            .alias('gst50k_address_missing_issue'),
+            (should_check & gross_needed & form60_invalid)
+            .fill_null(False)
+            .alias('incorrect_address_format_issue'),
+            (should_check & gross_needed & form60_available & all_form60_blank.not_())
+            .fill_null(False)
+            .alias('valid_address_format_issue'),
         )
 
         return with_issues.filter(
-            pl.col('missing_pan_issue')
-            | pl.col('invalid_pan_issue')
-            | pl.col('missing_address_issue')
-            | pl.col('invalid_address_issue')
+            pl.col('valid_pan_issue') | pl.col('invalid_pan_issue') | pl.col('no_pan_no_form60_issue')
+            | pl.col('no_pan_form60_available_issue') | pl.col('no_pan_invalid_form60_issue')
+            | pl.col('gst50k_address_missing_issue') | pl.col('incorrect_address_format_issue') | pl.col('valid_address_format_issue')
         ).sort('row_number')
 
     def _parse_amount_float(self, value: Any) -> float | None:
@@ -456,37 +526,9 @@ class PanProcessor(BaseProcessor):
     def _messages_for_issues(issues: list[str]) -> list[str]:
         return messages_for_codes(issues)
 
-    def _collect_pan_issues(
-        self, total_value: float | int | None, pan_norm: str | None, pan1_norm: str | None
-    ) -> list[str]:
-        if total_value is None or total_value < 200000:
-            return []
-
-        pan_ok = pan_norm is not None and self.is_valid_pan(pan_norm)
-        pan1_ok = pan1_norm is not None and self.is_valid_pan(pan1_norm)
-
-        if pan_ok or pan1_ok:
-            return []
-        if pan_norm is None and pan1_norm is None:
-            return ['MISSING_PAN_ABOVE_2L']
-        return ['INVALID_PAN_FORMAT']
-
-    def _collect_address_proof_issue(
-        self,
-        total_value: float | int | None,
-        add_proof: str | None,
-        add_proof_2: str | None,
-    ) -> str | None:
-        if total_value is None or total_value < 50000:
-            return None
-
-        if add_proof or add_proof_2:
-            return None
-
-        return 'MISSING_ADDRESS_PROOF_ABOVE_50K'
-
     def is_valid_pan(self, pan_value: str) -> bool:
-        return is_acceptable_pan_equivalent(pan_value)
+        compact = compact_pan_input_for_validation(pan_value)
+        return bool(compact and re.fullmatch(r'^[A-Z]{5}[0-9]{4}[A-Z]$', compact))
 
     def _validate_required_columns(self, columns: Any) -> None:
         column_set = set(columns)
