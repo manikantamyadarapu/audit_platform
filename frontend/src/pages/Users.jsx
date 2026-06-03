@@ -429,19 +429,25 @@ export default function Users() {
       )}
 
       {/* Header - Outside Card */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-semibold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500 mt-1">Total users</p>
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Users</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage team members and their roles</p>
+          </div>
+          <Button 
+            variant="primary"
+            onClick={openCreateModal}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
         </div>
-        <Button 
-          variant="primary"
-          onClick={openCreateModal}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
-      </div>
+      </motion.div>
 
       {/* Search */}
       <div className="relative mb-6">

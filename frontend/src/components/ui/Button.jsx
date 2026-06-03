@@ -29,7 +29,7 @@ export function Button({
       type="button"
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center font-semibold transition-all duration-150 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center font-medium transition-all duration-150 disabled:pointer-events-none disabled:opacity-50',
         variants[variant],
         sizes[size],
         className

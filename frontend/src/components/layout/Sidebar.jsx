@@ -30,8 +30,8 @@ const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
-  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
   { to: '/scrutiny/sales-return-rate', label: 'Sales Return Rate Audit', icon: Undo2 },
+  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
 ];
 
 const scrutinyItems = [
@@ -202,8 +202,8 @@ export function Sidebar() {
         {!sidebarCollapsed ? (
           <>
             <div className="flex flex-col">
-              <p className="text-xl font-semibold tracking-tight text-[#07812f]">HAA</p>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
+              <p className="text-xl font-bold tracking-tight text-[#07812f]">HAA</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
             </div>
             <button
               type="button"
