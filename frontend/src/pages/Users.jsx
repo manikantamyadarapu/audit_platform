@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { CustomSelect } from '../components/ui/CustomSelect';
 
 // API helper function
 const API_BASE_URL = '/api/v1';
@@ -64,13 +67,13 @@ function UserCard({ user, onEdit, onDelete }) {
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'ADMIN':
-        return 'bg-purple-100 text-purple-700';
+        return 'bg-emerald-100 text-emerald-700 rounded-full px-3 py-1';
       case 'AUDITOR':
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-amber-100 text-amber-700 rounded-full px-3 py-1';
       case 'VIEWER':
-        return 'bg-gray-100 text-gray-700';
+        return 'bg-slate-100 text-slate-700 rounded-full px-3 py-1';
       default:
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-emerald-100 text-emerald-700 rounded-full px-3 py-1';
     }
   };
 
@@ -78,7 +81,7 @@ function UserCard({ user, onEdit, onDelete }) {
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+          <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold text-lg">
             {getInitials(user.name)}
           </div>
           <div>
@@ -89,13 +92,15 @@ function UserCard({ user, onEdit, onDelete }) {
           </div>
         </div>
         <div className="flex gap-1">
-          <button 
+          <Button 
+            variant="ghost" 
+            size="sm"
             onClick={() => onEdit(user)}
-            className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+            className="p-1 text-slate-400 hover:text-emerald-600"
             title="Edit user"
           >
             <MoreVertical className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -117,15 +122,17 @@ function UserCard({ user, onEdit, onDelete }) {
       </div>
 
       <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-        <button
+        <Button
           onClick={() => onEdit(user)}
-          className="flex-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          variant="secondary"
+          size="sm"
+          className="flex-1 rounded-full text-xs py-1.5"
         >
           Edit
-        </button>
+        </Button>
         <button
           onClick={() => onDelete(user)}
-          className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-full transition-colors"
         >
           Delete
         </button>
@@ -185,7 +192,7 @@ function UserModal({ isOpen, onClose, onSave, user, title, isLoading }) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none transition-all"
               required
             />
           </div>
@@ -196,55 +203,53 @@ function UserModal({ isOpen, onClose, onSave, user, title, isLoading }) {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none transition-all"
               required
-              disabled={!!user}
             />
           </div>
 
-          {!user && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                required={!user}
-                minLength={6}
-              />
-            </div>
-          )}
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Role</label>
-            <select
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-            >
-              <option value="ADMIN">ADMIN</option>
-              <option value="AUDITOR">AUDITOR</option>
-              <option value="VIEWER">VIEWER</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              {user ? 'New Password (leave blank to keep current)' : 'Password'}
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none transition-all"
+              minLength={6}
+            />
           </div>
 
+          <CustomSelect
+            label="Role"
+            value={formData.role}
+            onChange={(value) => setFormData({ ...formData, role: value })}
+            options={[
+              { value: 'ADMIN', label: 'ADMIN' },
+              { value: 'AUDITOR', label: 'AUDITOR' },
+              { value: 'VIEWER', label: 'VIEWER' },
+            ]}
+          />
+
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 rounded-full"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              variant="primary"
               disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              loading={isLoading}
+              className="flex-1 rounded-full"
             >
-              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               {user ? 'Update' : 'Create'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -271,20 +276,22 @@ function DeleteModal({ isOpen, onClose, onConfirm, user, isLoading }) {
         </p>
 
         <div className="flex gap-3">
-          <button
+          <Button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            variant="secondary"
+            className="flex-1 rounded-full"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onConfirm}
+            variant="danger"
             disabled={isLoading}
-            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            loading={isLoading}
+            className="flex-1 rounded-full"
           >
-            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
             Delete
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -351,9 +358,17 @@ export default function Users() {
   const handleUpdateUser = async (formData) => {
     try {
       setIsModalLoading(true);
+      const updateData = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+      };
+      if (formData.password) {
+        updateData.password = formData.password;
+      }
       await apiRequest(`/users/${editingUser.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ name: formData.name, role: formData.role }),
+        body: JSON.stringify(updateData),
       });
       showToast('User updated successfully');
       setIsModalOpen(false);
@@ -413,77 +428,82 @@ export default function Users() {
         />
       )}
 
-      {/* Header */}
+      {/* Header - Outside Card */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Users</h1>
-          <p className="text-sm text-gray-500 mt-1">{pagination.total} registered users</p>
+          <h2 className="text-2xl font-semibold text-gray-900">Users</h2>
+          <p className="text-sm text-gray-500 mt-1">Total users</p>
         </div>
-        <button 
+        <Button 
+          variant="primary"
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <Plus className="h-4 w-4" />
-          <span>Add User</span>
-        </button>
+          <Plus className="h-4 w-4 mr-2" />
+          Add User
+        </Button>
       </div>
 
       {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
         <input
           type="text"
           placeholder="Search users by name, email, role..."
           value={searchQuery}
           onChange={handleSearch}
-          className="w-full max-w-md pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          className="w-full max-w-md pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-full focus:outline-none"
         />
       </div>
 
-      {/* Users Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {users.map(user => (
-              <UserCard 
-                key={user.id} 
-                user={user} 
-                onEdit={openEditModal}
-                onDelete={openDeleteModal}
-              />
-            ))}
-          </div>
+      <Card>
+        <CardBody>
 
-          {users.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No users found matching your search.</p>
+          {/* Users Grid */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
             </div>
-          )}
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {users.map(user => (
+                  <UserCard 
+                    key={user.id} 
+                    user={user} 
+                    onEdit={openEditModal}
+                    onDelete={openDeleteModal}
+                  />
+                ))}
+              </div>
 
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => fetchUsers(page, searchQuery)}
-                  className={`px-3 py-1 rounded-lg text-sm ${
-                    page === pagination.page
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
+              {users.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-slate-500">No users found matching your search.</p>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => fetchUsers(page, searchQuery)}
+                      className={`px-3 py-1 rounded-lg text-sm ${
+                        page === pagination.page
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </CardBody>
+      </Card>
 
       {/* Modals */}
       <UserModal

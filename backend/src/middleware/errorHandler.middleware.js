@@ -25,9 +25,9 @@ function errorHandler(err, req, res, _next) {
       : 500;
   const detail = status === 500 ? 'Internal server error' : err.message || 'Request failed';
 
-  if (status >= 500) {
-    logger.error(err.message || 'Unhandled error', { requestId, stack: err.stack });
-  }
+  // Log ALL errors to backend terminal (clean format)
+  const logBody = status >= 500 ? req.body : { email: req.body?.email };
+  logger.error(`[ERROR] ${req.method} ${req.path} | Status: ${status} | ${err.message || 'Request failed'}`);
 
   if (err.apiBody && typeof err.apiBody === 'object') {
     return res.status(status).json({
