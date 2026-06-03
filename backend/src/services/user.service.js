@@ -129,6 +129,12 @@ async function updateUser(id, updateData) {
     delete dataToUpdate.role; // Remove role name, use roleId instead
   }
 
+  // Hash password if provided
+  if (updateData.password) {
+    dataToUpdate.passwordHash = await hashPassword(updateData.password);
+    delete dataToUpdate.password;
+  }
+
   const user = await userRepository.update(id, dataToUpdate);
   return user;
 }

@@ -11,334 +11,150 @@ router.use(authorize(['ADMIN']));
 
 /**
  * @swagger
- * /api/users:
+ * /api/v1/users:
  *   post:
- *     summary: Create new user
+ *     summary: Create user
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
- *               - role
  *             properties:
- *               name:
- *                 type: string
- *                 example: John Doe
- *               email:
- *                 type: string
- *                 format: email
- *                 example: john@audit.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *               role:
- *                 type: string
- *                 enum: [ADMIN, AUDITOR, VIEWER, SUPER_ADMIN]
- *                 example: AUDITOR
+ *               name: { type: string, example: John Doe }
+ *               email: { type: string, example: john@audit.com }
+ *               password: { type: string, example: password123 }
+ *               role: { type: string, enum: [ADMIN, AUDITOR, VIEWER], example: AUDITOR }
  *     responses:
- *       201:
- *         description: User created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: User created successfully
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 1
- *                     name:
- *                       type: string
- *                       example: John Doe
- *                     email:
- *                       type: string
- *                       example: john@audit.com
- *                     role:
- *                       type: string
- *                       example: AUDITOR
- *                     isActive:
- *                       type: boolean
- *                       example: true
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *                       example: 2026-01-01T00:00:00.000Z
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Name, email, password, and role are required
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
- *       409:
- *         description: Email already exists
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Email already exists
+ *       201: { description: User created }
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       409: { description: Email exists }
  */
 router.post('/', userController.createUser);
 
 /**
  * @swagger
- * /api/users:
+ * /api/v1/users:
  *   get:
- *     summary: Get all users with pagination
+ *     summary: Get all users
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     parameters:
  *       - in: query
  *         name: search
- *         schema:
- *           type: string
- *         description: Search by name or email
+ *         schema: { type: string }
  *       - in: query
  *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
+ *         schema: { type: integer, default: 1 }
  *       - in: query
  *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Items per page
+ *         schema: { type: integer, default: 10 }
  *     responses:
- *       200:
- *         description: List of users with pagination
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 users:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: integer
- *                         example: 1
- *                       name:
- *                         type: string
- *                         example: John Doe
- *                       email:
- *                         type: string
- *                         example: john@audit.com
- *                       role:
- *                         type: string
- *                         example: AUDITOR
- *                       isActive:
- *                         type: boolean
- *                         example: true
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *                         example: 2026-01-01T00:00:00.000Z
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     page:
- *                       type: integer
- *                       example: 1
- *                     limit:
- *                       type: integer
- *                       example: 10
- *                     totalItems:
- *                       type: integer
- *                       example: 50
- *                     totalPages:
- *                       type: integer
- *                       example: 5
- *                     hasNextPage:
- *                       type: boolean
- *                       example: true
- *                     hasPrevPage:
- *                       type: boolean
- *                       example: false
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
+ *       200: { description: List of users }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
  */
 router.get('/', userController.getAllUsers);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /api/v1/users/{id}:
  *   get:
  *     summary: Get user by ID
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
+ *         schema: { type: integer }
  *     responses:
- *       200:
- *         description: User details
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
- *       404:
- *         description: User not found
+ *       200: { description: User details }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: User not found }
  */
 router.get('/:id', userController.getUserById);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /api/v1/users/{id}:
  *   put:
  *     summary: Update user
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
+ *         schema: { type: integer }
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
- *               name:
- *                 type: string
- *                 example: John Updated
- *               role:
- *                 type: string
- *                 enum: [ADMIN, AUDITOR, VIEWER]
- *                 example: AUDITOR
+ *               name: { type: string }
+ *               email: { type: string }
+ *               role: { type: string, enum: [ADMIN, AUDITOR, VIEWER] }
+ *               password: { type: string }
  *     responses:
- *       200:
- *         description: User updated successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
- *       404:
- *         description: User not found
- *       409:
- *         description: Email already exists
+ *       200: { description: User updated }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: User not found }
+ *       409: { description: Email exists }
  */
 router.put('/:id', userController.updateUser);
 
 /**
  * @swagger
- * /api/users/{id}/password:
+ * /api/v1/users/{id}/password:
  *   put:
- *     summary: Change user password
+ *     summary: Change password
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
+ *         schema: { type: integer }
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - newPassword
  *             properties:
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 minLength: 6
- *                 example: newpassword123
+ *               newPassword: { type: string, example: newpassword123 }
  *     responses:
- *       200:
- *         description: Password changed successfully
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
- *       404:
- *         description: User not found
+ *       200: { description: Password changed }
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: User not found }
  */
 router.put('/:id/password', userController.changePassword);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /api/v1/users/{id}:
  *   delete:
- *     summary: Delete user (soft delete)
+ *     summary: Delete user
  *     tags: [Users]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
+ *         schema: { type: integer }
  *     responses:
- *       200:
- *         description: User deleted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin only
- *       404:
- *         description: User not found
+ *       200: { description: User deleted }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: User not found }
  */
 router.delete('/:id', userController.deleteUser);
 

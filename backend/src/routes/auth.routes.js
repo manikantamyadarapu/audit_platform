@@ -6,7 +6,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/auth/login:
+ * /api/v1/auth/login:
  *   post:
  *     summary: Login user
  *     tags: [Auth]
@@ -16,70 +16,25 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - email
- *               - password
  *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: admin@audit.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: Admin@123
+ *               email: { type: string, example: admin@audit.com }
+ *               password: { type: string, example: admin123 }
  *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 token:
- *                   type: string
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     name:
- *                       type: string
- *                     email:
- *                       type: string
- *                     role:
- *                       type: string
- *       400:
- *         description: Validation error
- *       401:
- *         description: Invalid credentials
+ *       200: { description: Login successful }
+ *       401: { description: Invalid credentials }
  */
 router.post('/login', authController.login);
 
 /**
  * @swagger
- * /api/auth/me:
+ * /api/v1/auth/me:
  *   get:
- *     summary: Get current logged-in user
+ *     summary: Get current user
  *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
+ *     security: [bearerAuth: []]
  *     responses:
- *       200:
- *         description: Current user details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 user:
- *                   type: object
- *       401:
- *         description: Unauthorized
+ *       200: { description: Current user details }
+ *       401: { description: Unauthorized }
  */
 router.get('/me', authenticate, authController.getMe);
 
