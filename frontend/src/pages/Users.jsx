@@ -433,7 +433,7 @@ export default function Users() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-[var(--color-surface-page)] p-6">
       {/* Toast */}
       {toast && (
         <Toast 

@@ -8,7 +8,7 @@ export function AppLayout() {
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
-    <div className="flex min-h-svh w-full bg-transparent text-slate-950">
+    <div className="flex min-h-svh w-full bg-transparent text-[var(--color-text-primary)]">
       <Sidebar />
       <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         {!isDashboard ? <TopNavbar /> : null}

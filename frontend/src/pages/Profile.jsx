@@ -32,13 +32,13 @@ function roleBadgeClass(role) {
 
 function DetailRow({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-start gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 px-5 py-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700 ring-1 ring-slate-200/80">
+    <div className="flex items-start gap-4 rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-subtle)] px-5 py-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-elevated)] text-emerald-700 ring-1 ring-[var(--color-border-soft)]">
         <Icon className="h-5 w-5" strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <p className="mt-1 text-sm font-medium text-slate-800 break-words">{value ?? '—'}</p>
+        <p className="text-xs font-medium text-[var(--color-text-muted)]">{label}</p>
+        <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)] break-words">{value ?? '—'}</p>
       </div>
     </div>
   );

@@ -272,3 +272,9 @@ Edit JSON under **`app/sales_engine/config/`** and restart the Python service. N
 | `app/services/master_sales_rate_rule_service.py` | Legacy rate flattening |
 
 The sales audit path does **not** join these files at runtime.
+
+## Sales Return Audit
+
+Sales return workbooks are validated with the **same engine** above, then compared against a separate Sales Audit file for product-wise average rates. Full documentation:
+
+→ **[`app/sales_return_engine/README.md`](../sales_return_engine/README.md)**

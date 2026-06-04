@@ -21,8 +21,10 @@ HIGHER_SALES_RETURN_RATE = 'HIGHER_SALES_RETURN_RATE'
 HIGHER_SALES_RETURN_RATE_MSG = (
     'Average sales return rate is higher than average sales rate.'
 )
+PRODUCT_NOT_FOUND_IN_SALES = 'PRODUCT_NOT_FOUND_IN_SALES'
+PRODUCT_NOT_FOUND_IN_SALES_MSG = 'Product not found in Sales Audit file.'
 INVALID_FREE_QUANTITY = 'INVALID_FREE_QUANTITY'
-INVALID_FREE_QUANTITY_MSG = 'Free quantity not allowed for this product.'
+INVALID_FREE_QUANTITY_MSG = 'Unit rate must be between 0 and 1 for this product.'
 
 
 def _sales_or_return_header_row_matches(labels: set[str]) -> bool:
@@ -106,7 +108,12 @@ class SalesReturnAuditEngine:
             'returnValidationErrorRows': return_error_rows,
             'salesProductCount': len(sales_averages),
             'returnProductCount': len(return_averages),
-            'higherReturnRateProducts': len(comparison_records),
+            'higherReturnRateProducts': sum(
+                1 for row in rate_comparison if row.issue == HIGHER_SALES_RETURN_RATE
+            ),
+            'productsNotFoundInSales': sum(
+                1 for row in rate_comparison if row.issue == PRODUCT_NOT_FOUND_IN_SALES
+            ),
             'rateComparisonViolations': len(comparison_records),
             'processingMs': round(total_ms, 2),
         }
@@ -262,6 +269,20 @@ class SalesReturnAuditEngine:
         for product_key, return_avg in return_averages.items():
             sales_avg = sales_averages.get(product_key)
             if sales_avg is None:
+                violations.append(
+                    RateComparisonRow(
+                        product=return_avg.product,
+                        sales_total_gross_amount=0.0,
+                        sales_total_quantity=0.0,
+                        sales_average_rate=0.0,
+                        return_total_gross_amount=return_avg.total_gross_amount,
+                        return_total_quantity=return_avg.total_quantity,
+                        return_average_rate=return_avg.average_rate,
+                        difference=return_avg.average_rate,
+                        issue=PRODUCT_NOT_FOUND_IN_SALES,
+                        message=PRODUCT_NOT_FOUND_IN_SALES_MSG,
+                    )
+                )
                 continue
             if return_avg.average_rate <= sales_avg.average_rate:
                 continue
@@ -294,6 +315,6 @@ class SalesReturnAuditEngine:
         updated = {**record, 'issues': mapped}
         if any(code == INVALID_FREE_QUANTITY for code in mapped):
             updated['messages'] = [INVALID_FREE_QUANTITY_MSG]
-        elif record.get('messages') == ['Unit rate must be between 0 and 1 for this product.']:
+        elif not record.get('messages'):
             updated['messages'] = [INVALID_FREE_QUANTITY_MSG]
         return updated

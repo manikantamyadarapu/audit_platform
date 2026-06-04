@@ -12,6 +12,21 @@
       rel="stylesheet"
     />
     <title>HAA · Audit Platform</title>
+    <script>
+      (function () {
+        try {
+          var key = 'audit-platform-theme';
+          var theme = localStorage.getItem(key);
+          if (theme !== 'dark' && theme !== 'light') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          var root = document.documentElement;
+          root.classList.toggle('dark', theme === 'dark');
+          root.dataset.theme = theme;
+          root.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

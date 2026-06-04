@@ -192,6 +192,7 @@ class VectorizedSalesEngine:
             pl.col('__invalid_product_mapping').fill_null(False)
             | pl.col('__invalid_product_pattern').fill_null(False)
             | pl.col('__invalid_uom').fill_null(False)
+            | pl.col('__invalid_unit_rate_range').fill_null(False)
             | pl.col('__invalid_rate_deviation').fill_null(False)
         )
         records = self._records_from_invalid_frame(invalid_df)

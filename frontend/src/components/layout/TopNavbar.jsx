@@ -36,10 +36,10 @@ export function TopNavbar() {
   const viewTitle = useMemo(() => matchTitle(pathname), [pathname]);
 
   return (
-    <header className="sticky top-0 z-10 h-20 border-b border-slate-200/70 bg-white/90 backdrop-blur-md">
+    <header className="sticky top-0 z-10 h-20 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] backdrop-blur-md">
       <div className="flex h-full items-center justify-between px-5 sm:px-8">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Current view · <span className="text-slate-800">{viewTitle}</span></p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Current view · <span className="text-[var(--color-text-primary)]">{viewTitle}</span></p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -48,7 +48,7 @@ export function TopNavbar() {
           <button
             type="button"
             className={cn(
-              'flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
+              'flex h-12 w-12 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]'
             )}
             aria-label="Notifications"
             onClick={() => toast('No new notifications.', { icon: '🔔' })}
@@ -56,11 +56,11 @@ export function TopNavbar() {
             <Bell className="h-5 w-5" strokeWidth={1.5} />
           </button>
 
-          <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-1.5 pr-5">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <div className="flex h-14 items-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] py-1.5 pl-1.5 pr-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
               <User className="h-4 w-4" strokeWidth={1.75} />
             </span>
-            <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-800 sm:inline">Audit operator</span>
+            <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-[var(--color-text-primary)] sm:inline">Audit operator</span>
           </div>
         </div>
       </div>
