@@ -10,10 +10,12 @@ import RateRuleBook from '../pages/RateRuleBook';
 import DiamondGemRateBook from '../pages/DiamondGemRateBook';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
+import SalesReturnRateAudit from '../pages/SalesReturnRateAudit';
 import ModuleSoon from '../pages/ModuleSoon';
 import VouchingHold from '../pages/VouchingHold';
 import Login from '../pages/Login';
 import Users from '../pages/Users';
+import Profile from '../pages/Profile';
 
 export function AppRoutes() {
   return (
@@ -29,13 +31,14 @@ export function AppRoutes() {
         <Route path="/vouching" element={<VouchingHub />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/users" element={<Users />} />
 
         <Route path="/scrutiny/pan" element={<PanVerification />} />
         <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />
         <Route path="/scrutiny/sales-ledger" element={<SalesLedger />} />
         <Route path="/scrutiny/making-charges" element={<ModuleSoon />} />
-        <Route path="/scrutiny/sales-return-rate" element={<ModuleSoon />} />
+        <Route path="/scrutiny/sales-return-rate" element={<SalesReturnRateAudit />} />
         <Route path="/scrutiny/rate-rule-book" element={<RateRuleBook />} />
         <Route path="/scrutiny/diamond-gem-rates" element={<DiamondGemRateBook />} />
         <Route path="/scrutiny/rate-rules" element={<RateRuleBook />} />

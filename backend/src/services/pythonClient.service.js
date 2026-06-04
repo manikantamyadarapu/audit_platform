@@ -89,6 +89,42 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
   return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
 }
 
+async function postSalesReturnValidate(
+  salesBuffer,
+  salesName,
+  salesMime,
+  returnBuffer,
+  returnName,
+  returnMime,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('sales_file', salesBuffer, {
+    filename: salesName || 'sales-audit.xlsx',
+    contentType: salesMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('sales_return_file', returnBuffer, {
+    filename: returnName || 'sales-return-audit.xlsx',
+    contentType: returnMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/sales-return/validate', form, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postSalesReturnExportRateComparison(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales-return/export-rate-comparison', records, options);
+}
+
 /**
  * @param {Array<Record<string, unknown>>} records
  * @returns {Promise<{ buffer: Buffer, contentDisposition: string | undefined, contentType: string | undefined }>}
@@ -205,6 +241,8 @@ module.exports = {
   postGrossWeightExportInvalid,
   postSalesValidate,
   postSalesExportInvalid,
+  postSalesReturnValidate,
+  postSalesReturnExportRateComparison,
   getRateRules,
   postRateRules,
   getDiamondRateRules,

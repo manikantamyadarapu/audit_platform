@@ -61,3 +61,39 @@ export function exportInvalidGrossWeightRows(records, signal) {
 export function exportInvalidSalesRows(records, signal) {
   return exportInvalidRecordsXlsx('/api/v1/process/sales/export-invalid', records, signal);
 }
+
+/**
+ * @param {File} salesFile
+ * @param {File} returnFile
+ * @param {AbortSignal} [signal]
+ */
+export async function validateSalesReturnAudit(salesFile, returnFile, signal) {
+  const form = new FormData();
+  form.append('salesFile', salesFile);
+  form.append('salesReturnFile', returnFile);
+  try {
+    const { data } = await api.post('/api/v1/process/sales-return/validate', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      signal,
+    });
+    return data;
+  } catch (err) {
+    const msg = getApiErrorMessage(err);
+    const e = new Error(msg);
+    const payload = getProcessingErrorPayload(err);
+    if (payload) e.details = payload;
+    throw e;
+  }
+}
+
+/**
+ * @param {Record<string, unknown>[]} records
+ * @param {AbortSignal} [signal]
+ */
+export function exportSalesReturnRateComparison(records, signal) {
+  return exportInvalidRecordsXlsx(
+    '/api/v1/process/sales-return/export-rate-comparison',
+    records,
+    signal
+  );
+}
