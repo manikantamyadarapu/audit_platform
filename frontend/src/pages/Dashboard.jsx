@@ -65,7 +65,7 @@ function ButtonPill({ children, className = '' }) {
     <button
       type="button"
       className={cn(
-        'inline-flex h-12 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50',
+        'inline-flex h-12 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50',
         className
       )}
     >
@@ -83,9 +83,9 @@ function KpiCard({ item }) {
           <Icon className="h-7 w-7" strokeWidth={1.8} />
         </div>
         <div>
-          <p className="text-sm font-medium text-slate-600">{item.label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{item.value}</p>
-          <p className={`mt-4 text-sm font-semibold ${item.down ? 'text-red-500' : 'text-green-600'}`}>
+          <p className="text-sm text-slate-600">{item.label}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{item.value}</p>
+          <p className={`mt-4 text-sm ${item.down ? 'text-red-500' : 'text-green-600'}`}>
             {item.down ? '\u2193' : '\u2191'} {item.delta} <span className="font-medium text-slate-500">vs last 7 days</span>
           </p>
         </div>
@@ -195,8 +195,8 @@ function DonutChart() {
       <div className="absolute inset-[34px] rounded-full bg-white" />
       <div className="absolute inset-0 flex items-center justify-center text-center">
         <div>
-          <p className="text-3xl font-bold text-slate-950">2,156</p>
-          <p className="text-sm font-medium text-slate-500">Total Issues</p>
+          <p className="text-3xl font-semibold text-slate-950">2,156</p>
+          <p className="text-sm text-slate-500">Total Issues</p>
         </div>
       </div>
     </div>
@@ -210,10 +210,10 @@ export default function Dashboard() {
     <div className="min-h-[calc(100svh-3rem)] space-y-6 pb-2">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-[32px] font-bold tracking-tight text-slate-950">
+          <h1 className="text-[32px] font-semibold tracking-tight text-slate-950">
             {greeting}, Admin
           </h1>
-          <p className="mt-2 text-base font-medium text-slate-600">Here's what's happening with your audits today.</p>
+          <p className="mt-2 text-base text-slate-600">Here's what's happening with your audits today.</p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact className="h-14 w-14" />
@@ -223,7 +223,7 @@ export default function Dashboard() {
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-bold text-white">
+            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-medium text-white">
               3
             </span>
           </button>
@@ -231,7 +231,7 @@ export default function Dashboard() {
       </header>
 
       <div className="flex flex-col gap-4 pt-7 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="text-lg font-bold text-slate-950">Audit Overview</h2>
+        <h2 className="text-lg font-semibold text-slate-950">Audit Overview</h2>
         <div className="flex flex-wrap items-center gap-3">
           <ButtonPill className="w-12 justify-center px-0">
             <Filter className="h-4 w-4" />
@@ -263,13 +263,13 @@ export default function Dashboard() {
           ['Risk Score', '72 / 100', 'Medium', null],
         ].map(([label, value, delta, down], index) => (
           <div key={label} className={`px-8 py-2 ${index ? 'border-t border-slate-200 md:border-l md:border-t-0' : ''}`}>
-            <p className="text-sm font-medium text-slate-600">{label}</p>
+            <p className="text-sm text-slate-600">{label}</p>
             <div className="mt-2 flex items-center gap-4">
-              <p className="text-3xl font-bold tracking-tight text-slate-950">{value}</p>
+              <p className="text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
               {down === null ? (
-                <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{delta}</span>
+                <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">{delta}</span>
               ) : (
-                <span className={`text-sm font-bold ${down ? 'text-red-500' : 'text-green-600'}`}>
+                <span className={`text-sm ${down ? 'text-red-500' : 'text-green-600'}`}>
                   {down ? '\u2193' : '\u2191'} {delta}
                 </span>
               )}
@@ -282,7 +282,7 @@ export default function Dashboard() {
         <Panel className="p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold text-slate-950">Audit Activity Trend</h3>
+              <h3 className="text-lg font-semibold text-slate-950">Audit Activity Trend</h3>
               <div className="mt-4 flex items-center gap-7 text-sm text-slate-600">
                 <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#54c68d]" /> Audits Processed</span>
                 <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#ff6b6b]" /> Issues Found</span>
@@ -294,17 +294,17 @@ export default function Dashboard() {
         </Panel>
 
         <Panel className="p-5">
-          <h3 className="text-lg font-bold text-slate-950">Issues by Category</h3>
+          <h3 className="text-lg font-semibold text-slate-950">Issues by Category</h3>
           <div className="mt-4 flex flex-col items-center gap-4 lg:flex-row">
             <DonutChart />
             <div className="w-full flex-1 space-y-5">
               {issueCategories.map((item) => (
                 <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-3 font-medium text-slate-700">
+                  <span className="flex items-center gap-3 text-slate-700">
                     <i className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
                     {item.name}
                   </span>
-                  <span className="font-medium text-slate-700">{item.value} ({item.percent})</span>
+                  <span className="text-slate-700">{item.value} ({item.percent})</span>
                 </div>
               ))}
             </div>
@@ -321,7 +321,7 @@ export default function Dashboard() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-xs font-semibold text-slate-500">
+                <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                   <th className="pb-3">File Name</th>
                   <th className="pb-3">Audit Type</th>
                   <th className="pb-3">Records</th>
@@ -332,7 +332,7 @@ export default function Dashboard() {
               <tbody>
                 {uploads.map((row) => (
                   <tr key={row[0]} className="border-b border-slate-100 last:border-0">
-                    <td className="py-3 font-medium text-slate-700">
+                    <td className="py-3 text-slate-700">
                       <span className="inline-flex items-center gap-3">
                         <FileSpreadsheet className="h-4 w-4 text-green-600" />
                         {row[0]}
@@ -342,7 +342,7 @@ export default function Dashboard() {
                     <td className="py-3 text-slate-700">{row[2]}</td>
                     <td className="py-3 text-slate-700">{row[3]}</td>
                     <td className="py-3 text-right">
-                      <span className={`rounded-md px-2 py-1 text-xs font-semibold ${row[4] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className={`rounded-md px-2 py-1 text-xs font-medium ${row[4] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {row[4]}
                       </span>
                     </td>
@@ -355,19 +355,19 @@ export default function Dashboard() {
 
         <Panel className="p-5">
           <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-950">Top Issue Summary</h3>
+            <h3 className="text-lg font-semibold text-slate-950">Top Issue Summary</h3>
             <ButtonPill>View All</ButtonPill>
           </div>
           <div className="space-y-6">
             {issueCategories.map((item) => (
               <div key={item.name} className="grid grid-cols-[1fr_auto_130px] items-center gap-4 text-sm">
-                <span className="flex items-center gap-3 font-semibold text-slate-700">
+                <span className="flex items-center gap-3 text-slate-700">
                   <i className="flex h-7 w-7 items-center justify-center rounded-md" style={{ backgroundColor: `${item.color}33` }}>
                     <ShieldCheck className="h-4 w-4" style={{ color: item.color }} />
                   </i>
                   {item.name}
                 </span>
-                <span className="font-medium text-slate-700">{item.value} ({item.percent})</span>
+                <span className="text-slate-700">{item.value} ({item.percent})</span>
                 <span className="h-2 rounded-full bg-slate-100">
                   <i
                     className="block h-2 rounded-full"

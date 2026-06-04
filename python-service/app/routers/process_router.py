@@ -7,11 +7,13 @@ from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.processors.sales_return_audit_processor import SalesReturnAuditProcessor
 from app.services.processing_service import ProcessingService
 from app.utils.excel_exporter import (
     export_invalid_gross_weight_records,
     export_invalid_pan_records,
     export_invalid_sales_records,
+    export_sales_return_rate_comparison,
 )
 from app.utils.logger import get_logger
 
@@ -144,3 +146,47 @@ async def process_sales(file: UploadFile = File(...)) -> dict:
     response = await service.process('sales', file)
     log.info('Sales audit processing complete')
     return response
+
+
+class SalesReturnRateComparisonExportRequest(BaseModel):
+    records: list[dict[str, Any]]
+
+
+@router.post('/sales-return/validate')
+@gateway_router.post('/sales-return/validate')
+async def process_sales_return(
+    sales_file: UploadFile = File(..., description='Sales audit Excel file'),
+    sales_return_file: UploadFile = File(..., description='Sales return audit Excel file'),
+) -> dict:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Sales return audit processing request received')
+    sales_bytes = await sales_file.read()
+    return_bytes = await sales_return_file.read()
+    if not sales_bytes:
+        raise ValueError('Sales audit file is empty')
+    if not return_bytes:
+        raise ValueError('Sales return audit file is empty')
+    processor = SalesReturnAuditProcessor()
+    response = processor.process(sales_bytes, return_bytes)
+    log.info('Sales return audit processing complete')
+    return response
+
+
+@router.post('/sales-return/export-rate-comparison')
+@gateway_router.post('/sales-return/export-rate-comparison')
+async def export_sales_return_rate_comparison_rows(
+    payload: SalesReturnRateComparisonExportRequest,
+) -> StreamingResponse:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Sales return rate comparison export request received')
+    excel_bytes = export_sales_return_rate_comparison(payload.records)
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'sales-return-rate-comparison-{timestamp}.xlsx'
+    log.info('Sales return rate comparison export generated')
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
@@ -143,6 +144,7 @@ function UserCard({ user, onEdit, onDelete }) {
 
 // User Modal Component
 function UserModal({ isOpen, onClose, onSave, user, title, isLoading }) {
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -151,6 +153,7 @@ function UserModal({ isOpen, onClose, onSave, user, title, isLoading }) {
   });
 
   useEffect(() => {
+    setShowPassword(false);
     if (user) {
       setFormData({
         name: user.name || '',
@@ -212,13 +215,25 @@ function UserModal({ isOpen, onClose, onSave, user, title, isLoading }) {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               {user ? 'New Password (leave blank to keep current)' : 'Password'}
             </label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-full focus:outline-none transition-all"
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-4 py-2.5 pr-11 border border-gray-200 rounded-full focus:outline-none transition-all"
+                minLength={user ? undefined : 6}
+                required={!user}
+                autoComplete={user ? 'new-password' : 'new-password'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition hover:text-slate-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <CustomSelect
@@ -429,19 +444,25 @@ export default function Users() {
       )}
 
       {/* Header - Outside Card */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-semibold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500 mt-1">Total users</p>
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Users</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage team members and their roles</p>
+          </div>
+          <Button 
+            variant="primary"
+            onClick={openCreateModal}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
         </div>
-        <Button 
-          variant="primary"
-          onClick={openCreateModal}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
-      </div>
+      </motion.div>
 
       {/* Search */}
       <div className="relative mb-6">

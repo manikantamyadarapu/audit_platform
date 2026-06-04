@@ -20,18 +20,23 @@ import {
   Undo2,
   Weight,
   LogOut,
-  X,
   UserCircle,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useAppUi } from '../../context/AppUiContext';
+import {
+  clearAuthSession,
+  fetchCurrentUser,
+  getStoredUser,
+  getUserInitials,
+} from '../../utils/authUser';
 
 const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
+  { to: '/scrutiny/sales-return-rate', label: 'Sales Return Audit', icon: Undo2 },
   { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
-  { to: '/scrutiny/sales-return-rate', label: 'Sales Return Rate Audit', icon: Undo2 },
 ];
 
 const scrutinyItems = [
@@ -178,6 +183,21 @@ export function Sidebar() {
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [sessionUser, setSessionUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (stored) setSessionUser(stored);
+    fetchCurrentUser()
+      .then((user) => {
+        if (user) setSessionUser(user);
+      })
+      .catch(() => {});
+  }, [pathname]);
+
+  const displayName = sessionUser?.name || 'User';
+  const displayEmail = sessionUser?.email || '';
+  const initials = getUserInitials(displayName);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -202,8 +222,8 @@ export function Sidebar() {
         {!sidebarCollapsed ? (
           <>
             <div className="flex flex-col">
-              <p className="text-xl font-semibold tracking-tight text-[#07812f]">HAA</p>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
+              <p className="text-xl font-bold tracking-tight text-[#07812f]">HAA</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
             </div>
             <button
               type="button"
@@ -290,72 +310,94 @@ export function Sidebar() {
       </nav>
 
       {!sidebarCollapsed ? (
-        <div className="m-7 relative">
+        <div className="relative mx-5 mb-5 mt-auto">
+          <AnimatePresence>
+            {showUserMenu ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.18 }}
+                className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]"
+              >
+                <div className="flex flex-col items-center border-b border-slate-100 bg-gradient-to-b from-emerald-50/80 to-white px-4 py-6">
+                  <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white shadow-[0_12px_32px_rgba(5,150,105,0.28)] ring-4 ring-white">
+                    {initials}
+                  </div>
+                  <p className="text-center text-sm font-bold text-slate-900">{displayName}</p>
+                  {displayEmail ? (
+                    <p className="mt-0.5 max-w-full truncate text-center text-xs text-slate-500">
+                      {displayEmail}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/profile');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-emerald-50/80 hover:text-emerald-800"
+                  >
+                    <UserCircle className="h-4 w-4 text-emerald-600" />
+                    <span>My Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/settings');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-emerald-50/80 hover:text-emerald-800"
+                  >
+                    <Settings className="h-4 w-4 text-emerald-600" />
+                    <span>Settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAuthSession();
+                      navigate('/login');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
+                  >
+                    <LogOut className="h-4 w-4 text-rose-500" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)] hover:bg-slate-50 transition-colors"
+            type="button"
+            onClick={() => setShowUserMenu((v) => !v)}
+            className={cn(
+              'w-full rounded-full border bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)] transition-colors',
+              showUserMenu
+                ? 'border-emerald-200/90 ring-2 ring-emerald-500/15'
+                : 'border-slate-200 hover:border-emerald-200/80 hover:bg-slate-50/80'
+            )}
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700">
-                AD
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
+                {initials}
               </div>
               <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-bold text-slate-950">Admin User</p>
-                <p className="truncate text-xs text-slate-600">admin@haa.com</p>
+                <p className="truncate text-sm font-bold text-slate-950">{displayName}</p>
+                <p className="truncate text-xs text-slate-600">{displayEmail || 'Signed in'}</p>
               </div>
-              <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 text-slate-500 transition-transform',
+                  showUserMenu && 'rotate-180'
+                )}
+              />
             </div>
           </button>
-
-          {/* Dropdown Menu */}
-          {showUserMenu && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-blue-100 bg-white shadow-xl overflow-hidden">
-              {/* User Profile Header */}
-              <div className="flex flex-col items-center py-6 border-b border-gray-100">
-                <div className="h-16 w-16 rounded-full bg-blue-400 flex items-center justify-center text-white font-semibold text-xl mb-3">
-                  AD
-                </div>
-                <p className="text-gray-700 font-medium">Admin User</p>
-              </div>
-
-              {/* Menu Items */}
-              <div className="py-2">
-                <button
-                  onClick={() => {
-                    navigate('/users');
-                    setShowUserMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <UserCircle className="h-4 w-4" />
-                  <span>My Profile</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigate('/settings');
-                    setShowUserMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('isAuthenticated');
-                    navigate('/login');
-                    setShowUserMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                  <span>Log Out</span>
-                </button>
-              </div>
-
-              {/* Footer Links */}
-            </div>
-          )}
         </div>
       ) : null}
     </motion.aside>

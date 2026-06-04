@@ -61,8 +61,8 @@ export function KpiCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{label}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-700">{label}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{value}</p>
           {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
         </div>
         {Icon ? (

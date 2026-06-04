@@ -7,7 +7,7 @@ const router = express.Router();
 
 // All user routes require authentication and ADMIN role
 router.use(authenticate);
-router.use(authorize(['ADMIN']));
+router.use(authorize(['ADMIN', 'SUPER_ADMIN']));
 
 /**
  * @swagger
