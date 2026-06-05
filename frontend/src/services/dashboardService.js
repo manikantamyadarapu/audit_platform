@@ -66,3 +66,39 @@ export async function fetchDashboardIssuesCategory(period = 'week') {
 export function getDashboardIssuesCategoryErrorMessage(error) {
   return getApiErrorMessage(error);
 }
+
+/**
+ * @param {{
+ *   page?: number,
+ *   limit?: number,
+ *   status?: import('../types/dashboard').DashboardAuditStatus,
+ *   auditType?: number,
+ *   search?: string,
+ * }} [params]
+ * @returns {Promise<import('../types/dashboard').DashboardRecentAuditsResult>}
+ */
+export async function fetchDashboardRecentAudits(params = {}) {
+  const token = getAuthToken();
+  const { data } = await api.get('/api/dashboard/recent-audits', {
+    params,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!data?.success) {
+    throw new Error(data?.message || 'Failed to load recent audits');
+  }
+
+  return {
+    items: data.data ?? [],
+    pagination: data.pagination ?? {
+      page: params.page ?? 1,
+      limit: params.limit ?? 10,
+      total: 0,
+      totalPages: 0,
+    },
+  };
+}
+
+export function getDashboardRecentAuditsErrorMessage(error) {
+  return getApiErrorMessage(error);
+}

@@ -1,5 +1,9 @@
 const dashboardRepository = require('../repositories/dashboard.repository');
-const { validateWidgetsQuery, validateTrendQuery } = require('../validators/dashboard.validator');
+const {
+  validateWidgetsQuery,
+  validateTrendQuery,
+  validateRecentAuditsQuery,
+} = require('../validators/dashboard.validator');
 const logger = require('../utils/logger');
 
 const PERIOD_DAYS = {
@@ -7,38 +11,6 @@ const PERIOD_DAYS = {
   month: 30,
   year: 365,
 };
-
-const ISSUE_CATEGORY_DEFINITIONS = [
-  {
-    name: 'PAN Issues',
-    codes: new Set(['INVALID_PAN', 'DUPLICATE_PAN', 'PAN_FORMAT_ERROR']),
-  },
-  {
-    name: 'Gross Weight Issues',
-    codes: new Set(['GROSS_MISMATCH', 'NET_MISMATCH', 'STONE_MISMATCH']),
-  },
-  {
-    name: 'Rate Verification Issues',
-    codes: new Set([
-      'GOLD_RATE_DEVIATION',
-      'SILVER_RATE_DEVIATION',
-      'DIAMOND_RATE_DEVIATION',
-      'RATE_OUT_OF_RANGE',
-    ]),
-  },
-  {
-    name: 'ID Proof Issues',
-    codes: new Set(['INVALID_AADHAR', 'INVALID_GST', 'MISSING_ID']),
-  },
-];
-
-const ISSUE_CATEGORY_ORDER = [
-  'PAN Issues',
-  'Gross Weight Issues',
-  'Rate Verification Issues',
-  'ID Proof Issues',
-  'Other Issues',
-];
 
 /**
  * @param {'week'|'month'|'year'} period
@@ -320,22 +292,6 @@ async function getAuditTrend(query, user) {
 }
 
 /**
- * @param {string} issueCode
- * @returns {string}
- */
-function mapIssueCodeToCategory(issueCode) {
-  const normalized = String(issueCode || '').trim().toUpperCase();
-
-  for (const category of ISSUE_CATEGORY_DEFINITIONS) {
-    if (category.codes.has(normalized)) {
-      return category.name;
-    }
-  }
-
-  return 'Other Issues';
-}
-
-/**
  * @param {number} count
  * @param {number} totalIssues
  * @returns {number}
@@ -346,6 +302,33 @@ function calculateCategoryPercentage(count, totalIssues) {
   }
 
   return Math.round((count / totalIssues) * 1000) / 10;
+}
+
+/**
+ * Build donut-chart categories from grouped issue rows (dynamic — any issue type from DB).
+ * @param {Array<{ issueCode: string, issueName: string, _sum: { issueCount: number | null } }>} groupedIssues
+ */
+function buildDynamicIssueCategories(groupedIssues) {
+  const categories = groupedIssues
+    .map((row) => ({
+      name: row.issueName || row.issueCode,
+      code: row.issueCode,
+      count: row._sum.issueCount ?? 0,
+    }))
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const totalIssues = categories.reduce((sum, item) => sum + item.count, 0);
+
+  return {
+    totalIssues,
+    categories: categories.map((item) => ({
+      name: item.name,
+      code: item.code,
+      count: item.count,
+      percentage: calculateCategoryPercentage(item.count, totalIssues),
+    })),
+  };
 }
 
 /**
@@ -373,20 +356,9 @@ async function getIssuesByCategory(query, user) {
     };
   }
 
-  const categoryCounts = new Map(ISSUE_CATEGORY_ORDER.map((name) => [name, 0]));
+  const { totalIssues, categories } = buildDynamicIssueCategories(groupedIssues);
 
-  for (const row of groupedIssues) {
-    const categoryName = mapIssueCodeToCategory(row.issueCode);
-    const count = row._sum.issueCount ?? 0;
-    categoryCounts.set(categoryName, (categoryCounts.get(categoryName) || 0) + count);
-  }
-
-  const totalIssues = ISSUE_CATEGORY_ORDER.reduce(
-    (sum, name) => sum + (categoryCounts.get(name) || 0),
-    0
-  );
-
-  if (totalIssues <= 0) {
+  if (totalIssues <= 0 || !categories.length) {
     return {
       period,
       totalIssues: 0,
@@ -394,15 +366,6 @@ async function getIssuesByCategory(query, user) {
       isEmpty: true,
     };
   }
-
-  const categories = ISSUE_CATEGORY_ORDER.map((name) => {
-    const count = categoryCounts.get(name) || 0;
-    return {
-      name,
-      count,
-      percentage: calculateCategoryPercentage(count, totalIssues),
-    };
-  }).filter((category) => category.count > 0);
 
   return {
     period,
@@ -412,16 +375,62 @@ async function getIssuesByCategory(query, user) {
   };
 }
 
+/**
+ * @param {{ id: number, fileName: string, totalRows: number, createdAt: Date, status: string, auditType: { auditName: string } }} run
+ */
+function mapRecentAuditRow(run) {
+  return {
+    auditId: run.id,
+    fileName: run.fileName,
+    auditType: run.auditType?.auditName ?? 'Unknown',
+    records: run.totalRows,
+    uploadedOn: run.createdAt.toISOString(),
+    status: run.status,
+  };
+}
+
+/**
+ * @param {import('express').Request['query']} query
+ * @param {{ id: number, role?: string }} user
+ */
+async function getRecentAudits(query, user) {
+  const filters = validateRecentAuditsQuery(query);
+
+  logger.info('Fetching recent audit uploads', {
+    userId: user?.id,
+    role: user?.role,
+    page: filters.page,
+    limit: filters.limit,
+    status: filters.status,
+    auditType: filters.auditType,
+    search: filters.search,
+  });
+
+  const { runs, total } = await dashboardRepository.getRecentAudits(filters);
+  const totalPages = total === 0 ? 0 : Math.ceil(total / filters.limit);
+
+  return {
+    data: runs.map(mapRecentAuditRow),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total,
+      totalPages,
+    },
+  };
+}
+
 module.exports = {
   getDashboardWidgets,
   getAuditTrend,
   getIssuesByCategory,
+  getRecentAudits,
   getPeriodRanges,
   calculateAccuracy,
   buildTrendMetric,
   buildAccuracyTrend,
   getTrendBuckets,
   aggregateRunsIntoBuckets,
-  mapIssueCodeToCategory,
   calculateCategoryPercentage,
+  buildDynamicIssueCategories,
 };

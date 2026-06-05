@@ -161,14 +161,14 @@ async function getMonthlyTrend(startDate) {
 }
 
 /**
- * Aggregate issue counts by issue code for audit runs in date range.
+ * Aggregate issue counts by issue code and name for audit runs in date range.
  * @param {Date} startDate
  * @param {Date} endDate
- * @returns {Promise<Array<{ issueCode: string, _sum: { issueCount: number | null } }>>}
+ * @returns {Promise<Array<{ issueCode: string, issueName: string, _sum: { issueCount: number | null } }>>}
  */
 async function getIssuesByCategory(startDate, endDate) {
   return prisma.auditIssueCount.groupBy({
-    by: ['issueCode'],
+    by: ['issueCode', 'issueName'],
     where: {
       auditRun: {
         createdAt: createdAtRange(startDate, endDate),
@@ -177,7 +177,72 @@ async function getIssuesByCategory(startDate, endDate) {
     _sum: {
       issueCount: true,
     },
+    orderBy: {
+      _sum: {
+        issueCount: 'desc',
+      },
+    },
   });
+}
+
+/**
+ * Paginated recent audit uploads with audit type join.
+ * @param {{
+ *   page: number,
+ *   limit: number,
+ *   status?: string,
+ *   auditType?: number,
+ *   search?: string,
+ * }} filters
+ * @returns {Promise<{ runs: Array<{ id: number, fileName: string, totalRows: number, createdAt: Date, status: string, auditType: { auditName: string } }>, total: number }>}
+ */
+async function getRecentAudits(filters) {
+  const { page, limit, status, auditType, search } = filters;
+  const skip = (page - 1) * limit;
+
+  /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+  const where = {};
+
+  if (status) {
+    where.status = status;
+  }
+
+  if (auditType != null) {
+    where.auditTypeId = auditType;
+  }
+
+  if (search) {
+    where.fileName = {
+      contains: search,
+      mode: 'insensitive',
+    };
+  }
+
+  const [runs, total] = await Promise.all([
+    prisma.auditRun.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        fileName: true,
+        totalRows: true,
+        createdAt: true,
+        status: true,
+        auditType: {
+          select: {
+            auditName: true,
+          },
+        },
+      },
+    }),
+    prisma.auditRun.count({ where }),
+  ]);
+
+  return { runs, total };
 }
 
 module.exports = {
@@ -189,4 +254,5 @@ module.exports = {
   getWeeklyTrend,
   getMonthlyTrend,
   getIssuesByCategory,
+  getRecentAudits,
 };

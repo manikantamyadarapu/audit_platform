@@ -1,5 +1,6 @@
 const dashboardService = require('../services/dashboard.service');
 const SuccessResponse = require('../utils/successResponse');
+const PaginatedSuccessResponse = SuccessResponse.PaginatedSuccessResponse;
 const ErrorResponse = require('../utils/errorResponse');
 const logger = require('../utils/logger');
 
@@ -104,8 +105,43 @@ async function getIssuesByCategory(req, res, next) {
   }
 }
 
+/**
+ * GET /api/dashboard/recent-audits
+ * GET /api/v1/dashboard/recent-audits
+ */
+async function getRecentAudits(req, res, next) {
+  try {
+    const user = req.user;
+
+    if (!user?.id) {
+      return ErrorResponse(res, 401, 'Access token required');
+    }
+
+    const { data, pagination } = await dashboardService.getRecentAudits(req.query, user);
+
+    return PaginatedSuccessResponse(
+      res,
+      'Recent audits fetched successfully',
+      data,
+      pagination
+    );
+  } catch (error) {
+    if (error.statusCode === 400) {
+      return ErrorResponse(res, 400, error.message);
+    }
+
+    logger.error('Recent audits fetch failed', {
+      userId: req.user?.id,
+      message: error.message,
+    });
+
+    return next(error);
+  }
+}
+
 module.exports = {
   getDashboardWidgets,
   getAuditTrend,
   getIssuesByCategory,
+  getRecentAudits,
 };

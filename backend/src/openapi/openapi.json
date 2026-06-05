@@ -260,8 +260,8 @@
     "/api/dashboard/issues-category": {
       "get": {
         "tags": ["Dashboard"],
-        "summary": "Get issues grouped by dashboard category",
-        "description": "Returns issue counts and percentages grouped into PAN, Gross Weight, Rate Verification, ID Proof, and Other categories. Requires JWT Bearer token.",
+        "summary": "Get issues grouped by issue type (dynamic)",
+        "description": "Returns issue counts and percentages for each distinct issue type found in audit_issue_counts for the selected period. New issue codes automatically appear in the response. Requires JWT Bearer token.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
@@ -281,13 +281,14 @@
                   "success": true,
                   "message": "Issues by category fetched successfully",
                   "data": {
-                    "totalIssues": 2156,
+                    "totalIssues": 145,
                     "categories": [
-                      { "name": "PAN Issues", "count": 856, "percentage": 39.7 },
-                      { "name": "Gross Weight Issues", "count": 542, "percentage": 25.1 },
-                      { "name": "Rate Verification Issues", "count": 420, "percentage": 19.5 },
-                      { "name": "ID Proof Issues", "count": 214, "percentage": 9.9 },
-                      { "name": "Other Issues", "count": 124, "percentage": 5.8 }
+                      { "name": "Gross Weight Mismatch", "code": "GROSS_MISMATCH", "count": 45, "percentage": 31.0 },
+                      { "name": "Invalid PAN Format", "code": "INVALID_PAN", "count": 25, "percentage": 17.2 },
+                      { "name": "Net Weight Mismatch", "code": "NET_MISMATCH", "count": 20, "percentage": 13.8 },
+                      { "name": "Rate Deviation", "code": "RATE_DEVIATION", "count": 30, "percentage": 20.7 },
+                      { "name": "Missing Unit Rate", "code": "MISSING_UNIT_RATE", "count": 20, "percentage": 13.8 },
+                      { "name": "Missing PAN Number", "code": "MISSING_PAN", "count": 5, "percentage": 3.4 }
                     ]
                   }
                 }
@@ -355,6 +356,129 @@
             }
           },
           "400": { "description": "Invalid period filter" },
+          "401": { "description": "Access token required" },
+          "403": { "description": "Invalid or expired token" },
+          "500": { "description": "Internal server error" }
+        }
+      }
+    },
+    "/api/dashboard/recent-audits": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get paginated recent audit uploads",
+        "description": "Returns recent audit runs joined with audit_types, sorted by upload date (newest first). Requires JWT Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
+            "description": "Filter by audit run status"
+          },
+          {
+            "in": "query",
+            "name": "auditType",
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "Filter by audit_types.id"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": { "type": "string" },
+            "description": "Search file name (case-insensitive partial match)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent audits fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" },
+                "example": {
+                  "success": true,
+                  "message": "Recent audits fetched successfully",
+                  "data": [
+                    {
+                      "auditId": 101,
+                      "fileName": "Gold_City_2024-12-16.xlsx",
+                      "auditType": "PAN Audit",
+                      "records": 12458,
+                      "uploadedOn": "2024-12-16T10:30:00.000Z",
+                      "status": "COMPLETED"
+                    }
+                  ],
+                  "pagination": { "page": 1, "limit": 10, "total": 120, "totalPages": 12 }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid status filter" }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Access token required" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid or expired token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Internal server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/recent-audits": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get paginated recent audit uploads (v1)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] }
+          },
+          { "in": "query", "name": "auditType", "schema": { "type": "integer", "minimum": 1 } },
+          { "in": "query", "name": "search", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent audits fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" }
+              }
+            }
+          },
+          "400": { "description": "Invalid query parameters" },
           "401": { "description": "Access token required" },
           "403": { "description": "Invalid or expired token" },
           "500": { "description": "Internal server error" }
@@ -1153,9 +1277,10 @@
       "DashboardIssueCategoryItem": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "example": "PAN Issues" },
-          "count": { "type": "integer", "example": 856 },
-          "percentage": { "type": "number", "example": 39.7 }
+          "name": { "type": "string", "example": "Gross Weight Mismatch", "description": "Human-readable issue name from audit_issue_counts.issue_name" },
+          "code": { "type": "string", "example": "GROSS_MISMATCH", "description": "Issue code from audit_issue_counts.issue_code" },
+          "count": { "type": "integer", "example": 45 },
+          "percentage": { "type": "number", "example": 31.0 }
         }
       },
       "DashboardIssuesCategoryData": {
@@ -1175,6 +1300,42 @@
           "success": { "type": "boolean", "example": true },
           "message": { "type": "string", "example": "Issues by category fetched successfully" },
           "data": { "$ref": "#/components/schemas/DashboardIssuesCategoryData" }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 10 },
+          "total": { "type": "integer", "example": 120 },
+          "totalPages": { "type": "integer", "example": 12 }
+        }
+      },
+      "DashboardRecentAuditItem": {
+        "type": "object",
+        "properties": {
+          "auditId": { "type": "integer", "example": 101 },
+          "fileName": { "type": "string", "example": "Gold_City_2024-12-16.xlsx" },
+          "auditType": { "type": "string", "example": "PAN Audit" },
+          "records": { "type": "integer", "example": 12458 },
+          "uploadedOn": { "type": "string", "format": "date-time", "example": "2024-12-16T10:30:00.000Z" },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+            "example": "COMPLETED"
+          }
+        }
+      },
+      "DashboardRecentAuditsSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Recent audits fetched successfully" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DashboardRecentAuditItem" }
+          },
+          "pagination": { "$ref": "#/components/schemas/PaginationMeta" }
         }
       },
       "ErrorBody": {

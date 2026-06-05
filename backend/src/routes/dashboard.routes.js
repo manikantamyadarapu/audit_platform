@@ -124,7 +124,7 @@ router.get('/audit-trend', authMiddleware, dashboardController.getAuditTrend);
  * @swagger
  * /api/v1/dashboard/issues-category:
  *   get:
- *     summary: Get issues grouped by dashboard category
+ *     summary: Get issues grouped by issue type (dynamic)
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
@@ -162,5 +162,79 @@ router.get('/audit-trend', authMiddleware, dashboardController.getAuditTrend);
  *         description: Internal server error
  */
 router.get('/issues-category', authMiddleware, dashboardController.getIssuesByCategory);
+
+/**
+ * @swagger
+ * /api/v1/dashboard/recent-audits:
+ *   get:
+ *     summary: Get paginated recent audit uploads
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+ *         description: Filter by audit run status
+ *       - in: query
+ *         name: auditType
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Filter by audit_types.id
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by file name (case-insensitive partial match)
+ *     responses:
+ *       200:
+ *         description: Recent audits fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Recent audits fetched successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/DashboardRecentAuditItem'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationMeta'
+ *       400:
+ *         description: Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DashboardErrorBody'
+ *       401:
+ *         description: Access token required
+ *       403:
+ *         description: Invalid or expired token
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/recent-audits', authMiddleware, dashboardController.getRecentAudits);
 
 module.exports = router;

@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   Bell,
   Calendar,
-  ChevronDown,
   FileSpreadsheet,
   Filter,
   ShieldCheck,
@@ -15,14 +14,18 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { CustomSelect } from '../components/ui/CustomSelect';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
-import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, getDashboardWidgetsErrorMessage, getDashboardAuditTrendErrorMessage, getDashboardIssuesCategoryErrorMessage } from '../services/dashboardService';
+import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage, getDashboardAuditTrendErrorMessage, getDashboardIssuesCategoryErrorMessage, getDashboardRecentAuditsErrorMessage } from '../services/dashboardService';
 import { AuditActivityTrendChart } from '../components/charts/AuditActivityTrendChart';
+import { IssuesByCategoryPanel } from '../components/charts/IssuesByCategoryPanel';
+import { IssuesByCategoryBarChart } from '../components/charts/IssuesByCategoryBarChart';
 import {
   buildDashboardKpiItems,
   buildSummaryStripItems,
   DASHBOARD_PERIOD_OPTIONS,
 } from '../utils/dashboardWidgets';
 import { buildIssueCategoryItems } from '../utils/dashboardIssueCategories';
+import { getAuditStatusMeta } from '../utils/dashboardRecentAudits';
+import { formatUploadDateTime } from '../utils/dateTime';
 import { formatNumber } from '../utils/format';
 
 const KPI_ICONS = {
@@ -38,13 +41,7 @@ const TREND_PERIOD_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
-const uploads = [
-  ['Gold_City_2024-12-16.xlsx', 'PAN Audit', '12,458', '16 Dec 2024, 10:30 AM', 'Completed'],
-  ['Silver_Palace_2024-12-16.xlsx', 'Gross Weight Audit', '8,965', '16 Dec 2024, 09:15 AM', 'Completed'],
-  ['Veena_Jewellers_2024-12-15.xlsx', 'Sales Audit', '9,875', '15 Dec 2024, 08:45 PM', 'Completed'],
-  ['Ramesh_Ornaments_2024-12-15.xlsx', 'Inventory Audit', '7,264', '15 Dec 2024, 06:20 PM', 'In Progress'],
-  ['Vijay_Store_2024-12-15.xlsx', 'PAN Audit', '10,125', '15 Dec 2024, 04:10 PM', 'Completed'],
-];
+const RECENT_AUDITS_PAGE_SIZE = 5;
 
 function Panel({ children, className = '' }) {
   return (
@@ -114,46 +111,6 @@ function KpiCard({ item, loading }) {
   );
 }
 
-function DonutChart({ categories, totalIssues, loading }) {
-  if (loading) {
-    return (
-      <div className="relative flex h-[230px] w-[230px] shrink-0 items-center justify-center">
-        <Skeleton className="h-[230px] w-[230px] rounded-full" />
-      </div>
-    );
-  }
-
-  if (!categories.length) {
-    return (
-      <div className="flex h-[230px] w-[230px] shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--color-border-soft)] text-center text-sm text-[var(--color-text-muted)]">
-        No issue data
-      </div>
-    );
-  }
-
-  const total = categories.reduce((sum, item) => sum + item.value, 0) || totalIssues || 1;
-  const gradient = `conic-gradient(${categories
-    .map((item, index) => {
-      const previous = categories.slice(0, index).reduce((sum, current) => sum + current.value, 0);
-      const start = (previous / total) * 100;
-      const end = ((previous + item.value) / total) * 100;
-      return `${item.color} ${start}% ${end}%`;
-    })
-    .join(', ')})`;
-
-  return (
-    <div className="relative h-[230px] w-[230px] shrink-0 rounded-full" style={{ background: gradient }}>
-      <div className="absolute inset-[34px] rounded-full bg-[var(--color-surface-elevated)]" />
-      <div className="absolute inset-0 flex items-center justify-center text-center">
-        <div>
-          <p className="text-3xl font-semibold text-[var(--color-text-primary)]">{formatNumber(totalIssues)}</p>
-          <p className="text-sm text-[var(--color-text-muted)]">Total Issues</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Dashboard() {
   const { greeting, shortDate } = useCurrentDateTime();
   const storedUser = getStoredUser();
@@ -167,6 +124,8 @@ export default function Dashboard() {
   const [widgetsLoading, setWidgetsLoading] = useState(true);
   const [trendLoading, setTrendLoading] = useState(true);
   const [issuesCategoryLoading, setIssuesCategoryLoading] = useState(true);
+  const [recentAudits, setRecentAudits] = useState([]);
+  const [recentAuditsLoading, setRecentAuditsLoading] = useState(true);
   const loadWidgets = useCallback(async (selectedPeriod) => {
     setWidgetsLoading(true);
     try {
@@ -206,6 +165,22 @@ export default function Dashboard() {
     }
   }, []);
 
+  const loadRecentAudits = useCallback(async () => {
+    setRecentAuditsLoading(true);
+    try {
+      const { items } = await fetchDashboardRecentAudits({
+        page: 1,
+        limit: RECENT_AUDITS_PAGE_SIZE,
+      });
+      setRecentAudits(items);
+    } catch (error) {
+      setRecentAudits([]);
+      toast.error(getDashboardRecentAuditsErrorMessage(error));
+    } finally {
+      setRecentAuditsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadWidgets(period);
     loadIssuesCategory(period);
@@ -214,6 +189,10 @@ export default function Dashboard() {
   useEffect(() => {
     loadAuditTrend(trendPeriod);
   }, [trendPeriod, loadAuditTrend]);
+
+  useEffect(() => {
+    loadRecentAudits();
+  }, [loadRecentAudits]);
 
   const kpiItems = useMemo(() => buildDashboardKpiItems(widgets), [widgets]);
   const summaryItems = useMemo(() => buildSummaryStripItems(widgets), [widgets]);
@@ -319,50 +298,23 @@ export default function Dashboard() {
 
         <Panel className="p-5">
           <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
-          <div className="mt-4 flex flex-col items-center gap-4 lg:flex-row">
-            <DonutChart
-              categories={issueCategoryItems}
-              totalIssues={totalIssuesCount}
-              loading={issuesCategoryLoading}
-            />
-            <div className="w-full flex-1 space-y-5">
-              {issuesCategoryLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="flex items-center justify-between gap-3">
-                    <Skeleton className="h-4 w-40 rounded-md" />
-                    <Skeleton className="h-4 w-20 rounded-md" />
-                  </div>
-                ))
-              ) : issueCategoryItems.length ? (
-                issueCategoryItems.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-3 text-[var(--color-text-secondary)]">
-                      <i className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      {item.name}
-                    </span>
-                    <span className="text-[var(--color-text-secondary)]">
-                      {formatNumber(item.value)} ({item.percent})
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[var(--color-text-muted)]">No issue data for this period.</p>
-              )}
-            </div>
-          </div>
+          <IssuesByCategoryPanel
+            categories={issueCategoryItems}
+            totalIssues={totalIssuesCount}
+            loading={issuesCategoryLoading}
+          />
         </Panel>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
         <Panel className="overflow-hidden p-5">
           <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-950">Recent Audit Uploads</h3>
-            <ButtonPill>View All</ButtonPill>
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Recent Audit Uploads</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
+                <tr className="border-b border-[var(--color-border-soft)] text-xs font-medium text-[var(--color-text-muted)]">
                   <th className="pb-3">File Name</th>
                   <th className="pb-3">Audit Type</th>
                   <th className="pb-3">Records</th>
@@ -371,63 +323,57 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {uploads.map((row) => (
-                  <tr key={row[0]} className="border-b border-slate-100 last:border-0">
-                    <td className="py-3 text-slate-700">
-                      <span className="inline-flex items-center gap-3">
-                        <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                        {row[0]}
-                      </span>
-                    </td>
-                    <td className="py-3 text-slate-700">{row[1]}</td>
-                    <td className="py-3 text-slate-700">{row[2]}</td>
-                    <td className="py-3 text-slate-700">{row[3]}</td>
-                    <td className="py-3 text-right">
-                      <span className={`rounded-md px-2 py-1 text-xs font-medium ${row[4] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {row[4]}
-                      </span>
+                {recentAuditsLoading ? (
+                  Array.from({ length: RECENT_AUDITS_PAGE_SIZE }).map((_, index) => (
+                    <tr key={index} className="border-b border-[var(--color-border-soft)] last:border-0">
+                      <td className="py-3" colSpan={5}>
+                        <Skeleton className="h-5 w-full rounded-md" />
+                      </td>
+                    </tr>
+                  ))
+                ) : recentAudits.length ? (
+                  recentAudits.map((row) => {
+                    const statusMeta = getAuditStatusMeta(row.status);
+
+                    return (
+                      <tr key={row.auditId} className="border-b border-[var(--color-border-soft)] last:border-0">
+                        <td className="py-3 text-[var(--color-text-secondary)]">
+                          <span className="inline-flex items-center gap-3">
+                            <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                            <span className="truncate">{row.fileName}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{row.auditType}</td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{formatNumber(row.records)}</td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{formatUploadDateTime(row.uploadedOn)}</td>
+                        <td className="py-3 text-right">
+                          <span className={cn('rounded-md px-2 py-1 text-xs font-medium', statusMeta.className)}>
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm text-[var(--color-text-muted)]">
+                      No recent audit uploads found.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </Panel>
 
-        <Panel className="p-5">
-          <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-950">Top Issue Summary</h3>
-            <ButtonPill>View All</ButtonPill>
+        <Panel className="overflow-hidden p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issue Breakdown</h3>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Top categories by issue count</p>
+            </div>
           </div>
-          <div className="space-y-6">
-            {issuesCategoryLoading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className="h-8 w-full rounded-lg" />
-              ))
-            ) : issueCategoryItems.length ? (
-              issueCategoryItems.map((item) => (
-                <div key={item.name} className="grid grid-cols-[1fr_auto_130px] items-center gap-4 text-sm">
-                  <span className="flex items-center gap-3 text-[var(--color-text-secondary)]">
-                    <i className="flex h-7 w-7 items-center justify-center rounded-md" style={{ backgroundColor: `${item.color}33` }}>
-                      <ShieldCheck className="h-4 w-4" style={{ color: item.color }} />
-                    </i>
-                    {item.name}
-                  </span>
-                  <span className="text-[var(--color-text-secondary)]">
-                    {formatNumber(item.value)} ({item.percent})
-                  </span>
-                  <span className="h-2 rounded-full bg-[var(--color-surface-subtle)]">
-                    <i
-                      className="block h-2 rounded-full"
-                      style={{ width: item.percent, backgroundColor: item.color }}
-                    />
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-[var(--color-text-muted)]">No issue data for this period.</p>
-            )}
-          </div>
+          <IssuesByCategoryBarChart categories={issueCategoryItems} loading={issuesCategoryLoading} />
         </Panel>
       </section>
     </div>

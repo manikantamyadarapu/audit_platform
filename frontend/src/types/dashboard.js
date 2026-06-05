@@ -33,6 +33,7 @@
 /**
  * @typedef {Object} DashboardIssueCategoryItem
  * @property {string} name
+ * @property {string} code
  * @property {number} count
  * @property {number} percentage
  */
@@ -42,6 +43,34 @@
  * @property {'week'|'month'|'year'} period
  * @property {number} totalIssues
  * @property {DashboardIssueCategoryItem[]} categories
+ */
+
+/**
+ * @typedef {'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'} DashboardAuditStatus
+ */
+
+/**
+ * @typedef {Object} DashboardRecentAuditItem
+ * @property {number} auditId
+ * @property {string} fileName
+ * @property {string} auditType
+ * @property {number} records
+ * @property {string} uploadedOn
+ * @property {DashboardAuditStatus} status
+ */
+
+/**
+ * @typedef {Object} DashboardPaginationMeta
+ * @property {number} page
+ * @property {number} limit
+ * @property {number} total
+ * @property {number} totalPages
+ */
+
+/**
+ * @typedef {Object} DashboardRecentAuditsResult
+ * @property {DashboardRecentAuditItem[]} items
+ * @property {DashboardPaginationMeta} pagination
  */
 
 export {};
