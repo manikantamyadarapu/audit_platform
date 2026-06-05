@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
+import { PageContentSkeleton } from './AppShellSkeleton';
 
 export function AppLayout() {
   const location = useLocation();
@@ -22,7 +24,13 @@ export function AppLayout() {
               transition={{ duration: 0.22 }}
               className="relative w-full"
             >
-              <Outlet />
+              <Suspense
+                fallback={
+                  <PageContentSkeleton variant={isDashboard ? 'dashboard' : 'default'} />
+                }
+              >
+                <Outlet />
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>

@@ -241,10 +241,12 @@ async function main() {
   console.log(`Created ${users.length} users`);
 
   // ============================================================================
-  // 5. SEED AUDIT RUNS
+  // 5. SEED AUDIT RUNS (createdAt spread for dashboard period trends)
   // ============================================================================
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000);
+
   const auditRuns = await Promise.all([
-    // Gross Weight Audit
+    // --- Current period (last 7 days) ---
     prisma.auditRun.create({
       data: {
         auditTypeId: grossType.id,
@@ -253,11 +255,11 @@ async function main() {
         status: 'COMPLETED',
         totalRows: 1250,
         invalidRows: 65,
-        startedAt: new Date(Date.now() - 86400000),
-        completedAt: new Date(Date.now() - 86000000),
+        startedAt: daysAgo(1),
+        completedAt: daysAgo(1),
+        createdAt: daysAgo(1),
       },
     }),
-    // PAN Audit
     prisma.auditRun.create({
       data: {
         auditTypeId: panType.id,
@@ -266,11 +268,11 @@ async function main() {
         status: 'COMPLETED',
         totalRows: 850,
         invalidRows: 30,
-        startedAt: new Date(Date.now() - 172800000),
-        completedAt: new Date(Date.now() - 172700000),
+        startedAt: daysAgo(2),
+        completedAt: daysAgo(2),
+        createdAt: daysAgo(2),
       },
     }),
-    // Sales Audit
     prisma.auditRun.create({
       data: {
         auditTypeId: salesType.id,
@@ -279,8 +281,36 @@ async function main() {
         status: 'COMPLETED',
         totalRows: 3200,
         invalidRows: 50,
-        startedAt: new Date(Date.now() - 259200000),
-        completedAt: new Date(Date.now() - 259100000),
+        startedAt: daysAgo(3),
+        completedAt: daysAgo(3),
+        createdAt: daysAgo(3),
+      },
+    }),
+    // --- Previous period (8–14 days ago) for week-over-week trends ---
+    prisma.auditRun.create({
+      data: {
+        auditTypeId: grossType.id,
+        fileName: 'gross_weight_prev_week.xlsx',
+        uploadedBy: users[1].id,
+        status: 'COMPLETED',
+        totalRows: 2000,
+        invalidRows: 80,
+        startedAt: daysAgo(10),
+        completedAt: daysAgo(10),
+        createdAt: daysAgo(10),
+      },
+    }),
+    prisma.auditRun.create({
+      data: {
+        auditTypeId: panType.id,
+        fileName: 'pan_prev_week.csv',
+        uploadedBy: users[1].id,
+        status: 'COMPLETED',
+        totalRows: 1500,
+        invalidRows: 40,
+        startedAt: daysAgo(12),
+        completedAt: daysAgo(12),
+        createdAt: daysAgo(12),
       },
     }),
   ]);

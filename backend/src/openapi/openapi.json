@@ -20,7 +20,8 @@
     { "name": "Sales" },
     { "name": "Rate rules" },
     { "name": "Diamond rate rules" },
-    { "name": "Sales return" }
+    { "name": "Sales return" },
+    { "name": "Dashboard" }
   ],
   "paths": {
     "/api/health": {
@@ -42,6 +43,445 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/dashboard/widgets": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get dashboard KPI widgets with period trends",
+        "description": "Returns total audits, records, issues, and accuracy with trend vs the previous period. Requires JWT Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" },
+            "description": "week = last 7 days, month = last 30 days, year = last 365 days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard widgets fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardWidgetsSuccess" },
+                "example": {
+                  "success": true,
+                  "message": "Dashboard widgets fetched successfully",
+                  "data": {
+                    "period": "week",
+                    "totalAudits": { "value": 124, "change": 18, "trend": "up" },
+                    "totalRecords": { "value": 48562, "change": 24, "trend": "up" },
+                    "totalIssues": { "value": 2156, "change": -8, "trend": "down" },
+                    "accuracy": { "value": 94.62, "change": 6, "trend": "up" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period filter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid period filter" }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Access token required" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid or expired token" }
+              }
+            }
+          },
+          "404": {
+            "description": "Dashboard data not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Dashboard data not found" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Internal server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/widgets": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get dashboard KPI widgets with period trends (v1)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard widgets fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardWidgetsSuccess" }
+              }
+            }
+          },
+          "400": { "description": "Invalid period filter" },
+          "401": { "description": "Access token required" },
+          "403": { "description": "Invalid or expired token" },
+          "404": { "description": "Dashboard data not found" },
+          "500": { "description": "Internal server error" }
+        }
+      }
+    },
+    "/api/dashboard/audit-trend": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get audit activity trend chart data",
+        "description": "Returns chart-ready time series for Audits Processed and Issues Found. Requires JWT Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily" },
+            "description": "daily = last 7 days, weekly = last 12 weeks, monthly = last 12 months"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit trend fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardAuditTrendSuccess" },
+                "example": {
+                  "success": true,
+                  "message": "Audit trend fetched successfully",
+                  "data": {
+                    "period": "daily",
+                    "labels": ["Dec 10", "Dec 11", "Dec 12", "Dec 13", "Dec 14", "Dec 15", "Dec 16"],
+                    "auditsProcessed": [220, 760, 680, 1080, 1080, 1180, 1920],
+                    "issuesFound": [50, 410, 220, 520, 350, 410, 860]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period filter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid period filter" }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Access token required" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid or expired token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Internal server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/audit-trend": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get audit activity trend chart data (v1)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit trend fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardAuditTrendSuccess" }
+              }
+            }
+          },
+          "400": { "description": "Invalid period filter" },
+          "401": { "description": "Access token required" },
+          "403": { "description": "Invalid or expired token" },
+          "500": { "description": "Internal server error" }
+        }
+      }
+    },
+    "/api/dashboard/issues-category": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get issues grouped by issue type (dynamic)",
+        "description": "Returns issue counts and percentages for each distinct issue type found in audit_issue_counts for the selected period. New issue codes automatically appear in the response. Requires JWT Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" },
+            "description": "week = last 7 days, month = last 30 days, year = last 365 days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issues by category fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardIssuesCategorySuccess" },
+                "example": {
+                  "success": true,
+                  "message": "Issues by category fetched successfully",
+                  "data": {
+                    "totalIssues": 145,
+                    "categories": [
+                      { "name": "Gross Weight Mismatch", "code": "GROSS_MISMATCH", "count": 45, "percentage": 31.0 },
+                      { "name": "Invalid PAN Format", "code": "INVALID_PAN", "count": 25, "percentage": 17.2 },
+                      { "name": "Net Weight Mismatch", "code": "NET_MISMATCH", "count": 20, "percentage": 13.8 },
+                      { "name": "Rate Deviation", "code": "RATE_DEVIATION", "count": 30, "percentage": 20.7 },
+                      { "name": "Missing Unit Rate", "code": "MISSING_UNIT_RATE", "count": 20, "percentage": 13.8 },
+                      { "name": "Missing PAN Number", "code": "MISSING_PAN", "count": 5, "percentage": 3.4 }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period filter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid period filter" }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Access token required" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid or expired token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Internal server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/issues-category": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get issues grouped by dashboard category (v1)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issues by category fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardIssuesCategorySuccess" }
+              }
+            }
+          },
+          "400": { "description": "Invalid period filter" },
+          "401": { "description": "Access token required" },
+          "403": { "description": "Invalid or expired token" },
+          "500": { "description": "Internal server error" }
+        }
+      }
+    },
+    "/api/dashboard/recent-audits": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get paginated recent audit uploads",
+        "description": "Returns recent audit runs joined with audit_types, sorted by upload date (newest first). Requires JWT Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
+            "description": "Filter by audit run status"
+          },
+          {
+            "in": "query",
+            "name": "auditType",
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "Filter by audit_types.id"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": { "type": "string" },
+            "description": "Search file name (case-insensitive partial match)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent audits fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" },
+                "example": {
+                  "success": true,
+                  "message": "Recent audits fetched successfully",
+                  "data": [
+                    {
+                      "auditId": 101,
+                      "fileName": "Gold_City_2024-12-16.xlsx",
+                      "auditType": "PAN Audit",
+                      "records": 12458,
+                      "uploadedOn": "2024-12-16T10:30:00.000Z",
+                      "status": "COMPLETED"
+                    }
+                  ],
+                  "pagination": { "page": 1, "limit": 10, "total": 120, "totalPages": 12 }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid status filter" }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Access token required" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Invalid or expired token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
+                "example": { "success": false, "message": "Internal server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/recent-audits": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get paginated recent audit uploads (v1)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] }
+          },
+          { "in": "query", "name": "auditType", "schema": { "type": "integer", "minimum": 1 } },
+          { "in": "query", "name": "search", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent audits fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" }
+              }
+            }
+          },
+          "400": { "description": "Invalid query parameters" },
+          "401": { "description": "Access token required" },
+          "403": { "description": "Invalid or expired token" },
+          "500": { "description": "Internal server error" }
         }
       }
     },
@@ -784,24 +1224,118 @@
       }
     },
     "schemas": {
-      "PanInvalidRecord": {
+      "DashboardErrorBody": {
         "type": "object",
-        "description": "One invalid row from PAN validate JSON (field names as returned by API).",
         "properties": {
-          "rowNumber": { "type": "integer", "example": 77 },
-          "date": { "type": "string", "example": "03-04-2025" },
-          "voucherNo": { "type": "string" },
-          "party": { "type": "string" },
-          "totalValue": { "type": "number" },
-          "pan": { "type": "string" },
-          "pan1": { "type": "string" },
-          "addProof": { "type": "string" },
-          "addProof2": { "type": "string" },
-          "issues": {
+          "success": { "type": "boolean", "example": false },
+          "message": { "type": "string", "example": "Invalid period filter" }
+        }
+      },
+      "DashboardWidgetMetric": {
+        "type": "object",
+        "properties": {
+          "value": { "type": "number", "example": 124 },
+          "change": { "type": "number", "example": 18 },
+          "trend": { "type": "string", "enum": ["up", "down", "neutral"], "example": "up" }
+        }
+      },
+      "DashboardWidgetsData": {
+        "type": "object",
+        "properties": {
+          "period": { "type": "string", "enum": ["week", "month", "year"], "example": "week" },
+          "totalAudits": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
+          "totalRecords": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
+          "totalIssues": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
+          "accuracy": { "$ref": "#/components/schemas/DashboardWidgetMetric" }
+        }
+      },
+      "DashboardWidgetsSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Dashboard widgets fetched successfully" },
+          "data": { "$ref": "#/components/schemas/DashboardWidgetsData" }
+        }
+      },
+      "DashboardAuditTrendData": {
+        "type": "object",
+        "properties": {
+          "period": { "type": "string", "enum": ["daily", "weekly", "monthly"], "example": "daily" },
+          "labels": { "type": "array", "items": { "type": "string" } },
+          "auditsProcessed": { "type": "array", "items": { "type": "integer" } },
+          "issuesFound": { "type": "array", "items": { "type": "integer" } }
+        }
+      },
+      "DashboardAuditTrendSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Audit trend fetched successfully" },
+          "data": { "$ref": "#/components/schemas/DashboardAuditTrendData" }
+        }
+      },
+      "DashboardIssueCategoryItem": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Gross Weight Mismatch", "description": "Human-readable issue name from audit_issue_counts.issue_name" },
+          "code": { "type": "string", "example": "GROSS_MISMATCH", "description": "Issue code from audit_issue_counts.issue_code" },
+          "count": { "type": "integer", "example": 45 },
+          "percentage": { "type": "number", "example": 31.0 }
+        }
+      },
+      "DashboardIssuesCategoryData": {
+        "type": "object",
+        "properties": {
+          "period": { "type": "string", "enum": ["week", "month", "year"], "example": "week" },
+          "totalIssues": { "type": "integer", "example": 2156 },
+          "categories": {
             "type": "array",
-            "items": { "type": "string" },
-            "example": ["MISSING_PAN_ABOVE_2L", "MISSING_ADDRESS_PROOF_ABOVE_50K"]
+            "items": { "$ref": "#/components/schemas/DashboardIssueCategoryItem" }
           }
+        }
+      },
+      "DashboardIssuesCategorySuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Issues by category fetched successfully" },
+          "data": { "$ref": "#/components/schemas/DashboardIssuesCategoryData" }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 10 },
+          "total": { "type": "integer", "example": 120 },
+          "totalPages": { "type": "integer", "example": 12 }
+        }
+      },
+      "DashboardRecentAuditItem": {
+        "type": "object",
+        "properties": {
+          "auditId": { "type": "integer", "example": 101 },
+          "fileName": { "type": "string", "example": "Gold_City_2024-12-16.xlsx" },
+          "auditType": { "type": "string", "example": "PAN Audit" },
+          "records": { "type": "integer", "example": 12458 },
+          "uploadedOn": { "type": "string", "format": "date-time", "example": "2024-12-16T10:30:00.000Z" },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+            "example": "COMPLETED"
+          }
+        }
+      },
+      "DashboardRecentAuditsSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Recent audits fetched successfully" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DashboardRecentAuditItem" }
+          },
+          "pagination": { "$ref": "#/components/schemas/PaginationMeta" }
         }
       },
       "ErrorBody": {
@@ -811,6 +1345,10 @@
           "detail": { "type": "string" },
           "requestId": { "type": "string" }
         }
+      },
+      "PanInvalidRecord": {
+        "type": "object",
+        "additionalProperties": true
       }
     }
   }
