@@ -1,8 +1,9 @@
+const express = require('express');
 const { verifyToken } = require('../utils/jwt.util');
 
 /**
  * Authentication middleware
- * Verifies JWT token and attaches user to request
+ * Verifies JWT token and attaches user to request.
  */
 function authenticate(req, res, next) {
   try {
@@ -11,54 +12,45 @@ function authenticate(req, res, next) {
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: 'Access denied. No token provided.',
+        message: 'Access token required',
       });
     }
 
-    // Check for Bearer token format
     const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid token format. Use: Bearer <token>',
+        message: 'Access token required',
       });
     }
 
     const token = parts[1];
-
-    // Verify token
     const decoded = verifyToken(token);
 
-    // Attach user info to request
     req.user = {
       id: decoded.id,
+      userId: decoded.id,
       email: decoded.email,
       role: decoded.role,
     };
 
     next();
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
+    if (error.name === 'TokenExpiredError' || error.name === 'JsonWebTokenError') {
+      return res.status(403).json({
         success: false,
-        message: 'Token expired',
-      });
-    }
-
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token',
+        message: 'Invalid or expired token',
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Authentication error',
+      message: 'Internal server error',
     });
   }
 }
 
 module.exports = {
   authenticate,
+  authMiddleware: authenticate,
 };

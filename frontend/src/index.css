@@ -27,6 +27,60 @@
   }
 }
 
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-subtle) 0%,
+    color-mix(in srgb, var(--color-surface-subtle) 55%, var(--color-surface-elevated)) 50%,
+    var(--color-surface-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+#root:empty {
+  min-height: 100dvh;
+}
+
+#app-boot-skeleton {
+  display: flex;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent-soft, #dcfce7) 55%, transparent), transparent 30rem),
+    var(--color-surface-page, #f8fafc);
+}
+
+#app-boot-skeleton .boot-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-border-soft, rgba(226, 232, 240, 0.86));
+  background: var(--color-surface-elevated, #fff);
+  padding: 1.25rem 1.5rem;
+}
+
+#app-boot-skeleton .boot-main {
+  flex: 1;
+  padding: 1.5rem 1.75rem;
+}
+
+#app-boot-skeleton .boot-block {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-subtle, #f1f5f9) 0%,
+    color-mix(in srgb, var(--color-surface-subtle, #f1f5f9) 55%, var(--color-surface-elevated, #fff)) 50%,
+    var(--color-surface-subtle, #f1f5f9) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+html.dark #app-boot-skeleton {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent-soft, #064e3b) 55%, transparent), transparent 30rem),
+    var(--color-surface-page, #070b13);
+}
+
 html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
