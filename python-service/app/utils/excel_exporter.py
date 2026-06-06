@@ -4,6 +4,10 @@ from app.sales_engine.engine.sales_audit_output import (
     SALES_AUDIT_OUTPUT_COLUMNS,
     sales_records_for_export,
 )
+from app.sales_return_engine.exception_report import (
+    SALES_RETURN_EXCEPTION_COLUMNS,
+    SALES_RETURN_EXCEPTION_HEADER_MAP,
+)
 from app.utils.audit_reporter import build_audit_excel_report
 
 PAN_EXPORT_COLUMNS = [
@@ -123,6 +127,19 @@ def export_invalid_sales_records(
         summary=summary,
         processing_statistics=processing_statistics,
         execution_timing=execution_timing,
+    )
+
+
+def export_sales_return_exceptions(records: list[dict[str, Any]]) -> bytes:
+    if not records:
+        raise ValueError('No exception records to export')
+    return build_audit_excel_report(
+        report_title='Sales Return Audit Exception Report',
+        invalid_sheet_name='Sales Return Exceptions',
+        source_processor='sales_return',
+        records=records,
+        export_columns=list(SALES_RETURN_EXCEPTION_COLUMNS),
+        header_map=SALES_RETURN_EXCEPTION_HEADER_MAP,
     )
 
 

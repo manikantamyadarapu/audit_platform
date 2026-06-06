@@ -1057,6 +1057,37 @@
         }
       }
     },
+    "/api/v1/process/sales-return/export-exceptions": {
+      "post": {
+        "operationId": "salesReturnExportExceptions",
+        "tags": ["Sales return"],
+        "summary": "Export consolidated sales return exception report as Excel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["records"],
+                "properties": {
+                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excel workbook",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/process/sales-return/export-rate-comparison": {
       "post": {
         "operationId": "salesReturnExportRateComparison",

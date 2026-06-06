@@ -125,6 +125,10 @@ async function postSalesReturnExportRateComparison(records, options = {}) {
   return postExportInvalidRows('/api/process/sales-return/export-rate-comparison', records, options);
 }
 
+async function postSalesReturnExportExceptions(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales-return/export-exceptions', records, options);
+}
+
 /**
  * @param {Array<Record<string, unknown>>} records
  * @returns {Promise<{ buffer: Buffer, contentDisposition: string | undefined, contentType: string | undefined }>}
@@ -243,6 +247,7 @@ module.exports = {
   postSalesExportInvalid,
   postSalesReturnValidate,
   postSalesReturnExportRateComparison,
+  postSalesReturnExportExceptions,
   getRateRules,
   postRateRules,
   getDiamondRateRules,

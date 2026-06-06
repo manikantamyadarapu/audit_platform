@@ -7,24 +7,20 @@ import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SalesResultsTable } from '../components/tables/SalesResultsTable';
-import { SalesReturnRateComparisonTable } from '../components/tables/SalesReturnRateComparisonTable';
+import { SalesReturnExceptionTable } from '../components/tables/SalesReturnExceptionTable';
 import {
-  exportSalesReturnRateComparison,
+  exportSalesReturnExceptions,
   validateSalesReturnAudit,
 } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
-import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
 import { filterSalesRecords } from '../utils/salesRecordFilters';
 
 export default function SalesReturnRateAudit() {
   const [salesFile, setSalesFile] = useState(null);
   const [returnFile, setReturnFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [exportingComparison, setExportingComparison] = useState(false);
-  const [exportingReturn, setExportingReturn] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
   const [sheetError, setSheetError] = useState(null);
 
@@ -54,12 +50,8 @@ export default function SalesReturnRateAudit() {
     }
   }, [salesFile, returnFile]);
 
-  const returnRecords = useMemo(
-    () => dedupeSalesRecordsByRowNumber(result?.returnValidationRecords ?? result?.records),
-    [result]
-  );
-  const comparisonRecords = useMemo(
-    () => result?.rateComparisonRecords ?? [],
+  const exceptionRecords = useMemo(
+    () => result?.exceptionRecords ?? result?.records ?? [],
     [result]
   );
 
@@ -67,9 +59,10 @@ export default function SalesReturnRateAudit() {
   const returnErrorRows =
     summary.returnValidationErrorRows ??
     summary.distinctInvalidRows ??
-    returnRecords.filter((r) => (r.issues?.length ?? 0) > 0).length;
-  const higherRateProducts = summary.higherReturnRateProducts ?? comparisonRecords.length;
+    (result?.returnValidationRecords ?? []).length;
+  const higherRateProducts = summary.higherReturnRateProducts ?? 0;
   const totalReturnRows = result?.totalRows ?? 0;
+  const totalExceptions = summary.exceptionRowCount ?? exceptionRecords.length;
   const compliance =
     totalReturnRows > 0
       ? Math.max(0, Math.min(100, ((totalReturnRows - returnErrorRows) / totalReturnRows) * 100))
@@ -78,35 +71,21 @@ export default function SalesReturnRateAudit() {
   const accessoriesUnitRateCount = filterSalesRecords(returnRecords, 'accessoriesUnitRate').length;
 
 
-  const exportComparison = useCallback(async () => {
-    if (!comparisonRecords.length) {
-      toast.error('No rate comparison rows to export.');
+  const exportExceptions = useCallback(async () => {
+    if (!exceptionRecords.length) {
+      toast.error('No exception rows to export.');
       return;
     }
-    setExportingComparison(true);
+    setExporting(true);
     try {
-      await exportSalesReturnRateComparison(comparisonRecords);
-      toast.success('Rate comparison Excel downloaded');
+      await exportSalesReturnExceptions(exceptionRecords);
+      toast.success('Exception report downloaded');
     } catch (e) {
       toast.error(e.message || 'Export failed');
     } finally {
-      setExportingComparison(false);
+      setExporting(false);
     }
-  }, [comparisonRecords]);
-
-  const exportReturnRows = useCallback(() => {
-    if (!returnRecords.length) {
-      toast.error('No return validation rows to export.');
-      return;
-    }
-    setExportingReturn(true);
-    try {
-      downloadSalesRecordsXlsx(returnRecords, `sales-return-validation-${Date.now()}.xlsx`);
-      toast.success('Return validation Excel downloaded');
-    } finally {
-      setExportingReturn(false);
-    }
-  }, [returnRecords]);
+  }, [exceptionRecords]);
 
   return (
     <div className="relative space-y-8">
@@ -132,7 +111,7 @@ export default function SalesReturnRateAudit() {
             <div>
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; validate</h2>
               <p className="text-sm text-slate-500">
-                Both files are required — sales audit for baseline rates, sales return for validations and comparison.
+                Both files are required — sales audit for baseline rates, sales return for all validations.
               </p>
             </div>
             <Button
@@ -223,55 +202,31 @@ export default function SalesReturnRateAudit() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">Rate comparison report</h3>
+                  <h3 className="text-base font-bold text-emerald-700">Exception report</h3>
                   <p className="text-sm text-slate-500">
-                    Products where return average rate exceeds sales average rate (product-wise only).
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardBody>
-              {comparisonRecords.length ? (
-                <SalesReturnRateComparisonTable
-                  data={comparisonRecords}
-                  onExportXlsx={exportComparison}
-                  exporting={exportingComparison}
-                />
-              ) : (
-                <EmptyState
-                  title="No higher return rate products"
-                  description="Every matched product has a sales return average rate at or below the sales average."
-                />
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-emerald-700">Sales return validation issues</h3>
-                  <p className="text-sm text-slate-500">
-                    Rate, ledger, free quantity, and UOM checks on the return file (reused sales validators).
+                    One consolidated report — rate, ledger, free quantity, UOM, and average rate comparison issues.
                   </p>
                 </div>
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   size="md"
-                  loading={exportingReturn}
-                  disabled={exportingReturn || returnRecords.length === 0}
-                  onClick={exportReturnRows}
+                  loading={exporting}
+                  disabled={exporting || exceptionRecords.length === 0}
+                  onClick={exportExceptions}
                 >
                   <Download className="h-4 w-4" />
-                  Export return issues
+                  Export exception report
                 </Button>
               </div>
             </CardHeader>
             <CardBody>
-              {returnRecords.length ? (
-                <SalesResultsTable data={returnRecords} />
+              {exceptionRecords.length ? (
+                <SalesReturnExceptionTable data={exceptionRecords} totalCount={totalExceptions} />
               ) : (
-                <EmptyState title="No return validation issues" description="All return rows passed sales audit rules." />
+                <EmptyState
+                  title="No exceptions found"
+                  description="All return validations passed and no product has a higher average return rate than sales."
+                />
               )}
             </CardBody>
           </Card>
@@ -280,7 +235,7 @@ export default function SalesReturnRateAudit() {
         <EmptyState
           icon={Undo2}
           title="Awaiting audit"
-          description="Upload both Excel files and run the audit to compare product-wise average rates."
+          description="Upload both Excel files and run the audit to generate the consolidated exception report."
         />
       ) : null}
     </div>

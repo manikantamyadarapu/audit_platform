@@ -13,6 +13,7 @@ from app.utils.excel_exporter import (
     export_invalid_gross_weight_records,
     export_invalid_pan_records,
     export_invalid_sales_records,
+    export_sales_return_exceptions,
     export_sales_return_rate_comparison,
 )
 from app.utils.logger import get_logger
@@ -157,6 +158,10 @@ class SalesReturnRateComparisonExportRequest(BaseModel):
     records: list[dict[str, Any]]
 
 
+class SalesReturnExceptionExportRequest(BaseModel):
+    records: list[dict[str, Any]]
+
+
 @router.post('/sales-return/validate')
 @gateway_router.post('/sales-return/validate')
 async def process_sales_return(
@@ -176,6 +181,25 @@ async def process_sales_return(
     response = processor.process(sales_bytes, return_bytes)
     log.info('Sales return audit processing complete')
     return response
+
+
+@router.post('/sales-return/export-exceptions')
+@gateway_router.post('/sales-return/export-exceptions')
+async def export_sales_return_exception_rows(
+    payload: SalesReturnExceptionExportRequest,
+) -> StreamingResponse:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Sales return exception export request received')
+    excel_bytes = export_sales_return_exceptions(payload.records)
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'sales-return-exceptions-{timestamp}.xlsx'
+    log.info('Sales return exception export generated')
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post('/sales-return/export-rate-comparison')
