@@ -11,6 +11,12 @@ const router = express.Router();
 router.post('/validate', dualSalesReturnFiles, salesReturnController.validate);
 
 router.post(
+  '/export-exceptions',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  salesReturnController.exportExceptions
+);
+
+router.post(
   '/export-rate-comparison',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   salesReturnController.exportRateComparison

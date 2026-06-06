@@ -97,3 +97,15 @@ export function exportSalesReturnRateComparison(records, signal) {
     signal
   );
 }
+
+/**
+ * @param {Record<string, unknown>[]} records
+ * @param {AbortSignal} [signal]
+ */
+export function exportSalesReturnExceptions(records, signal) {
+  return exportInvalidRecordsXlsx(
+    '/api/v1/process/sales-return/export-exceptions',
+    records,
+    signal
+  );
+}

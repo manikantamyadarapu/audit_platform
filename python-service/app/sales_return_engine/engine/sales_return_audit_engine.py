@@ -11,6 +11,7 @@ from app.sales_engine.engine.vectorized_sales_engine import (
     VectorizedSalesEngine,
     _strict_unsigned_number_expr,
 )
+from app.sales_return_engine.exception_report import build_consolidated_exception_records
 from app.utils.sheet_validation_error import SheetValidationError
 
 _REQUIRED = frozenset({'voucher_no', 'product', 'unit_rate'})
@@ -95,6 +96,10 @@ class SalesReturnAuditEngine:
         return_averages = self._product_averages_from_loaded(return_loaded)
         rate_comparison = self._compare_product_averages(sales_averages, return_averages)
         comparison_records = [row.to_record() for row in rate_comparison]
+        exception_records = build_consolidated_exception_records(
+            return_validation.records,
+            comparison_records,
+        )
 
         return_error_rows = int(
             return_validation.summary.get('distinctInvalidRows')
@@ -115,6 +120,7 @@ class SalesReturnAuditEngine:
                 1 for row in rate_comparison if row.issue == PRODUCT_NOT_FOUND_IN_SALES
             ),
             'rateComparisonViolations': len(comparison_records),
+            'exceptionRowCount': len(exception_records),
             'processingMs': round(total_ms, 2),
         }
 
@@ -122,11 +128,12 @@ class SalesReturnAuditEngine:
             'success': True,
             'fileType': 'sales_return',
             'totalRows': return_validation.total_rows,
-            'errorRows': return_error_rows + len(comparison_records),
+            'errorRows': len(exception_records),
             'summary': summary,
             'returnValidationRecords': return_validation.records,
             'rateComparisonRecords': comparison_records,
-            'records': return_validation.records + comparison_records,
+            'exceptionRecords': exception_records,
+            'records': exception_records,
         }
 
     def _load_sheet(

@@ -44,6 +44,43 @@ async function validate(req, res, next) {
   }
 }
 
+async function exportExceptions(req, res, next) {
+  try {
+    const records = req.body?.records;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Request body must include a non-empty "records" array',
+        requestId: req.requestId,
+      });
+    }
+
+    logger.info('Sales return exception export: forwarding to Python', {
+      requestId: req.requestId,
+      recordCount: records.length,
+    });
+
+    const { buffer, contentDisposition, contentType } =
+      await pythonClient.postSalesReturnExportExceptions(records, {
+        requestId: req.requestId,
+      });
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentDisposition) {
+      res.setHeader('Content-Disposition', contentDisposition);
+    } else {
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="sales-return-exceptions.xlsx"'
+      );
+    }
+
+    return res.send(buffer);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function exportRateComparison(req, res, next) {
   try {
     const records = req.body?.records;
@@ -81,4 +118,4 @@ async function exportRateComparison(req, res, next) {
   }
 }
 
-module.exports = { validate, exportRateComparison };
+module.exports = { validate, exportExceptions, exportRateComparison };
