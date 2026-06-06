@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
+  BarChart3,
   Coins,
   Gem,
   Loader2,
@@ -27,6 +28,7 @@ import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 
 export default function SalesLedger() {
+  const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -107,6 +109,8 @@ export default function SalesLedger() {
     filterSalesRecords(rawRecords, 'caratGemErrors').length;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
+  const productAverageCount =
+    result?.productAverages?.length ?? summary.productAverageCount ?? 0;
 
   return (
     <div className="relative space-y-8">
@@ -162,6 +166,25 @@ export default function SalesLedger() {
           />
         </CardBody>
       </Card>
+
+      <section>
+        <h3 className="mb-4 text-base font-bold text-emerald-700">Analytics</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard
+            label="Product Average Rates"
+            value={result ? formatNumber(productAverageCount) : 'View'}
+            hint={
+              result
+                ? 'Products with gross/qty averages from this run'
+                : 'Open stored product-wise average unit rates'
+            }
+            icon={BarChart3}
+            accent="violet"
+            interactive
+            onClick={() => navigate('/sales-audit/product-average-rates')}
+          />
+        </div>
+      </section>
 
       {sheetError ? (
         <Card className="border-rose-200/80 bg-rose-50/40 shadow-md">

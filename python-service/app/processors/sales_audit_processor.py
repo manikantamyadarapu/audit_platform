@@ -53,4 +53,5 @@ class SalesAuditProcessor(BaseProcessor):
             error_rows=distinct_invalid,
             summary=result.summary,
             records=result.records,
+            product_averages=result.product_averages,
         )

@@ -15,6 +15,7 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/pan/, title: 'PAN Verification' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
   { test: /^\/scrutiny\/sales-ledger/, title: 'Rate and Ledger Audit' },
+  { test: /^\/sales-audit\/product-average-rates/, title: 'Product Average Rates' },
   { test: /^\/scrutiny\/making-charges/, title: 'Audit for Making Charges' },
   { test: /^\/scrutiny\/sales-return-rate/, title: 'Sales Return Audit' },
   { test: /^\/scrutiny\/(rate-rule-book|rate-rules|rule-book)/, title: 'Gold & Silver Rates' },

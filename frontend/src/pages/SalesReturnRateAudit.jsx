@@ -14,7 +14,6 @@ import {
 } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { filterSalesRecords } from '../utils/salesRecordFilters';
 
 export default function SalesReturnRateAudit() {
   const [salesFile, setSalesFile] = useState(null);
@@ -67,9 +66,6 @@ export default function SalesReturnRateAudit() {
     totalReturnRows > 0
       ? Math.max(0, Math.min(100, ((totalReturnRows - returnErrorRows) / totalReturnRows) * 100))
       : null;
-
-  const accessoriesUnitRateCount = filterSalesRecords(returnRecords, 'accessoriesUnitRate').length;
-
 
   const exportExceptions = useCallback(async () => {
     if (!exceptionRecords.length) {
@@ -170,31 +166,28 @@ export default function SalesReturnRateAudit() {
       {result ? (
         <>
           <section>
-
-            <div className="overflow-x-auto">
-              <div className="flex flex-nowrap w-max gap-2">
-                <div className="shrink-0 w-[180px]">
-                  <KpiCard label="TOTAL ROWS" value="" icon={Rows3} accent="blue" />
-                </div>
-                <div className="shrink-0 w-[180px]">
-                  <KpiCard label="ERROR ROWS" value="" icon={AlertTriangle} accent="amber" />
-                </div>
-                <div className="shrink-0 w-[190px]">
-                  <KpiCard label="ACCOUNT VS PRODUCT" value="" icon={Undo2} accent="rose" />
-                </div>
-                <div className="shrink-0 w-[180px]">
-                  <KpiCard label="RANGE DEVIATIONS" value="" icon={Undo2} accent="amber" />
-                </div>
-                <div className="shrink-0 w-[210px]">
-                  <KpiCard label="ACCESSORIES UNIT RATE CHECK" value="" icon={Undo2} accent="amber" />
-                </div>
-                <div className="shrink-0 w-[220px]">
-                  <KpiCard label="UNIT OF MEASUREMENT DEVIATIONS" value="" icon={Rows3} accent="emerald" />
-                </div>
-                <div className="shrink-0 w-[150px]">
-                  <KpiCard label="COMPLIANCE" value="" icon={Rows3} accent="emerald" />
-                </div>
-              </div>
+            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard label="Return rows" value={formatNumber(totalReturnRows)} icon={Rows3} accent="blue" />
+              <KpiCard
+                label="Return validation errors"
+                value={formatNumber(returnErrorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+              />
+              <KpiCard
+                label="Higher return rate products"
+                value={formatNumber(higherRateProducts)}
+                icon={Undo2}
+                accent="rose"
+              />
+              <KpiCard
+                label="Return compliance"
+                value={compliance != null ? formatPercent(compliance) : '—'}
+                hint="Clean return rows / total return rows"
+                icon={Rows3}
+                accent="emerald"
+              />
             </div>
           </section>
 

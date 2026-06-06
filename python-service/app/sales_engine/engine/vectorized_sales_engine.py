@@ -11,6 +11,7 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet, VectorizedValidationEngine
 from app.sales_engine.engine.audit_workbook import write_sales_audit_workbook
 from app.sales_engine.engine.debug_trace import attach_debug_identity_columns, write_sales_audit_debug_workbook
+from app.sales_engine.engine.product_averages import product_average_records_from_txn_frame
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
 from app.sales_engine.engine.reconciliation import log_reconciliation, reconcile_adjudicated_frame
 from app.sales_engine.parsers.product_category import (
@@ -121,6 +122,7 @@ class SalesValidationResult:
     total_rows: int
     summary: dict[str, Any]
     records: list[dict[str, Any]]
+    product_averages: list[dict[str, Any]]
     header_row_index: int
     header_detection_ms: float
     load_ms: float
@@ -196,6 +198,7 @@ class VectorizedSalesEngine:
             | pl.col('__invalid_rate_deviation').fill_null(False)
         )
         records = self._records_from_invalid_frame(invalid_df)
+        product_averages = product_average_records_from_txn_frame(txn_df)
         extraction_ms = (perf_counter() - extraction_start) * 1000
 
         recon = reconciliation.to_dict()
@@ -208,6 +211,7 @@ class VectorizedSalesEngine:
             'rateDeviationViolations': recon['rateDeviationViolations'],
             'distinctInvalidRows': recon['totalInvalidRows'],
             'errorRowsCount': recon['totalInvalidRows'],
+            'productAverageCount': len(product_averages),
             'reconciliation': recon,
             'auditTraceSummary': audit_counts,
         }
@@ -244,6 +248,7 @@ class VectorizedSalesEngine:
             total_rows=int(txn_df.height),
             summary=summary,
             records=records,
+            product_averages=product_averages,
             header_row_index=loaded.header_row_index,
             header_detection_ms=loaded.header_detection_ms,
             load_ms=loaded.load_ms,

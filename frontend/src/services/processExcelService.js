@@ -1,5 +1,6 @@
 import api, { getApiErrorMessage } from './api';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
+import { getAuthToken } from '../utils/authUser';
 import { exportInvalidRecordsXlsx } from './scrutinyExport';
 
 /**
@@ -31,9 +32,13 @@ export async function validateGrossWeightExcel(file, signal) {
 export async function validateSalesExcel(file, signal) {
   const form = new FormData();
   form.append('file', file);
+  const token = getAuthToken();
   try {
     const { data } = await api.post('/api/v1/process/sales/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal,
     });
     return data;
