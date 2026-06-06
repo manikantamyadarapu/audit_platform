@@ -3,6 +3,26 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const AppUiContext = createContext(null);
 const THEME_STORAGE_KEY = 'audit-platform-theme';
 
+function readStoredTheme() {
+  if (typeof window === 'undefined') return 'light';
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'dark' || stored === 'light') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemeToDocument(theme) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.classList.toggle('dark', theme === 'dark');
+  root.dataset.theme = theme;
+  root.style.colorScheme = theme;
+  window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+if (typeof window !== 'undefined') {
+  applyThemeToDocument(readStoredTheme());
+}
+
 const seedActivities = [
   { id: '1', text: 'PAN workbook uploaded · Finance batch Q4', tone: 'info' },
   { id: '2', text: '1,240 rows processed · Scrutiny pipeline', tone: 'info' },
@@ -12,12 +32,7 @@ const seedActivities = [
 
 export function AppUiProvider({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') return 'light';
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === 'dark' || stored === 'light') return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  const [theme, setTheme] = useState(readStoredTheme);
   const [division, setDivision] = useState('scrutiny');
   const [sessionStats, setSessionStats] = useState({
     filesProcessed: 0,
@@ -57,11 +72,7 @@ export function AppUiProvider({ children }) {
   }, [pushActivity]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    root.dataset.theme = theme;
-    root.style.colorScheme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyThemeToDocument(theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

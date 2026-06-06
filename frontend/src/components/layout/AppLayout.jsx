@@ -1,14 +1,16 @@
+import { Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
+import { PageContentSkeleton } from './AppShellSkeleton';
 
 export function AppLayout() {
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
-    <div className="flex min-h-svh w-full bg-transparent text-slate-950">
+    <div className="flex min-h-svh w-full bg-transparent text-[var(--color-text-primary)]">
       <Sidebar />
       <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         {!isDashboard ? <TopNavbar /> : null}
@@ -22,7 +24,13 @@ export function AppLayout() {
               transition={{ duration: 0.22 }}
               className="relative w-full"
             >
-              <Outlet />
+              <Suspense
+                fallback={
+                  <PageContentSkeleton variant={isDashboard ? 'dashboard' : 'default'} />
+                }
+              >
+                <Outlet />
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>

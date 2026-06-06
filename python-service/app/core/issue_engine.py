@@ -8,6 +8,10 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
+from app.sales_engine.validators.sales_audit_messages import (
+    MSG_INVALID_UOM,
+    MSG_INVALID_UNIT_RATE_RANGE,
+)
 from app.utils.constants import (
     ADDRESS_PROOF_MISSING_MESSAGE,
     GROSS_WEIGHT_DIFFERENCE_MESSAGE,
@@ -201,6 +205,36 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         severity=IssueSeverity.MEDIUM,
         category=IssueCategory.REFERENCE_DATA,
         default_message=SALES_ISSUE_MESSAGES['RATE_MASTER_NOT_FOUND'],
+    ),
+    'INVALID_UOM': IssueDefinition(
+        issue_code='INVALID_UOM',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message=MSG_INVALID_UOM,
+    ),
+    'INVALID_UNIT_RATE_RANGE': IssueDefinition(
+        issue_code='INVALID_UNIT_RATE_RANGE',
+        severity=IssueSeverity.MEDIUM,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message=MSG_INVALID_UNIT_RATE_RANGE,
+    ),
+    'INVALID_FREE_QUANTITY': IssueDefinition(
+        issue_code='INVALID_FREE_QUANTITY',
+        severity=IssueSeverity.MEDIUM,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message='Unit rate must be between 0 and 1 for this product.',
+    ),
+    'HIGHER_SALES_RETURN_RATE': IssueDefinition(
+        issue_code='HIGHER_SALES_RETURN_RATE',
+        severity=IssueSeverity.MEDIUM,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message='Average sales return rate is higher than average sales rate.',
+    ),
+    'PRODUCT_NOT_FOUND_IN_SALES': IssueDefinition(
+        issue_code='PRODUCT_NOT_FOUND_IN_SALES',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.REFERENCE_DATA,
+        default_message='Product not found in Sales Audit file.',
     ),
 }
 

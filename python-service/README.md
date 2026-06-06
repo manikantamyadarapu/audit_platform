@@ -9,6 +9,7 @@ This service currently supports these audit tasks:
 - PAN verification for high-value transactions.
 - Gross weight verification for manual vs auto gross weight mismatches.
 - Sales ledger verification for account/product mapping and rate deviation checks.
+- **Sales Return Audit** — dual-file upload: validate return rows (reuses sales engine) + product-wise average rate comparison vs sales file. See [`app/sales_return_engine/README.md`](app/sales_return_engine/README.md).
 - Rate Rule Book storage for employee-entered gold/silver product rates.
 - Downloadable invalid-row Excel reports for PAN, gross weight, and sales audits.
 
@@ -96,6 +97,10 @@ AUDIT_DEBUG_EXPORT=false
 | `POST` | `/api/v1/process/sales/validate` | Gateway sales route |
 | `POST` | `/api/process/sales/export-invalid` | Export sales invalid rows |
 | `POST` | `/api/v1/process/sales/export-invalid` | Gateway sales export route |
+| `POST` | `/api/process/sales-return/validate` | Validate sales + sales return (dual upload) |
+| `POST` | `/api/v1/process/sales-return/validate` | Gateway sales return validation route |
+| `POST` | `/api/process/sales-return/export-rate-comparison` | Export rate comparison rows |
+| `POST` | `/api/v1/process/sales-return/export-rate-comparison` | Gateway sales return export route |
 | `GET` | `/api/rate-rules` | Read saved gold/silver product rates |
 | `GET` | `/api/v1/rate-rules` | Gateway rate-rule read route |
 | `POST` | `/api/rate-rules` | Save gold/silver product rates |
@@ -108,6 +113,9 @@ curl http://127.0.0.1:8000/api/health
 curl -X POST "http://127.0.0.1:8000/api/process/pan" -F "file=@./pan.xlsx"
 curl -X POST "http://127.0.0.1:8000/api/process/gross-weight" -F "file=@./gross.xlsx"
 curl -X POST "http://127.0.0.1:8000/api/process/sales" -F "file=@./sales.xlsx"
+curl -X POST "http://127.0.0.1:8000/api/process/sales-return/validate" \
+  -F "sales_file=@./sales.xlsx" \
+  -F "sales_return_file=@./sales-return.xlsx"
 ```
 
 Rate Rule Book payload:

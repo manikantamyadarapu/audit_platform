@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { useAppUi } from '../context/AppUiContext';
+import { cn } from '../utils/cn';
 import '../styles/fonts.css';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { theme } = useAppUi();
+  const isDark = theme === 'dark';
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -87,7 +92,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 font-manrope">
+    <div
+      className={cn(
+        'relative min-h-screen w-full flex font-manrope',
+        isDark
+          ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950'
+          : 'bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50'
+      )}
+    >
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <ThemeToggle compact />
+      </div>
       {/* Left side - Marketing Content */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 py-12 relative overflow-hidden">
         {/* Background decorative elements */}
@@ -106,11 +121,18 @@ export default function Login() {
 
       {/* Right side - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-md bg-white/30 backdrop-blur-md rounded-[2.5rem] shadow-xl shadow-gray-900/5 border border-white/40 p-10">
+        <div
+          className={cn(
+            'w-full max-w-md backdrop-blur-md rounded-[2.5rem] shadow-xl p-10 border',
+            isDark
+              ? 'bg-slate-900/75 border-slate-700/80 shadow-black/30'
+              : 'bg-white/30 border-white/40 shadow-gray-900/5'
+          )}
+        >
           {/* Header */}
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back!</h2>
-            <p className="text-sm text-gray-500">Sign in to access your audit dashboard</p>
+            <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">Welcome Back!</h2>
+            <p className="text-sm text-[var(--color-text-muted)]">Sign in to access your audit dashboard</p>
           </div>
 
           {error && ( 
@@ -122,7 +144,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label htmlFor="email" className="block text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-2">
                 Email Address
               </label>
               <input
@@ -131,7 +153,7 @@ export default function Login() {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="block w-full px-5 py-3.5 bg-white/70 backdrop-blur-sm border border-gray-200 rounded-full focus:ring-2 focus:ring-gray-400/50 focus:border-gray-300 focus:bg-white/90 transition-all text-sm text-gray-900 placeholder-gray-400 outline-none shadow-inner shadow-gray-100/50"
+                className="block w-full px-5 py-3.5 bg-[var(--color-surface-elevated)] backdrop-blur-sm border border-[var(--color-border-soft)] rounded-full focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] outline-none shadow-[var(--shadow-glass)]"
                 placeholder="Enter your email"
                 required
               />
@@ -139,7 +161,7 @@ export default function Login() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label htmlFor="password" className="block text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-2">
                 Password
               </label>
               <div className="relative">
@@ -149,14 +171,14 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleChange}
-                  className="block w-full px-5 py-3.5 bg-white/70 backdrop-blur-sm border border-gray-200 rounded-full focus:ring-2 focus:ring-gray-400/50 focus:border-gray-300 focus:bg-white/90 transition-all text-sm text-gray-900 placeholder-gray-400 outline-none pr-12 shadow-inner shadow-gray-100/50"
+                  className="block w-full px-5 py-3.5 bg-[var(--color-surface-elevated)] backdrop-blur-sm border border-[var(--color-border-soft)] rounded-full focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] outline-none pr-12 shadow-[var(--shadow-glass)]"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -174,7 +196,7 @@ export default function Login() {
           </form>
 
           {/* Footer */}
-          <p className="mt-8 text-center text-xs text-gray-500">
+          <p className="mt-8 text-center text-xs text-[var(--color-text-muted)]">
             Secure audit platform for compliance and validation
           </p>
         </div>

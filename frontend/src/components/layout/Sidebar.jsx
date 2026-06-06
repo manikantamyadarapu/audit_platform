@@ -216,7 +216,7 @@ export function Sidebar() {
       initial={false}
       animate={{ width: sidebarCollapsed ? 80 : 280 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
-      className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[10px_0_35px_rgba(15,23,42,0.04)]"
+      className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-glass)]"
     >
       <div className={cn('flex items-center justify-between gap-3 px-6 pb-4 pt-5', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
@@ -228,7 +228,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)]"
               aria-label="Collapse sidebar"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -238,7 +238,7 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => setSidebarCollapsed(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)]"
             aria-label="Expand sidebar"
           >
             <ChevronRight className="h-5 w-5" />
@@ -318,15 +318,15 @@ export function Sidebar() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.18 }}
-                className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]"
+                className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-float)]"
               >
-                <div className="flex flex-col items-center border-b border-slate-100 bg-gradient-to-b from-emerald-50/80 to-white px-4 py-6">
-                  <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white shadow-[0_12px_32px_rgba(5,150,105,0.28)] ring-4 ring-white">
+                <div className="flex flex-col items-center border-b border-[var(--color-border-soft)] bg-gradient-to-b from-emerald-50/80 to-[var(--color-surface-elevated)] px-4 py-6 dark:from-emerald-950/40 dark:to-[var(--color-surface-elevated)]">
+                  <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white shadow-[0_12px_32px_rgba(5,150,105,0.28)] ring-4 ring-[var(--color-surface-elevated)]">
                     {initials}
                   </div>
-                  <p className="text-center text-sm font-bold text-slate-900">{displayName}</p>
+                  <p className="text-center text-sm font-bold text-[var(--color-text-primary)]">{displayName}</p>
                   {displayEmail ? (
-                    <p className="mt-0.5 max-w-full truncate text-center text-xs text-slate-500">
+                    <p className="mt-0.5 max-w-full truncate text-center text-xs text-[var(--color-text-muted)]">
                       {displayEmail}
                     </p>
                   ) : null}
@@ -339,9 +339,9 @@ export function Sidebar() {
                       navigate('/profile');
                       setShowUserMenu(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-emerald-50/80 hover:text-emerald-800"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-emerald-50/80 hover:text-emerald-800 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
                   >
-                    <UserCircle className="h-4 w-4 text-emerald-600" />
+                    <UserCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     <span>My Profile</span>
                   </button>
                   <button
@@ -350,9 +350,9 @@ export function Sidebar() {
                       navigate('/settings');
                       setShowUserMenu(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-emerald-50/80 hover:text-emerald-800"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-emerald-50/80 hover:text-emerald-800 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
                   >
-                    <Settings className="h-4 w-4 text-emerald-600" />
+                    <Settings className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     <span>Settings</span>
                   </button>
                   <button
@@ -362,9 +362,9 @@ export function Sidebar() {
                       navigate('/login');
                       setShowUserMenu(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
                   >
-                    <LogOut className="h-4 w-4 text-rose-500" />
+                    <LogOut className="h-4 w-4 text-rose-500 dark:text-rose-400" />
                     <span>Log Out</span>
                   </button>
                 </div>
@@ -376,23 +376,23 @@ export function Sidebar() {
             type="button"
             onClick={() => setShowUserMenu((v) => !v)}
             className={cn(
-              'w-full rounded-full border bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)] transition-colors',
+              'w-full rounded-full border bg-[var(--color-surface-elevated)] px-4 py-3 shadow-[var(--shadow-glass)] transition-colors',
               showUserMenu
-                ? 'border-emerald-200/90 ring-2 ring-emerald-500/15'
-                : 'border-slate-200 hover:border-emerald-200/80 hover:bg-slate-50/80'
+                ? 'border-emerald-200/90 ring-2 ring-emerald-500/15 dark:border-emerald-800/60'
+                : 'border-[var(--color-border-soft)] hover:border-emerald-200/80 hover:bg-[var(--color-surface-subtle)] dark:hover:border-emerald-800/60'
             )}
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
                 {initials}
               </div>
               <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-bold text-slate-950">{displayName}</p>
-                <p className="truncate text-xs text-slate-600">{displayEmail || 'Signed in'}</p>
+                <p className="truncate text-sm font-bold text-[var(--color-text-primary)]">{displayName}</p>
+                <p className="truncate text-xs text-[var(--color-text-muted)]">{displayEmail || 'Signed in'}</p>
               </div>
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 shrink-0 text-slate-500 transition-transform',
+                  'h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform',
                   showUserMenu && 'rotate-180'
                 )}
               />
