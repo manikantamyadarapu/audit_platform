@@ -144,10 +144,32 @@ class PanProcessor(BaseProcessor):
             
             record['issues'] = issues
             record['messages'] = self._messages_for_issues(issues)
-            record['panReport'] = report_type or 'invalidPan'
+            if report_type is None:
+                self._log.info(
+                    'PAN row missing primary report_type',
+                    extra={
+                        'row_number': row_num,
+                        'issues': issues,
+                        'address_report': address_report,
+                    },
+                )
+            record['panReport'] = report_type or 'unknown'
             if address_report is not None:
                 record['addressReport'] = address_report
             records.append(record)
+
+        invalid_pan_report_rows = sum(1 for record in records if 'INVALID_PAN_FORMAT' in record.get('issues', []))
+        invalid_pan_report_type_rows = sum(1 for record in records if record.get('panReport') == 'invalidPan')
+        self._log.info(
+            'PAN invalid format counts',
+            extra={
+                'total_rows': total_rows,
+                'invalid_pan_format_count': invalid_pan_format_count,
+                'records_with_Invalid_PAN_FORMAT_issue': invalid_pan_report_rows,
+                'records_with_panReport_invalidPan': invalid_pan_report_type_rows,
+                'total_export_records': len(records),
+            },
+        )
 
         missing_address_proof_records: list[dict[str, Any]] = []
         invalid_address_records: list[dict[str, Any]] = []

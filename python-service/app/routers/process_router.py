@@ -54,6 +54,11 @@ async def export_pan_invalid_rows(payload: PanInvalidRowsExportRequest) -> Strea
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info('PAN invalid rows export request received')
+    try:
+        record_count = len(payload.records or [])
+    except Exception:
+        record_count = None
+    log.info(f'PAN invalid rows export payload size: {record_count} records')
 
     excel_bytes = export_invalid_pan_records(
         payload.records,
