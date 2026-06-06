@@ -100,6 +100,7 @@ export default function SalesLedger() {
     rawRecords.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0).length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
+  const accessoriesUnitRateCount = filterSalesRecords(rawRecords, 'accessoriesUnitRate').length;
   const caratGemErrors =
     summary.invalidUomRows ??
     summary.caratGemErrorRows ??
@@ -190,59 +191,84 @@ export default function SalesLedger() {
         <>
           <section>
             <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <KpiCard
-                label="Total rows"
-                value={formatNumber(totalRows)}
-                icon={Rows3}
-                accent="blue"
-              />
-              <KpiCard
-                label="Error rows"
-                value={formatNumber(errorRows)}
-                icon={AlertTriangle}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'errors'}
-                onClick={() => toggleCardFilter('errors')}
-              />
-              <KpiCard
-                label="Account vs product"
-                value={formatNumber(catVsProduct)}
-                hint="Classifier mismatch / missing category"
-                icon={BookOpen}
-                accent="rose"
-                interactive
-                selected={activeFilter === 'accountVsProduct'}
-                onClick={() => toggleCardFilter('accountVsProduct')}
-              />
-              <KpiCard
-                label="Range deviations"
-                value={formatNumber(rateViolations)}
-                hint="Unit rate outside allowed range"
-                icon={BookOpen}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'mixedLedgers'}
-                onClick={() => toggleCardFilter('mixedLedgers')}
-              />
-              <KpiCard
-                label="Unit of measurement deviations"
-                value={formatNumber(caratGemErrors)}
-                hint="Invalid UOM on rows"
-                icon={Gem}
-                accent="violet"
-                interactive
-                selected={activeFilter === 'caratGemErrors'}
-                onClick={() => toggleCardFilter('caratGemErrors')}
-              />
-              <KpiCard
-                label="Compliance"
-                value={compliance != null ? formatPercent(compliance) : '—'}
-                hint="Clean rows / total rows"
-                icon={Rows3}
-                accent="emerald"
-              />
+            <div className="flex flex-wrap items-stretch gap-4">
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Total rows"
+                  value={formatNumber(totalRows)}
+                  icon={Rows3}
+                  accent="blue"
+                />
+              </div>
+
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Error rows"
+                  value={formatNumber(errorRows)}
+                  icon={AlertTriangle}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'errors'}
+                  onClick={() => toggleCardFilter('errors')}
+                />
+              </div>
+
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Account vs product"
+                  value={formatNumber(catVsProduct)}
+                  icon={BookOpen}
+                  accent="rose"
+                  interactive
+                  selected={activeFilter === 'accountVsProduct'}
+                  onClick={() => toggleCardFilter('accountVsProduct')}
+                />
+              </div>
+
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Range deviations"
+                  value={formatNumber(rateViolations)}
+                  icon={BookOpen}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'mixedLedgers'}
+                  onClick={() => toggleCardFilter('mixedLedgers')}
+                />
+              </div>
+
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Accessories Unit Rate Check"
+                  value={formatNumber(accessoriesUnitRateCount)}
+                  icon={BookOpen}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'accessoriesUnitRate'}
+                  onClick={() => toggleCardFilter('accessoriesUnitRate')}
+                />
+              </div>
+
+              <div className="min-w-[190px] h-[120px]">
+                <KpiCard
+                  label="Unit of measurement deviations"
+                  value={formatNumber(caratGemErrors)}
+                  icon={Gem}
+                  accent="violet"
+                  interactive
+                  selected={activeFilter === 'caratGemErrors'}
+                  onClick={() => toggleCardFilter('caratGemErrors')}
+                />
+              </div>
+
+              <div className="min-w-[190px]  h-[120px]">
+                <KpiCard
+                  label="Compliance"
+                  value={compliance != null ? formatPercent(compliance) : '—'}
+                  icon={Rows3}
+                  accent="emerald"
+                />
+              </div>
             </div>
           </section>
 

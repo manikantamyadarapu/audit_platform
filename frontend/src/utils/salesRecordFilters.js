@@ -5,6 +5,7 @@ export const SALES_FILTER_LABELS = {
   errors: 'Error rows',
   accountVsProduct: 'Account vs product',
   mixedLedgers: 'Range deviations',
+  accessoriesUnitRate: 'Accessories Unit Rate Check',
   caratGemErrors: 'Unit of measurement deviations',
   compliance: 'Compliance (no issues)',
 };
@@ -22,6 +23,8 @@ const RATE_DEVIATION_ISSUES = new Set([
   'MISSING_RATE_RULE',
   'RATE_DEVIATION_VIOLATION',
 ]);
+
+const ACCESSORIES_UNIT_RATE_ISSUES = new Set(['INVALID_UNIT_RATE_RANGE']);
 
 const CARAT_GEM_ISSUES = new Set(['INVALID_UOM']);
 
@@ -50,6 +53,13 @@ export function filterSalesRecords(records, filter) {
       (r) =>
         Array.isArray(r.issues) &&
         r.issues.some((code) => RATE_DEVIATION_ISSUES.has(code))
+    );
+  }
+  if (filter === 'accessoriesUnitRate') {
+    return list.filter(
+      (r) =>
+        Array.isArray(r.issues) &&
+        r.issues.some((code) => ACCESSORIES_UNIT_RATE_ISSUES.has(code))
     );
   }
   if (filter === 'caratGemErrors') {
