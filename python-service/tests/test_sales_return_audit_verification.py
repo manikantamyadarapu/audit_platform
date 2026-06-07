@@ -16,8 +16,6 @@ from app.sales_return_engine.engine.sales_return_audit_engine import (
     HIGHER_SALES_RETURN_RATE,
     HIGHER_SALES_RETURN_RATE_MSG,
     INVALID_FREE_QUANTITY,
-    PRODUCT_NOT_FOUND_IN_SALES,
-    PRODUCT_NOT_FOUND_IN_SALES_MSG,
     SalesReturnAuditEngine,
 )
 from app.utils.excel_exporter import (
@@ -26,7 +24,7 @@ from app.utils.excel_exporter import (
     export_sales_return_rate_comparison,
 )
 from app.utils.normalization_engine import normalize_strict_text
-from tests.test_sales_audit_processor import _last_numeric_token, _row, _wb_bytes
+from tests.test_sales_audit_processor import _row, _wb_bytes
 
 
 def _build_excel_bytes(rows: list[dict]) -> bytes:
@@ -36,23 +34,16 @@ def _build_excel_bytes(rows: list[dict]) -> bytes:
     return output.getvalue()
 
 
-def _sales_row(
-    product: str,
-    gross: float,
-    qty: float,
-    rate: float,
-    account: str = 'GOLD SALES ACCOUNT - 22K',
-    uom: str = 'Grams',
-) -> dict:
-    return {
-        'Voucher No': 'V1',
-        'Sales Account': account,
-        'Product': product,
-        'Unit Rate': rate,
-        'Quantity': qty,
-        'Gross Amount': gross,
-        'UOM': uom,
-    }
+def _stored_avg(product: str, gross: float, qty: float, account: str = '') -> list[dict]:
+    return [
+        {
+            'product': product,
+            'salesAccount': account,
+            'totalGrossAmount': gross,
+            'totalQuantity': qty,
+            'averageRate': round(gross / qty, 4) if qty else 0,
+        }
+    ]
 
 
 def _return_row(
@@ -75,20 +66,16 @@ def _return_row(
 
 
 # ====================================================
-# TEST 1 — Product missing in sales file
+# TEST 1 — Product missing in stored sales averages
 # ====================================================
-def test_product_missing_in_sales_file_no_crash_and_issue() -> None:
+def test_product_missing_in_stored_averages_skipped() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Di. RA 15', 150000, 10, 15000, 'JEWEL SALES ACCOUNT - DIAMONDS', 'Carats')])
     return_bytes = _build_excel_bytes(
         [_return_row('Flat Polki FP 10', 50000, 5, 10000, 'GOLD SALES RETURN ACCOUNT - 22K')]
     )
-    result = engine.process(sales_bytes, return_bytes)
-    comparison = result['rateComparisonRecords']
-    assert len(comparison) == 1
-    assert comparison[0]['issues'] == [PRODUCT_NOT_FOUND_IN_SALES]
-    assert comparison[0]['messages'] == [PRODUCT_NOT_FOUND_IN_SALES_MSG]
-    assert comparison[0]['product'] == 'Flat Polki FP 10'
+    stored = _stored_avg('Di. RA 15', 150000, 10, 'JEWEL SALES ACCOUNT - DIAMONDS')
+    result = engine.process(return_bytes, stored)
+    assert result['rateComparisonRecords'] == []
 
 
 # ====================================================
@@ -96,19 +83,14 @@ def test_product_missing_in_sales_file_no_crash_and_issue() -> None:
 # ====================================================
 def test_zero_quantity_skipped_safely_no_division_error() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes(
-        [
-            _sales_row('Gold Ornaments 22K', 10000, 0, 0),
-            _sales_row('Gold Ornaments 22K', 90000, 10, 9000),
-        ]
-    )
     return_bytes = _build_excel_bytes(
         [
             _return_row('Gold Ornaments 22K', 10000, 0, 0),
             _return_row('Gold Ornaments 22K', 95000, 10, 9500),
         ]
     )
-    result = engine.process(sales_bytes, return_bytes)
+    stored = _stored_avg('Gold Ornaments 22K', 90000, 10)
+    result = engine.process(return_bytes, stored)
     comparison = result['rateComparisonRecords']
     assert len(comparison) == 1
     assert comparison[0]['salesAverageRate'] == 9000
@@ -221,9 +203,8 @@ def test_zero_to_one_product_list_matches_spec() -> None:
 @pytest.mark.parametrize('unit_rate,valid', [(0, True), (0.01, True), (0.5, True), (1.0, True), (1.01, False), (2, False), (10, False)])
 def test_free_quantity_unit_rate_range_on_return_file(unit_rate, valid) -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Lac', 100, 1, 0.5)])
     return_bytes = _build_excel_bytes([_return_row('Lac', 100, 1, unit_rate)])
-    result = engine.process(sales_bytes, return_bytes)
+    result = engine.process(return_bytes, _stored_avg('Lac', 100, 1))
     return_records = result['returnValidationRecords']
     invalid = [r for r in return_records if INVALID_FREE_QUANTITY in (r.get('issues') or [])]
     if valid:
@@ -238,16 +219,15 @@ def test_free_quantity_unit_rate_range_on_return_file(unit_rate, valid) -> None:
 # ====================================================
 def test_average_rate_uses_sum_gross_over_sum_qty_not_row_average() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes(
+    return_bytes = _build_excel_bytes(
         [
-            _sales_row('Gold Ornaments 22K', 10000, 10, 1000),
-            _sales_row('Gold Ornaments 22K', 5000, 5, 2000),
+            _return_row('Gold Ornaments 22K', 10000, 10, 1000),
+            _return_row('Gold Ornaments 22K', 5000, 5, 2000),
         ]
     )
-    sales_loaded = engine._load_sheet(sales_bytes, label='Sales audit file')
-    averages = engine._product_averages_from_loaded(sales_loaded)
-    product_key = normalize_strict_text('Gold Ornaments 22K')
-    avg = averages[product_key]
+    return_loaded = engine._load_sheet(return_bytes, label='Sales return audit file', is_return=True)
+    averages = engine._product_averages_from_loaded(return_loaded)
+    avg = averages['Gold Ornaments 22K']
     assert avg.total_gross_amount == 15000
     assert avg.total_quantity == 15
     assert avg.average_rate == 1000
@@ -260,19 +240,18 @@ def test_average_rate_uses_sum_gross_over_sum_qty_not_row_average() -> None:
 # ====================================================
 def test_no_partial_product_match_between_similar_names() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Di. RA 15', 150000, 10, 15000, 'JEWEL SALES ACCOUNT - DIAMONDS', 'Carats')])
     return_bytes = _build_excel_bytes(
         [
             _return_row('Di. RA 150', 170000, 10, 17000, 'JEWEL SALES RETURN ACCOUNT - DIAMONDS', 'Carats'),
             _return_row('Flat Polki FP 10', 50000, 5, 10000),
         ]
     )
-    result = engine.process(sales_bytes, return_bytes)
+    stored = _stored_avg('Di. RA 15', 150000, 10, 'JEWEL SALES ACCOUNT - DIAMONDS')
+    result = engine.process(return_bytes, stored)
     comparison = {row['product']: row for row in result['rateComparisonRecords']}
-    assert 'Di. RA 150' in comparison
-    assert comparison['Di. RA 150']['issues'] == [PRODUCT_NOT_FOUND_IN_SALES]
+    assert 'Di. RA 150' not in comparison
+    assert 'Flat Polki FP 10' not in comparison
     assert 'Di. RA 15' not in comparison
-    assert 'Flat Polki FP 10' in comparison
 
 
 # ====================================================
@@ -280,14 +259,14 @@ def test_no_partial_product_match_between_similar_names() -> None:
 # ====================================================
 def test_one_comparison_row_per_product_with_multiple_return_lines() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Gold Ornaments 22K', 900000, 100, 9000)])
     return_bytes = _build_excel_bytes(
         [
             _return_row('Gold Ornaments 22K', 47500, 5, 9500),
             _return_row('Gold Ornaments 22K', 47500, 5, 9500),
         ]
     )
-    result = engine.process(sales_bytes, return_bytes)
+    stored = _stored_avg('Gold Ornaments 22K', 900000, 100)
+    result = engine.process(return_bytes, stored)
     comparison = result['rateComparisonRecords']
     assert len(comparison) == 1
     assert comparison[0]['returnTotalGrossAmount'] == 95000
@@ -324,9 +303,9 @@ def test_export_excel_has_required_columns() -> None:
 # ====================================================
 def test_higher_sales_return_rate_example() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Gold Ornaments 22K', 900000, 100, 9000)])
     return_bytes = _build_excel_bytes([_return_row('Gold Ornaments 22K', 95000, 10, 9500)])
-    result = engine.process(sales_bytes, return_bytes)
+    stored = _stored_avg('Gold Ornaments 22K', 900000, 100)
+    result = engine.process(return_bytes, stored)
     comparison = result['rateComparisonRecords']
     assert len(comparison) == 1
     row = comparison[0]

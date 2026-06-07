@@ -26,15 +26,50 @@ import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
+import {
+  AUDIT_SESSION_RETENTION_DAYS,
+  readAuditSessionData,
+  slimSalesLedgerSnapshot,
+} from '../utils/auditSessionStorage';
+
+const SALES_LEDGER_SESSION_KEY = 'sales-ledger';
 
 export default function SalesLedger() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [sheetError, setSheetError] = useState(null);
-  const [activeFilter, setActiveFilter] = useState(null);
+  const [result, setResult] = useState(
+    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.result ?? null
+  );
+  const [sheetError, setSheetError] = useState(
+    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.sheetError ?? null
+  );
+  const [activeFilter, setActiveFilter] = useState(
+    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.activeFilter ?? null
+  );
+
+  const sessionSnapshot = useMemo(
+    () => ({
+      result,
+      sheetError,
+      activeFilter,
+      fileName: file?.name ?? null,
+    }),
+    [result, sheetError, activeFilter, file?.name]
+  );
+
+  const { sessionLabel, persist } = useAuditSessionPersistence(
+    SALES_LEDGER_SESSION_KEY,
+    sessionSnapshot,
+    {
+      transform: slimSalesLedgerSnapshot,
+      onSaveFailed: () => {
+        toast.error('Audit results are too large to keep in the browser. Export the Excel file to keep a copy.');
+      },
+    }
+  );
 
   const runValidation = useCallback(async () => {
     if (!file) {
@@ -55,6 +90,12 @@ export default function SalesLedger() {
         return;
       }
       setResult(data);
+      persist({
+        result: data,
+        sheetError: null,
+        activeFilter: null,
+        fileName: file?.name ?? null,
+      });
       toast.success('Sales validation complete');
     } catch (e) {
       const payload = e.details ?? null;
@@ -63,7 +104,7 @@ export default function SalesLedger() {
     } finally {
       setLoading(false);
     }
-  }, [file]);
+  }, [file, persist]);
 
   const rawRecords = useMemo(
     () => dedupeSalesRecordsByRowNumber(result?.records),
@@ -132,6 +173,12 @@ export default function SalesLedger() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {result ? (
+        <p className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
+          {sessionLabel || 'Previous audit results restored.'} — kept for {AUDIT_SESSION_RETENTION_DAYS} days when you switch tabs.
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>

@@ -9,10 +9,8 @@ import polars as pl
 
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.sales_engine.engine.vectorized_sales_engine import _strict_unsigned_number_expr
-from app.sales_return_engine.engine.sales_return_audit_engine import (
-    ProductAverage,
-    SalesReturnAuditEngine,
-)
+from app.sales_return_engine.engine.sales_return_average_engine import ProductAverage
+from app.sales_return_engine.engine.sales_return_audit_engine import SalesReturnAuditEngine
 
 
 @dataclass(slots=True)

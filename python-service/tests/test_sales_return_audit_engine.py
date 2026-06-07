@@ -15,37 +15,41 @@ def _build_excel_bytes(rows: list[dict]) -> bytes:
     return output.getvalue()
 
 
-def _sales_rows(product: str, gross: float, qty: float, rate: float, account: str = 'GOLD SALES ACCOUNT - 22K') -> dict:
+def _stored_avg(product: str, gross: float, qty: float, account: str = '') -> list[dict]:
+    return [
+        {
+            'product': product,
+            'salesAccount': account,
+            'totalGrossAmount': gross,
+            'totalQuantity': qty,
+            'averageRate': round(gross / qty, 4) if qty else 0,
+        }
+    ]
+
+
+def _return_row(
+    product: str,
+    gross: float,
+    qty: float,
+    rate: float,
+    account: str = 'JEWEL SALES RETURN ACCOUNT - DIAMONDS',
+) -> dict:
     return {
-        'Voucher No': 'V1',
-        'Sales Account': account,
+        'Voucher No': 'V2',
+        'Sales Return Account': account,
         'Product': product,
         'Unit Rate': rate,
         'Quantity': qty,
         'Gross Amount': gross,
-        'UOM': 'Grams',
+        'UOM': 'Carats',
     }
 
 
 def test_higher_return_rate_detected() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes(
-        [_sales_rows('Di. RA 15', 150000, 10, 15000, 'JEWEL SALES ACCOUNT - DIAMONDS')]
-    )
-    return_bytes = _build_excel_bytes(
-        [
-            {
-                'Voucher No': 'V2',
-                'Sales Return Account': 'JEWEL SALES RETURN ACCOUNT - DIAMONDS',
-                'Product': 'Di. RA 15',
-                'Unit Rate': 17000,
-                'Quantity': 10,
-                'Gross Amount': 170000,
-                'UOM': 'Carats',
-            }
-        ]
-    )
-    result = engine.process(sales_bytes, return_bytes)
+    return_bytes = _build_excel_bytes([_return_row('Di. RA 15', 170000, 10, 17000)])
+    stored = _stored_avg('Di. RA 15', 150000, 10, 'JEWEL SALES ACCOUNT - DIAMONDS')
+    result = engine.process(return_bytes, stored)
     comparison = result['rateComparisonRecords']
     assert len(comparison) == 1
     assert comparison[0]['issues'] == [HIGHER_SALES_RETURN_RATE]
@@ -55,19 +59,7 @@ def test_higher_return_rate_detected() -> None:
 
 def test_equal_return_rate_not_flagged() -> None:
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_rows('Di. RA 15', 150000, 10, 15000, 'JEWEL SALES ACCOUNT - DIAMONDS')])
-    return_bytes = _build_excel_bytes(
-        [
-            {
-                'Voucher No': 'V2',
-                'Sales Return Account': 'JEWEL SALES RETURN ACCOUNT - DIAMONDS',
-                'Product': 'Di. RA 15',
-                'Unit Rate': 15000,
-                'Quantity': 10,
-                'Gross Amount': 150000,
-                'UOM': 'Carats',
-            }
-        ]
-    )
-    result = engine.process(sales_bytes, return_bytes)
+    return_bytes = _build_excel_bytes([_return_row('Di. RA 15', 150000, 10, 15000)])
+    stored = _stored_avg('Di. RA 15', 150000, 10, 'JEWEL SALES ACCOUNT - DIAMONDS')
+    result = engine.process(return_bytes, stored)
     assert result['rateComparisonRecords'] == []

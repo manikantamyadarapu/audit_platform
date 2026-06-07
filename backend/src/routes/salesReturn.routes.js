@@ -1,6 +1,6 @@
 const express = require('express');
 const salesReturnController = require('../controllers/salesReturn.controller');
-const { dualSalesReturnFiles } = require('../middleware/upload.middleware');
+const { singleSalesReturnFile } = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
 
 const router = express.Router();
@@ -8,7 +8,7 @@ const router = express.Router();
 /**
  * Full path: POST /api/v1/process/sales-return/validate
  */
-router.post('/validate', dualSalesReturnFiles, salesReturnController.validate);
+router.post('/validate', singleSalesReturnFile, salesReturnController.validate);
 
 router.post(
   '/export-exceptions',

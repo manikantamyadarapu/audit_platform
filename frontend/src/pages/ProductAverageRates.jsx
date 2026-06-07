@@ -17,8 +17,14 @@ import {
   fetchProductAverageRates,
 } from '../services/salesAuditService';
 import { formatNumber } from '../utils/format';
+import { loadAuditSession, saveAuditSession } from '../utils/auditSessionStorage';
 
 const PAGE_SIZE = 25;
+const UI_SESSION_KEY = 'product-average-rates-ui';
+
+function readUiSession() {
+  return loadAuditSession(UI_SESSION_KEY)?.data ?? null;
+}
 
 function formatDate(value) {
   if (!value) return '—';
@@ -31,14 +37,20 @@ export default function ProductAverageRates() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => readUiSession()?.page ?? 1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [salesAccountFilter, setSalesAccountFilter] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [debouncedSalesAccount, setDebouncedSalesAccount] = useState('');
-  const [sorting, setSorting] = useState([{ id: 'createdAt', desc: true }]);
+  const [search, setSearch] = useState(() => readUiSession()?.search ?? '');
+  const [salesAccountFilter, setSalesAccountFilter] = useState(
+    () => readUiSession()?.salesAccountFilter ?? ''
+  );
+  const [debouncedSearch, setDebouncedSearch] = useState(() => readUiSession()?.search ?? '');
+  const [debouncedSalesAccount, setDebouncedSalesAccount] = useState(
+    () => readUiSession()?.salesAccountFilter ?? ''
+  );
+  const [sorting, setSorting] = useState(
+    () => readUiSession()?.sorting ?? [{ id: 'createdAt', desc: true }]
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -82,6 +94,15 @@ export default function ProductAverageRates() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, debouncedSalesAccount, sortBy, sortOrder]);
+
+  useEffect(() => {
+    saveAuditSession(UI_SESSION_KEY, {
+      page,
+      search: debouncedSearch,
+      salesAccountFilter: debouncedSalesAccount,
+      sorting,
+    });
+  }, [page, debouncedSearch, debouncedSalesAccount, sorting]);
 
   const columns = useMemo(
     () => [

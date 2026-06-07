@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import ApexCharts from 'apexcharts';
+import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { useAppUi } from '../../context/AppUiContext';
 import { formatNumber } from '../../utils/format';
 
@@ -179,12 +180,7 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
   }, [chartCategories, chartKey, loading, isDark]);
 
   if (loading) {
-    return (
-      <div
-        className="h-[320px] w-full animate-pulse rounded-2xl border border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/30"
-        aria-hidden="true"
-      />
-    );
+    return <ChartSkeleton height={320} variant="bar" aria-label="Loading issue breakdown chart" />;
   }
 
   if (!chartCategories?.length) {

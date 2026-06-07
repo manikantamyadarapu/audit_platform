@@ -88,12 +88,16 @@ def test_export_exceptions_has_required_columns() -> None:
 
 
 def test_process_includes_exception_records() -> None:
-    from tests.test_sales_return_audit_verification import _build_excel_bytes, _return_row, _sales_row
+    from tests.test_sales_return_audit_verification import (
+        _build_excel_bytes,
+        _return_row,
+        _stored_avg,
+    )
 
     engine = SalesReturnAuditEngine()
-    sales_bytes = _build_excel_bytes([_sales_row('Gold Ornaments 22K', 900000, 100, 9000)])
     return_bytes = _build_excel_bytes([_return_row('Gold Ornaments 22K', 95000, 10, 9500)])
-    result = engine.process(sales_bytes, return_bytes)
+    stored = _stored_avg('Gold Ornaments 22K', 900000, 100)
+    result = engine.process(return_bytes, stored)
     assert 'exceptionRecords' in result
     issues = {row['issues'] for row in result['exceptionRecords']}
     assert HIGHER_SALES_RETURN_RATE in issues

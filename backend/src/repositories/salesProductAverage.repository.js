@@ -144,6 +144,40 @@ async function findProductAverageRates({
   };
 }
 
+async function findLatestSalesAuditProductAverages() {
+  const auditTypeId = await findSalesAuditTypeId();
+  if (!auditTypeId) {
+    return { auditRun: null, rows: [] };
+  }
+
+  const latestRun = await prisma.auditRun.findFirst({
+    where: {
+      auditTypeId,
+      status: 'COMPLETED',
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      fileName: true,
+      createdAt: true,
+    },
+  });
+
+  if (!latestRun) {
+    return { auditRun: null, rows: [] };
+  }
+
+  const rows = await prisma.salesProductAverageRate.findMany({
+    where: { auditRunId: latestRun.id },
+    orderBy: { product: 'asc' },
+  });
+
+  return {
+    auditRun: latestRun,
+    rows: rows.map(mapRow),
+  };
+}
+
 async function findAllProductAverageRatesForExport(filters = {}) {
   const { search, salesAccount, auditRunId, sortBy = 'createdAt', sortOrder = 'desc' } = filters;
   const orderField = SORT_FIELDS[sortBy] || 'createdAt';
@@ -173,5 +207,6 @@ async function findAllProductAverageRatesForExport(filters = {}) {
 module.exports = {
   createAuditRunWithProductAverages,
   findProductAverageRates,
+  findLatestSalesAuditProductAverages,
   findAllProductAverageRatesForExport,
 };

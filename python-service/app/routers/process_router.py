@@ -1,9 +1,10 @@
+import json
 import uuid
 from datetime import datetime
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -165,20 +166,23 @@ class SalesReturnExceptionExportRequest(BaseModel):
 @router.post('/sales-return/validate')
 @gateway_router.post('/sales-return/validate')
 async def process_sales_return(
-    sales_file: UploadFile = File(..., description='Sales audit Excel file'),
     sales_return_file: UploadFile = File(..., description='Sales return audit Excel file'),
+    sales_averages: str = Form(default='[]', description='Stored sales audit product averages JSON'),
 ) -> dict:
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info('Sales return audit processing request received')
-    sales_bytes = await sales_file.read()
     return_bytes = await sales_return_file.read()
-    if not sales_bytes:
-        raise ValueError('Sales audit file is empty')
     if not return_bytes:
         raise ValueError('Sales return audit file is empty')
+    try:
+        parsed_averages = json.loads(sales_averages or '[]')
+    except json.JSONDecodeError as exc:
+        raise ValueError('sales_averages must be valid JSON') from exc
+    if not isinstance(parsed_averages, list):
+        raise ValueError('sales_averages must be a JSON array')
     processor = SalesReturnAuditProcessor()
-    response = processor.process(sales_bytes, return_bytes)
+    response = processor.process(return_bytes, parsed_averages)
     log.info('Sales return audit processing complete')
     return response
 

@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
 import polars as pl
 
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
-from app.sales_engine.engine.vectorized_sales_engine import (
-    VectorizedSalesEngine,
-    _strict_unsigned_number_expr,
+from app.sales_engine.engine.vectorized_sales_engine import VectorizedSalesEngine
+from app.sales_return_engine.engine.sales_return_average_engine import (
+    HIGHER_SALES_RETURN_RATE,
+    HIGHER_SALES_RETURN_RATE_MSG,
+    INVALID_FREE_QUANTITY,
+    INVALID_FREE_QUANTITY_MSG,
+    INVALID_LEDGER_MAPPING,
+    LEDGER_MAPPING_ISSUES,
+    calculate_sales_return_average_rates,
+    compare_average_rates,
+    sales_averages_from_stored_records,
 )
 from app.sales_return_engine.exception_report import build_consolidated_exception_records
 from app.utils.sheet_validation_error import SheetValidationError
@@ -18,14 +25,15 @@ _REQUIRED = frozenset({'voucher_no', 'product', 'unit_rate'})
 _HEADER_CORE = frozenset({'voucher_no', 'product', 'unit_rate'})
 _AVERAGE_COLUMNS = frozenset({'product', 'gross_amount', 'quantity'})
 
-HIGHER_SALES_RETURN_RATE = 'HIGHER_SALES_RETURN_RATE'
-HIGHER_SALES_RETURN_RATE_MSG = (
-    'Average sales return rate is higher than average sales rate.'
-)
-PRODUCT_NOT_FOUND_IN_SALES = 'PRODUCT_NOT_FOUND_IN_SALES'
-PRODUCT_NOT_FOUND_IN_SALES_MSG = 'Product not found in Sales Audit file.'
-INVALID_FREE_QUANTITY = 'INVALID_FREE_QUANTITY'
-INVALID_FREE_QUANTITY_MSG = 'Unit rate must be between 0 and 1 for this product.'
+# Re-export for backward compatibility with tests and other modules.
+__all__ = [
+    'HIGHER_SALES_RETURN_RATE',
+    'HIGHER_SALES_RETURN_RATE_MSG',
+    'INVALID_FREE_QUANTITY',
+    'INVALID_FREE_QUANTITY_MSG',
+    'INVALID_LEDGER_MAPPING',
+    'SalesReturnAuditEngine',
+]
 
 
 def _sales_or_return_header_row_matches(labels: set[str]) -> bool:
@@ -34,56 +42,20 @@ def _sales_or_return_header_row_matches(labels: set[str]) -> bool:
     return 'sales_account' in labels or 'sales_return_account' in labels
 
 
-@dataclass(slots=True)
-class ProductAverage:
-    product_key: str
-    product: str
-    total_gross_amount: float
-    total_quantity: float
-    average_rate: float
-
-
-@dataclass(slots=True)
-class RateComparisonRow:
-    product: str
-    sales_total_gross_amount: float
-    sales_total_quantity: float
-    sales_average_rate: float
-    return_total_gross_amount: float
-    return_total_quantity: float
-    return_average_rate: float
-    difference: float
-    issue: str
-    message: str
-
-    def to_record(self) -> dict[str, Any]:
-        return {
-            'product': self.product,
-            'salesTotalGrossAmount': round(self.sales_total_gross_amount, 4),
-            'salesTotalQuantity': round(self.sales_total_quantity, 4),
-            'salesAverageRate': round(self.sales_average_rate, 4),
-            'returnTotalGrossAmount': round(self.return_total_gross_amount, 4),
-            'returnTotalQuantity': round(self.return_total_quantity, 4),
-            'returnAverageRate': round(self.return_average_rate, 4),
-            'difference': round(self.difference, 4),
-            'issues': [self.issue],
-            'messages': [self.message],
-        }
-
-
 class SalesReturnAuditEngine:
-    """Validate sales return rows via sales engine; compare product-wise average rates."""
+    """Validate sales return rows via sales engine; compare against stored sales audit averages."""
 
     def __init__(self) -> None:
         self.sales_engine = VectorizedSalesEngine()
 
-    def process(self, sales_file_bytes: bytes, return_file_bytes: bytes) -> dict[str, Any]:
+    def process(
+        self,
+        return_file_bytes: bytes,
+        stored_sales_averages: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         start = perf_counter()
 
-        sales_loaded = self._load_sheet(sales_file_bytes, label='Sales audit file')
         return_loaded = self._load_sheet(return_file_bytes, label='Sales return audit file', is_return=True)
-
-        self._ensure_average_columns(sales_loaded, label='Sales audit file')
         self._ensure_average_columns(return_loaded, label='Sales return audit file')
 
         return_validation = self.sales_engine.validate_loaded_sheet(return_loaded)
@@ -92,9 +64,9 @@ class SalesReturnAuditEngine:
             for record in return_validation.records
         ]
 
-        sales_averages = self._product_averages_from_loaded(sales_loaded)
-        return_averages = self._product_averages_from_loaded(return_loaded)
-        rate_comparison = self._compare_product_averages(sales_averages, return_averages)
+        sales_averages = sales_averages_from_stored_records(stored_sales_averages or [])
+        return_averages = calculate_sales_return_average_rates(return_loaded, self.sales_engine)
+        rate_comparison = compare_average_rates(sales_averages, return_averages)
         comparison_records = [row.to_record() for row in rate_comparison]
         exception_records = build_consolidated_exception_records(
             return_validation.records,
@@ -116,12 +88,10 @@ class SalesReturnAuditEngine:
             'higherReturnRateProducts': sum(
                 1 for row in rate_comparison if row.issue == HIGHER_SALES_RETURN_RATE
             ),
-            'productsNotFoundInSales': sum(
-                1 for row in rate_comparison if row.issue == PRODUCT_NOT_FOUND_IN_SALES
-            ),
             'rateComparisonViolations': len(comparison_records),
             'exceptionRowCount': len(exception_records),
             'processingMs': round(total_ms, 2),
+            'salesAuditBaselineCount': len(sales_averages),
         }
 
         return {
@@ -131,7 +101,9 @@ class SalesReturnAuditEngine:
             'errorRows': len(exception_records),
             'summary': summary,
             'returnValidationRecords': return_validation.records,
+            'validationIssues': return_validation.records,
             'rateComparisonRecords': comparison_records,
+            'comparisonIssues': comparison_records,
             'exceptionRecords': exception_records,
             'records': exception_records,
         }
@@ -219,109 +191,31 @@ class SalesReturnAuditEngine:
                 ],
             )
 
-    def _product_averages_from_loaded(self, loaded: LoadedValidationSheet) -> dict[str, ProductAverage]:
-        enriched = self.sales_engine._enrich_sales_dataframe(loaded.dataframe)
-        txn_mask = (
-            pl.col('__is_transaction_row').fill_null(False)
-            & ~pl.col('__is_blank_row').fill_null(False)
-            & ~pl.col('__is_repeated_header').fill_null(False)
-        )
-        txn = enriched.filter(txn_mask)
-        if txn.is_empty():
-            return {}
-
-        parsed_gross = _strict_unsigned_number_expr(
-            pl.col('gross_amount').cast(pl.Utf8, strict=False)
-        ).alias('__parsed_gross_amount')
-
-        grouped = (
-            txn.with_columns(parsed_gross)
-            .filter(
-                pl.col('__parsed_gross_amount').is_not_null()
-                & pl.col('__parsed_quantity').is_not_null()
-                & (pl.col('__parsed_quantity') > 0)
-                & pl.col('__product_norm').is_not_null()
-                & (pl.col('__product_norm') != '')
-            )
-            .group_by('__product_norm')
-            .agg(
-                pl.col('__parsed_gross_amount').sum().alias('total_gross'),
-                pl.col('__parsed_quantity').sum().alias('total_qty'),
-                pl.col('__original_product').first().alias('product_display'),
-            )
-            .filter(pl.col('total_qty') > 0)
-        )
-
-        averages: dict[str, ProductAverage] = {}
-        for row in grouped.to_dicts():
-            product_key = str(row['__product_norm'])
-            total_gross = float(row['total_gross'])
-            total_qty = float(row['total_qty'])
-            display = str(row.get('product_display') or product_key).strip() or product_key
-            averages[product_key] = ProductAverage(
-                product_key=product_key,
-                product=display,
-                total_gross_amount=total_gross,
-                total_quantity=total_qty,
-                average_rate=total_gross / total_qty,
-            )
-        return averages
-
-    @staticmethod
-    def _compare_product_averages(
-        sales_averages: dict[str, ProductAverage],
-        return_averages: dict[str, ProductAverage],
-    ) -> list[RateComparisonRow]:
-        violations: list[RateComparisonRow] = []
-        for product_key, return_avg in return_averages.items():
-            sales_avg = sales_averages.get(product_key)
-            if sales_avg is None:
-                violations.append(
-                    RateComparisonRow(
-                        product=return_avg.product,
-                        sales_total_gross_amount=0.0,
-                        sales_total_quantity=0.0,
-                        sales_average_rate=0.0,
-                        return_total_gross_amount=return_avg.total_gross_amount,
-                        return_total_quantity=return_avg.total_quantity,
-                        return_average_rate=return_avg.average_rate,
-                        difference=return_avg.average_rate,
-                        issue=PRODUCT_NOT_FOUND_IN_SALES,
-                        message=PRODUCT_NOT_FOUND_IN_SALES_MSG,
-                    )
-                )
-                continue
-            if return_avg.average_rate <= sales_avg.average_rate:
-                continue
-            violations.append(
-                RateComparisonRow(
-                    product=return_avg.product,
-                    sales_total_gross_amount=sales_avg.total_gross_amount,
-                    sales_total_quantity=sales_avg.total_quantity,
-                    sales_average_rate=sales_avg.average_rate,
-                    return_total_gross_amount=return_avg.total_gross_amount,
-                    return_total_quantity=return_avg.total_quantity,
-                    return_average_rate=return_avg.average_rate,
-                    difference=return_avg.average_rate - sales_avg.average_rate,
-                    issue=HIGHER_SALES_RETURN_RATE,
-                    message=HIGHER_SALES_RETURN_RATE_MSG,
-                )
-            )
-        violations.sort(key=lambda row: row.product)
-        return violations
+    def _product_averages_from_loaded(self, loaded: LoadedValidationSheet):
+        """Backward-compatible wrapper for tests."""
+        return calculate_sales_return_average_rates(loaded, self.sales_engine)
 
     @staticmethod
     def _map_return_validation_record(record: dict[str, Any]) -> dict[str, Any]:
         issues = list(record.get('issues') or [])
-        if 'INVALID_UNIT_RATE_RANGE' not in issues:
+        mapped_issues: list[str] = []
+        mapped_messages = list(record.get('messages') or [])
+
+        for code in issues:
+            if code == 'INVALID_UNIT_RATE_RANGE':
+                mapped_issues.append(INVALID_FREE_QUANTITY)
+                mapped_messages = [INVALID_FREE_QUANTITY_MSG]
+            elif code in LEDGER_MAPPING_ISSUES:
+                mapped_issues.append(INVALID_LEDGER_MAPPING)
+            else:
+                mapped_issues.append(code)
+
+        if not mapped_issues:
             return record
-        mapped = [
-            INVALID_FREE_QUANTITY if code == 'INVALID_UNIT_RATE_RANGE' else code
-            for code in issues
-        ]
-        updated = {**record, 'issues': mapped}
-        if any(code == INVALID_FREE_QUANTITY for code in mapped):
-            updated['messages'] = [INVALID_FREE_QUANTITY_MSG]
-        elif not record.get('messages'):
-            updated['messages'] = [INVALID_FREE_QUANTITY_MSG]
+
+        updated = {**record, 'issues': mapped_issues}
+        if mapped_messages:
+            updated['messages'] = mapped_messages
+        elif INVALID_LEDGER_MAPPING in mapped_issues and not record.get('messages'):
+            updated['messages'] = ['Sales return account does not match product mapping.']
         return updated
