@@ -1,5 +1,6 @@
 const pythonClient = require('../services/pythonClient.service');
 const { validateExportInvalidBody } = require('../validators/panExport.validator');
+const salesAuditService = require('../services/salesAudit.service');
 const logger = require('../utils/logger');
 
 async function validate(req, res, next) {
@@ -24,7 +25,28 @@ async function validate(req, res, next) {
       req.file.mimetype,
       { requestId: req.requestId }
     );
-    return res.json(data);
+
+    let auditRunId = null;
+    if (req.user?.id) {
+      try {
+        auditRunId = await salesAuditService.persistSalesAuditProductAverages({
+          userId: req.user.id,
+          fileName: req.file.originalname,
+          pythonResult: data,
+        });
+      } catch (persistError) {
+        logger.error('Sales audit product averages persist failed', {
+          requestId: req.requestId,
+          userId: req.user.id,
+          message: persistError.message,
+        });
+      }
+    }
+
+    return res.json({
+      ...data,
+      auditRunId,
+    });
   } catch (err) {
     return next(err);
   }

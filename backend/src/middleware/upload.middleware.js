@@ -30,9 +30,11 @@ const upload = multer({
 
 const singlePanFile = upload.single('file');
 
+const singleSalesReturnFile = upload.single('file');
+
 const dualSalesReturnFiles = upload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'salesReturnFile', maxCount: 1 },
 ]);
 
-module.exports = { singlePanFile, dualSalesReturnFiles };
+module.exports = { singlePanFile, singleSalesReturnFile, dualSalesReturnFiles };

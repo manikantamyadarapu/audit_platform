@@ -16,6 +16,7 @@ const DiamondGemRateBook = lazy(() => import('../pages/DiamondGemRateBook'));
 const Reports = lazy(() => import('../pages/Reports'));
 const Settings = lazy(() => import('../pages/Settings'));
 const SalesReturnRateAudit = lazy(() => import('../pages/SalesReturnRateAudit'));
+const ProductAverageRates = lazy(() => import('../pages/ProductAverageRates'));
 const ModuleSoon = lazy(() => import('../pages/ModuleSoon'));
 const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
@@ -47,6 +48,7 @@ export function AppRoutes() {
           <Route path="/scrutiny/pan" element={<PanVerification />} />
           <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />
           <Route path="/scrutiny/sales-ledger" element={<SalesLedger />} />
+          <Route path="/sales-audit/product-average-rates" element={<ProductAverageRates />} />
           <Route path="/scrutiny/making-charges" element={<ModuleSoon />} />
           <Route path="/scrutiny/sales-return-rate" element={<SalesReturnRateAudit />} />
           <Route path="/scrutiny/rate-rule-book" element={<RateRuleBook />} />

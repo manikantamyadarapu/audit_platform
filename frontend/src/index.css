@@ -25,17 +25,99 @@
       background-position: 200% 0;
     }
   }
+
+  @keyframes skeleton-wave {
+    0% {
+      transform: translateX(-100%);
+    }
+    50%,
+    100% {
+      transform: translateX(100%);
+    }
+  }
 }
 
+/* Shadcn-style shimmer skeleton — enterprise glassmorphism loading */
 .skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
   background: linear-gradient(
     90deg,
     var(--color-surface-subtle) 0%,
-    color-mix(in srgb, var(--color-surface-subtle) 55%, var(--color-surface-elevated)) 50%,
+    color-mix(in srgb, var(--color-surface-subtle) 70%, var(--color-surface-elevated)) 45%,
+    color-mix(in srgb, var(--color-surface-subtle) 40%, white) 50%,
+    color-mix(in srgb, var(--color-surface-subtle) 70%, var(--color-surface-elevated)) 55%,
     var(--color-surface-subtle) 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, white 55%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-wave 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.skeleton-glass {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-surface-elevated) 65%, transparent) 0%,
+    color-mix(in srgb, white 35%, var(--color-surface-elevated)) 50%,
+    color-mix(in srgb, var(--color-surface-elevated) 65%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  border: 1px solid color-mix(in srgb, white 45%, var(--color-border-soft));
+  backdrop-filter: blur(8px);
+}
+
+.skeleton-muted {
+  opacity: 0.72;
+}
+
+html.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-subtle) 0%,
+    color-mix(in srgb, var(--color-surface-subtle) 60%, #1e293b) 45%,
+    color-mix(in srgb, var(--color-surface-subtle) 30%, #334155) 50%,
+    color-mix(in srgb, var(--color-surface-subtle) 60%, #1e293b) 55%,
+    var(--color-surface-subtle) 100%
+  );
+}
+
+html.dark .skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, white 12%, transparent) 50%,
+    transparent 100%
+  );
+}
+
+html.dark .skeleton-glass {
+  border-color: color-mix(in srgb, white 8%, var(--color-border-soft));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .skeleton-shimmer::after,
+  #app-boot-skeleton .boot-block {
+    animation: none;
+  }
+
+  .skeleton-shimmer::after {
+    display: none;
+  }
 }
 
 #root:empty {

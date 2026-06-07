@@ -59,6 +59,8 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/v1', apiV1);
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/sales-audit', require('./routes/salesAudit.routes'));
+app.use('/api/sales-return', require('./routes/salesReturnAudit.routes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

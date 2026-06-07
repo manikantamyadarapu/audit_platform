@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { Skeleton } from '../components/ui/Skeleton';
+import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
 import { CustomSelect } from '../components/ui/CustomSelect';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
@@ -27,6 +28,9 @@ import { buildIssueCategoryItems } from '../utils/dashboardIssueCategories';
 import { getAuditStatusMeta } from '../utils/dashboardRecentAudits';
 import { formatUploadDateTime } from '../utils/dateTime';
 import { formatNumber } from '../utils/format';
+import { loadAuditSession, saveAuditSession } from '../utils/auditSessionStorage';
+
+const DASHBOARD_UI_KEY = 'dashboard-ui';
 
 const KPI_ICONS = {
   totalAudits: FileSpreadsheet,
@@ -90,7 +94,11 @@ function KpiCard({ item, loading }) {
     <Panel className="p-6">
       <div className="flex items-center gap-5">
         <div className={cn('flex h-16 w-16 items-center justify-center rounded-full', toneClasses[item.tone])}>
-          <Icon className="h-7 w-7" strokeWidth={1.8} />
+          {loading ? (
+            <Skeleton variant="glass" className="h-16 w-16 rounded-full" />
+          ) : (
+            <Icon className="h-7 w-7" strokeWidth={1.8} />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm text-[var(--color-text-secondary)]">{item.label}</p>
@@ -116,8 +124,14 @@ export default function Dashboard() {
   const storedUser = getStoredUser();
   const displayName = storedUser?.name?.split(/\s+/)[0] || 'Admin';
 
-  const [period, setPeriod] = useState('week');
-  const [trendPeriod, setTrendPeriod] = useState('daily');
+  const [period, setPeriod] = useState(() => {
+    const saved = loadAuditSession(DASHBOARD_UI_KEY);
+    return saved?.data?.period ?? 'week';
+  });
+  const [trendPeriod, setTrendPeriod] = useState(() => {
+    const saved = loadAuditSession(DASHBOARD_UI_KEY);
+    return saved?.data?.trendPeriod ?? 'daily';
+  });
   const [widgets, setWidgets] = useState(null);
   const [auditTrend, setAuditTrend] = useState(null);
   const [issuesCategory, setIssuesCategory] = useState(null);
@@ -194,6 +208,10 @@ export default function Dashboard() {
     loadRecentAudits();
   }, [loadRecentAudits]);
 
+  useEffect(() => {
+    saveAuditSession(DASHBOARD_UI_KEY, { period, trendPeriod });
+  }, [period, trendPeriod]);
+
   const kpiItems = useMemo(() => buildDashboardKpiItems(widgets), [widgets]);
   const summaryItems = useMemo(() => buildSummaryStripItems(widgets), [widgets]);
   const issueCategoryItems = useMemo(() => buildIssueCategoryItems(issuesCategory), [issuesCategory]);
@@ -254,29 +272,33 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <Panel className="grid gap-0 px-6 py-5 md:grid-cols-4">
-        {summaryItems.map((item, index) => (
-          <div
-            key={item.label}
-            className={cn('px-8 py-2', index ? 'border-t border-[var(--color-border-soft)] md:border-l md:border-t-0' : '')}
-          >
-            <p className="text-sm text-[var(--color-text-secondary)]">{item.label}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-4">
-              <p className="text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">
-                {widgetsLoading ? '—' : item.value}
-              </p>
-              {item.badge ? (
-                <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                  {item.badge}
-                </span>
-              ) : (
-                <span className={cn('text-sm', trendToneClass(item.trend?.tone))}>
-                  {widgetsLoading ? '…' : item.trend?.text}
-                </span>
-              )}
+      <Panel className={cn('px-6 py-5', !widgetsLoading && 'grid gap-0 md:grid-cols-4')}>
+        {widgetsLoading ? (
+          <SummaryStripSkeleton columns={summaryItems.length || 4} />
+        ) : (
+          summaryItems.map((item, index) => (
+            <div
+              key={item.label}
+              className={cn('px-8 py-2', index ? 'border-t border-[var(--color-border-soft)] md:border-l md:border-t-0' : '')}
+            >
+              <p className="text-sm text-[var(--color-text-secondary)]">{item.label}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-4">
+                <p className="text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+                  {item.value}
+                </p>
+                {item.badge ? (
+                  <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    {item.badge}
+                  </span>
+                ) : (
+                  <span className={cn('text-sm', trendToneClass(item.trend?.tone))}>
+                    {item.trend?.text}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </Panel>
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
@@ -325,11 +347,7 @@ export default function Dashboard() {
               <tbody>
                 {recentAuditsLoading ? (
                   Array.from({ length: RECENT_AUDITS_PAGE_SIZE }).map((_, index) => (
-                    <tr key={index} className="border-b border-[var(--color-border-soft)] last:border-0">
-                      <td className="py-3" colSpan={5}>
-                        <Skeleton className="h-5 w-full rounded-md" />
-                      </td>
-                    </tr>
+                    <TableRowSkeleton key={index} columns={5} />
                   ))
                 ) : recentAudits.length ? (
                   recentAudits.map((row) => {

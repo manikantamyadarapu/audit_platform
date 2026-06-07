@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import ApexCharts from 'apexcharts';
+import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { useAppUi } from '../../context/AppUiContext';
 import { formatNumber } from '../../utils/format';
 
@@ -192,12 +193,7 @@ export function AuditActivityTrendChart({ data, loading = false }) {
   }, [chartPayload, loading, isDark]);
 
   if (loading) {
-    return (
-      <div
-        className="h-[320px] w-full animate-pulse rounded-2xl bg-[var(--color-surface-subtle)]/70"
-        aria-hidden="true"
-      />
-    );
+    return <ChartSkeleton height={320} variant="area" aria-label="Loading audit activity chart" />;
   }
 
   if (!chartPayload) {

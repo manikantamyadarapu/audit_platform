@@ -8,6 +8,7 @@ const diamondRateRulesRoutes = require('./diamondRateRules.routes');
 const authRoutes = require('./auth.routes');
 const userRoutes = require('./user.routes');
 const dashboardRoutes = require('./dashboard.routes');
+const salesAuditRoutes = require('./salesAudit.routes');
 
 const router = express.Router();
 
@@ -20,5 +21,6 @@ router.use('/diamond-rate-rules', diamondRateRulesRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/sales-audit', salesAuditRoutes);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Skeleton } from '../ui/Skeleton';
+import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { formatNumber } from '../../utils/format';
 
 const SIZE = 210;
@@ -106,28 +106,6 @@ function buildSegments(categories) {
   });
 }
 
-function LegendSkeleton() {
-  return (
-    <div className="w-full min-w-0 flex-1">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-soft)] pb-2.5">
-        <Skeleton className="h-3 w-16 rounded-md" />
-        <Skeleton className="h-3 w-14 rounded-md" />
-      </div>
-      <div className="divide-y divide-[var(--color-border-soft)]">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="flex items-center justify-between py-3">
-            <Skeleton className="h-4 w-36 rounded-md" />
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-6 w-10 rounded-full" />
-              <Skeleton className="h-4 w-10 rounded-md" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
  * @param {{
  *   categories: Array<{ name: string, code?: string, value: number, percent: string, color: string }>,
@@ -168,12 +146,7 @@ export function IssuesByCategoryPanel({ categories, totalIssues, loading = false
   };
 
   if (loading) {
-    return (
-      <div className="mt-5 flex flex-col items-start gap-6 sm:flex-row sm:items-center">
-        <Skeleton className="h-[210px] w-[210px] shrink-0 rounded-full" />
-        <LegendSkeleton />
-      </div>
-    );
+    return <ChartSkeleton variant="donut" className="mt-5" />;
   }
 
   if (!categories.length) {

@@ -1,5 +1,6 @@
 import api, { getApiErrorMessage } from './api';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
+import { getAuthToken } from '../utils/authUser';
 import { exportInvalidRecordsXlsx } from './scrutinyExport';
 
 /**
@@ -31,9 +32,13 @@ export async function validateGrossWeightExcel(file, signal) {
 export async function validateSalesExcel(file, signal) {
   const form = new FormData();
   form.append('file', file);
+  const token = getAuthToken();
   try {
     const { data } = await api.post('/api/v1/process/sales/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal,
     });
     return data;
@@ -63,16 +68,14 @@ export function exportInvalidSalesRows(records, signal) {
 }
 
 /**
- * @param {File} salesFile
  * @param {File} returnFile
  * @param {AbortSignal} [signal]
  */
-export async function validateSalesReturnAudit(salesFile, returnFile, signal) {
+export async function validateSalesReturnAudit(returnFile, signal) {
   const form = new FormData();
-  form.append('salesFile', salesFile);
-  form.append('salesReturnFile', returnFile);
+  form.append('file', returnFile);
   try {
-    const { data } = await api.post('/api/v1/process/sales-return/validate', form, {
+    const { data } = await api.post('/api/sales-return/run-audit', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });
@@ -87,12 +90,26 @@ export async function validateSalesReturnAudit(salesFile, returnFile, signal) {
 }
 
 /**
+ * Rate comparison from the most recent run-audit (server-side cache).
+ * @param {AbortSignal} [signal]
+ */
+export async function fetchSalesReturnRateComparison(signal) {
+  try {
+    const { data } = await api.get('/api/sales-return/rate-comparison', { signal });
+    return data;
+  } catch (err) {
+    const msg = getApiErrorMessage(err);
+    throw new Error(msg);
+  }
+}
+
+/**
  * @param {Record<string, unknown>[]} records
  * @param {AbortSignal} [signal]
  */
 export function exportSalesReturnRateComparison(records, signal) {
   return exportInvalidRecordsXlsx(
-    '/api/v1/process/sales-return/export-rate-comparison',
+    '/api/sales-return/export-rate-comparison',
     records,
     signal
   );
@@ -104,7 +121,7 @@ export function exportSalesReturnRateComparison(records, signal) {
  */
 export function exportSalesReturnExceptions(records, signal) {
   return exportInvalidRecordsXlsx(
-    '/api/v1/process/sales-return/export-exceptions',
+    '/api/sales-return/export-exceptions',
     records,
     signal
   );

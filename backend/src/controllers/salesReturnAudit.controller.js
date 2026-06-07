@@ -2,9 +2,9 @@ const salesReturnRateComparisonService = require('../services/salesReturnRateCom
 const pythonClient = require('../services/pythonClient.service');
 const logger = require('../utils/logger');
 
-async function validate(req, res, next) {
+async function runAudit(req, res, next) {
   try {
-    const returnFile = req.file ?? req.files?.salesReturnFile?.[0];
+    const returnFile = req.file;
 
     if (!returnFile?.buffer) {
       return res.status(400).json({
@@ -14,7 +14,7 @@ async function validate(req, res, next) {
       });
     }
 
-    logger.info('Sales return audit: forwarding to Python', {
+    logger.info('Sales return run-audit: forwarding to Python', {
       requestId: req.requestId,
       returnFilename: returnFile.originalname,
       returnSize: returnFile.size,
@@ -36,6 +36,22 @@ async function validate(req, res, next) {
         requestId: req.requestId,
       });
     }
+    return next(err);
+  }
+}
+
+async function getRateComparison(req, res, next) {
+  try {
+    const data = salesReturnRateComparisonService.getRateComparison();
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        detail: 'No rate comparison available. Run POST /api/sales-return/run-audit first.',
+        requestId: req.requestId,
+      });
+    }
+    return res.json(data);
+  } catch (err) {
     return next(err);
   }
 }
@@ -114,4 +130,4 @@ async function exportRateComparison(req, res, next) {
   }
 }
 
-module.exports = { validate, exportExceptions, exportRateComparison };
+module.exports = { runAudit, getRateComparison, exportExceptions, exportRateComparison };

@@ -1,4 +1,5 @@
 import { Skeleton } from '../ui/Skeleton';
+import { ChartSkeleton, SummaryStripSkeleton } from '../ui/ChartSkeleton';
 import { cn } from '../../utils/cn';
 
 function SidebarSkeleton() {
@@ -95,28 +96,40 @@ function DashboardContentSkeleton() {
       </section>
 
       <div className="rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-6 py-5 shadow-[var(--shadow-glass)]">
-        <div className="grid gap-6 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="space-y-3">
-              <Skeleton className="h-4 w-28 rounded-md" />
-              <Skeleton className="h-8 w-20 rounded-lg" />
-              <Skeleton className="h-3.5 w-32 rounded-md" />
+        <SummaryStripSkeleton columns={4} />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-glass)]">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-6 w-40 rounded-lg" />
+              <Skeleton className="h-11 w-24 rounded-full" />
             </div>
-          ))}
+          </div>
+          <div className="px-3 py-4 sm:px-5">
+            <ChartSkeleton height={320} variant="area" />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-6 shadow-[var(--shadow-glass)]">
+          <Skeleton className="mb-6 h-6 w-44 rounded-lg" />
+          <ChartSkeleton variant="donut" />
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-6 shadow-[var(--shadow-glass)]">
-          <div className="mb-6 flex items-center justify-between">
-            <Skeleton className="h-6 w-40 rounded-lg" />
-            <Skeleton className="h-12 w-24 rounded-full" />
+          <Skeleton className="mb-5 h-6 w-48 rounded-lg" />
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-5 w-full rounded-md" />
+            ))}
           </div>
-          <Skeleton className="h-[245px] w-full rounded-xl" />
         </div>
         <div className="rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-6 shadow-[var(--shadow-glass)]">
-          <Skeleton className="mb-6 h-6 w-44 rounded-lg" />
-          <Skeleton className="mx-auto h-52 w-52 rounded-full" />
+          <Skeleton className="mb-2 h-6 w-36 rounded-lg" />
+          <Skeleton className="mb-4 h-3 w-48 rounded-md" />
+          <ChartSkeleton height={320} variant="bar" />
         </div>
       </div>
     </div>

@@ -140,6 +140,7 @@ model AuditRun {
   grossSummary    GrossAuditSummary?
   rateSummary     RateAuditSummary?
   idProofSummary  IdProofAuditSummary?
+  productAverageRates SalesProductAverageRate[]
 
   @@index([auditTypeId, createdAt])
   @@index([status])
@@ -378,4 +379,26 @@ model DashboardAuditMetric {
   @@index([dashboardSummaryId])
   @@index([auditTypeId])
   @@map("dashboard_audit_metrics")
+}
+
+// ============================================================================
+// 14. SALES_PRODUCT_AVERAGE_RATES - Product-wise average unit rates per run
+// ============================================================================
+model SalesProductAverageRate {
+  id                Int       @id @default(autoincrement())
+  auditRunId        Int       @map("audit_run_id")
+  product           String    @db.VarChar(255)
+  salesAccount      String    @map("sales_account") @db.VarChar(255)
+  totalQuantity     Decimal   @map("total_quantity") @db.Decimal(18, 4)
+  totalGrossAmount  Decimal   @map("total_gross_amount") @db.Decimal(18, 4)
+  averageRate       Decimal   @map("average_rate") @db.Decimal(18, 4)
+  transactionCount  Int       @map("transaction_count")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  auditRun          AuditRun  @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@index([product])
+  @@index([createdAt])
+  @@map("sales_product_average_rates")
 }

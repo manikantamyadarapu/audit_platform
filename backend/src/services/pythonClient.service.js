@@ -90,23 +90,18 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
 }
 
 async function postSalesReturnValidate(
-  salesBuffer,
-  salesName,
-  salesMime,
   returnBuffer,
   returnName,
   returnMime,
+  salesAverages,
   options = {}
 ) {
   const form = new FormData();
-  form.append('sales_file', salesBuffer, {
-    filename: salesName || 'sales-audit.xlsx',
-    contentType: salesMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
   form.append('sales_return_file', returnBuffer, {
     filename: returnName || 'sales-return-audit.xlsx',
     contentType: returnMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  form.append('sales_averages', JSON.stringify(salesAverages ?? []));
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {
