@@ -24,6 +24,7 @@ class LoadedValidationSheet:
     header_row_index: int
     header_detection_ms: float
     load_ms: float
+    column_display_headers: dict[str, str] | None = None
 
 
 class VectorizedValidationEngine:
@@ -46,6 +47,7 @@ class VectorizedValidationEngine:
             header_row_index: int | None = None
             headers: list[str] = []
             positions: list[int] = []
+            column_display_headers: dict[str, str] = {}
             columns: dict[str, list[Any]] = {}
             source_excel_row_numbers: list[int] = []
 
@@ -56,7 +58,7 @@ class VectorizedValidationEngine:
                         self._header_labels_from_values(row_tuple)
                     ):
                         header_row_index = physical_row - 1
-                        headers, positions = self._normalize_headers(row_tuple)
+                        headers, positions, column_display_headers = self._normalize_headers(row_tuple)
                         columns = {header: [] for header in headers}
                     continue
                 if not headers:
@@ -95,6 +97,7 @@ class VectorizedValidationEngine:
                 header_row_index=header_row_index,
                 header_detection_ms=header_detection_ms,
                 load_ms=load_ms,
+                column_display_headers=column_display_headers,
             )
         finally:
             workbook.close()
@@ -293,9 +296,10 @@ class VectorizedValidationEngine:
         return labels
 
     @staticmethod
-    def _normalize_headers(row: Sequence[Any]) -> tuple[list[str], list[int]]:
+    def _normalize_headers(row: Sequence[Any]) -> tuple[list[str], list[int], dict[str, str]]:
         headers: list[str] = []
         positions: list[int] = []
+        display_headers: dict[str, str] = {}
         seen: dict[str, int] = {}
         for idx, raw_header in enumerate(row):
             label = normalize_header(raw_header)
@@ -305,7 +309,9 @@ class VectorizedValidationEngine:
             unique_label = label if seen[label] == 1 else f'{label}_{seen[label]}'
             headers.append(unique_label)
             positions.append(idx)
-        return headers, positions
+            display_text = str(raw_header).strip() if raw_header is not None else unique_label
+            display_headers[unique_label] = display_text or unique_label
+        return headers, positions, display_headers
 
     @staticmethod
     def _append_row(

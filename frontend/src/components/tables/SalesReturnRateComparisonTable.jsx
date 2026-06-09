@@ -39,7 +39,7 @@ function globalFilter(row, _columnId, filterValue) {
   return blob.includes(q);
 }
 
-export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting }) {
+export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, showExport = true }) {
   const [globalFilterState, setGlobalFilterState] = useState('');
 
   const columns = useMemo(
@@ -155,26 +155,30 @@ export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting }
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="md"
-            disabled={filteredRows().length === 0}
-            onClick={() => exportRowsToCsv(`sales-return-rate-${Date.now()}.csv`, EXPORT_COLS, filteredRows())}
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            loading={exporting}
-            disabled={exporting || filteredRows().length === 0}
-            onClick={onExportXlsx}
-          >
-            <Download className="h-4 w-4" />
-            Export Excel
-          </Button>
-        </div>
+        {showExport ? (
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={filteredRows().length === 0}
+              onClick={() => exportRowsToCsv(`sales-return-rate-${Date.now()}.csv`, EXPORT_COLS, filteredRows())}
+            >
+              Export CSV
+            </Button>
+            {onExportXlsx ? (
+              <Button
+                variant="primary"
+                size="md"
+                loading={exporting}
+                disabled={exporting || filteredRows().length === 0}
+                onClick={onExportXlsx}
+              >
+                <Download className="h-4 w-4" />
+                Export Excel
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200">

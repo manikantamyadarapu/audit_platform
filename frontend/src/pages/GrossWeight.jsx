@@ -7,19 +7,61 @@ import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { GrossWeightResultsTable } from '../components/tables/GrossWeightResultsTable';
+import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import toast from 'react-hot-toast';
 import { validateGrossWeightExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { filterGrossWeightRecords, GROSS_FILTER_LABELS } from '../utils/grossRecordFilters';
 import { downloadGrossWeightRecordsXlsx } from '../utils/grossXlsxExport';
-import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
+import { readAuditSessionData } from '../utils/auditSessionStorage';
+
+const GROSS_WEIGHT_SESSION_KEY = 'gross-weight';
 
 export default function GrossWeight() {
   const [file, setFile] = useState(null);
+  const [restoredFileName, setRestoredFileName] = useState(
+    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.fileName ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [activeFilter, setActiveFilter] = useState(null);
+  const [result, setResult] = useState(
+    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.result ?? null
+  );
+  const [activeFilter, setActiveFilter] = useState(
+    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.activeFilter ?? null
+  );
+
+  const applySession = useCallback((data) => {
+    setResult(data?.result ?? null);
+    setActiveFilter(data?.activeFilter ?? null);
+    setRestoredFileName(data?.fileName ?? null);
+    setFile(null);
+  }, []);
+
+  const sessionSnapshot = useMemo(
+    () => ({
+      result,
+      sheetError: null,
+      activeFilter,
+      fileName: file?.name ?? restoredFileName ?? null,
+    }),
+    [result, activeFilter, file?.name, restoredFileName]
+  );
+
+  const {
+    sessionLabel,
+    sessionMeta,
+    persist,
+    restoreSession,
+    startNewAudit,
+    restoring,
+  } = useAuditSessionPersistence(GROSS_WEIGHT_SESSION_KEY, sessionSnapshot, {
+    onApplySession: applySession,
+  });
+
+  const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
 
   const runComparison = useCallback(async () => {
     if (!file) {
@@ -38,13 +80,19 @@ export default function GrossWeight() {
         return;
       }
       setResult(data);
+      persist({
+        result: data,
+        sheetError: null,
+        activeFilter: null,
+        fileName: file?.name ?? null,
+      });
       toast.success('Gross weight comparison complete');
     } catch (e) {
       toast.error(e.message || 'Comparison failed');
     } finally {
       setLoading(false);
     }
-  }, [file]);
+  }, [file, persist]);
 
   const rawRecords = result?.records;
   const filteredRecords = useMemo(
@@ -95,6 +143,17 @@ export default function GrossWeight() {
         ) : null}
       </AnimatePresence>
 
+      {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -110,7 +169,14 @@ export default function GrossWeight() {
           </div>
         </CardHeader>
         <CardBody>
-          <FileUploadZone file={file} onFileChange={setFile} disabled={loading} />
+          <FileUploadZone
+            file={displayFile}
+            onFileChange={(f) => {
+              setRestoredFileName(null);
+              setFile(f);
+            }}
+            disabled={loading}
+          />
         </CardBody>
       </Card>
 

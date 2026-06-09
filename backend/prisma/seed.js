@@ -126,6 +126,16 @@ async function main() {
         isActive: true,
       },
     }),
+    prisma.auditType.upsert({
+      where: { auditCode: 'SALES_RETURN' },
+      update: {},
+      create: {
+        auditCode: 'SALES_RETURN',
+        auditName: 'Sales Return Audit',
+        description: 'Sales return validation and rate comparison',
+        isActive: true,
+      },
+    }),
   ]);
   console.log(`Created ${auditTypes.length} audit types`);
 

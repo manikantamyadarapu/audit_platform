@@ -5,11 +5,13 @@ const logger = require('./utils/logger');
 config.validateConfigOrThrow();
 
 const app = require('./app');
+const { startAuditSessionCleanupJob } = require('./jobs/auditSessionCleanup.job');
 
 const server = http.createServer(app);
 
 server.listen(config.PORT, () => {
   logger.info('Node backend listening', { port: config.PORT, env: config.NODE_ENV });
+  startAuditSessionCleanupJob();
 });
 
 function shutdown(signal) {

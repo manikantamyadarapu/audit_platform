@@ -58,24 +58,44 @@ async function getRateComparison(req, res, next) {
 
 async function exportExceptions(req, res, next) {
   try {
-    const records = req.body?.records;
-    if (!Array.isArray(records) || records.length === 0) {
+    const {
+      records,
+      validationIssues,
+      comparisonIssues,
+      exportColumns,
+      columnDisplayHeaders,
+    } = req.body ?? {};
+    const hasRecords = Array.isArray(records) && records.length > 0;
+    const hasValidation = Array.isArray(validationIssues) && validationIssues.length > 0;
+    const hasComparison = Array.isArray(comparisonIssues) && comparisonIssues.length > 0;
+
+    if (!hasRecords && !hasValidation && !hasComparison) {
       return res.status(400).json({
         success: false,
-        detail: 'Request body must include a non-empty "records" array',
+        detail:
+          'Request body must include non-empty "records" or validation/comparison issue arrays',
         requestId: req.requestId,
       });
     }
 
-    logger.info('Sales return exception export: forwarding to Python', {
+    logger.info('Sales return consolidated export: forwarding to Python', {
       requestId: req.requestId,
-      recordCount: records.length,
+      recordCount: hasRecords ? records.length : 0,
+      validationCount: hasValidation ? validationIssues.length : 0,
+      comparisonCount: hasComparison ? comparisonIssues.length : 0,
     });
 
     const { buffer, contentDisposition, contentType } =
-      await pythonClient.postSalesReturnExportExceptions(records, {
-        requestId: req.requestId,
-      });
+      await pythonClient.postSalesReturnExportExceptions(
+        {
+          records,
+          validationIssues,
+          comparisonIssues,
+          exportColumns,
+          columnDisplayHeaders,
+        },
+        { requestId: req.requestId }
+      );
 
     if (contentType) res.setHeader('Content-Type', contentType);
     if (contentDisposition) {

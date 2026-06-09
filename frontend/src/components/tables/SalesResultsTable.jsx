@@ -110,7 +110,7 @@ function formatValue(value, key) {
   return String(value);
 }
 
-export function SalesResultsTable({ data }) {
+export function SalesResultsTable({ data, showExport = true }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [expandedRowId, setExpandedRowId] = useState(null);
 
@@ -192,16 +192,18 @@ export function SalesResultsTable({ data }) {
             className="pl-10"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button variant="secondary" size="md" onClick={exportPdf} disabled={!data.length}>
-            <FileText className="h-4 w-4" />
-            Export PDF
-          </Button>
-        </div>
+        {showExport ? (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="md" onClick={exportCsv} disabled={!data.length}>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button variant="secondary" size="md" onClick={exportPdf} disabled={!data.length}>
+              <FileText className="h-4 w-4" />
+              Export PDF
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
