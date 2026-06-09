@@ -18,7 +18,7 @@ HIGHER_SALES_RETURN_RATE_MSG = (
     'Average sales return rate is higher than average sales rate.'
 )
 INVALID_FREE_QUANTITY = 'INVALID_FREE_QUANTITY'
-INVALID_FREE_QUANTITY_MSG = 'Unit rate must be between 0 and 1 for this product.'
+INVALID_FREE_QUANTITY_MSG = 'Free quantity not allowed for this product.'
 
 LEDGER_MAPPING_ISSUES = frozenset({
     'INVALID_PRODUCT_MAPPING',

@@ -130,16 +130,23 @@ def export_invalid_sales_records(
     )
 
 
-def export_sales_return_exceptions(records: list[dict[str, Any]]) -> bytes:
+def export_sales_return_exceptions(
+    records: list[dict[str, Any]],
+    *,
+    export_columns: list[str] | None = None,
+    header_map: dict[str, str] | None = None,
+) -> bytes:
     if not records:
         raise ValueError('No exception records to export')
+    resolved_columns = export_columns or list(records[0].keys())
+    resolved_header_map = header_map or {column: column for column in resolved_columns}
     return build_audit_excel_report(
-        report_title='Sales Return Audit Exception Report',
-        invalid_sheet_name='Sales Return Exceptions',
+        report_title='Sales Return Final Exception Report',
+        invalid_sheet_name='Final Exception Report',
         source_processor='sales_return',
         records=records,
-        export_columns=list(SALES_RETURN_EXCEPTION_COLUMNS),
-        header_map=SALES_RETURN_EXCEPTION_HEADER_MAP,
+        export_columns=resolved_columns,
+        header_map=resolved_header_map,
     )
 
 

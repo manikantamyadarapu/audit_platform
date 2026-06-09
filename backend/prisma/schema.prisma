@@ -43,6 +43,7 @@ model User {
   auditRuns     AuditRun[]
   uploadedFiles UploadedFile[]
   ruleUpdates   MasterRule[]
+  auditSessions AuditSession[]
 
   @@index([email])
   @@index([roleId])
@@ -66,6 +67,7 @@ model AuditType {
   auditRuns       AuditRun[]
   masterRules     MasterRule[]
   dashboardMetrics DashboardAuditMetric[]
+  auditSessions   AuditSession[]
 
   @@index([auditCode])
   @@index([isActive])
@@ -141,6 +143,7 @@ model AuditRun {
   rateSummary     RateAuditSummary?
   idProofSummary  IdProofAuditSummary?
   productAverageRates SalesProductAverageRate[]
+  auditSessions       AuditSession[]
 
   @@index([auditTypeId, createdAt])
   @@index([status])
@@ -401,4 +404,33 @@ model SalesProductAverageRate {
   @@index([product])
   @@index([createdAt])
   @@map("sales_product_average_rates")
+}
+
+// ============================================================================
+// 15. AUDIT_SESSIONS - Persisted audit page state (7-day retention)
+// ============================================================================
+model AuditSession {
+  id              Int           @id @default(autoincrement())
+  auditRunId      Int?          @map("audit_run_id")
+  auditTypeId     Int           @map("audit_type_id")
+  userId          Int           @map("user_id")
+  sessionKey      String        @unique @map("session_key") @db.VarChar(100)
+  pageRoute       String        @map("page_route") @db.VarChar(255)
+  fileName        String?       @map("file_name") @db.VarChar(255)
+  status          AuditStatus   @default(PENDING)
+  sessionData     Json?         @map("session_data")
+  isActive        Boolean       @default(true) @map("is_active")
+  expiresAt       DateTime      @map("expires_at")
+  lastAccessedAt  DateTime      @default(now()) @map("last_accessed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  auditRun        AuditRun?     @relation(fields: [auditRunId], references: [id], onDelete: SetNull)
+  auditType       AuditType     @relation(fields: [auditTypeId], references: [id], onDelete: Restrict)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, auditTypeId])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@map("audit_sessions")
 }

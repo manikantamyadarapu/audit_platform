@@ -1,40 +1,40 @@
-"""Consolidated sales return audit exception rows for API and Excel export."""
+"""Final Sales Return exception report — original Excel columns + Issue + Message."""
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
-from app.sales_engine.validators.sales_audit_messages import format_messages_field
-
-SALES_RETURN_EXCEPTION_COLUMNS: tuple[str, ...] = (
-    'rowNumber',
-    'voucherNo',
-    'party',
-    'salesReturnAccount',
-    'product',
-    'quantity',
-    'freeQuantity',
-    'unitRate',
-    'grossAmount',
-    'uom',
-    'issues',
-    'messages',
+from app.sales_return_engine.engine.sales_return_average_engine import (
+    HIGHER_SALES_RETURN_RATE,
+    HIGHER_SALES_RETURN_RATE_MSG,
+    INVALID_FREE_QUANTITY,
+    INVALID_FREE_QUANTITY_MSG,
+    INVALID_LEDGER_MAPPING,
 )
 
+ISSUE_COLUMN = 'Issue'
+MESSAGE_COLUMN = 'Message'
+
+SALES_RETURN_ISSUE_MESSAGES: dict[str, str] = {
+    'INVALID_RATE_DEVIATION': 'Unit rate outside allowed range.',
+    'INVALID_LEDGER_MAPPING': 'Invalid sales return ledger mapping.',
+    'INVALID_FREE_QUANTITY': INVALID_FREE_QUANTITY_MSG,
+    'INVALID_UOM': 'Invalid UOM for product.',
+    'HIGHER_SALES_RETURN_RATE': HIGHER_SALES_RETURN_RATE_MSG,
+    'INVALID_PRODUCT_MAPPING': 'Invalid sales return ledger mapping.',
+    'INVALID_PRODUCT_PATTERN': 'Product pattern invalid.',
+    'MISSING_RATE_RULE': 'Rate rule not configured.',
+    'MISSING_UNIT_RATE': 'Unit rate missing.',
+    'INVALID_UNIT_RATE_RANGE': INVALID_FREE_QUANTITY_MSG,
+}
+
+# Backward-compatible aliases used by legacy export/tests.
+SALES_RETURN_EXCEPTION_COLUMNS: tuple[str, ...] = (ISSUE_COLUMN, MESSAGE_COLUMN)
 SALES_RETURN_EXCEPTION_HEADER_MAP: dict[str, str] = {
-    'rowNumber': 'Row Number',
-    'voucherNo': 'Voucher No',
-    'party': 'Party',
-    'salesReturnAccount': 'Sales Return Account',
-    'product': 'Product',
-    'quantity': 'Quantity',
-    'freeQuantity': 'Free Quantity',
-    'unitRate': 'Unit Rate',
-    'grossAmount': 'Gross Amount',
-    'uom': 'UOM',
-    'issues': 'Issue',
-    'messages': 'Message',
+    ISSUE_COLUMN: ISSUE_COLUMN,
+    MESSAGE_COLUMN: MESSAGE_COLUMN,
 }
 
 
@@ -43,138 +43,299 @@ def _as_message_list(value: Any) -> list[str]:
         return [str(item) for item in value if item is not None and str(item).strip()]
     if value is None or value == '':
         return []
-    return [str(value)]
+    text = str(value)
+    if ';' in text:
+        return [part.strip() for part in text.split(';') if part.strip()]
+    return [text]
 
 
-def _exception_row_from_validation(record: dict[str, Any]) -> dict[str, Any]:
-    issues = [str(code) for code in (record.get('issues') or []) if code]
-    messages = _as_message_list(record.get('messages'))
-    if not messages and record.get('rateMessage'):
-        messages = _as_message_list(record.get('rateMessage'))
+def _as_issue_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if item is not None and str(item).strip()]
+    if value is None or value == '':
+        return []
+    text = str(value).strip()
+    if ',' in text and ';' not in text:
+        return [part.strip() for part in text.split(',') if part.strip()]
+    if ';' in text:
+        return [part.strip() for part in text.split(';') if part.strip()]
+    return [text] if text else []
 
-    unit = record.get('__original_unit_rate') or record.get('originalExcelUnitRate') or record.get('unitRate')
 
+def _to_camel_case(snake_str: str) -> str:
+    parts = snake_str.split('_')
+    return parts[0] + ''.join(word.capitalize() for word in parts[1:])
+
+
+def _format_issue_codes(issues: list[str]) -> str:
+    return ', '.join(issues)
+
+
+def _format_messages(messages: list[str]) -> str:
+    return '; '.join(messages)
+
+
+def _message_for_issue(code: str, record: dict[str, Any] | None = None) -> str:
+    if code == 'INVALID_RATE_DEVIATION' and record:
+        if record.get('__rate_above_max') or record.get('rateAboveMax'):
+            return 'Unit rate above allowed range.'
+        return 'Unit rate outside allowed range.'
+    return SALES_RETURN_ISSUE_MESSAGES.get(code, code.replace('_', ' ').title())
+
+
+def _messages_for_issues(issues: list[str], record: dict[str, Any] | None = None) -> list[str]:
+    messages: list[str] = []
+    for code in issues:
+        message = _message_for_issue(code, record)
+        if message and message not in messages:
+            messages.append(message)
+    return messages
+
+
+def _merge_issues_and_messages(
+    existing: dict[str, Any],
+    incoming: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    issues = _as_issue_list(existing.get('_issues')) + _as_issue_list(incoming.get('_issues'))
+    issue_set: list[str] = []
+    for code in issues:
+        if code and code not in issue_set:
+            issue_set.append(code)
+
+    record = {**existing, **incoming}
+    messages = (
+        _as_message_list(existing.get('_messages'))
+        + _as_message_list(incoming.get('_messages'))
+        + _messages_for_issues(issue_set, record)
+    )
+    message_set: list[str] = []
+    for message in messages:
+        if message and message not in message_set:
+            message_set.append(message)
+    return issue_set, message_set
+
+
+def _column_value_from_record(record: dict[str, Any], column: str) -> Any:
+    original_key = f'__original_{column}'
+    if original_key in record and record.get(original_key) not in (None, ''):
+        return record.get(original_key)
+    camel = _to_camel_case(column)
+    if camel in record and record.get(camel) not in (None, ''):
+        return record.get(camel)
+    if column in record and record.get(column) not in (None, ''):
+        return record.get(column)
+    return ''
+
+
+def _excel_row_from_record(
+    record: dict[str, Any],
+    source_columns: list[str],
+    column_display_headers: dict[str, str],
+) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    for column in source_columns:
+        display = column_display_headers.get(column, column)
+        row[display] = _column_value_from_record(record, column)
+    return row
+
+
+def _finalize_row(
+    row: dict[str, Any],
+    issues: list[str],
+    messages: list[str],
+) -> dict[str, Any]:
+    resolved_messages = messages or _messages_for_issues(issues, row)
     return {
-        'rowNumber': record.get('rowNumber') or record.get('sourceExcelRowNumber') or '',
-        'voucherNo': record.get('__original_voucher_no') or record.get('voucherNo') or '',
-        'party': (
-            record.get('__original_name_of_party')
-            or record.get('nameOfParty')
-            or record.get('partyName')
-            or ''
-        ),
-        'salesReturnAccount': (
-            record.get('__original_sales_account')
-            or record.get('originalExcelSalesAccount')
-            or record.get('salesAccount')
-            or ''
-        ),
-        'product': (
-            record.get('__original_product')
-            or record.get('originalExcelProduct')
-            or record.get('product')
-            or ''
-        ),
-        'quantity': record.get('__original_quantity') or record.get('quantity') or '',
-        'freeQuantity': record.get('__original_free_quantity') or record.get('freeQuantity') or '',
-        'unitRate': unit if unit not in (None, '') else '',
-        'grossAmount': record.get('__original_gross_amount') or record.get('grossAmount') or '',
-        'uom': record.get('__original_uom') or record.get('uom') or '',
-        'issues': issues,
-        'messages': messages,
+        **row,
+        ISSUE_COLUMN: _format_issue_codes(issues),
+        MESSAGE_COLUMN: _format_messages(resolved_messages),
+        '_issues': issues,
+        '_messages': resolved_messages,
+        '_rowNumber': row.get('_rowNumber') or row.get('rowNumber') or '',
     }
 
 
-def _exception_row_from_comparison(record: dict[str, Any]) -> dict[str, Any]:
-    issues = [str(code) for code in (record.get('issues') or []) if code]
-    messages = _as_message_list(record.get('messages'))
-
-    return {
-        'rowNumber': '',
-        'voucherNo': '',
-        'party': '',
-        'salesReturnAccount': '',
-        'product': record.get('product') or '',
-        'quantity': record.get('returnTotalQuantity') if record.get('returnTotalQuantity') is not None else '',
-        'freeQuantity': '',
-        'unitRate': record.get('returnAverageRate') if record.get('returnAverageRate') is not None else '',
-        'grossAmount': (
-            record.get('returnTotalGrossAmount')
-            if record.get('returnTotalGrossAmount') is not None
-            else ''
-        ),
-        'uom': '',
-        'issues': issues,
-        'messages': messages,
-    }
+def _product_key(record: dict[str, Any], source_columns: list[str]) -> str:
+    product_col = 'product'
+    if product_col in source_columns:
+        return str(_column_value_from_record(record, product_col) or '').strip().upper()
+    return str(record.get('__original_product') or record.get('product') or '').strip().upper()
 
 
-def _normalize_exception_record(record: dict[str, Any]) -> dict[str, Any]:
-    issues = [str(code) for code in (record.get('issues') or []) if code]
-    messages = _as_message_list(record.get('messages'))
-    return {
-        **record,
-        'issues': '; '.join(issues),
-        'messages': format_messages_field(messages) if messages else '',
-    }
+def build_source_rows_by_product(
+    enriched_rows: list[dict[str, Any]],
+    source_columns: list[str],
+    column_display_headers: dict[str, str],
+) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in enriched_rows:
+        product = _product_key(row, source_columns)
+        if not product:
+            continue
+        excel_row = _excel_row_from_record(row, source_columns, column_display_headers)
+        row_number = row.get('__source_excel_row_number') or row.get('source_excel_row_number')
+        excel_row['_rowNumber'] = row_number
+        grouped.setdefault(product, []).append(excel_row)
+    return grouped
 
 
 def build_consolidated_exception_records(
     return_validation_records: list[dict[str, Any]],
     rate_comparison_records: list[dict[str, Any]],
+    *,
+    source_columns: list[str] | None = None,
+    column_display_headers: dict[str, str] | None = None,
+    source_rows_by_product: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Merge row-level return validation issues and product-level rate comparison issues
-    into one deduplicated exception list.
+    Build the single final exception dataset:
+    - all original upload columns (display headers)
+    - Issue + Message appended at the end
+    - validation + rate comparison merged without duplicate Excel rows
     """
-    deduped_validation, _ = dedupe_invalid_records_by_row_number(return_validation_records)
-    row_exceptions = [_exception_row_from_validation(record) for record in deduped_validation]
+    columns = list(source_columns or [])
+    display_headers = dict(column_display_headers or {})
+    if not columns:
+        columns = _infer_source_columns(return_validation_records, source_rows_by_product)
+    if not display_headers:
+        display_headers = {column: _titleize_column(column) for column in columns}
 
-    merged: dict[tuple[str, ...], dict[str, Any]] = {}
-    for record in row_exceptions:
-        row_number = record.get('rowNumber')
-        if row_number not in (None, ''):
-            key = ('row', str(row_number))
-        else:
-            key = (
-                'biz',
-                str(record.get('voucherNo') or '').strip().upper(),
-                str(record.get('product') or '').strip().upper(),
-                str(record.get('unitRate') or ''),
-                str(record.get('quantity') or ''),
-            )
+    deduped_validation, _ = dedupe_invalid_records_by_row_number(return_validation_records)
+
+    merged: dict[str, dict[str, Any]] = {}
+    for record in deduped_validation:
+        row_number = record.get('rowNumber') or record.get('sourceExcelRowNumber')
+        if not row_number:
+            continue
+        key = str(row_number)
+        excel_row = _excel_row_from_record(record, columns, display_headers)
+        excel_row['_rowNumber'] = row_number
+        issues = _as_issue_list(record.get('issues'))
+        messages = _as_message_list(record.get('messages')) or _messages_for_issues(issues, record)
+
         existing = merged.get(key)
         if existing is None:
-            merged[key] = record
+            merged[key] = _finalize_row(excel_row, issues, messages)
             continue
-        issue_set: list[str] = []
-        for code in list(existing.get('issues') or []) + list(record.get('issues') or []):
-            text = str(code).strip()
-            if text and text not in issue_set:
-                issue_set.append(text)
-        message_set: list[str] = []
-        for message in _as_message_list(existing.get('messages')) + _as_message_list(record.get('messages')):
-            if message and message not in message_set:
-                message_set.append(message)
-        merged[key] = {**existing, 'issues': issue_set, 'messages': message_set}
+        merged_issues, merged_messages = _merge_issues_and_messages(existing, {
+            '_issues': issues,
+            '_messages': messages,
+        })
+        merged[key] = _finalize_row({**existing, **excel_row}, merged_issues, merged_messages)
+
+    products_with_rows = {
+        _product_key_from_final_row(row, columns, display_headers): key
+        for key, row in merged.items()
+        if _product_key_from_final_row(row, columns, display_headers)
+    }
 
     for comparison in rate_comparison_records:
-        exception = _exception_row_from_comparison(comparison)
-        issues = exception.get('issues') or []
-        if not issues:
+        comparison_issues = _as_issue_list(comparison.get('issues'))
+        if not comparison_issues:
             continue
-        product = str(exception.get('product') or '').strip().upper()
-        key = ('product', product, issues[0])
-        if key in merged:
+        product = str(comparison.get('product') or '').strip().upper()
+        if not product:
             continue
-        merged[key] = exception
+
+        comparison_messages = (
+            _as_message_list(comparison.get('messages'))
+            or _messages_for_issues(comparison_issues, comparison)
+        )
+        comparison_payload = {
+            '_issues': comparison_issues,
+            '_messages': comparison_messages,
+        }
+
+        matched_keys = [
+            key
+            for key, row in merged.items()
+            if _product_key_from_final_row(row, columns, display_headers) == product
+        ]
+
+        if matched_keys:
+            for key in matched_keys:
+                existing = merged[key]
+                merged_issues, merged_messages = _merge_issues_and_messages(existing, comparison_payload)
+                merged[key] = _finalize_row(existing, merged_issues, merged_messages)
+            continue
+
+        source_candidates = (source_rows_by_product or {}).get(product) or []
+        if source_candidates:
+            template = dict(source_candidates[0])
+        else:
+            template = {
+                display_headers.get('product', 'Product'): comparison.get('product') or '',
+            }
+
+        row_number = template.get('_rowNumber') or ''
+        key = str(row_number) if row_number not in (None, '') else f'product:{product}'
+        merged[key] = _finalize_row(
+            template,
+            comparison_issues,
+            comparison_messages,
+        )
 
     ordered = list(merged.values())
     ordered.sort(
         key=lambda row: (
-            0 if row.get('rowNumber') not in (None, '') else 1,
-            int(row['rowNumber']) if str(row.get('rowNumber') or '').isdigit() else 10**9,
-            str(row.get('product') or '').lower(),
+            0 if str(row.get('_rowNumber') or '').isdigit() else 1,
+            int(row['_rowNumber']) if str(row.get('_rowNumber') or '').isdigit() else 10**9,
+            str(row.get(display_headers.get('product', 'Product')) or '').lower(),
         )
     )
-    return [_normalize_exception_record(record) for record in ordered]
+    return [_strip_internal_fields(row) for row in ordered]
+
+
+def build_export_metadata(
+    source_columns: list[str],
+    column_display_headers: dict[str, str],
+) -> tuple[list[str], dict[str, str]]:
+    export_columns = [column_display_headers.get(col, _titleize_column(col)) for col in source_columns]
+    export_columns.extend([ISSUE_COLUMN, MESSAGE_COLUMN])
+    header_map = {col: col for col in export_columns}
+    return export_columns, header_map
+
+
+def _infer_source_columns(
+    validation_records: list[dict[str, Any]],
+    source_rows_by_product: dict[str, list[dict[str, Any]]] | None,
+) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+    for record in validation_records:
+        for key in record:
+            if not key.startswith('__original_'):
+                continue
+            column = key.replace('__original_', '', 1)
+            if column not in seen:
+                seen.add(column)
+                keys.append(column)
+    if keys:
+        return keys
+    if source_rows_by_product:
+        sample = next(iter(source_rows_by_product.values()), [])
+        if sample:
+            return list(sample[0].keys())
+    return []
+
+
+def _product_key_from_final_row(
+    row: dict[str, Any],
+    source_columns: list[str],
+    column_display_headers: dict[str, str],
+) -> str:
+    product_header = column_display_headers.get('product', 'Product')
+    return str(row.get(product_header) or '').strip().upper()
+
+
+def _titleize_column(column: str) -> str:
+    text = column.replace('_', ' ').strip()
+    return re.sub(r'\b\w', lambda match: match.group(0).upper(), text)
+
+
+def _strip_internal_fields(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in row.items() if not str(key).startswith('_')}
+
+
+# Legacy alias
+build_final_exception_report = build_consolidated_exception_records

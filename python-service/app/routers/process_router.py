@@ -160,7 +160,11 @@ class SalesReturnRateComparisonExportRequest(BaseModel):
 
 
 class SalesReturnExceptionExportRequest(BaseModel):
-    records: list[dict[str, Any]]
+    records: list[dict[str, Any]] | None = None
+    validationIssues: list[dict[str, Any]] | None = None
+    comparisonIssues: list[dict[str, Any]] | None = None
+    exportColumns: list[str] | None = None
+    columnDisplayHeaders: dict[str, str] | None = None
 
 
 @router.post('/sales-return/validate')
@@ -192,12 +196,44 @@ async def process_sales_return(
 async def export_sales_return_exception_rows(
     payload: SalesReturnExceptionExportRequest,
 ) -> StreamingResponse:
+    from app.sales_return_engine.exception_report import (
+        build_consolidated_exception_records,
+        build_export_metadata,
+    )
+
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info('Sales return exception export request received')
-    excel_bytes = export_sales_return_exceptions(payload.records)
+    if payload.records:
+        records = payload.records
+    elif payload.validationIssues is not None or payload.comparisonIssues is not None:
+        records = build_consolidated_exception_records(
+            payload.validationIssues or [],
+            payload.comparisonIssues or [],
+            source_columns=payload.exportColumns or [],
+            column_display_headers=payload.columnDisplayHeaders or {},
+        )
+    else:
+        raise ValueError('Request body must include "records" or validation/comparison issue arrays')
+
+    export_columns = None
+    header_map = None
+    if payload.exportColumns and payload.columnDisplayHeaders:
+        export_columns, header_map = build_export_metadata(
+            payload.exportColumns,
+            payload.columnDisplayHeaders,
+        )
+    elif records:
+        export_columns = list(records[0].keys())
+        header_map = {column: column for column in export_columns}
+
+    excel_bytes = export_sales_return_exceptions(
+        records,
+        export_columns=export_columns,
+        header_map=header_map,
+    )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    filename = f'sales-return-exceptions-{timestamp}.xlsx'
+    filename = f'sales-return-audit-report-{timestamp}.xlsx'
     log.info('Sales return exception export generated')
     return StreamingResponse(
         BytesIO(excel_bytes),

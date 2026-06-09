@@ -205,7 +205,7 @@ def test_free_quantity_unit_rate_range_on_return_file(unit_rate, valid) -> None:
     engine = SalesReturnAuditEngine()
     return_bytes = _build_excel_bytes([_return_row('Lac', 100, 1, unit_rate)])
     result = engine.process(return_bytes, _stored_avg('Lac', 100, 1))
-    return_records = result['returnValidationRecords']
+    return_records = result['validationIssues']
     invalid = [r for r in return_records if INVALID_FREE_QUANTITY in (r.get('issues') or [])]
     if valid:
         assert not invalid

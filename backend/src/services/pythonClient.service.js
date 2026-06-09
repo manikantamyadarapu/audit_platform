@@ -120,8 +120,46 @@ async function postSalesReturnExportRateComparison(records, options = {}) {
   return postExportInvalidRows('/api/process/sales-return/export-rate-comparison', records, options);
 }
 
-async function postSalesReturnExportExceptions(records, options = {}) {
-  return postExportInvalidRows('/api/process/sales-return/export-exceptions', records, options);
+async function postSalesReturnExportExceptions(payload, options = {}) {
+  try {
+    const headers = {};
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/sales-return/export-exceptions', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const json = JSON.parse(Buffer.from(response.data).toString('utf8'));
+        if (json && json.detail) detail = json.detail;
+      } catch {
+        // ignore
+      }
+      const err = new Error(detail);
+      if (response.status === 422) err.status = 422;
+      else if (response.status === 400) err.status = 400;
+      else if (response.status >= 500) err.status = 502;
+      else err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentDisposition,
+      contentType,
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
 }
 
 /**

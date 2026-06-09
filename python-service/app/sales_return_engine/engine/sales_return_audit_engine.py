@@ -18,7 +18,10 @@ from app.sales_return_engine.engine.sales_return_average_engine import (
     compare_average_rates,
     sales_averages_from_stored_records,
 )
-from app.sales_return_engine.exception_report import build_consolidated_exception_records
+from app.sales_return_engine.exception_report import (
+    build_consolidated_exception_records,
+    build_source_rows_by_product,
+)
 from app.utils.sheet_validation_error import SheetValidationError
 
 _REQUIRED = frozenset({'voucher_no', 'product', 'unit_rate'})
@@ -68,9 +71,15 @@ class SalesReturnAuditEngine:
         return_averages = calculate_sales_return_average_rates(return_loaded, self.sales_engine)
         rate_comparison = compare_average_rates(sales_averages, return_averages)
         comparison_records = [row.to_record() for row in rate_comparison]
+        source_columns = self.sales_engine.loader.user_columns(return_loaded.dataframe)
+        display_headers = dict(return_loaded.column_display_headers or {})
+        source_rows_by_product = self._build_source_rows_by_product(return_loaded)
         exception_records = build_consolidated_exception_records(
             return_validation.records,
             comparison_records,
+            source_columns=source_columns,
+            column_display_headers=display_headers,
+            source_rows_by_product=source_rows_by_product,
         )
 
         return_error_rows = int(
@@ -100,12 +109,13 @@ class SalesReturnAuditEngine:
             'totalRows': return_validation.total_rows,
             'errorRows': len(exception_records),
             'summary': summary,
-            'returnValidationRecords': return_validation.records,
             'validationIssues': return_validation.records,
             'rateComparisonRecords': comparison_records,
             'comparisonIssues': comparison_records,
             'exceptionRecords': exception_records,
             'records': exception_records,
+            'exportColumns': source_columns,
+            'columnDisplayHeaders': display_headers,
         }
 
     def _load_sheet(
@@ -137,11 +147,16 @@ class SalesReturnAuditEngine:
                     'Sales return audit reuses the same header layout as sales audit.',
                 ],
             )
+        display_headers = dict(loaded.column_display_headers or {})
+        if is_return and 'sales_return_account' in display_headers and 'sales_account' not in display_headers:
+            display_headers['sales_account'] = display_headers.pop('sales_return_account')
+
         return LoadedValidationSheet(
             dataframe=dataframe,
             header_row_index=loaded.header_row_index,
             header_detection_ms=loaded.header_detection_ms,
             load_ms=loaded.load_ms,
+            column_display_headers=display_headers,
         )
 
     @staticmethod
@@ -195,6 +210,16 @@ class SalesReturnAuditEngine:
         """Backward-compatible wrapper for tests."""
         return calculate_sales_return_average_rates(loaded, self.sales_engine)
 
+    def _build_source_rows_by_product(self, loaded: LoadedValidationSheet) -> dict[str, list[dict[str, Any]]]:
+        columns = self.sales_engine.loader.user_columns(loaded.dataframe)
+        display_headers = dict(loaded.column_display_headers or {})
+        enriched = self.sales_engine._enrich_sales_dataframe(loaded.dataframe)
+        if enriched.is_empty() or '__is_transaction_row' not in enriched.columns:
+            return {}
+        txn = enriched.filter(pl.col('__is_transaction_row').fill_null(False))
+        rows = [dict(row) for row in txn.iter_rows(named=True)]
+        return build_source_rows_by_product(rows, columns, display_headers)
+
     @staticmethod
     def _map_return_validation_record(record: dict[str, Any]) -> dict[str, Any]:
         issues = list(record.get('issues') or [])
@@ -217,5 +242,8 @@ class SalesReturnAuditEngine:
         if mapped_messages:
             updated['messages'] = mapped_messages
         elif INVALID_LEDGER_MAPPING in mapped_issues and not record.get('messages'):
-            updated['messages'] = ['Sales return account does not match product mapping.']
+            updated['messages'] = ['Invalid sales return ledger mapping.']
+        from app.sales_return_engine.exception_report import _messages_for_issues as resolve_messages
+
+        updated['messages'] = resolve_messages(mapped_issues, updated)
         return updated

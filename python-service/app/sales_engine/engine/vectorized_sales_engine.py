@@ -280,39 +280,24 @@ class VectorizedSalesEngine:
         freeze_exprs: list[pl.Expr] = [
             pl.col('source_excel_row_number').cast(pl.Int64).alias('__source_excel_row_number'),
         ]
-        # All columns to preserve from original Excel
-        original_columns = [
-            ('s_no', '__original_s_no'),
-            ('date', '__original_date'),
-            ('voucher_no', '__original_voucher_no'),
-            ('name_of_party', '__original_name_of_party'),
-            ('party_name', '__original_name_of_party'),
-            ('sales_account', '__original_sales_account'),
-            ('other_account', '__original_other_account'),
-            ('product', '__original_product'),
-            ('uom', '__original_uom'),
-            ('quantity', '__original_quantity'),
-            ('free_quantity', '__original_free_quantity'),
-            ('unit_rate', '__original_unit_rate'),
-            ('gross_amount', '__original_gross_amount'),
-            ('cgst', '__original_cgst'),
-            ('sgst', '__original_sgst'),
-            ('igst', '__original_igst'),
-            ('gst_amount', '__original_gst_amount'),
-            ('net_amount', '__original_net_amount'),
-            ('manual_gross_wt', '__original_manual_gross_wt'),
-            ('auto_gross_wt', '__original_auto_gross_wt'),
-            ('difference_in_gross_wt', '__original_difference_in_gross_wt'),
-            ('diff_gross_wt', '__original_difference_in_gross_wt'),
-            ('pan', '__original_pan'),
-            ('address_proof', '__original_address_proof'),
-            ('address', '__original_address'),
+        alias_overrides = {
+            'party_name': '__original_name_of_party',
+            'diff_gross_wt': '__original_difference_in_gross_wt',
+        }
+        data_columns = [
+            column
+            for column in dataframe.columns
+            if not column.startswith('__') and column != 'source_excel_row_number'
         ]
-        for column, alias in original_columns:
-            if column in dataframe.columns:
-                freeze_exprs.append(
-                    pl.col(column).cast(pl.Utf8, strict=False).fill_null('').alias(alias)
-                )
+        seen_aliases: set[str] = set()
+        for column in data_columns:
+            alias = alias_overrides.get(column, f'__original_{column}')
+            if alias in seen_aliases or column not in dataframe.columns:
+                continue
+            seen_aliases.add(alias)
+            freeze_exprs.append(
+                pl.col(column).cast(pl.Utf8, strict=False).fill_null('').alias(alias)
+            )
         return dataframe.with_columns(freeze_exprs)
 
     def _enrich_sales_dataframe(self, dataframe: pl.DataFrame) -> pl.DataFrame:
