@@ -17,16 +17,59 @@ import { KpiCard } from '../components/cards/KpiCard';
 import { validatePanExcel } from '../services/panService';
 import { formatNumber } from '../utils/format';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
+import { readAuditSessionData } from '../utils/auditSessionStorage';
 import { filterPanRecords, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
 import { downloadPanRecordsXlsx } from '../utils/panXlsxExport';
 import { useAppUi } from '../context/AppUiContext';
+
+const PAN_SESSION_KEY = 'pan-audit';
+
 export default function PanVerification() {
   const { recordPanValidation, recordExport } = useAppUi();
   const [file, setFile] = useState(null);
+  const [restoredFileName, setRestoredFileName] = useState(
+    () => readAuditSessionData(PAN_SESSION_KEY)?.fileName ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [activeFilter, setActiveFilter] = useState(null);
+  const [result, setResult] = useState(
+    () => readAuditSessionData(PAN_SESSION_KEY)?.result ?? null
+  );
+  const [activeFilter, setActiveFilter] = useState(
+    () => readAuditSessionData(PAN_SESSION_KEY)?.activeFilter ?? null
+  );
+
+  const applySession = useCallback((data) => {
+    setResult(data?.result ?? null);
+    setActiveFilter(data?.activeFilter ?? null);
+    setRestoredFileName(data?.fileName ?? null);
+    setFile(null);
+  }, []);
+
+  const sessionSnapshot = useMemo(
+    () => ({
+      result,
+      sheetError: null,
+      activeFilter,
+      fileName: file?.name ?? restoredFileName ?? null,
+    }),
+    [result, activeFilter, file?.name, restoredFileName]
+  );
+
+  const {
+    sessionLabel,
+    sessionMeta,
+    persist,
+    restoreSession,
+    startNewAudit,
+    restoring,
+  } = useAuditSessionPersistence(PAN_SESSION_KEY, sessionSnapshot, {
+    onApplySession: applySession,
+  });
+
+  const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
 
   const runValidate = useCallback(async () => {
     if (!file) {
@@ -45,6 +88,12 @@ export default function PanVerification() {
         return;
       }
       setResult(data);
+      persist({
+        result: data,
+        sheetError: null,
+        activeFilter: null,
+        fileName: file?.name ?? null,
+      });
       recordPanValidation({
         totalRows: data.totalRows,
         errorRows: data.errorRows,
@@ -55,7 +104,7 @@ export default function PanVerification() {
     } finally {
       setLoading(false);
     }
-  }, [file, recordPanValidation]);
+  }, [file, persist, recordPanValidation]);
 
   const rawRecords = result?.records;
   const filteredRecords = useMemo(
@@ -111,6 +160,17 @@ export default function PanVerification() {
         ) : null}
       </AnimatePresence>
 
+      {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -126,7 +186,14 @@ export default function PanVerification() {
           </div>
         </CardHeader>
         <CardBody>
-          <FileUploadZone file={file} onFileChange={setFile} disabled={loading} />
+          <FileUploadZone
+            file={displayFile}
+            onFileChange={(f) => {
+              setRestoredFileName(null);
+              setFile(f);
+            }}
+            disabled={loading}
+          />
         </CardBody>
       </Card>
 

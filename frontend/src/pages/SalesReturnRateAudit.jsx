@@ -1,7 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   BookOpen,
-  GitCompare,
   Gem,
   Loader2,
   AlertTriangle,
@@ -17,20 +16,16 @@ import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SalesReturnRateComparisonTable } from '../components/tables/SalesReturnRateComparisonTable';
-import { SalesResultsTable } from '../components/tables/SalesResultsTable';
-import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { SalesReturnExceptionTable } from '../components/tables/SalesReturnExceptionTable';
+import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import {
-  exportSalesReturnExceptions,
+  exportSalesReturnConsolidated,
   validateSalesReturnAudit,
 } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
-import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import {
-  AUDIT_SESSION_RETENTION_DAYS,
   readAuditSessionData,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
@@ -38,8 +33,10 @@ import {
 const SALES_RETURN_SESSION_KEY = 'sales-return-audit';
 
 export default function SalesReturnRateAudit() {
-  const rateComparisonRef = useRef(null);
   const [returnFile, setReturnFile] = useState(null);
+  const [restoredFileName, setRestoredFileName] = useState(
+    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.fileName ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(
@@ -48,30 +45,41 @@ export default function SalesReturnRateAudit() {
   const [sheetError, setSheetError] = useState(
     () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.sheetError ?? null
   );
-  const [activeFilter, setActiveFilter] = useState(
-    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.activeFilter ?? null
-  );
+
+  const applySession = useCallback((data) => {
+    setResult(data?.result ?? null);
+    setSheetError(data?.sheetError ?? null);
+    setRestoredFileName(data?.fileName ?? null);
+    setReturnFile(null);
+  }, []);
 
   const sessionSnapshot = useMemo(
     () => ({
       result,
       sheetError,
-      activeFilter,
-      fileName: returnFile?.name ?? null,
+      activeFilter: null,
+      fileName: returnFile?.name ?? restoredFileName ?? null,
     }),
-    [result, sheetError, activeFilter, returnFile?.name]
+    [result, sheetError, returnFile?.name, restoredFileName]
   );
 
-  const { sessionLabel, persist } = useAuditSessionPersistence(
-    SALES_RETURN_SESSION_KEY,
-    sessionSnapshot,
-    {
-      transform: slimSalesLedgerSnapshot,
-      onSaveFailed: () => {
-        toast.error('Results are too large to keep in the browser. Export the exception report.');
-      },
-    }
-  );
+  const {
+    sessionLabel,
+    sessionMeta,
+    persist,
+    restoreSession,
+    startNewAudit,
+    restoring,
+  } = useAuditSessionPersistence(SALES_RETURN_SESSION_KEY, sessionSnapshot, {
+    transform: slimSalesLedgerSnapshot,
+    onApplySession: applySession,
+    onSaveFailed: () => {
+      toast.error('Results are too large to keep in the browser. Export the final exception report.');
+    },
+  });
+
+  const displayFile =
+    returnFile ?? (restoredFileName ? { name: restoredFileName } : null);
 
   const runValidation = useCallback(async () => {
     if (!returnFile) {
@@ -81,7 +89,6 @@ export default function SalesReturnRateAudit() {
     setLoading(true);
     setResult(null);
     setSheetError(null);
-    setActiveFilter(null);
     try {
       const data = await validateSalesReturnAudit(returnFile);
       if (data && data.success === false) {
@@ -106,51 +113,24 @@ export default function SalesReturnRateAudit() {
     }
   }, [returnFile, persist]);
 
-  const validationRecords = useMemo(
-    () =>
-      dedupeSalesRecordsByRowNumber(
-        result?.validationIssues ?? result?.returnValidationRecords ?? []
-      ),
-    [result]
-  );
-
-  const rateComparisonRecords = useMemo(
-    () => result?.comparisonIssues ?? result?.rateComparisonRecords ?? [],
-    [result]
-  );
-
   const exceptionRecords = useMemo(
     () => result?.exceptionRecords ?? result?.records ?? [],
     [result]
   );
 
-  const filteredValidationRecords = useMemo(
-    () => filterSalesRecords(validationRecords, activeFilter),
-    [validationRecords, activeFilter]
-  );
-
-  const toggleCardFilter = useCallback((key) => {
-    setActiveFilter((prev) => (prev === key ? null : key));
-  }, []);
-
-  const scrollToRateComparison = useCallback(() => {
-    rateComparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
   const summary = result?.summary ?? {};
+  const totalReturnRows = result?.totalRows ?? 0;
+  const exceptionRowCount = summary.exceptionRowCount ?? exceptionRecords.length;
   const returnErrorRows =
     summary.returnValidationErrorRows ??
     summary.distinctInvalidRows ??
-    validationRecords.length;
-  const higherRateProducts = summary.higherReturnRateProducts ?? rateComparisonRecords.length;
-  const totalReturnRows = result?.totalRows ?? 0;
+    summary.errorRowsCount ??
+    0;
+  const higherRateProducts = summary.higherReturnRateProducts ?? 0;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
-  const freeQuantityCount = filterSalesRecords(validationRecords, 'accessoriesUnitRate').length;
-  const uomErrors =
-    summary.invalidUomRows ??
-    summary.caratGemErrorRows ??
-    filterSalesRecords(validationRecords, 'caratGemErrors').length;
+  const freeQuantityCount = summary.invalidUnitRateRangeRows ?? 0;
+  const uomErrors = summary.invalidUomRows ?? summary.caratGemErrorRows ?? 0;
   const compliance =
     totalReturnRows > 0
       ? Math.max(0, Math.min(100, ((totalReturnRows - returnErrorRows) / totalReturnRows) * 100))
@@ -159,21 +139,25 @@ export default function SalesReturnRateAudit() {
     ? `Baseline: ${result.salesAuditFileName} (${formatNumber(result.salesAuditBaselineCount ?? summary.salesAuditBaselineCount ?? 0)} products)`
     : 'Sales audit averages loaded from database';
 
-  const exportExceptions = useCallback(async () => {
+  const exportFinalReport = useCallback(async () => {
     if (!exceptionRecords.length) {
       toast.error('No exception rows to export.');
       return;
     }
     setExporting(true);
     try {
-      await exportSalesReturnExceptions(exceptionRecords);
-      toast.success('Consolidated exception report downloaded');
+      await exportSalesReturnConsolidated({
+        records: exceptionRecords,
+        exportColumns: result?.exportColumns,
+        columnDisplayHeaders: result?.columnDisplayHeaders,
+      });
+      toast.success('Final exception report downloaded');
     } catch (e) {
       toast.error(e.message || 'Export failed');
     } finally {
       setExporting(false);
     }
-  }, [exceptionRecords]);
+  }, [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]);
 
   return (
     <div className="relative space-y-8">
@@ -183,7 +167,7 @@ export default function SalesReturnRateAudit() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 backdrop-blur-sm"
+            className="absolute inset-0 z-40 flex items-center justify-center rounded-2xl bg-slate-950/25 backdrop-blur-sm"
           >
             <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
               <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
@@ -193,10 +177,15 @@ export default function SalesReturnRateAudit() {
         ) : null}
       </AnimatePresence>
 
-      {sessionLabel && result ? (
-        <p className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
-          {sessionLabel} — results are kept for {AUDIT_SESSION_RETENTION_DAYS} days when you switch tabs.
-        </p>
+      {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
       ) : null}
 
       <Card>
@@ -223,36 +212,16 @@ export default function SalesReturnRateAudit() {
         </CardHeader>
         <CardBody>
           <FileUploadZone
-            file={returnFile}
+            file={displayFile}
             onFileChange={(f) => {
               setSheetError(null);
+              setRestoredFileName(null);
               setReturnFile(f);
             }}
             disabled={loading}
           />
         </CardBody>
       </Card>
-
-      {result ? (
-        <section>
-          <h3 className="mb-4 text-base font-bold text-emerald-700">Analytics</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <KpiCard
-              label="Sales Return Rate Comparison"
-              value={formatNumber(rateComparisonRecords.length)}
-              hint={
-                rateComparisonRecords.length
-                  ? 'Products with higher return average rate than sales audit baseline'
-                  : 'Compare product-wise average rates after audit'
-              }
-              icon={GitCompare}
-              accent="violet"
-              interactive
-              onClick={scrollToRateComparison}
-            />
-          </div>
-        </section>
-      ) : null}
 
       {sheetError ? (
         <Card className="border-rose-200/80 bg-rose-50/40 shadow-md">
@@ -279,20 +248,23 @@ export default function SalesReturnRateAudit() {
                 variant="primary"
                 size="md"
                 loading={exporting}
-                disabled={exporting || exceptionRecords.length === 0}
-                onClick={exportExceptions}
+                disabled={exporting || !exceptionRecords.length}
+                onClick={exportFinalReport}
               >
                 <Download className="h-4 w-4" />
-                Export consolidated exception report
+                Export final exception report
               </Button>
             </div>
             <div className="flex flex-wrap items-stretch gap-4">
               <div className="min-w-[190px] h-[120px]">
+                <KpiCard label="Return rows" value={formatNumber(totalReturnRows)} icon={Rows3} accent="blue" />
+              </div>
+              <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Return rows"
-                  value={formatNumber(totalReturnRows)}
-                  icon={Rows3}
-                  accent="blue"
+                  label="Exception rows"
+                  value={formatNumber(exceptionRowCount)}
+                  icon={AlertTriangle}
+                  accent="amber"
                 />
               </div>
               <div className="min-w-[190px] h-[120px]">
@@ -301,32 +273,13 @@ export default function SalesReturnRateAudit() {
                   value={formatNumber(returnErrorRows)}
                   icon={AlertTriangle}
                   accent="amber"
-                  interactive
-                  selected={activeFilter === 'errors'}
-                  onClick={() => toggleCardFilter('errors')}
                 />
               </div>
               <div className="min-w-[190px] h-[120px]">
-                <KpiCard
-                  label="Ledger mapping"
-                  value={formatNumber(catVsProduct)}
-                  icon={BookOpen}
-                  accent="rose"
-                  interactive
-                  selected={activeFilter === 'accountVsProduct'}
-                  onClick={() => toggleCardFilter('accountVsProduct')}
-                />
+                <KpiCard label="Ledger mapping" value={formatNumber(catVsProduct)} icon={BookOpen} accent="rose" />
               </div>
               <div className="min-w-[190px] h-[120px]">
-                <KpiCard
-                  label="Rate deviations"
-                  value={formatNumber(rateViolations)}
-                  icon={BookOpen}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'mixedLedgers'}
-                  onClick={() => toggleCardFilter('mixedLedgers')}
-                />
+                <KpiCard label="Rate deviations" value={formatNumber(rateViolations)} icon={BookOpen} accent="amber" />
               </div>
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
@@ -334,21 +287,10 @@ export default function SalesReturnRateAudit() {
                   value={formatNumber(freeQuantityCount)}
                   icon={BookOpen}
                   accent="amber"
-                  interactive
-                  selected={activeFilter === 'accessoriesUnitRate'}
-                  onClick={() => toggleCardFilter('accessoriesUnitRate')}
                 />
               </div>
               <div className="min-w-[190px] h-[120px]">
-                <KpiCard
-                  label="UOM deviations"
-                  value={formatNumber(uomErrors)}
-                  icon={Gem}
-                  accent="violet"
-                  interactive
-                  selected={activeFilter === 'caratGemErrors'}
-                  onClick={() => toggleCardFilter('caratGemErrors')}
-                />
+                <KpiCard label="UOM deviations" value={formatNumber(uomErrors)} icon={Gem} accent="violet" />
               </div>
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
@@ -356,8 +298,6 @@ export default function SalesReturnRateAudit() {
                   value={formatNumber(higherRateProducts)}
                   icon={Undo2}
                   accent="rose"
-                  onClick={scrollToRateComparison}
-                  interactive
                 />
               </div>
               <div className="min-w-[190px] h-[120px]">
@@ -375,55 +315,24 @@ export default function SalesReturnRateAudit() {
           <Card>
             <CardHeader>
               <div>
-                <h3 className="text-base font-bold text-emerald-700">Validation results</h3>
+                <h3 className="text-base font-bold text-emerald-700">Final exception report</h3>
                 <p className="text-sm text-slate-500">
-                  Rate, ledger, free quantity, and UOM issues on the sales return file.
+                  All validation and rate comparison issues in one view. Original upload columns are
+                  preserved with Issue and Message appended.
                 </p>
               </div>
             </CardHeader>
             <CardBody>
-              {validationRecords.length || activeFilter != null ? (
-                <div className="space-y-4">
-                  <AuditFilterStrip
-                    activeFilter={activeFilter}
-                    labels={SALES_FILTER_LABELS}
-                    count={filteredValidationRecords.length}
-                    onClear={() => setActiveFilter(null)}
-                  />
-                  <SalesResultsTable data={filteredValidationRecords} />
-                </div>
+              {exceptionRecords.length ? (
+                <SalesReturnExceptionTable data={exceptionRecords} />
               ) : (
                 <EmptyState
-                  title="No validation issues"
-                  description="Every evaluated return row passed rate, ledger, free quantity, and UOM checks."
+                  title="No exceptions found"
+                  description="Every evaluated return row passed validation and rate comparison checks."
                 />
               )}
             </CardBody>
           </Card>
-
-          <section ref={rateComparisonRef}>
-            <Card>
-              <CardHeader>
-                <div>
-                  <h3 className="text-base font-bold text-emerald-700">Sales Return Rate Comparison</h3>
-                  <p className="text-sm text-slate-500">
-                    Product-wise average unit rate — SUM(Gross Amount) / SUM(Quantity) — compared against
-                    stored sales audit averages. Exact product name match only.
-                  </p>
-                </div>
-              </CardHeader>
-              <CardBody>
-                {rateComparisonRecords.length ? (
-                  <SalesReturnRateComparisonTable data={rateComparisonRecords} />
-                ) : (
-                  <EmptyState
-                    title="No rate comparison issues"
-                    description="No return product has a higher average rate than the matching sales audit product."
-                  />
-                )}
-              </CardBody>
-            </Card>
-          </section>
         </>
       ) : !sheetError ? (
         <EmptyState

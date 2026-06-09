@@ -15,7 +15,7 @@ export function AppLayout() {
       <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         {!isDashboard ? <TopNavbar /> : null}
         <main className="relative flex-1 overflow-x-hidden bg-transparent px-5 py-6 lg:px-7">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             <motion.div
               key={location.pathname}
               initial={{ opacity: 0, y: 10 }}

@@ -26,9 +26,9 @@ import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
+import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import {
-  AUDIT_SESSION_RETENTION_DAYS,
   readAuditSessionData,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
@@ -38,6 +38,9 @@ const SALES_LEDGER_SESSION_KEY = 'sales-ledger';
 export default function SalesLedger() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
+  const [restoredFileName, setRestoredFileName] = useState(
+    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.fileName ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(
@@ -50,26 +53,40 @@ export default function SalesLedger() {
     () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.activeFilter ?? null
   );
 
+  const applySession = useCallback((data) => {
+    setResult(data?.result ?? null);
+    setSheetError(data?.sheetError ?? null);
+    setActiveFilter(data?.activeFilter ?? null);
+    setRestoredFileName(data?.fileName ?? null);
+    setFile(null);
+  }, []);
+
   const sessionSnapshot = useMemo(
     () => ({
       result,
       sheetError,
       activeFilter,
-      fileName: file?.name ?? null,
+      fileName: file?.name ?? restoredFileName ?? null,
     }),
-    [result, sheetError, activeFilter, file?.name]
+    [result, sheetError, activeFilter, file?.name, restoredFileName]
   );
 
-  const { sessionLabel, persist } = useAuditSessionPersistence(
-    SALES_LEDGER_SESSION_KEY,
-    sessionSnapshot,
-    {
-      transform: slimSalesLedgerSnapshot,
-      onSaveFailed: () => {
-        toast.error('Audit results are too large to keep in the browser. Export the Excel file to keep a copy.');
-      },
-    }
-  );
+  const {
+    sessionLabel,
+    sessionMeta,
+    persist,
+    restoreSession,
+    startNewAudit,
+    restoring,
+  } = useAuditSessionPersistence(SALES_LEDGER_SESSION_KEY, sessionSnapshot, {
+    transform: slimSalesLedgerSnapshot,
+    onApplySession: applySession,
+    onSaveFailed: () => {
+      toast.error('Audit results are too large to keep in the browser. Export the Excel file to keep a copy.');
+    },
+  });
+
+  const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
 
   const runValidation = useCallback(async () => {
     if (!file) {
@@ -175,9 +192,14 @@ export default function SalesLedger() {
       </AnimatePresence>
 
       {result ? (
-        <p className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
-          {sessionLabel || 'Previous audit results restored.'} — kept for {AUDIT_SESSION_RETENTION_DAYS} days when you switch tabs.
-        </p>
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
       ) : null}
 
       <Card>
@@ -204,9 +226,10 @@ export default function SalesLedger() {
         </CardHeader>
         <CardBody>
           <FileUploadZone
-            file={file}
+            file={displayFile}
             onFileChange={(f) => {
               setSheetError(null);
+              setRestoredFileName(null);
               setFile(f);
             }}
             disabled={loading}

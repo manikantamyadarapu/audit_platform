@@ -1,12 +1,11 @@
+import { getAuditSessionConfig } from '../config/auditSessionConfig';
+import { getStoredUser } from './authUser';
+
 /** How long audit page results/filters are kept when switching tabs (days). */
 export const AUDIT_SESSION_RETENTION_DAYS = 7;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const KEY_PREFIX = 'audit-session:';
-
-function storageKey(key) {
-  return `${KEY_PREFIX}${key}`;
-}
+const LEGACY_KEY_PREFIX = 'audit-session:';
 
 const SALES_RECORD_STORAGE_OMIT = new Set([
   'rawExcelRowJson',
@@ -36,21 +35,89 @@ export function slimSalesLedgerSnapshot(snapshot) {
 }
 
 /**
- * @param {string} key
+ * Resolve user-scoped localStorage key for an audit workspace.
+ * Format: audit_session_{userId}_{suffix}  e.g. audit_session_1_sales_return
+ *
+ * @param {string} registryKey - key from AUDIT_SESSION_REGISTRY
+ * @returns {string}
+ */
+export function resolveScopedStorageKey(registryKey) {
+  const config = getAuditSessionConfig(registryKey);
+  const suffix =
+    config?.localStorageAlias?.replace(/^audit_session_/, '') ??
+    registryKey.replace(/-/g, '_');
+
+  const userId = getStoredUser()?.id;
+  const userPart = userId != null ? String(userId) : 'anon';
+  return `audit_session_${userPart}_${suffix}`;
+}
+
+function legacyStorageKey(registryKey) {
+  return `${LEGACY_KEY_PREFIX}${registryKey}`;
+}
+
+function readRaw(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload?.expiresAt || Date.now() > payload.expiresAt) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeRaw(key, payload) {
+  localStorage.setItem(key, JSON.stringify(payload));
+}
+
+/**
+ * Load session for one audit type only (with legacy key migration).
+ * @param {string} registryKey
+ */
+function loadScopedSession(registryKey) {
+  const scopedKey = resolveScopedStorageKey(registryKey);
+  let payload = readRaw(scopedKey);
+
+  if (!payload) {
+    const legacy = readRaw(legacyStorageKey(registryKey));
+    if (legacy) {
+      try {
+        writeRaw(scopedKey, legacy);
+        localStorage.removeItem(legacyStorageKey(registryKey));
+      } catch {
+        /* keep legacy if migration fails */
+      }
+      payload = legacy;
+    }
+  }
+
+  return payload;
+}
+
+/**
+ * @param {string} registryKey
  * @param {unknown} data
  * @param {{ transform?: (data: unknown) => unknown }} [options]
  * @returns {boolean}
  */
-export function saveAuditSession(key, data, options = {}) {
+export function saveAuditSession(registryKey, data, options = {}) {
   const transformed = options.transform ? options.transform(data) : data;
   const payload = {
     savedAt: Date.now(),
     expiresAt: Date.now() + AUDIT_SESSION_RETENTION_DAYS * MS_PER_DAY,
+    auditKey: registryKey,
     data: transformed,
   };
 
+  const scopedKey = resolveScopedStorageKey(registryKey);
+
   const tryWrite = (body) => {
-    localStorage.setItem(storageKey(key), JSON.stringify(body));
+    writeRaw(scopedKey, body);
     return true;
   };
 
@@ -67,26 +134,17 @@ export function saveAuditSession(key, data, options = {}) {
 }
 
 /**
- * @param {string} key
- * @returns {{ savedAt: number, expiresAt: number, data: unknown } | null}
+ * @param {string} registryKey
+ * @returns {{ savedAt: number, expiresAt: number, auditKey?: string, data: unknown } | null}
  */
-export function loadAuditSession(key) {
-  try {
-    const raw = localStorage.getItem(storageKey(key));
-    if (!raw) return null;
-    const payload = JSON.parse(raw);
-    if (!payload?.expiresAt || Date.now() > payload.expiresAt) {
-      localStorage.removeItem(storageKey(key));
-      return null;
-    }
-    return payload;
-  } catch {
-    return null;
-  }
+export function loadAuditSession(registryKey) {
+  return loadScopedSession(registryKey);
 }
 
-export function clearAuditSession(key) {
-  localStorage.removeItem(storageKey(key));
+export function clearAuditSession(registryKey) {
+  const scopedKey = resolveScopedStorageKey(registryKey);
+  localStorage.removeItem(scopedKey);
+  localStorage.removeItem(legacyStorageKey(registryKey));
 }
 
 /** Whole days remaining before this session expires. */
@@ -113,15 +171,15 @@ export function formatSavedSessionLabel(savedAt, expiresAt) {
 /**
  * Read persisted page state synchronously (use in useState initializers).
  * @template T
- * @param {string} key
+ * @param {string} registryKey
  * @returns {T | null}
  */
-export function readAuditSessionData(key) {
-  return loadAuditSession(key)?.data ?? null;
+export function readAuditSessionData(registryKey) {
+  return loadAuditSession(registryKey)?.data ?? null;
 }
 
-export function readAuditSessionMeta(key) {
-  const session = loadAuditSession(key);
+export function readAuditSessionMeta(registryKey) {
+  const session = loadAuditSession(registryKey);
   if (!session) return null;
   return { savedAt: session.savedAt, expiresAt: session.expiresAt };
 }

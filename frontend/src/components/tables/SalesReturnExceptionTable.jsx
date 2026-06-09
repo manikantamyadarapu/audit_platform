@@ -1,92 +1,91 @@
+import { useMemo, useState } from 'react';
 import {
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { useMemo } from 'react';
-import { cn } from '../../utils/cn';
+import { Search } from 'lucide-react';
+import { Input } from '../ui/Input';
+import { Pagination } from '../ui/Pagination';
 
-const COLUMNS = [
-  { accessorKey: 'rowNumber', header: 'Row Number' },
-  { accessorKey: 'voucherNo', header: 'Voucher No' },
-  { accessorKey: 'party', header: 'Party' },
-  { accessorKey: 'salesReturnAccount', header: 'Sales Return Account' },
-  { accessorKey: 'product', header: 'Product' },
-  { accessorKey: 'quantity', header: 'Quantity' },
-  { accessorKey: 'freeQuantity', header: 'Free Quantity' },
-  { accessorKey: 'unitRate', header: 'Unit Rate' },
-  { accessorKey: 'grossAmount', header: 'Gross Amount' },
-  { accessorKey: 'uom', header: 'UOM' },
-  { accessorKey: 'issues', header: 'Issue' },
-  { accessorKey: 'messages', header: 'Message' },
-];
-
-function cellValue(value) {
-  if (value == null || value === '') return '—';
-  return String(value);
+function globalFilter(row, _columnId, filterValue) {
+  const q = String(filterValue || '').toLowerCase().trim();
+  if (!q) return true;
+  const blob = Object.values(row.original)
+    .map((v) => (Array.isArray(v) ? v.join(' ') : String(v ?? '')))
+    .join(' ')
+    .toLowerCase();
+  return blob.includes(q);
 }
 
-export function SalesReturnExceptionTable({ data, totalCount }) {
-  const columns = useMemo(
-    () =>
-      COLUMNS.map((col) => ({
-        ...col,
-        cell: ({ getValue }) => (
-          <span className="whitespace-pre-wrap break-words text-sm text-slate-700">
-            {cellValue(getValue())}
-          </span>
-        ),
-      })),
-    []
-  );
+export function SalesReturnExceptionTable({ data = [] }) {
+  const [globalFilterState, setGlobalFilterState] = useState('');
+
+  const columns = useMemo(() => {
+    if (!data.length) return [];
+    const keys = Object.keys(data[0]);
+    return keys.map((key) => ({
+      accessorKey: key,
+      header: key,
+      cell: (info) => {
+        const value = info.getValue();
+        if (value == null || value === '') return <span className="text-slate-400">—</span>;
+        return <span className="text-sm text-slate-800">{String(value)}</span>;
+      },
+    }));
+  }, [data]);
 
   const table = useReactTable({
-    data: data ?? [],
+    data,
     columns,
+    state: { globalFilter: globalFilterState },
+    onGlobalFilterChange: setGlobalFilterState,
+    globalFilterFn: globalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 10 } },
   });
 
-  const shown = data?.length ?? 0;
-  const total = totalCount ?? shown;
+  if (!data.length) return null;
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-slate-500">
-        Showing {shown} exception row{shown === 1 ? '' : 's'}
-        {total !== shown ? ` of ${total}` : ''}.
-      </p>
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80">
-        <table className="min-w-full divide-y divide-slate-200 text-left">
-          <thead className="bg-slate-50/90">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+    <div className="space-y-4">
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          value={globalFilterState ?? ''}
+          onChange={(e) => setGlobalFilterState(e.target.value)}
+          placeholder="Search exception rows…"
+          className="pl-9"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="min-w-full divide-y divide-slate-200">
+          <thead className="bg-slate-50">
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id}>
+                {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
                   >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                    {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 bg-white">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-emerald-50/30">
+              <tr key={row.id} className="hover:bg-slate-50/80">
                 {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className={cn(
-                      'px-3 py-2 align-top',
-                      cell.column.id === 'issues' && 'font-medium text-rose-700',
-                      cell.column.id === 'messages' && 'max-w-xs'
-                    )}
-                  >
+                  <td key={cell.id} className="px-4 py-3 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -95,6 +94,7 @@ export function SalesReturnExceptionTable({ data, totalCount }) {
           </tbody>
         </table>
       </div>
+      <Pagination table={table} />
     </div>
   );
 }
