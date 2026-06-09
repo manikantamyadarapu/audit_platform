@@ -6,12 +6,10 @@ import pandas as pd
 
 from app.sales_return_engine.engine.sales_return_audit_engine import (
     HIGHER_SALES_RETURN_RATE,
-    HIGHER_SALES_RETURN_RATE_MSG,
     INVALID_FREE_QUANTITY,
     SalesReturnAuditEngine,
 )
 from app.sales_return_engine.exception_report import (
-    ISSUE_COLUMN,
     MESSAGE_COLUMN,
     build_consolidated_exception_records,
     build_export_metadata,
@@ -19,21 +17,19 @@ from app.sales_return_engine.exception_report import (
 from app.utils.excel_exporter import export_sales_return_exceptions
 
 
-def test_consolidated_report_merges_same_product_messages() -> None:
+def test_consolidated_report_merges_same_product_issues() -> None:
     validation = [
         {
             'rowNumber': 5,
             '__original_product': 'Gold Ornaments 22K',
             '__original_voucher_no': 'SR-001',
             'issues': ['INVALID_UOM'],
-            'messages': ['Invalid UOM for product.'],
         }
     ]
     comparison = [
         {
             'product': 'Gold Ornaments 22K',
             'issues': [HIGHER_SALES_RETURN_RATE],
-            'messages': [HIGHER_SALES_RETURN_RATE_MSG],
         }
     ]
     source_columns = ['voucher_no', 'product']
@@ -46,22 +42,15 @@ def test_consolidated_report_merges_same_product_messages() -> None:
         column_display_headers=display_headers,
     )
     assert len(records) == 1
-    assert 'INVALID_UOM' in records[0][ISSUE_COLUMN]
-    assert HIGHER_SALES_RETURN_RATE in records[0][ISSUE_COLUMN]
-    assert 'Invalid UOM for product.' in records[0][MESSAGE_COLUMN]
-    assert HIGHER_SALES_RETURN_RATE_MSG in records[0][MESSAGE_COLUMN]
+    assert records[0][MESSAGE_COLUMN] == 'INVALID_UOM, HIGHER_SALES_RETURN_RATE'
     assert records[0]['Product'] == 'Gold Ornaments 22K'
+    assert 'Issue' not in records[0]
 
 
 def test_consolidated_report_deduplicates_same_row() -> None:
     duplicate = [
-        {'rowNumber': 3, '__original_product': 'Ring', 'issues': ['INVALID_UOM'], 'messages': ['Bad UOM']},
-        {
-            'rowNumber': 3,
-            '__original_product': 'Ring',
-            'issues': ['INVALID_RATE_DEVIATION'],
-            'messages': ['Unit rate outside allowed range.'],
-        },
+        {'rowNumber': 3, '__original_product': 'Ring', 'issues': ['INVALID_UOM']},
+        {'rowNumber': 3, '__original_product': 'Ring', 'issues': ['INVALID_RATE_DEVIATION']},
     ]
     records = build_consolidated_exception_records(
         duplicate,
@@ -70,17 +59,15 @@ def test_consolidated_report_deduplicates_same_row() -> None:
         column_display_headers={'product': 'Product'},
     )
     assert len(records) == 1
-    assert 'INVALID_UOM' in records[0][ISSUE_COLUMN]
-    assert 'INVALID_RATE_DEVIATION' in records[0][ISSUE_COLUMN]
+    assert records[0][MESSAGE_COLUMN] == 'INVALID_UOM, INVALID_RATE_DEVIATION'
 
 
-def test_export_preserves_original_columns_plus_issue_message() -> None:
+def test_export_preserves_original_columns_plus_message() -> None:
     record = {
         'Voucher No': 'V-10',
         'Product': 'Di. RA 15',
         'Quantity': '5',
-        ISSUE_COLUMN: INVALID_FREE_QUANTITY,
-        MESSAGE_COLUMN: 'Free quantity not allowed for this product.',
+        MESSAGE_COLUMN: INVALID_FREE_QUANTITY,
     }
     export_columns, header_map = build_export_metadata(
         ['voucher_no', 'product', 'quantity'],
@@ -96,8 +83,8 @@ def test_export_preserves_original_columns_plus_issue_message() -> None:
         header_map=header_map,
     )
     df = pd.read_excel(BytesIO(excel_bytes), sheet_name='Final Exception Report')
-    assert list(df.columns) == ['Voucher No', 'Product', 'Quantity', ISSUE_COLUMN, MESSAGE_COLUMN]
-    assert df.iloc[0][ISSUE_COLUMN] == INVALID_FREE_QUANTITY
+    assert list(df.columns) == ['Voucher No', 'Product', 'Quantity', MESSAGE_COLUMN]
+    assert df.iloc[0][MESSAGE_COLUMN] == INVALID_FREE_QUANTITY
 
 
 def test_process_includes_exception_records() -> None:
@@ -115,5 +102,5 @@ def test_process_includes_exception_records() -> None:
     assert result['summary']['exceptionRowCount'] == len(result['exceptionRecords'])
     if result['exceptionRecords']:
         sample = result['exceptionRecords'][0]
-        assert ISSUE_COLUMN in sample
         assert MESSAGE_COLUMN in sample
+        assert 'Issue' not in sample

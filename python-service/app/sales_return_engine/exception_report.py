@@ -1,4 +1,4 @@
-"""Final Sales Return exception report — original Excel columns + Issue + Message."""
+"""Final Sales Return exception report — original Excel columns + Message (issue codes)."""
 
 from __future__ import annotations
 
@@ -6,47 +6,13 @@ import re
 from typing import Any
 
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
-from app.sales_return_engine.engine.sales_return_average_engine import (
-    HIGHER_SALES_RETURN_RATE,
-    HIGHER_SALES_RETURN_RATE_MSG,
-    INVALID_FREE_QUANTITY,
-    INVALID_FREE_QUANTITY_MSG,
-    INVALID_LEDGER_MAPPING,
-)
 
-ISSUE_COLUMN = 'Issue'
 MESSAGE_COLUMN = 'Message'
+# Backward-compatible alias (Issue column removed; issues live in Message only).
+ISSUE_COLUMN = MESSAGE_COLUMN
 
-SALES_RETURN_ISSUE_MESSAGES: dict[str, str] = {
-    'INVALID_RATE_DEVIATION': 'Unit rate outside allowed range.',
-    'INVALID_LEDGER_MAPPING': 'Invalid sales return ledger mapping.',
-    'INVALID_FREE_QUANTITY': INVALID_FREE_QUANTITY_MSG,
-    'INVALID_UOM': 'Invalid UOM for product.',
-    'HIGHER_SALES_RETURN_RATE': HIGHER_SALES_RETURN_RATE_MSG,
-    'INVALID_PRODUCT_MAPPING': 'Invalid sales return ledger mapping.',
-    'INVALID_PRODUCT_PATTERN': 'Product pattern invalid.',
-    'MISSING_RATE_RULE': 'Rate rule not configured.',
-    'MISSING_UNIT_RATE': 'Unit rate missing.',
-    'INVALID_UNIT_RATE_RANGE': INVALID_FREE_QUANTITY_MSG,
-}
-
-# Backward-compatible aliases used by legacy export/tests.
-SALES_RETURN_EXCEPTION_COLUMNS: tuple[str, ...] = (ISSUE_COLUMN, MESSAGE_COLUMN)
-SALES_RETURN_EXCEPTION_HEADER_MAP: dict[str, str] = {
-    ISSUE_COLUMN: ISSUE_COLUMN,
-    MESSAGE_COLUMN: MESSAGE_COLUMN,
-}
-
-
-def _as_message_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if item is not None and str(item).strip()]
-    if value is None or value == '':
-        return []
-    text = str(value)
-    if ';' in text:
-        return [part.strip() for part in text.split(';') if part.strip()]
-    return [text]
+SALES_RETURN_EXCEPTION_COLUMNS: tuple[str, ...] = (MESSAGE_COLUMN,)
+SALES_RETURN_EXCEPTION_HEADER_MAP: dict[str, str] = {MESSAGE_COLUMN: MESSAGE_COLUMN}
 
 
 def _as_issue_list(value: Any) -> list[str]:
@@ -55,7 +21,7 @@ def _as_issue_list(value: Any) -> list[str]:
     if value is None or value == '':
         return []
     text = str(value).strip()
-    if ',' in text and ';' not in text:
+    if ',' in text:
         return [part.strip() for part in text.split(',') if part.strip()]
     if ';' in text:
         return [part.strip() for part in text.split(';') if part.strip()]
@@ -71,48 +37,13 @@ def _format_issue_codes(issues: list[str]) -> str:
     return ', '.join(issues)
 
 
-def _format_messages(messages: list[str]) -> str:
-    return '; '.join(messages)
-
-
-def _message_for_issue(code: str, record: dict[str, Any] | None = None) -> str:
-    if code == 'INVALID_RATE_DEVIATION' and record:
-        if record.get('__rate_above_max') or record.get('rateAboveMax'):
-            return 'Unit rate above allowed range.'
-        return 'Unit rate outside allowed range.'
-    return SALES_RETURN_ISSUE_MESSAGES.get(code, code.replace('_', ' ').title())
-
-
-def _messages_for_issues(issues: list[str], record: dict[str, Any] | None = None) -> list[str]:
-    messages: list[str] = []
-    for code in issues:
-        message = _message_for_issue(code, record)
-        if message and message not in messages:
-            messages.append(message)
-    return messages
-
-
-def _merge_issues_and_messages(
-    existing: dict[str, Any],
-    incoming: dict[str, Any],
-) -> tuple[list[str], list[str]]:
+def _merge_issues(existing: dict[str, Any], incoming: dict[str, Any]) -> list[str]:
     issues = _as_issue_list(existing.get('_issues')) + _as_issue_list(incoming.get('_issues'))
-    issue_set: list[str] = []
+    merged: list[str] = []
     for code in issues:
-        if code and code not in issue_set:
-            issue_set.append(code)
-
-    record = {**existing, **incoming}
-    messages = (
-        _as_message_list(existing.get('_messages'))
-        + _as_message_list(incoming.get('_messages'))
-        + _messages_for_issues(issue_set, record)
-    )
-    message_set: list[str] = []
-    for message in messages:
-        if message and message not in message_set:
-            message_set.append(message)
-    return issue_set, message_set
+        if code and code not in merged:
+            merged.append(code)
+    return merged
 
 
 def _column_value_from_record(record: dict[str, Any], column: str) -> Any:
@@ -139,18 +70,11 @@ def _excel_row_from_record(
     return row
 
 
-def _finalize_row(
-    row: dict[str, Any],
-    issues: list[str],
-    messages: list[str],
-) -> dict[str, Any]:
-    resolved_messages = messages or _messages_for_issues(issues, row)
+def _finalize_row(row: dict[str, Any], issues: list[str]) -> dict[str, Any]:
     return {
         **row,
-        ISSUE_COLUMN: _format_issue_codes(issues),
-        MESSAGE_COLUMN: _format_messages(resolved_messages),
+        MESSAGE_COLUMN: _format_issue_codes(issues),
         '_issues': issues,
-        '_messages': resolved_messages,
         '_rowNumber': row.get('_rowNumber') or row.get('rowNumber') or '',
     }
 
@@ -190,7 +114,7 @@ def build_consolidated_exception_records(
     """
     Build the single final exception dataset:
     - all original upload columns (display headers)
-    - Issue + Message appended at the end
+    - Message appended at the end (comma-separated issue codes only)
     - validation + rate comparison merged without duplicate Excel rows
     """
     columns = list(source_columns or [])
@@ -211,23 +135,13 @@ def build_consolidated_exception_records(
         excel_row = _excel_row_from_record(record, columns, display_headers)
         excel_row['_rowNumber'] = row_number
         issues = _as_issue_list(record.get('issues'))
-        messages = _as_message_list(record.get('messages')) or _messages_for_issues(issues, record)
 
         existing = merged.get(key)
         if existing is None:
-            merged[key] = _finalize_row(excel_row, issues, messages)
+            merged[key] = _finalize_row(excel_row, issues)
             continue
-        merged_issues, merged_messages = _merge_issues_and_messages(existing, {
-            '_issues': issues,
-            '_messages': messages,
-        })
-        merged[key] = _finalize_row({**existing, **excel_row}, merged_issues, merged_messages)
-
-    products_with_rows = {
-        _product_key_from_final_row(row, columns, display_headers): key
-        for key, row in merged.items()
-        if _product_key_from_final_row(row, columns, display_headers)
-    }
+        merged_issues = _merge_issues(existing, {'_issues': issues})
+        merged[key] = _finalize_row({**existing, **excel_row}, merged_issues)
 
     for comparison in rate_comparison_records:
         comparison_issues = _as_issue_list(comparison.get('issues'))
@@ -237,14 +151,7 @@ def build_consolidated_exception_records(
         if not product:
             continue
 
-        comparison_messages = (
-            _as_message_list(comparison.get('messages'))
-            or _messages_for_issues(comparison_issues, comparison)
-        )
-        comparison_payload = {
-            '_issues': comparison_issues,
-            '_messages': comparison_messages,
-        }
+        comparison_payload = {'_issues': comparison_issues}
 
         matched_keys = [
             key
@@ -255,8 +162,8 @@ def build_consolidated_exception_records(
         if matched_keys:
             for key in matched_keys:
                 existing = merged[key]
-                merged_issues, merged_messages = _merge_issues_and_messages(existing, comparison_payload)
-                merged[key] = _finalize_row(existing, merged_issues, merged_messages)
+                merged_issues = _merge_issues(existing, comparison_payload)
+                merged[key] = _finalize_row(existing, merged_issues)
             continue
 
         source_candidates = (source_rows_by_product or {}).get(product) or []
@@ -269,11 +176,7 @@ def build_consolidated_exception_records(
 
         row_number = template.get('_rowNumber') or ''
         key = str(row_number) if row_number not in (None, '') else f'product:{product}'
-        merged[key] = _finalize_row(
-            template,
-            comparison_issues,
-            comparison_messages,
-        )
+        merged[key] = _finalize_row(template, comparison_issues)
 
     ordered = list(merged.values())
     ordered.sort(
@@ -291,7 +194,7 @@ def build_export_metadata(
     column_display_headers: dict[str, str],
 ) -> tuple[list[str], dict[str, str]]:
     export_columns = [column_display_headers.get(col, _titleize_column(col)) for col in source_columns]
-    export_columns.extend([ISSUE_COLUMN, MESSAGE_COLUMN])
+    export_columns.append(MESSAGE_COLUMN)
     header_map = {col: col for col in export_columns}
     return export_columns, header_map
 

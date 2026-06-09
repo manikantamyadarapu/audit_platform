@@ -21,13 +21,17 @@ function globalFilter(row, _columnId, filterValue) {
   return blob.includes(q);
 }
 
-export function SalesReturnExceptionTable({ data = [] }) {
+export function SalesReturnExceptionTable({ data = [], columnOrder = null }) {
   const [globalFilterState, setGlobalFilterState] = useState('');
 
   const columns = useMemo(() => {
     if (!data.length) return [];
-    const keys = Object.keys(data[0]);
-    return keys.map((key) => ({
+    const keys = columnOrder?.length
+      ? columnOrder.filter((key) => key in data[0])
+      : Object.keys(data[0]);
+    const trailing = ['Message'].filter((key) => !keys.includes(key) && key in data[0]);
+    const orderedKeys = [...keys, ...trailing];
+    return orderedKeys.map((key) => ({
       accessorKey: key,
       header: key,
       cell: (info) => {
@@ -36,7 +40,7 @@ export function SalesReturnExceptionTable({ data = [] }) {
         return <span className="text-sm text-slate-800">{String(value)}</span>;
       },
     }));
-  }, [data]);
+  }, [data, columnOrder]);
 
   const table = useReactTable({
     data,

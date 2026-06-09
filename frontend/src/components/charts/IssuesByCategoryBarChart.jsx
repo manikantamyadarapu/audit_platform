@@ -4,129 +4,170 @@ import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { useAppUi } from '../../context/AppUiContext';
 import { formatNumber } from '../../utils/format';
 
+const CHART_THEME = {
+  dark: {
+    panelBg: '#0f172a',
+    panelBorder: 'rgba(148, 163, 184, 0.22)',
+    bar: '#3b82f6',
+    barHover: '#60a5fa',
+    axis: '#e2e8f0',
+    axisMuted: '#94a3b8',
+    grid: 'rgba(148, 163, 184, 0.35)',
+    tooltipBg: '#1e293b',
+    tooltipBorder: 'rgba(148, 163, 184, 0.25)',
+    tooltipText: '#f8fafc',
+    tooltipMuted: '#cbd5e1',
+  },
+  light: {
+    panelBg: '#ffffff',
+    panelBorder: 'rgba(148, 163, 184, 0.45)',
+    bar: '#3b82f6',
+    barHover: '#2563eb',
+    axis: '#334155',
+    axisMuted: '#64748b',
+    grid: 'rgba(148, 163, 184, 0.55)',
+    tooltipBg: '#ffffff',
+    tooltipBorder: 'rgba(148, 163, 184, 0.35)',
+    tooltipText: '#0f172a',
+    tooltipMuted: '#475569',
+  },
+};
+
 /**
  * @param {Array<{ name: string, value: number, percent: string, color: string }>} categories
  * @param {boolean} isDark
  */
 function buildChartOptions(categories, isDark) {
-  const colors = categories.map((item) => item.color);
-  const legendColor = isDark ? '#cbd5e1' : '#475569';
-  const axisColor = isDark ? '#94a3b8' : '#64748b';
-  const gridColor = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.25)';
+  const theme = isDark ? CHART_THEME.dark : CHART_THEME.light;
+  const labels = categories.map((item) => item.name);
+  const values = categories.map((item) => item.value);
 
   return {
     chart: {
       type: 'bar',
       height: 320,
-      stacked: true,
-      stackType: '100%',
       toolbar: { show: false },
       background: 'transparent',
       fontFamily: 'Poppins, sans-serif',
       animations: {
         enabled: true,
         easing: 'easeinout',
-        speed: 900,
-        animateGradually: {
-          enabled: true,
-          delay: 140,
-        },
-        dynamicAnimation: {
-          enabled: true,
-          speed: 650,
-        },
+        speed: 700,
       },
     },
     theme: {
       mode: isDark ? 'dark' : 'light',
     },
-    colors,
-    series: categories.map((item) => ({
-      name: item.name,
-      data: [item.value],
-    })),
+    colors: [theme.bar],
+    series: [
+      {
+        name: 'Issues',
+        data: values,
+      },
+    ],
     plotOptions: {
       bar: {
-        horizontal: true,
-        borderRadius: 10,
-        borderRadiusWhenStacked: 'all',
-        barHeight: '46%',
-        dataLabels: {
-          position: 'center',
-        },
+        horizontal: false,
+        columnWidth: '48%',
+        borderRadius: 0,
+        borderRadiusApplication: 'end',
+        dataLabels: { position: 'top' },
       },
     },
     fill: {
-      type: 'gradient',
-      gradient: {
-        shade: isDark ? 'dark' : 'light',
-        type: 'horizontal',
-        shadeIntensity: 0.35,
-        opacityFrom: isDark ? 0.95 : 0.9,
-        opacityTo: isDark ? 0.45 : 0.4,
-        stops: [0, 60, 100],
-      },
+      type: 'solid',
+      opacity: 1,
+      colors: [theme.bar],
     },
-    stroke: {
-      show: true,
-      width: 1,
-      colors: [isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.65)'],
+    states: {
+      hover: {
+        filter: { type: 'darken', value: 0.08 },
+      },
+      active: {
+        filter: { type: 'none' },
+      },
     },
     dataLabels: { enabled: false },
-    legend: {
-      show: true,
-      position: 'bottom',
-      horizontalAlign: 'center',
-      fontSize: '11px',
-      fontWeight: 500,
-      labels: { colors: legendColor },
-      markers: {
-        size: 6,
-        strokeWidth: 0,
-        offsetX: -3,
-      },
-      itemMargin: {
-        horizontal: 10,
-        vertical: 4,
-      },
-    },
+    legend: { show: false },
     grid: {
-      borderColor: gridColor,
+      show: true,
+      borderColor: theme.grid,
       strokeDashArray: 4,
-      padding: { left: 8, right: 12, top: 0, bottom: 0 },
+      position: 'back',
+      padding: { left: 12, right: 16, top: 8, bottom: 0 },
       xaxis: { lines: { show: false } },
-      yaxis: { lines: { show: false } },
+      yaxis: { lines: { show: true } },
     },
     xaxis: {
-      categories: ['Issue mix'],
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-      labels: { show: false },
+      categories: labels,
+      axisBorder: {
+        show: true,
+        color: theme.grid,
+        height: 1,
+      },
+      axisTicks: {
+        show: true,
+        color: theme.axis,
+        height: 6,
+      },
+      labels: {
+        rotate: labels.some((label) => label.length > 12) ? -35 : 0,
+        rotateAlways: false,
+        hideOverlappingLabels: true,
+        trim: true,
+        maxHeight: 72,
+        style: {
+          colors: theme.axis,
+          fontSize: '11px',
+          fontWeight: 500,
+        },
+      },
+      tooltip: { enabled: false },
     },
     yaxis: {
+      min: 0,
+      forceNiceScale: true,
+      title: {
+        text: 'Issue count',
+        rotate: -90,
+        offsetX: 0,
+        offsetY: 0,
+        style: {
+          color: theme.axisMuted,
+          fontSize: '11px',
+          fontWeight: 500,
+        },
+      },
       labels: {
         style: {
-          colors: axisColor,
-          fontSize: '12px',
-          fontWeight: 600,
+          colors: theme.axisMuted,
+          fontSize: '11px',
+          fontWeight: 500,
         },
+        formatter: (value) => formatNumber(Math.round(value)),
       },
     },
     tooltip: {
       theme: isDark ? 'dark' : 'light',
       shared: false,
       intersect: true,
-      custom({ seriesIndex }) {
-        const item = categories[seriesIndex];
+      custom({ dataPointIndex }) {
+        const item = categories[dataPointIndex];
         if (!item) return '';
 
         return `
-          <div class="rounded-xl border border-white/20 bg-white/90 px-3 py-2.5 text-sm shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/90">
-            <div class="mb-1 font-semibold text-slate-900 dark:text-slate-100">${item.name}</div>
-            <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-              <span class="inline-block h-2.5 w-2.5 rounded-full" style="background:${item.color}"></span>
-              Issues: <strong class="text-slate-900 dark:text-white">${formatNumber(item.value)}</strong>
-              <span class="text-slate-400">(${item.percent})</span>
+          <div style="
+            border-radius: 10px;
+            border: 1px solid ${theme.tooltipBorder};
+            background: ${theme.tooltipBg};
+            padding: 10px 12px;
+            font-size: 12px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+          ">
+            <div style="margin-bottom: 4px; font-weight: 600; color: ${theme.tooltipText};">${item.name}</div>
+            <div style="color: ${theme.tooltipMuted};">
+              Issues: <strong style="color: ${theme.tooltipText};">${formatNumber(item.value)}</strong>
+              <span style="opacity: 0.75;"> (${item.percent})</span>
             </div>
           </div>
         `;
@@ -146,6 +187,7 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
   const isDark = theme === 'dark';
   const chartRef = useRef(null);
   const instanceRef = useRef(null);
+  const panelTheme = isDark ? CHART_THEME.dark : CHART_THEME.light;
 
   const chartCategories = useMemo(() => {
     if (!categories.length) return null;
@@ -185,21 +227,32 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
 
   if (!chartCategories?.length) {
     return (
-      <div className="flex h-[320px] w-full items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-soft)] bg-white/20 text-sm text-[var(--color-text-muted)] backdrop-blur-sm dark:bg-slate-900/20">
+      <div
+        className="flex h-[320px] w-full items-center justify-center rounded-2xl border text-sm backdrop-blur-sm"
+        style={{
+          borderColor: panelTheme.panelBorder,
+          backgroundColor: panelTheme.panelBg,
+          color: panelTheme.axisMuted,
+        }}
+      >
         No issue data for this period.
       </div>
     );
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/40 bg-gradient-to-br from-white/50 via-white/20 to-emerald-50/30 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.65),var(--shadow-glass)] backdrop-blur-xl dark:border-white/10 dark:from-slate-900/50 dark:via-slate-900/30 dark:to-emerald-950/20 sm:p-4">
-      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-400/15 blur-3xl dark:bg-emerald-500/10" />
-      <div className="pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-sky-400/10 blur-3xl dark:bg-sky-500/10" />
+    <div
+      className="relative overflow-hidden rounded-2xl border p-3 sm:p-4"
+      style={{
+        borderColor: panelTheme.panelBorder,
+        backgroundColor: panelTheme.panelBg,
+      }}
+    >
       <div
         ref={chartRef}
         className="relative z-[1] w-full"
         role="img"
-        aria-label="Issues stacked bar chart"
+        aria-label="Issues by category column chart"
       />
     </div>
   );
