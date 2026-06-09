@@ -4,17 +4,53 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Audit Platform — Scrutiny & Vouching operations" />
+    <meta name="description" content="HAA — Audit Platform — Scrutiny & Vouching operations" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <title>Audit Platform</title>
+    <title>HAA · Audit Platform</title>
+    <script>
+      (function () {
+        try {
+          var key = 'audit-platform-theme';
+          var theme = localStorage.getItem(key);
+          if (theme !== 'dark' && theme !== 'light') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          var root = document.documentElement;
+          root.classList.toggle('dark', theme === 'dark');
+          root.dataset.theme = theme;
+          root.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-boot-skeleton" aria-hidden="true">
+        <div class="boot-sidebar">
+          <div class="boot-block" style="height: 1.5rem; width: 3.5rem; margin-bottom: 0.75rem"></div>
+          <div class="boot-block" style="height: 0.75rem; width: 9rem; margin-bottom: 2rem"></div>
+          <div class="boot-block" style="height: 2.75rem; margin-bottom: 0.5rem"></div>
+          <div class="boot-block" style="height: 2.75rem; margin-bottom: 0.5rem"></div>
+          <div class="boot-block" style="height: 2.75rem; margin-bottom: 0.5rem"></div>
+          <div class="boot-block" style="height: 2.75rem; margin-bottom: 0.5rem"></div>
+        </div>
+        <div class="boot-main">
+          <div class="boot-block" style="height: 2.25rem; width: min(18rem, 70%); margin-bottom: 1rem"></div>
+          <div class="boot-block" style="height: 1.25rem; width: min(24rem, 90%); margin-bottom: 2rem"></div>
+          <div style="display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+            <div class="boot-block" style="height: 7.5rem"></div>
+            <div class="boot-block" style="height: 7.5rem"></div>
+            <div class="boot-block" style="height: 7.5rem"></div>
+            <div class="boot-block" style="height: 7.5rem"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

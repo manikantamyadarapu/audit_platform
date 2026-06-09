@@ -24,10 +24,17 @@ function panFileFilter(_req, file, cb) {
 
 const upload = multer({
   storage,
-  limits: { fileSize: UPLOAD_MAX_BYTES, files: 1 },
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 2 },
   fileFilter: panFileFilter,
 });
 
 const singlePanFile = upload.single('file');
 
-module.exports = { singlePanFile };
+const singleSalesReturnFile = upload.single('file');
+
+const dualSalesReturnFiles = upload.fields([
+  { name: 'salesFile', maxCount: 1 },
+  { name: 'salesReturnFile', maxCount: 1 },
+]);
+
+module.exports = { singlePanFile, singleSalesReturnFile, dualSalesReturnFiles };

@@ -14,7 +14,7 @@ export async function validatePanExcel(file, signal) {
     });
     return data;
   } catch (err) {
-    throw new Error(getApiErrorMessage(err));
+    throw new Error(getApiErrorMessage(err), { cause: err });
   }
 }
 
@@ -39,26 +39,32 @@ export async function exportInvalidPanRows(records, signal) {
     const ctype = res.headers['content-type'] || '';
     if (ctype.includes('application/json')) {
       const text = await blob.text();
+      let j;
       try {
-        const j = JSON.parse(text);
-        throw new Error(typeof j.detail === 'string' ? j.detail : 'Export failed');
+        j = JSON.parse(text);
       } catch (e) {
-        if (e instanceof Error && e.message !== 'Unexpected end of JSON input') throw e;
-        throw new Error(text || 'Export failed');
+        if (e instanceof SyntaxError) {
+          throw new Error(text || 'Export failed', { cause: e });
+        }
+        throw e;
       }
+      throw new Error(typeof j.detail === 'string' ? j.detail : 'Export failed');
     }
     return { blob, filename };
   } catch (err) {
     if (err.response?.data instanceof Blob) {
       const text = await err.response.data.text();
+      let j;
       try {
-        const j = JSON.parse(text);
-        throw new Error(typeof j.detail === 'string' ? j.detail : getApiErrorMessage(err));
+        j = JSON.parse(text);
       } catch (e) {
-        if (e instanceof Error && e.message !== getApiErrorMessage(err)) throw e;
+        if (e instanceof SyntaxError) {
+          throw new Error(text || getApiErrorMessage(err), { cause: e });
+        }
+        throw e;
       }
-      throw new Error(text || getApiErrorMessage(err));
+      throw new Error(typeof j.detail === 'string' ? j.detail : getApiErrorMessage(err), { cause: err });
     }
-    throw err instanceof Error ? err : new Error(getApiErrorMessage(err));
+    throw err instanceof Error ? err : new Error(getApiErrorMessage(err), { cause: err });
   }
 }

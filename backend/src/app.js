@@ -17,11 +17,13 @@ if (config.isProduction) {
 
 app.disable('x-powered-by');
 app.use(requestIdMiddleware);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(
   cors({
     origin: config.getCorsOrigin(),
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
     maxAge: 86400,
   })
@@ -41,7 +43,7 @@ if (config.ENABLE_SWAGGER) {
     '/api-docs',
     swaggerUi.serve,
     swaggerUi.setup(openapiSpec, {
-      customSiteTitle: 'Audit Platform API — PAN',
+      customSiteTitle: 'HAA Audit Platform API — PAN',
       swaggerOptions: {
         persistAuthorization: true,
         displayRequestDuration: true,
@@ -56,6 +58,10 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/v1', apiV1);
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/sales-audit', require('./routes/salesAudit.routes'));
+app.use('/api/sales-return', require('./routes/salesReturnAudit.routes'));
+app.use('/api/audit-sessions', require('./routes/auditSession.routes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

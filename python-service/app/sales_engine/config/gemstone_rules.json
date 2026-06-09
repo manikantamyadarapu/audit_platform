@@ -1,0 +1,12 @@
+{
+  "deviation_percent": 30,
+  "rate_validation_families": [
+    "RUBIES",
+    "EMERALDS",
+    "PEARLS",
+    "COLOR_STONES",
+    "SEMI_PRECIOUS",
+    "SYNTHETIC"
+  ],
+  "diamond_rate_skip_families": ["DIAMONDS"]
+}

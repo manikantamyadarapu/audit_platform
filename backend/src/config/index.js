@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 4001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
 
@@ -16,6 +16,9 @@ const UPLOAD_MAX_BYTES = Number(process.env.UPLOAD_MAX_BYTES) || 50 * 1024 * 102
 
 /** When false, Swagger UI at /api-docs is disabled (recommended for locked-down production). */
 const ENABLE_SWAGGER = process.env.ENABLE_SWAGGER !== 'false';
+
+/** Upstream FastAPI axios timeout — large PAN/sales uploads can exceed 120s on one worker. */
+const PYTHON_SERVICE_TIMEOUT_MS = Number(process.env.PYTHON_SERVICE_TIMEOUT_MS) || 600_000;
 
 function assertValidPythonUrl() {
   try {
@@ -56,6 +59,7 @@ module.exports = {
   NODE_ENV,
   isProduction,
   PYTHON_SERVICE_URL,
+  PYTHON_SERVICE_TIMEOUT_MS,
   getCorsOrigin,
   REQUEST_BODY_JSON_LIMIT,
   UPLOAD_MAX_BYTES,

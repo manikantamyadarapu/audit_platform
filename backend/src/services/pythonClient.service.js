@@ -1,10 +1,10 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { PYTHON_SERVICE_URL } = require('../config');
+const { PYTHON_SERVICE_URL, PYTHON_SERVICE_TIMEOUT_MS } = require('../config');
 
 const client = axios.create({
   baseURL: PYTHON_SERVICE_URL,
-  timeout: 120000,
+  timeout: PYTHON_SERVICE_TIMEOUT_MS,
   maxContentLength: Infinity,
   maxBodyLength: Infinity,
   headers: {
@@ -19,7 +19,13 @@ const client = axios.create({
  */
 function mapAxiosError(err) {
   if (!err.response) {
-    const e = new Error(err.message || 'Python service unreachable');
+    const hint =
+      err.code === 'ECONNREFUSED'
+        ? ' Is FastAPI running (uvicorn on PYTHON_SERVICE_URL)?'
+        : /timeout/i.test(err.message || '')
+          ? ' Request exceeded PYTHON_SERVICE_TIMEOUT_MS — try raising it or freeing the Python worker (avoid parallel huge uploads while one is running).'
+          : '';
+    const e = new Error((err.message || 'Python service unreachable') + hint);
     e.status = 502;
     return e;
   }
@@ -32,16 +38,18 @@ function mapAxiosError(err) {
   else if (status === 400) e.status = 400;
   else if (status >= 500) e.status = 502;
   else e.status = status;
+  if (data && typeof data === 'object') e.apiBody = data;
   return e;
 }
 
 /**
+ * @param {string} pythonPath e.g. '/api/process/pan'
  * @param {Buffer} fileBuffer
  * @param {string} originalname
  * @param {string} [mimetype]
  * @param {{ requestId?: string }} [options]
  */
-async function postPanValidate(fileBuffer, originalname, mimetype, options = {}) {
+async function postExcelProcess(pythonPath, fileBuffer, originalname, mimetype, options = {}) {
   const form = new FormData();
   form.append('file', fileBuffer, {
     filename: originalname || 'upload.xlsx',
@@ -54,10 +62,101 @@ async function postPanValidate(fileBuffer, originalname, mimetype, options = {})
   }
 
   try {
-    const { data } = await client.post('/api/process/pan', form, {
+    const { data } = await client.post(pythonPath, form, {
       headers,
     });
     return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * @param {Buffer} fileBuffer
+ * @param {string} originalname
+ * @param {string} [mimetype]
+ * @param {{ requestId?: string }} [options]
+ */
+async function postPanValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/pan', fileBuffer, originalname, mimetype, options);
+}
+
+async function postGrossWeightValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/gross-weight', fileBuffer, originalname, mimetype, options);
+}
+
+async function postSalesValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
+}
+
+async function postSalesReturnValidate(
+  returnBuffer,
+  returnName,
+  returnMime,
+  salesAverages,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('sales_return_file', returnBuffer, {
+    filename: returnName || 'sales-return-audit.xlsx',
+    contentType: returnMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('sales_averages', JSON.stringify(salesAverages ?? []));
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/sales-return/validate', form, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postSalesReturnExportRateComparison(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales-return/export-rate-comparison', records, options);
+}
+
+async function postSalesReturnExportExceptions(payload, options = {}) {
+  try {
+    const headers = {};
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/sales-return/export-exceptions', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const json = JSON.parse(Buffer.from(response.data).toString('utf8'));
+        if (json && json.detail) detail = json.detail;
+      } catch {
+        // ignore
+      }
+      const err = new Error(detail);
+      if (response.status === 422) err.status = 422;
+      else if (response.status === 400) err.status = 400;
+      else if (response.status >= 500) err.status = 502;
+      else err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentDisposition,
+      contentType,
+    };
   } catch (err) {
     throw mapAxiosError(err);
   }
@@ -71,14 +170,19 @@ async function postPanValidate(fileBuffer, originalname, mimetype, options = {})
  * @param {Array<Record<string, unknown>>} records
  * @param {{ requestId?: string }} [options]
  */
-async function postPanExportInvalid(records, options = {}) {
+/**
+ * @param {string} pythonPath e.g. '/api/process/pan/export-invalid'
+ * @param {Array<Record<string, unknown>>} records
+ * @param {{ requestId?: string }} [options]
+ */
+async function postExportInvalidRows(pythonPath, records, options = {}) {
   try {
     const headers = {};
     if (options.requestId) {
       headers['x-request-id'] = options.requestId;
     }
 
-    const response = await client.post('/api/process/pan/export-invalid', { records }, {
+    const response = await client.post(pythonPath, { records }, {
       responseType: 'arraybuffer',
       validateStatus: () => true,
       headers,
@@ -111,7 +215,74 @@ async function postPanExportInvalid(records, options = {}) {
   }
 }
 
+async function postPanExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/pan/export-invalid', records, options);
+}
+
+async function postGrossWeightExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/gross-weight/export-invalid', records, options);
+}
+
+async function postSalesExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales/export-invalid', records, options);
+}
+
+async function getRateRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/rate-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postRateRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/rate-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function getDiamondRateRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/diamond-rate-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postDiamondRateRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/diamond-rate-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
+  postGrossWeightValidate,
+  postGrossWeightExportInvalid,
+  postSalesValidate,
+  postSalesExportInvalid,
+  postSalesReturnValidate,
+  postSalesReturnExportRateComparison,
+  postSalesReturnExportExceptions,
+  getRateRules,
+  postRateRules,
+  getDiamondRateRules,
+  postDiamondRateRules,
 };

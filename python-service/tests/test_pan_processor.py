@@ -79,7 +79,7 @@ def _base_row(**overrides):
     return row
 
 
-def test_above_2_lakh_without_pan_flags_missing_pan():
+def test_above_2_lakh_without_pan_is_not_in_pan_format_reports():
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -96,10 +96,10 @@ def test_above_2_lakh_without_pan_flags_missing_pan():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['missingPanAbove2L'] == 1
+    assert result['errorRows'] == 0
+    assert result['summary']['missingPanAbove2L'] == 0
     assert 'missingPan1Above2L' not in result['summary']
-    assert set(result['records'][0]['issues']) == {'MISSING_PAN_ABOVE_2L'}
+    assert result['records'] == []
 
 
 def test_above_2_lakh_blank_pan_valid_pan1_passes():
@@ -122,7 +122,9 @@ def test_above_2_lakh_blank_pan_valid_pan1_passes():
     assert result['errorRows'] == 0
     assert result['summary']['missingPanAbove2L'] == 0
     assert result['summary']['invalidPanFormat'] == 0
-    assert result['records'] == []
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+    assert result['records'][0]['issues'] == []
 
 
 def test_above_50k_without_address_proof_flags_issue():
@@ -143,12 +145,58 @@ def test_above_50k_without_address_proof_flags_issue():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['missingAddressProofAbove50K'] == 1
-    assert result['records'][0]['issues'] == ['MISSING_ADDRESS_PROOF_ABOVE_50K']
+    assert result['errorRows'] == 0
+    assert result['records'] == []
 
 
-def test_pan_pending_treated_empty_and_flags_missing_pan():
+def test_above_50k_invalid_address_when_len_is_14_chars():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': 60000,
+                    'PAN': 'ABCDE1234F',
+                    'PAN1': '',
+                    'Add. proof': 'Aadhaar',
+                    'Add. Proof 2': '',
+                    'Address': '12345678901234',  # 14 chars
+                }
+            )
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 0
+    assert result['records'] == []
+
+
+def test_above_50k_address_len_15_chars_should_not_be_invalid():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': 60000,
+                    'PAN': 'ABCDE1234F',
+                    'PAN1': '',
+                    'Add. proof': 'Aadhaar',
+                    'Add. Proof 2': '',
+                    'Address': '123456789012345',  # 15 chars
+                }
+            )
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 0
+    assert result['records'] == []
+
+
+
+def test_pan_pending_treated_empty_and_not_in_pan_format_reports():
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -165,12 +213,13 @@ def test_pan_pending_treated_empty_and_flags_missing_pan():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['missingPanAbove2L'] == 1
-    assert result['records'][0]['issues'] == ['MISSING_PAN_ABOVE_2L']
+    assert result['errorRows'] == 0
+    assert result['summary']['missingPanAbove2L'] == 0
+    assert result['records'] == []
 
 
-def test_invalid_pan_format_is_flagged():
+def test_invalid_pan_format_below_2l_is_not_flagged():
+    """PAN format is validated only when Total Value > ₹2,00,000."""
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [_base_row(**{'Total Value': 75000, 'PAN': 'AB123', 'Add. proof': 'Passport'})]
@@ -178,9 +227,10 @@ def test_invalid_pan_format_is_flagged():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['invalidPanFormat'] == 1
-    assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
+    assert result['errorRows'] == 0
+    assert result['summary']['invalidPanFormat'] == 0
+    assert result['records'] == []
+
 
 
 def test_valid_row_has_no_issues():
@@ -201,7 +251,9 @@ def test_valid_row_has_no_issues():
     result = processor.process(file_bytes)
 
     assert result['errorRows'] == 0
-    assert result['records'] == []
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+    assert result['records'][0]['issues'] == []
 
 
 def test_amount_with_commas_is_parsed_and_exposed():
@@ -222,12 +274,8 @@ def test_amount_with_commas_is_parsed_and_exposed():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['records'][0]['totalValue'] == 18790000
-    assert set(result['records'][0]['issues']) == {
-        'MISSING_PAN_ABOVE_2L',
-        'MISSING_ADDRESS_PROOF_ABOVE_50K',
-    }
+    assert result['errorRows'] == 0
+    assert result['records'] == []
 
 
 def test_improper_pan1_format_is_flagged_even_when_pan_blank():
@@ -241,6 +289,7 @@ def test_improper_pan1_format_is_flagged_even_when_pan_blank():
     assert result['errorRows'] == 1
     assert result['summary']['invalidPanFormat'] == 1
     assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
+
 
 
 def test_improper_empty_tokens_are_treated_as_missing():
@@ -261,11 +310,8 @@ def test_improper_empty_tokens_are_treated_as_missing():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert set(result['records'][0]['issues']) == {
-        'MISSING_PAN_ABOVE_2L',
-        'MISSING_ADDRESS_PROOF_ABOVE_50K',
-    }
+    assert result['errorRows'] == 0
+    assert result['records'] == []
 
 
 def test_amount_with_currency_symbol_is_parsed():
@@ -276,9 +322,8 @@ def test_amount_with_currency_symbol_is_parsed():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['records'][0]['totalValue'] == 210000
-    assert result['records'][0]['issues'] == ['MISSING_PAN_ABOVE_2L']
+    assert result['errorRows'] == 0
+    assert result['records'] == []
 
 
 def test_missing_total_value_column_raises_key_error():
@@ -307,7 +352,9 @@ def test_above_2_lakh_valid_pan_blank_pan1_passes():
     result = processor.process(file_bytes)
 
     assert result['errorRows'] == 0
-    assert result['records'] == []
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+    assert result['records'][0]['issues'] == []
 
 
 def test_blank_row_is_ignored_from_error_records():
@@ -373,23 +420,23 @@ def test_above_2_lakh_with_pan_and_pan1_both_missing_and_no_address():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['summary']['missingPanAbove2L'] == 1
-    assert result['summary']['missingAddressProofAbove50K'] == 1
-    assert set(result['records'][0]['issues']) == {
-        'MISSING_PAN_ABOVE_2L',
-        'MISSING_ADDRESS_PROOF_ABOVE_50K',
-    }
+    assert result['errorRows'] == 0
+    assert result['summary']['missingPanAbove2L'] == 0
+    assert result['summary']['missingAddressProofAbove50K'] == 0
+    assert result['records'] == []
 
 
 @pytest.mark.parametrize(
     'pan_value,pan1_value',
     [
         ('ABCDE1234F', 'PQRST6789L'),
-        ('abcde1234f', 'pqrst6789l'),
+        (' abcde1234f ', 'pqrst6789l'),
+        ('ALOPY 6826 F', ''),
+        ('ABCDE1234F', ''),
+        ('', 'PQRST6789L'),
     ],
 )
-def test_valid_pan_and_pan1_formats_pass_without_errors(pan_value, pan1_value):
+def test_valid_indian_pan_formats_generate_valid_pan_report(pan_value, pan1_value):
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -408,17 +455,23 @@ def test_valid_pan_and_pan1_formats_pass_without_errors(pan_value, pan1_value):
 
     assert result['errorRows'] == 0
     assert result['summary']['invalidPanFormat'] == 0
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+
+
 
 
 def test_above_2_lakh_invalid_pan_rescued_by_valid_pan1():
+    """If Total Value > 2L and PAN/PAN1 contains at least one valid PAN,
+    any present invalid PAN among the two should still be flagged."""
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
             _base_row(
                 **{
                     'Total Value': 260000,
-                    'PAN': 'ABCDE123',
-                    'PAN1': 'PQRST6789L',
+                    'PAN': 'ABCDE123',  # invalid
+                    'PAN1': 'PQRST6789L',  # valid
                     'Add. proof': 'Bill',
                 }
             )
@@ -427,19 +480,29 @@ def test_above_2_lakh_invalid_pan_rescued_by_valid_pan1():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 0
-    assert result['summary']['invalidPanFormat'] == 0
+    assert result['errorRows'] == 1
+    assert result['summary']['invalidPanFormat'] == 1
+    assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
+
+
+
 
 
 @pytest.mark.parametrize(
     'pan_value,pan1_value',
     [
-        ('ABCDE1234', 'PQRST67890'),
-        ('AB123', ''),
-        ('123451234F', 'badpan'),
+        # Provided invalid format examples
+        ('ABCD1234F', 'PQRST6789L'),
+        ('ABCDE123F', 'PQRST6789L'),
+        ('ABCDE12345', 'PQRST6789L'),
+        ('1234E1234F', 'PQRST6789L'),
+        ('US DL', ''),
+        ('USDL', ''),
+        ('us dl', ''),
     ],
 )
 def test_invalid_pan_or_pan1_formats_are_detected(pan_value, pan1_value):
+
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -461,7 +524,43 @@ def test_invalid_pan_or_pan1_formats_are_detected(pan_value, pan1_value):
     assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
 
 
+@pytest.mark.parametrize(
+    'pan_value,pan1_value',
+    [
+        ('Form No-60', ''),
+        ('FORM NO 60', ''),
+        ('form 60', ''),
+        ('from 60', ''),
+        ('', 'Form-60'),
+    ],
+)
+def test_form_60_like_pan_values_are_incorrect_pan_format(pan_value, pan1_value):
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': 250000,
+                    'PAN': pan_value,
+                    'PAN1': pan1_value,
+                    'Add. proof': 'Aadhaar',
+                }
+            )
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 1
+    assert result['summary']['invalidPanFormat'] == 1
+    assert result['summary']['missingForm60'] == 0
+    assert result['records'][0]['panReport'] == 'invalidPan'
+    assert result['records'][0]['issues'] == ['INVALID_PAN_FORMAT']
+
+
+
 def test_threshold_values_avoid_false_positive_flags():
+
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -492,7 +591,7 @@ def test_threshold_values_avoid_false_positive_flags():
     assert result['records'] == []
 
 
-def test_pending_tokens_are_treated_as_missing_for_pan_fields():
+def test_pending_tokens_are_treated_empty_and_not_in_pan_format_reports():
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -509,8 +608,8 @@ def test_pending_tokens_are_treated_as_missing_for_pan_fields():
 
     result = processor.process(file_bytes)
 
-    assert result['errorRows'] == 1
-    assert result['records'][0]['issues'] == ['MISSING_PAN_ABOVE_2L']
+    assert result['errorRows'] == 0
+    assert result['records'] == []
 
 
 def test_detects_header_row_when_title_rows_exist():
@@ -520,9 +619,70 @@ def test_detects_header_row_when_title_rows_exist():
     result = processor.process(file_bytes)
 
     assert result['totalRows'] == 1
-    assert result['errorRows'] == 1
-    assert result['records'][0]['rowNumber'] == 5
-    assert set(result['records'][0]['issues']) == {
-        'MISSING_PAN_ABOVE_2L',
-        'MISSING_ADDRESS_PROOF_ABOVE_50K',
-    }
+    assert result['errorRows'] == 0
+    assert result['records'] == []
+
+
+def test_subtotal_like_voucher_row_is_skipped():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': '3,00,000',
+                    'Voucher No': 'Grand Total',
+                    'PAN': '',
+                    'PAN1': '',
+                    'Add. proof': '',
+                    'Add. Proof 2': '',
+                }
+            )
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+
+
+def test_missing_voucher_row_is_skipped():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': '3,00,000',
+                    'Voucher No': '',
+                    'PAN': '',
+                    'PAN1': '',
+                    'Add. proof': 'Bill',
+                }
+            )
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+
+
+def test_duplicate_mid_sheet_header_row_is_skipped():
+    processor = PanProcessor()
+    header_like = _base_row(
+        **{
+            'Total Value': 'Total Value',
+            'Voucher No': 'VN',
+            'PAN': 'PAN',
+            'PAN1': 'PAN1',
+            'Add. proof': 'x',
+        }
+    )
+    good = _base_row(
+        **{
+            'SNo': 2,
+            'Total Value': 250000,
+            'PAN': '',
+            'PAN1': '',
+            'Add. proof': 'Doc',
+        }
+    )
+    file_bytes = _build_excel_bytes([header_like, good])
+    result = processor.process(file_bytes)
+    assert result['errorRows'] == 0
+    assert result['records'] == []

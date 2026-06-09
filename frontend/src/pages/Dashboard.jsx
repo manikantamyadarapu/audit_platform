@@ -1,229 +1,398 @@
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
-  ArrowRight,
-  Layers,
+  AlertTriangle,
+  Bell,
+  Calendar,
+  FileSpreadsheet,
+  Filter,
   ShieldCheck,
-  Sparkles,
-  Target,
-  TrendingUp,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { KpiCard } from '../components/cards/KpiCard';
-import { ServiceCard } from '../components/cards/ServiceCard';
-import { DepartmentCard } from '../components/cards/DepartmentCard';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
+import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
-import { formatPercent } from '../utils/format';
-import { useAppUi } from '../context/AppUiContext';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { Skeleton } from '../components/ui/Skeleton';
+import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
+import { CustomSelect } from '../components/ui/CustomSelect';
+import { useCurrentDateTime } from '../utils/dateTime';
+import { getStoredUser } from '../utils/authUser';
+import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage, getDashboardAuditTrendErrorMessage, getDashboardIssuesCategoryErrorMessage, getDashboardRecentAuditsErrorMessage } from '../services/dashboardService';
+import { AuditActivityTrendChart } from '../components/charts/AuditActivityTrendChart';
+import { IssuesByCategoryPanel } from '../components/charts/IssuesByCategoryPanel';
+import { IssuesByCategoryBarChart } from '../components/charts/IssuesByCategoryBarChart';
+import {
+  buildDashboardKpiItems,
+  buildSummaryStripItems,
+  DASHBOARD_PERIOD_OPTIONS,
+} from '../utils/dashboardWidgets';
+import { buildIssueCategoryItems } from '../utils/dashboardIssueCategories';
+import { getAuditStatusMeta } from '../utils/dashboardRecentAudits';
+import { formatUploadDateTime } from '../utils/dateTime';
+import { formatNumber } from '../utils/format';
+import { loadAuditSession, saveAuditSession } from '../utils/auditSessionStorage';
 
-export default function Dashboard() {
-  const navigate = useNavigate();
-  const { sessionStats, activities } = useAppUi();
+const DASHBOARD_UI_KEY = 'dashboard-ui';
 
-  const compliance = useMemo(() => {
-    const { rowsProcessed, errorsFound } = sessionStats;
-    if (!rowsProcessed) return 99.2;
-    const rate = ((rowsProcessed - errorsFound) / rowsProcessed) * 100;
-    return Math.max(0, Math.min(100, rate));
-  }, [sessionStats]);
+const KPI_ICONS = {
+  totalAudits: FileSpreadsheet,
+  totalRecords: ShieldCheck,
+  totalIssues: AlertTriangle,
+  accuracy: ShieldCheck,
+};
 
-  const kpis = [
-    {
-      label: 'Total services',
-      value: '12',
-      hint: 'Across Scrutiny & Vouching roadmap',
-      icon: Layers,
-      accent: 'blue',
-    },
-    {
-      label: 'Active modules',
-      value: '3',
-      hint: 'PAN · Gross weight · Sales ledger',
-      icon: Sparkles,
-      accent: 'violet',
-    },
-    {
-      label: 'Files processed (session)',
-      value: String(sessionStats.filesProcessed || 0),
-      hint: 'This browser session',
-      icon: Activity,
-      accent: 'emerald',
-    },
-    {
-      label: 'Errors flagged (session)',
-      value: String(sessionStats.errorsFound || 0),
-      hint: 'Aggregated from validations',
-      icon: Target,
-      accent: 'amber',
-    },
-    {
-      label: 'Compliance rate',
-      value: formatPercent(compliance),
-      hint: 'Derived from session throughput',
-      icon: TrendingUp,
-      accent: 'rose',
-    },
-  ];
+const TREND_PERIOD_OPTIONS = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
+const RECENT_AUDITS_PAGE_SIZE = 5;
+
+function Panel({ children, className = '' }) {
+  return (
+    <section
+      className={cn(
+        'rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-glass)]',
+        className
+      )}
+    >
+      {children}
+    </section>
+  );
+}
+
+function ButtonPill({ children, className = '', onClick, ...props }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-12 items-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 text-sm font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)]',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function trendToneClass(tone) {
+  if (tone === 'down') return 'text-red-500';
+  if (tone === 'up') return 'text-emerald-600';
+  return 'text-[var(--color-text-muted)]';
+}
+
+function KpiCard({ item, loading }) {
+  const Icon = KPI_ICONS[item.key] || FileSpreadsheet;
+  const toneClasses = {
+    green: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+    amber: 'bg-amber-100 text-amber-500 dark:bg-amber-950/40 dark:text-amber-400',
+    red: 'bg-red-100 text-red-500 dark:bg-red-950/40 dark:text-red-400',
+  };
 
   return (
-    <div className="space-y-10">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white/90 via-white/70 to-blue-50/40 p-8 shadow-[var(--shadow-float)] backdrop-blur-xl sm:p-10"
-      >
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 left-10 h-72 w-72 rounded-full bg-indigo-400/15 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-medium text-blue-700">Welcome back</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              Audit Operations Center
-            </h2>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
-              Scrutiny-grade controls with a calm enterprise workspace. Upload ledgers, validate PAN exposure,
-              and ship audit-ready exports without leaving the browser.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Badge tone="blue">Internal · Confidential</Badge>
-            <Badge tone="emerald">Live · Scrutiny</Badge>
-          </div>
+    <Panel className="p-6">
+      <div className="flex items-center gap-5">
+        <div className={cn('flex h-16 w-16 items-center justify-center rounded-full', toneClasses[item.tone])}>
+          {loading ? (
+            <Skeleton variant="glass" className="h-16 w-16 rounded-full" />
+          ) : (
+            <Icon className="h-7 w-7" strokeWidth={1.8} />
+          )}
         </div>
-      </motion.section>
-
-      <section>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {kpis.map((k, i) => (
-            <KpiCard key={k.label} {...k} delay={i * 0.05} />
-          ))}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-[var(--color-text-secondary)]">{item.label}</p>
+          {loading ? (
+            <div className="mt-3 space-y-3">
+              <Skeleton className="h-9 w-28 rounded-lg" />
+              <Skeleton className="h-4 w-40 rounded-md" />
+            </div>
+          ) : (
+            <>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">{item.value}</p>
+              <p className={cn('mt-4 text-sm', trendToneClass(item.trend?.tone))}>{item.trend?.text}</p>
+            </>
+          )}
         </div>
-      </section>
+      </div>
+    </Panel>
+  );
+}
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <DepartmentCard
-          title="Scrutiny"
-          subtitle="Operational excellence · regulatory-ready workflows"
-          status="active"
-          progress={82}
-          modules={['PAN verification', 'Gross weight reconciliation', 'Sales ledger analytics']}
-        />
-        <DepartmentCard
-          title="Vouching"
-          subtitle="Ledger tracing · voucher integrity"
-          status="hold"
-          progress={24}
-          modules={['Voucher matching', 'Ledger review', 'Entry verification']}
-          muted
-        />
-      </section>
+export default function Dashboard() {
+  const { greeting, shortDate } = useCurrentDateTime();
+  const storedUser = getStoredUser();
+  const displayName = storedUser?.name?.split(/\s+/)[0] || 'Admin';
 
-      <section>
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">Services</h3>
-            <p className="text-sm text-slate-500">Jump directly into module workspaces</p>
-          </div>
+  const [period, setPeriod] = useState(() => {
+    const saved = loadAuditSession(DASHBOARD_UI_KEY);
+    return saved?.data?.period ?? 'week';
+  });
+  const [trendPeriod, setTrendPeriod] = useState(() => {
+    const saved = loadAuditSession(DASHBOARD_UI_KEY);
+    return saved?.data?.trendPeriod ?? 'daily';
+  });
+  const [widgets, setWidgets] = useState(null);
+  const [auditTrend, setAuditTrend] = useState(null);
+  const [issuesCategory, setIssuesCategory] = useState(null);
+  const [widgetsLoading, setWidgetsLoading] = useState(true);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [issuesCategoryLoading, setIssuesCategoryLoading] = useState(true);
+  const [recentAudits, setRecentAudits] = useState([]);
+  const [recentAuditsLoading, setRecentAuditsLoading] = useState(true);
+  const loadWidgets = useCallback(async (selectedPeriod) => {
+    setWidgetsLoading(true);
+    try {
+      const data = await fetchDashboardWidgets(selectedPeriod);
+      setWidgets(data);
+    } catch (error) {
+      setWidgets(null);
+      toast.error(getDashboardWidgetsErrorMessage(error));
+    } finally {
+      setWidgetsLoading(false);
+    }
+  }, []);
+
+  const loadAuditTrend = useCallback(async (selectedPeriod) => {
+    setTrendLoading(true);
+    try {
+      const data = await fetchDashboardAuditTrend(selectedPeriod);
+      setAuditTrend(data);
+    } catch (error) {
+      setAuditTrend(null);
+      toast.error(getDashboardAuditTrendErrorMessage(error));
+    } finally {
+      setTrendLoading(false);
+    }
+  }, []);
+
+  const loadIssuesCategory = useCallback(async (selectedPeriod) => {
+    setIssuesCategoryLoading(true);
+    try {
+      const data = await fetchDashboardIssuesCategory(selectedPeriod);
+      setIssuesCategory(data);
+    } catch (error) {
+      setIssuesCategory(null);
+      toast.error(getDashboardIssuesCategoryErrorMessage(error));
+    } finally {
+      setIssuesCategoryLoading(false);
+    }
+  }, []);
+
+  const loadRecentAudits = useCallback(async () => {
+    setRecentAuditsLoading(true);
+    try {
+      const { items } = await fetchDashboardRecentAudits({
+        page: 1,
+        limit: RECENT_AUDITS_PAGE_SIZE,
+      });
+      setRecentAudits(items);
+    } catch (error) {
+      setRecentAudits([]);
+      toast.error(getDashboardRecentAuditsErrorMessage(error));
+    } finally {
+      setRecentAuditsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWidgets(period);
+    loadIssuesCategory(period);
+  }, [period, loadWidgets, loadIssuesCategory]);
+
+  useEffect(() => {
+    loadAuditTrend(trendPeriod);
+  }, [trendPeriod, loadAuditTrend]);
+
+  useEffect(() => {
+    loadRecentAudits();
+  }, [loadRecentAudits]);
+
+  useEffect(() => {
+    saveAuditSession(DASHBOARD_UI_KEY, { period, trendPeriod });
+  }, [period, trendPeriod]);
+
+  const kpiItems = useMemo(() => buildDashboardKpiItems(widgets), [widgets]);
+  const summaryItems = useMemo(() => buildSummaryStripItems(widgets), [widgets]);
+  const issueCategoryItems = useMemo(() => buildIssueCategoryItems(issuesCategory), [issuesCategory]);
+  const totalIssuesCount = issuesCategory?.totalIssues ?? widgets?.totalIssues?.value ?? 0;
+
+  const periodSelectOptions = useMemo(
+    () => DASHBOARD_PERIOD_OPTIONS.map((option) => ({ value: option.id, label: option.label })),
+    []
+  );
+
+  return (
+    <div className="min-h-[calc(100svh-3rem)] space-y-6 pb-2">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-[32px] font-semibold tracking-tight text-[var(--color-text-primary)]">
+            {greeting}, {displayName}
+          </h1>
+          <p className="mt-2 text-base text-[var(--color-text-secondary)]">Here's what's happening with your audits today.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle compact className="h-14 w-14" />
           <button
             type="button"
-            onClick={() => navigate('/reports')}
-            className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900 sm:flex"
+            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            aria-label="Notifications"
           >
-            View history
-            <ArrowRight className="h-4 w-4" />
+            <Bell className="h-5 w-5" />
+            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-medium text-white">
+              3
+            </span>
           </button>
         </div>
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <ServiceCard
-            title="PAN Verification"
-            description="Validate PAN Excel files against policy thresholds and export mismatches."
-            icon={ShieldCheck}
-            tone="blue"
-            delay={0.05}
-            onOpen={() => navigate('/scrutiny/pan')}
+      </header>
+
+      <div className="flex flex-col gap-4 pt-7 lg:flex-row lg:items-center lg:justify-between">
+        <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Audit Overview</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <ButtonPill className="w-12 justify-center px-0">
+            <Filter className="h-4 w-4" />
+          </ButtonPill>
+          <CustomSelect
+            value={period}
+            onChange={setPeriod}
+            options={periodSelectOptions}
+            className="w-[7.5rem]"
+            triggerClassName="h-12 px-5"
           />
-          <ServiceCard
-            title="Gross Weight Audit"
-            description="Compare manual vs automated gross weight readings with exception surfacing."
-            icon={Layers}
-            tone="emerald"
-            delay={0.1}
-            onOpen={() => navigate('/scrutiny/gross-weight')}
-          />
-          <ServiceCard
-            title="Sales Ledger"
-            description="Spot rate mismatches and suspicious repeats before period close."
-            icon={TrendingUp}
-            tone="violet"
-            delay={0.15}
-            onOpen={() => navigate('/scrutiny/sales-ledger')}
-          />
-          <ServiceCard
-            title="Reports"
-            description="Exports, CSV snapshots, and downloadable audit packages."
-            icon={Activity}
-            tone="blue"
-            delay={0.2}
-            onOpen={() => navigate('/reports')}
-          />
+          <ButtonPill>
+            <Calendar className="h-4 w-4" />
+            {shortDate}
+          </ButtonPill>
         </div>
+      </div>
+
+      <section className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
+        {kpiItems.map((item) => (
+          <KpiCard key={item.key} item={item} loading={widgetsLoading} />
+        ))}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <h3 className="text-base font-semibold text-slate-900">Operational runway</h3>
-            <p className="text-sm text-slate-500">
-              Architecture mirrors backend processors — add GST, duplicate invoice, or vendor flows without
-              restructuring navigation.
-            </p>
-          </CardHeader>
-          <CardBody className="grid gap-4 sm:grid-cols-2">
-            {[
-              { title: 'Gateway APIs', detail: 'Node validates uploads and forwards to FastAI processors.' },
-              { title: 'Shared UX primitives', detail: 'Upload zones, KPI decks, and TanStack tables reused per module.' },
-              { title: 'Division awareness', detail: 'Scrutiny routes stay hot while Vouching stays visibly parked.' },
-              { title: 'Exports', detail: 'Excel + CSV flows stream straight from validated JSON payloads.' },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4 backdrop-blur-sm"
-              >
-                <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.detail}</p>
+      <Panel className={cn('px-6 py-5', !widgetsLoading && 'grid gap-0 md:grid-cols-4')}>
+        {widgetsLoading ? (
+          <SummaryStripSkeleton columns={summaryItems.length || 4} />
+        ) : (
+          summaryItems.map((item, index) => (
+            <div
+              key={item.label}
+              className={cn('px-8 py-2', index ? 'border-t border-[var(--color-border-soft)] md:border-l md:border-t-0' : '')}
+            >
+              <p className="text-sm text-[var(--color-text-secondary)]">{item.label}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-4">
+                <p className="text-3xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+                  {item.value}
+                </p>
+                {item.badge ? (
+                  <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    {item.badge}
+                  </span>
+                ) : (
+                  <span className={cn('text-sm', trendToneClass(item.trend?.tone))}>
+                    {item.trend?.text}
+                  </span>
+                )}
               </div>
-            ))}
-          </CardBody>
-        </Card>
+            </div>
+          ))
+        )}
+      </Panel>
 
-        <Card>
-          <CardHeader>
-            <h3 className="text-base font-semibold text-slate-900">Recent activity</h3>
-            <p className="text-sm text-slate-500">Session-aware audit trail</p>
-          </CardHeader>
-          <CardBody className="space-y-4">
-            {activities.map((a, idx) => (
-              <div key={a.id} className="flex gap-3">
-                <span
-                  className={cn(
-                    'mt-1.5 h-2 w-2 shrink-0 rounded-full',
-                    a.tone === 'success' && 'bg-emerald-500',
-                    a.tone === 'warn' && 'bg-amber-500',
-                    (!a.tone || a.tone === 'info') && 'bg-blue-500'
-                  )}
-                />
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{a.text}</p>
-                  <p className="text-xs text-slate-400">{idx === 0 ? 'Latest event' : 'Activity feed'}</p>
-                </div>
-              </div>
-            ))}
-          </CardBody>
-        </Card>
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+        <Panel className="overflow-hidden p-0">
+          <div className="flex flex-col gap-4 border-b border-[var(--color-border-soft)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Audit Activity Trend</h3>
+            <CustomSelect
+              value={trendPeriod}
+              onChange={setTrendPeriod}
+              options={TREND_PERIOD_OPTIONS}
+              className="w-[8.5rem]"
+              triggerClassName="h-11 px-4"
+            />
+          </div>
+          <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
+            <AuditActivityTrendChart data={auditTrend} loading={trendLoading} />
+          </div>
+        </Panel>
+
+        <Panel className="p-5">
+          <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
+          <IssuesByCategoryPanel
+            categories={issueCategoryItems}
+            totalIssues={totalIssuesCount}
+            loading={issuesCategoryLoading}
+          />
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+        <Panel className="overflow-hidden p-5">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Recent Audit Uploads</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border-soft)] text-xs font-medium text-[var(--color-text-muted)]">
+                  <th className="pb-3">File Name</th>
+                  <th className="pb-3">Audit Type</th>
+                  <th className="pb-3">Records</th>
+                  <th className="pb-3">Uploaded On</th>
+                  <th className="pb-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentAuditsLoading ? (
+                  Array.from({ length: RECENT_AUDITS_PAGE_SIZE }).map((_, index) => (
+                    <TableRowSkeleton key={index} columns={5} />
+                  ))
+                ) : recentAudits.length ? (
+                  recentAudits.map((row) => {
+                    const statusMeta = getAuditStatusMeta(row.status);
+
+                    return (
+                      <tr key={row.auditId} className="border-b border-[var(--color-border-soft)] last:border-0">
+                        <td className="py-3 text-[var(--color-text-secondary)]">
+                          <span className="inline-flex items-center gap-3">
+                            <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                            <span className="truncate">{row.fileName}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{row.auditType}</td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{formatNumber(row.records)}</td>
+                        <td className="py-3 text-[var(--color-text-secondary)]">{formatUploadDateTime(row.uploadedOn)}</td>
+                        <td className="py-3 text-right">
+                          <span className={cn('rounded-md px-2 py-1 text-xs font-medium', statusMeta.className)}>
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm text-[var(--color-text-muted)]">
+                      No recent audit uploads found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="overflow-hidden p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issue Breakdown</h3>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Top categories by issue count</p>
+            </div>
+          </div>
+          <IssuesByCategoryBarChart categories={issueCategoryItems} loading={issuesCategoryLoading} />
+        </Panel>
       </section>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Copy, FileCheck2, Scale, Shield, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Scale, Shield, Users } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -22,10 +22,17 @@ const modules = [
   },
   {
     title: 'Sales Ledger',
-    description: 'Rate mismatch signals and duplicate sales row detection (pipeline).',
+    description: 'Mapping, gemstone, gold/silver, and diamond rate checks on uploaded ledgers.',
     path: '/scrutiny/sales-ledger',
     icon: BookOpen,
     tone: 'violet',
+  },
+  {
+    title: 'Gold & Silver Rates',
+    description: 'Enter daily metal unit rates for sales audit (±30%).',
+    path: '/scrutiny/rate-rule-book',
+    icon: Coins,
+    tone: 'emerald',
   },
 ];
 
@@ -53,7 +60,7 @@ export default function ScrutinyHub() {
 
       <section>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Live modules</h3>
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {modules.map((m, i) => (
             <ServiceCard
               key={m.title}
@@ -80,9 +87,9 @@ export default function ScrutinyHub() {
                 key={s.to}
                 type="button"
                 onClick={() => navigate(s.to)}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/80 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-800"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-900"
               >
-                <s.Icon className="h-3.5 w-3.5 text-indigo-600" />
+                <s.Icon className="h-3.5 w-3.5 text-emerald-600" />
                 {s.title}
                 <ArrowRight className="h-3.5 w-3.5 opacity-50" />
               </button>

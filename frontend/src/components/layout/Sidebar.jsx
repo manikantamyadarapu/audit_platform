@@ -1,266 +1,405 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BarChart3,
+  BellRing,
   BookOpen,
+  Calculator,
   ChevronDown,
-  Copy,
-  FileCheck2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Coins,
+  FileSpreadsheet,
+  Gem,
   GitBranch,
   LayoutDashboard,
-  LayoutGrid,
   ListTree,
-  PanelLeftClose,
-  PanelLeft,
   Scale,
   Settings,
-  Shield,
-  Users,
+  Undo2,
+  Weight,
+  LogOut,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useAppUi } from '../../context/AppUiContext';
-import { Badge } from '../ui/Badge';
+import {
+  clearAuthSession,
+  fetchCurrentUser,
+  getStoredUser,
+  getUserInitials,
+} from '../../utils/authUser';
 
-const mainNav = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/settings', label: 'Settings', icon: Settings },
+const salesItems = [
+  { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
+  { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
+  { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
+  { to: '/scrutiny/sales-return-rate', label: 'Sales Return Audit', icon: Undo2 },
+  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
 ];
 
-const scrutinyNav = [
-  { to: '/scrutiny', label: 'Overview', icon: LayoutGrid, soon: false, end: true },
-  { to: '/scrutiny/pan', label: 'PAN Verification', icon: FileCheck2, soon: false },
-  { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Scale, soon: false },
-  { to: '/scrutiny/sales-ledger', label: 'Sales Ledger', icon: BookOpen, soon: false },
-  { to: '/scrutiny/gst', label: 'GST Verification', icon: Shield, soon: true },
-  { to: '/scrutiny/duplicate-invoice', label: 'Duplicate Invoice Check', icon: Copy, soon: true },
-  { to: '/scrutiny/vendor-reconciliation', label: 'Vendor Reconciliation', icon: Users, soon: true },
+const scrutinyItems = [
+  { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
+  { to: '/scrutiny/diamond-gem-rates', label: 'Rate Master ', icon: Gem },
 ];
 
-const vouchingNav = [
-  { to: '/vouching', label: 'Overview', icon: LayoutGrid, soon: false, end: true },
-  { to: '/vouching/voucher-matching', label: 'Voucher Matching', icon: GitBranch },
-  { to: '/vouching/ledger-review', label: 'Ledger Review', icon: ListTree },
-  { to: '/vouching/entry-verification', label: 'Entry Verification', icon: FileCheck2 },
+const vouchingItems = [
+  { label: 'Voucher Matching', icon: GitBranch },
+  { label: 'Ledger Review', icon: ListTree },
 ];
 
-function NavItem({ to, label, icon: Icon, end, soon, collapsed, disabled, onNavigate }) {
-  const inner = (isActive) => (
-    <span
-      className={cn(
-        'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-        disabled && 'cursor-not-allowed opacity-45',
-        !disabled && isActive && 'bg-white/10 text-white shadow-lg shadow-blue-500/10 ring-1 ring-white/10',
-        !disabled && !isActive && 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
-      )}
-    >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-      {!collapsed && (
-        <>
-          <span className="flex-1 truncate text-left">{label}</span>
-          {soon ? (
-            <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200">
-              Soon
-            </span>
-          ) : null}
-        </>
-      )}
-    </span>
-  );
-
-  if (disabled) {
-    return (
-      <div title={collapsed ? label : undefined} className="w-full">
-        {inner(false)}
-      </div>
-    );
-  }
-
+function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) {
   return (
     <NavLink
       to={to}
       end={end}
       onClick={onNavigate}
       title={collapsed ? label : undefined}
-      className={({ isActive }) => cn('block w-full', disabled && 'pointer-events-none')}
+      className={({ isActive }) =>
+        cn(
+          'group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
+          nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
+          isActive
+            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+        )
+      }
     >
-      {({ isActive }) => inner(isActive)}
+      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+      {!collapsed ? <span className="truncate">{label}</span> : null}
     </NavLink>
   );
 }
 
-function SectionLabel({ collapsed, children, right }) {
-  if (collapsed) {
-    return <div className="my-2 h-px w-8 self-center bg-slate-800" />;
-  }
+function DisabledItem({ label, icon: Icon, collapsed, nested }) {
   return (
-    <div className="mb-2 mt-6 flex items-center justify-between gap-2 px-1 first:mt-0">
-      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{children}</span>
-      {right}
+    <div
+      title={collapsed ? `${label} - On hold` : undefined}
+      className={cn(
+        'flex h-11 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-400 opacity-70',
+        nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]'
+      )}
+    >
+      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+      {!collapsed ? (
+        <>
+          <span className="flex-1 truncate">{label}</span>
+          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">Hold</span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, children, to, nested }) {
+  if (collapsed) {
+    if (nested) {
+      return (
+        <button
+          type="button"
+          onClick={onToggle}
+          title={label}
+          className={cn(
+            'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
+            active
+              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          )}
+        >
+          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+        </button>
+      );
+    }
+
+    return (
+      <NavLink
+        to={to ?? (label === 'Scrutiny' ? '/scrutiny' : '/vouching')}
+        title={label}
+        className={({ isActive }) =>
+          cn(
+            'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
+            isActive || active
+              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          )
+        }
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+      </NavLink>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
+          nested && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
+          active
+            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+        )}
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+        <span className="flex-1 truncate text-left">{label}</span>
+        {badge ? (
+          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+            {badge}
+          </span>
+        ) : null}
+        <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden space-y-1"
+          >
+            {children}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
 
 export function Sidebar() {
-  const { sidebarCollapsed, setSidebarCollapsed, division, setDivision } = useAppUi();
-  const [openScrutiny, setOpenScrutiny] = useState(true);
-  const [openVouching, setOpenVouching] = useState(false);
-  const location = useLocation();
+  const navigate = useNavigate();
+  const { sidebarCollapsed, setSidebarCollapsed, setDivision } = useAppUi();
+  const { pathname } = useLocation();
+  const ensureScrutiny = () => setDivision('scrutiny');
 
-  const vouchingDisabled = true;
+  const scrutinyActive = pathname.startsWith('/scrutiny');
+  const vouchingActive = pathname.startsWith('/vouching');
+  const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
+
+  const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
+  const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
+  const [salesOpen, setSalesOpen] = useState(salesChildActive);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [sessionUser, setSessionUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (stored) setSessionUser(stored);
+    fetchCurrentUser()
+      .then((user) => {
+        if (user) setSessionUser(user);
+      })
+      .catch(() => {});
+  }, [pathname]);
+
+  const displayName = sessionUser?.name || 'User';
+  const displayEmail = sessionUser?.email || '';
+  const initials = getUserInitials(displayName);
+
+  useEffect(() => {
+    if (scrutinyActive) setScrutinyOpen(true);
+  }, [scrutinyActive]);
+
+  useEffect(() => {
+    if (vouchingActive) setVouchingOpen(true);
+  }, [vouchingActive]);
+
+  useEffect(() => {
+    if (salesChildActive) setSalesOpen(true);
+  }, [salesChildActive]);
 
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 80 : 288 }}
+      animate={{ width: sidebarCollapsed ? 80 : 280 }}
       transition={{ type: 'spring', stiffness: 320, damping: 38 }}
-      className="relative z-20 flex h-svh shrink-0 flex-col border-r border-slate-800/80 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 shadow-2xl shadow-slate-950/50"
+      className="sticky top-0 z-20 flex h-svh shrink-0 flex-col border-r border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-glass)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.18),_transparent_55%)]" />
-
-      <div
-        className={cn(
-          'relative flex gap-3 px-4 py-6',
-          sidebarCollapsed ? 'flex-col items-center' : 'items-start justify-between'
-        )}
-      >
+      <div className={cn('flex items-center justify-between gap-3 px-6 pb-4 pt-5', sidebarCollapsed && 'flex-col items-center px-4')}>
         {!sidebarCollapsed ? (
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300/90">Enterprise</p>
-            <p className="mt-1 truncate text-lg font-semibold tracking-tight text-white">Audit Platform</p>
-          </div>
+          <>
+            <div className="flex flex-col">
+              <p className="text-xl font-bold tracking-tight text-[#07812f]">HAA</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#07812f]/80">Enterprise Audit Suite</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)]"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          </>
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-xs font-bold text-white shadow-lg shadow-blue-600/40">
-            AP
-          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(false)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)]"
+            aria-label="Expand sidebar"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
         )}
-        <button
-          type="button"
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
       </div>
 
-      {!sidebarCollapsed && (
-        <div className="relative mx-4 mb-4 rounded-xl border border-white/10 bg-white/5 p-1">
-          <div className="grid grid-cols-2 gap-1">
-            <button
-              type="button"
-              onClick={() => setDivision('scrutiny')}
-              className={cn(
-                'rounded-lg px-2 py-2 text-xs font-semibold transition',
-                division === 'scrutiny'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white'
-              )}
+      <nav className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 scrollbar-thin">
+        <div className="space-y-1">
+          <NavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} end collapsed={sidebarCollapsed} />
+
+          <NavGroup
+            label="Scrutiny"
+            icon={Scale}
+            collapsed={sidebarCollapsed}
+            open={scrutinyOpen}
+            onToggle={() => setScrutinyOpen((v) => !v)}
+            active={scrutinyActive}
+          >
+            <NavGroup
+              label="Sales"
+              icon={FileSpreadsheet}
+              collapsed={sidebarCollapsed}
+              open={salesOpen}
+              onToggle={() => setSalesOpen((v) => !v)}
+              active={false}
+              nested
             >
-              Scrutiny
-            </button>
-            <button
-              type="button"
-              onClick={() => setDivision('vouching')}
-              className={cn(
-                'rounded-lg px-2 py-2 text-xs font-semibold transition',
-                division === 'vouching'
-                  ? 'bg-slate-700 text-white ring-1 ring-white/10'
-                  : 'text-slate-400 hover:text-white'
-              )}
-            >
-              Vouching
-            </button>
-          </div>
+              {salesItems.map((item) => (
+                <div key={item.to} className="ml-3">
+                  <NavItem
+                    {...item}
+                    collapsed={sidebarCollapsed}
+                    nested
+                    onNavigate={ensureScrutiny}
+                  />
+                </div>
+              ))}
+            </NavGroup>
+            {scrutinyItems.map((item) => (
+              <NavItem
+                key={item.to}
+                {...item}
+                collapsed={sidebarCollapsed}
+                nested
+                onNavigate={ensureScrutiny}
+              />
+            ))}
+          </NavGroup>
+
+          <NavGroup
+            label="Vouching"
+            icon={GitBranch}
+            collapsed={sidebarCollapsed}
+            open={vouchingOpen}
+            onToggle={() => setVouchingOpen((v) => !v)}
+            active={vouchingActive}
+            badge="Hold"
+          >
+            {vouchingItems.map((item) => (
+              <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} nested />
+            ))}
+          </NavGroup>
+
+          <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
+          <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
+          <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>
-      )}
-
-      <nav className="relative flex-1 overflow-y-auto px-3 pb-8 scrollbar-thin">
-        <SectionLabel collapsed={sidebarCollapsed}>Main</SectionLabel>
-        {mainNav.map((item) => (
-          <NavItem key={item.to} {...item} collapsed={sidebarCollapsed} />
-        ))}
-
-        <SectionLabel collapsed={sidebarCollapsed}>Scrutiny Services</SectionLabel>
-        {!sidebarCollapsed && (
-          <button
-            type="button"
-            onClick={() => setOpenScrutiny((o) => !o)}
-            className="mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-400 hover:bg-white/5 hover:text-slate-200"
-          >
-            <span>Modules</span>
-            <ChevronDown className={cn('h-4 w-4 transition', openScrutiny && 'rotate-180')} />
-          </button>
-        )}
-        <AnimatePresence initial={false}>
-          {(openScrutiny || sidebarCollapsed) && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="space-y-0.5 overflow-hidden"
-            >
-              {scrutinyNav.map((item) => (
-                <NavItem
-                  key={item.to}
-                  {...item}
-                  collapsed={sidebarCollapsed}
-                  disabled={division === 'vouching'}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <SectionLabel
-          collapsed={sidebarCollapsed}
-          right={
-            !sidebarCollapsed ? (
-              <Badge tone="slate" className="!normal-case !tracking-normal !text-[9px]">
-                On hold
-              </Badge>
-            ) : null
-          }
-        >
-          Vouching Division
-        </SectionLabel>
-        {!sidebarCollapsed && (
-          <button
-            type="button"
-            onClick={() => setOpenVouching((o) => !o)}
-            className="mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-500 hover:bg-white/5 hover:text-slate-300"
-          >
-            <span>Modules</span>
-            <ChevronDown className={cn('h-4 w-4 transition', openVouching && 'rotate-180')} />
-          </button>
-        )}
-        <AnimatePresence initial={false}>
-          {(openVouching || sidebarCollapsed) && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="space-y-0.5 overflow-hidden"
-            >
-              {vouchingNav.map((item) => (
-                <NavItem
-                  key={item.to}
-                  {...item}
-                  collapsed={sidebarCollapsed}
-                  disabled={vouchingDisabled && item.to !== '/vouching'}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </nav>
 
-      {!sidebarCollapsed && (
-        <div className="relative border-t border-white/5 px-4 py-4 text-[10px] leading-relaxed text-slate-500">
-          Signed path · {location.pathname}
+      {!sidebarCollapsed ? (
+        <div className="relative mx-5 mb-5 mt-auto">
+          <AnimatePresence>
+            {showUserMenu ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.18 }}
+                className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-float)]"
+              >
+                <div className="flex flex-col items-center border-b border-[var(--color-border-soft)] bg-gradient-to-b from-emerald-50/80 to-[var(--color-surface-elevated)] px-4 py-6 dark:from-emerald-950/40 dark:to-[var(--color-surface-elevated)]">
+                  <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white shadow-[0_12px_32px_rgba(5,150,105,0.28)] ring-4 ring-[var(--color-surface-elevated)]">
+                    {initials}
+                  </div>
+                  <p className="text-center text-sm font-bold text-[var(--color-text-primary)]">{displayName}</p>
+                  {displayEmail ? (
+                    <p className="mt-0.5 max-w-full truncate text-center text-xs text-[var(--color-text-muted)]">
+                      {displayEmail}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/profile');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-emerald-50/80 hover:text-emerald-800 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                  >
+                    <UserCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>My Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/settings');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-emerald-50/80 hover:text-emerald-800 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                  >
+                    <Settings className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAuthSession();
+                      navigate('/login');
+                      setShowUserMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                  >
+                    <LogOut className="h-4 w-4 text-rose-500 dark:text-rose-400" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <button
+            type="button"
+            onClick={() => setShowUserMenu((v) => !v)}
+            className={cn(
+              'w-full rounded-full border bg-[var(--color-surface-elevated)] px-4 py-3 shadow-[var(--shadow-glass)] transition-colors',
+              showUserMenu
+                ? 'border-emerald-200/90 ring-2 ring-emerald-500/15 dark:border-emerald-800/60'
+                : 'border-[var(--color-border-soft)] hover:border-emerald-200/80 hover:bg-[var(--color-surface-subtle)] dark:hover:border-emerald-800/60'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="truncate text-sm font-bold text-[var(--color-text-primary)]">{displayName}</p>
+                <p className="truncate text-xs text-[var(--color-text-muted)]">{displayEmail || 'Signed in'}</p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform',
+                  showUserMenu && 'rotate-180'
+                )}
+              />
+            </div>
+          </button>
         </div>
-      )}
+      ) : null}
     </motion.aside>
   );
 }

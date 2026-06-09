@@ -9,7 +9,7 @@ export default function VouchingHold() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-2xl font-semibold text-slate-900">Vouching division</h2>
-        <Badge tone="slate">On hold</Badge>
+        <Badge tone="neutral">On hold</Badge>
       </div>
       <Card>
         <CardBody>

@@ -1,0 +1,40 @@
+sales_account,product,expected_rate,allowed_deviation_percent,category
+jadau,,,,jadau
+24k,,,,24k
+22k,,,,22k
+18k,,,,18k
+14k,,,,14k
+,jadau,,,jadau
+,jadau necklace,,,jadau
+,jadau haram,,,jadau
+,jadau earrings,,,jadau
+,24k,,,24k
+,24 kt,,,24k
+,24kt,,,24k
+,24 carat,,,24k
+,24carat,,,24k
+,999 gold,,,24k
+,999,,,24k
+,22k,,,22k
+,22 kt,,,22k
+,22kt,,,22k
+,22 carat,,,22k
+,22carat,,,22k
+,916 gold,,,22k
+,916,,,22k
+,black beads,,,22k
+,gold ornament,,,22k
+,gold ornaments,,,22k
+,lac,,,22k
+,dori,,,22k
+,wax,,,22k
+,18k,,,18k
+,18 kt,,,18k
+,18kt,,,18k
+,18 carat,,,18k
+,18carat,,,18k
+,14k,,,14k
+,14 kt,,,14k
+,14kt,,,14k
+,14 carat,,,14k
+,14carat,,,14k
