@@ -8,6 +8,7 @@ import {
   Undo2,
   Download,
   FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -29,6 +30,8 @@ import {
   readAuditSessionData,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
+import { exportRowsToCsv } from '../utils/csvExport';
+import { exportRowsToPdf } from '../utils/pdfExport';
 
 const SALES_RETURN_SESSION_KEY = 'sales-return-audit';
 
@@ -118,6 +121,26 @@ export default function SalesReturnRateAudit() {
     [result]
   );
 
+  const exceptionColumnOrder = useMemo(() => {
+    const internal = result?.exportColumns ?? [];
+    const headers = result?.columnDisplayHeaders ?? {};
+    if (!internal.length || !exceptionRecords.length) return null;
+    const ordered = internal.map((col) => headers[col] || col);
+    ordered.push('Message');
+    return ordered;
+  }, [result?.exportColumns, result?.columnDisplayHeaders, exceptionRecords.length]);
+
+  const exceptionExportColumns = useMemo(() => {
+    if (!exceptionRecords.length) return [];
+    const keys = exceptionColumnOrder?.length
+      ? exceptionColumnOrder
+      : Object.keys(exceptionRecords[0]);
+    return keys.map((header) => ({
+      header,
+      accessor: (row) => row[header] ?? '',
+    }));
+  }, [exceptionRecords, exceptionColumnOrder]);
+
   const summary = result?.summary ?? {};
   const totalReturnRows = result?.totalRows ?? 0;
   const exceptionRowCount = summary.exceptionRowCount ?? exceptionRecords.length;
@@ -139,7 +162,7 @@ export default function SalesReturnRateAudit() {
     ? `Baseline: ${result.salesAuditFileName} (${formatNumber(result.salesAuditBaselineCount ?? summary.salesAuditBaselineCount ?? 0)} products)`
     : 'Sales audit averages loaded from database';
 
-  const exportFinalReport = useCallback(async () => {
+  const exportFinalReportExcel = useCallback(async () => {
     if (!exceptionRecords.length) {
       toast.error('No exception rows to export.');
       return;
@@ -151,13 +174,40 @@ export default function SalesReturnRateAudit() {
         exportColumns: result?.exportColumns,
         columnDisplayHeaders: result?.columnDisplayHeaders,
       });
-      toast.success('Final exception report downloaded');
+      toast.success('Excel report downloaded');
     } catch (e) {
       toast.error(e.message || 'Export failed');
     } finally {
       setExporting(false);
     }
   }, [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]);
+
+  const exportFinalReportCsv = useCallback(() => {
+    if (!exceptionRecords.length) {
+      toast.error('No exception rows to export.');
+      return;
+    }
+    exportRowsToCsv(
+      `sales-return-exception-${Date.now()}.csv`,
+      exceptionExportColumns,
+      exceptionRecords
+    );
+    toast.success('CSV report downloaded');
+  }, [exceptionRecords, exceptionExportColumns]);
+
+  const exportFinalReportPdf = useCallback(() => {
+    if (!exceptionRecords.length) {
+      toast.error('No exception rows to export.');
+      return;
+    }
+    exportRowsToPdf(
+      `sales-return-exception-${Date.now()}.pdf`,
+      'Sales return audit — final exception report',
+      exceptionExportColumns,
+      exceptionRecords
+    );
+    toast.success('PDF report downloaded');
+  }, [exceptionRecords, exceptionExportColumns]);
 
   return (
     <div className="relative space-y-8">
@@ -244,16 +294,36 @@ export default function SalesReturnRateAudit() {
                 <h3 className="text-base font-bold text-emerald-700">Audit summary</h3>
                 <p className="text-sm text-slate-500">{salesBaselineLabel}</p>
               </div>
-              <Button
-                variant="primary"
-                size="md"
-                loading={exporting}
-                disabled={exporting || !exceptionRecords.length}
-                onClick={exportFinalReport}
-              >
-                <Download className="h-4 w-4" />
-                Export final exception report
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={exporting}
+                  disabled={exporting || !exceptionRecords.length}
+                  onClick={exportFinalReportExcel}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Export Excel
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  disabled={exporting || !exceptionRecords.length}
+                  onClick={exportFinalReportCsv}
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  disabled={exporting || !exceptionRecords.length}
+                  onClick={exportFinalReportPdf}
+                >
+                  <FileText className="h-4 w-4" />
+                  Export PDF
+                </Button>
+              </div>
             </div>
             <div className="flex flex-wrap items-stretch gap-4">
               <div className="min-w-[190px] h-[120px]">
@@ -318,13 +388,16 @@ export default function SalesReturnRateAudit() {
                 <h3 className="text-base font-bold text-emerald-700">Final exception report</h3>
                 <p className="text-sm text-slate-500">
                   All validation and rate comparison issues in one view. Original upload columns are
-                  preserved with Issue and Message appended.
+                  preserved with Message (issue codes) appended.
                 </p>
               </div>
             </CardHeader>
             <CardBody>
               {exceptionRecords.length ? (
-                <SalesReturnExceptionTable data={exceptionRecords} />
+                <SalesReturnExceptionTable
+                  data={exceptionRecords}
+                  columnOrder={exceptionColumnOrder}
+                />
               ) : (
                 <EmptyState
                   title="No exceptions found"

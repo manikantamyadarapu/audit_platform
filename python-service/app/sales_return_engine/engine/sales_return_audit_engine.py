@@ -243,7 +243,4 @@ class SalesReturnAuditEngine:
             updated['messages'] = mapped_messages
         elif INVALID_LEDGER_MAPPING in mapped_issues and not record.get('messages'):
             updated['messages'] = ['Invalid sales return ledger mapping.']
-        from app.sales_return_engine.exception_report import _messages_for_issues as resolve_messages
-
-        updated['messages'] = resolve_messages(mapped_issues, updated)
         return updated

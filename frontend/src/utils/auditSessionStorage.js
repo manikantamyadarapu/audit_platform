@@ -22,14 +22,19 @@ function slimSalesRecord(record) {
   return slim;
 }
 
-/** Shrink sales audit payloads so large ledgers fit in localStorage. */
+/** Shrink audit payloads so large result sets fit in localStorage. */
 export function slimSalesLedgerSnapshot(snapshot) {
-  if (!snapshot?.result?.records?.length) return snapshot;
+  const records = snapshot?.result?.records;
+  const exceptionRecords = snapshot?.result?.exceptionRecords;
+  if (!records?.length && !exceptionRecords?.length) return snapshot;
   return {
     ...snapshot,
     result: {
       ...snapshot.result,
-      records: snapshot.result.records.map(slimSalesRecord),
+      ...(records?.length ? { records: records.map(slimSalesRecord) } : {}),
+      ...(exceptionRecords?.length
+        ? { exceptionRecords: exceptionRecords.map(slimSalesRecord) }
+        : {}),
     },
   };
 }
