@@ -113,6 +113,16 @@ def combine_rate_validation_columns(
     diamond_below = pl.col('__diamond_rate_below_min').fill_null(False)
     diamond_above = pl.col('__diamond_rate_above_max').fill_null(False)
     diamond_unit_missing = pl.col('__diamond_unit_rate_missing').fill_null(False)
+    customer_unit_rate_products = pl.col(product_col).is_in(
+        [
+            'CUSTOMER DIAMONDS',
+            'CUSTOMER EMERALDS',
+            'CUSTOMER FLAT POLKI',
+            'CUSTOMER PEARLS',
+            'CUSTOMER RUBIES',
+            'CUSTOMER STONES',
+        ]
+    )
     combined_below = (
         (metal_invalid & pl.col('__metal_rate_below_min').fill_null(False))
         | gem_below
@@ -125,6 +135,13 @@ def combine_rate_validation_columns(
         pl.col('__metal_unit_rate_missing').fill_null(False)
         | gem_unit_missing
         | diamond_unit_missing
+        | (
+            customer_unit_rate_products
+            & (
+                pl.col(uploaded_unit_rate_col).is_null()
+                | ((pl.col(uploaded_unit_rate_col) >= 0) & (pl.col(uploaded_unit_rate_col) <= 1))
+            )
+        )
     )
     combined_invalid = (
         gem_invalid | metal_invalid | diamond_invalid | combined_unit_missing.fill_null(False)
