@@ -217,20 +217,26 @@ async def export_sales_return_exception_rows(
         raise ValueError('Request body must include "records" or validation/comparison issue arrays')
 
     export_columns = None
-    header_map = None
     if payload.exportColumns and payload.columnDisplayHeaders:
-        export_columns, header_map = build_export_metadata(
+        export_columns, _header_map = build_export_metadata(
             payload.exportColumns,
             payload.columnDisplayHeaders,
         )
+    elif payload.exportColumns and records:
+        sample_keys = set(records[0].keys())
+        if payload.exportColumns[0] in sample_keys:
+            export_columns = list(payload.exportColumns)
+        else:
+            export_columns, _header_map = build_export_metadata(
+                payload.exportColumns,
+                payload.columnDisplayHeaders or {},
+            )
     elif records:
         export_columns = list(records[0].keys())
-        header_map = {column: column for column in export_columns}
 
     excel_bytes = export_sales_return_exceptions(
         records,
         export_columns=export_columns,
-        header_map=header_map,
     )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'sales-return-audit-report-{timestamp}.xlsx'

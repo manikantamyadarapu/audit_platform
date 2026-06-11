@@ -12,11 +12,14 @@ from app.sales_engine.engine.vectorized_sales_engine import (
     VectorizedSalesEngine,
     _strict_unsigned_number_expr,
 )
+from app.utils.normalization_engine import normalize_strict_text
 
 HIGHER_SALES_RETURN_RATE = 'HIGHER_SALES_RETURN_RATE'
 HIGHER_SALES_RETURN_RATE_MSG = (
     'Average sales return rate is higher than average sales rate.'
 )
+PRODUCT_NOT_FOUND_IN_SALES = 'PRODUCT_NOT_FOUND_IN_SALES'
+PRODUCT_NOT_FOUND_IN_SALES_MSG = 'Product not found in Sales Audit file.'
 INVALID_FREE_QUANTITY = 'INVALID_FREE_QUANTITY'
 INVALID_FREE_QUANTITY_MSG = 'Free quantity not allowed for this product.'
 
@@ -36,6 +39,7 @@ class ProductAverage:
     total_quantity: float
     average_rate: float
     sales_account: str = ''
+    transaction_count: int = 0
 
 
 @dataclass(slots=True)
@@ -106,6 +110,7 @@ def _product_averages_by_exact_name(
             pl.col('__parsed_gross_amount').sum().alias('total_gross'),
             pl.col('__parsed_quantity').sum().alias('total_qty'),
             pl.col('__exact_product').first().alias('product_display'),
+            pl.len().alias('transaction_count'),
         )
         .filter(pl.col('total_qty') > 0)
     )
@@ -122,6 +127,7 @@ def _product_averages_by_exact_name(
             total_gross_amount=total_gross,
             total_quantity=total_qty,
             average_rate=total_gross / total_qty,
+            transaction_count=int(row.get('transaction_count') or 0),
         )
     return averages
 
@@ -141,6 +147,7 @@ def sales_averages_from_stored_records(
             continue
         average_rate = float(row.get('averageRate') or row.get('average_rate') or (total_gross / total_qty))
         sales_account = str(row.get('salesAccount') or row.get('sales_account') or '').strip()
+        transaction_count = int(row.get('transactionCount') or row.get('transaction_count') or 0)
         averages[product] = ProductAverage(
             product_key=product,
             product=product,
@@ -148,8 +155,112 @@ def sales_averages_from_stored_records(
             total_quantity=total_qty,
             average_rate=average_rate,
             sales_account=sales_account,
+            transaction_count=transaction_count,
         )
     return averages
+
+
+def _sales_average_norm_index(sales_averages: dict[str, ProductAverage]) -> dict[str, str]:
+    """Map normalized product label -> key in sales_averages."""
+    index: dict[str, str] = {}
+    for key, avg in sales_averages.items():
+        for candidate in (key, avg.product):
+            norm = normalize_strict_text(candidate)
+            if norm and norm not in index:
+                index[norm] = key
+    return index
+
+
+def resolve_sales_product_average(
+    product_key: str,
+    product_display: str,
+    sales_averages: dict[str, ProductAverage],
+    norm_index: dict[str, str] | None = None,
+) -> ProductAverage | None:
+    """Resolve stored sales baseline by exact or normalized product name."""
+    direct = sales_averages.get(product_key) or sales_averages.get(product_display)
+    if direct is not None:
+        return direct
+    lookup = norm_index if norm_index is not None else _sales_average_norm_index(sales_averages)
+    for candidate in (product_key, product_display):
+        canonical = lookup.get(normalize_strict_text(candidate))
+        if canonical:
+            return sales_averages.get(canonical)
+    return None
+
+
+def _comparison_record_from_averages(
+    *,
+    return_avg: ProductAverage,
+    sales_avg: ProductAverage | None,
+) -> dict[str, Any]:
+    if sales_avg is None:
+        return {
+            'product': return_avg.product,
+            'returnTransactionCount': return_avg.transaction_count,
+            'salesTotalGrossAmount': 0,
+            'salesTotalQuantity': 0,
+            'salesAverageRate': 0,
+            'returnTotalGrossAmount': round(return_avg.total_gross_amount, 4),
+            'returnTotalQuantity': round(return_avg.total_quantity, 4),
+            'returnAverageRate': round(return_avg.average_rate, 4),
+            'difference': 0,
+            'issues': [PRODUCT_NOT_FOUND_IN_SALES],
+            'messages': [PRODUCT_NOT_FOUND_IN_SALES_MSG],
+            'status': 'MISSING_BASELINE',
+        }
+
+    difference = return_avg.average_rate - sales_avg.average_rate
+    if difference > 0:
+        issues = [HIGHER_SALES_RETURN_RATE]
+        messages = [HIGHER_SALES_RETURN_RATE_MSG]
+        status = 'VIOLATION'
+    else:
+        issues = []
+        messages = []
+        status = 'OK'
+
+    return {
+        'product': return_avg.product,
+        'returnTransactionCount': return_avg.transaction_count,
+        'salesTotalGrossAmount': round(sales_avg.total_gross_amount, 4),
+        'salesTotalQuantity': round(sales_avg.total_quantity, 4),
+        'salesAverageRate': round(sales_avg.average_rate, 4),
+        'returnTotalGrossAmount': round(return_avg.total_gross_amount, 4),
+        'returnTotalQuantity': round(return_avg.total_quantity, 4),
+        'returnAverageRate': round(return_avg.average_rate, 4),
+        'difference': round(difference, 4),
+        'issues': issues,
+        'messages': messages,
+        'status': status,
+    }
+
+
+def build_all_product_average_comparison_records(
+    sales_averages: dict[str, ProductAverage],
+    return_averages: dict[str, ProductAverage],
+) -> list[dict[str, Any]]:
+    """
+    One row per product in the return file with aggregated sales vs return averages.
+    Includes compliant products (status OK), violations, and missing sales baselines.
+    """
+    norm_index = _sales_average_norm_index(sales_averages)
+    records: list[dict[str, Any]] = []
+    for product_key in sorted(
+        return_averages.keys(),
+        key=lambda key: (return_averages[key].product or key).lower(),
+    ):
+        return_avg = return_averages[product_key]
+        sales_avg = resolve_sales_product_average(
+            product_key,
+            return_avg.product,
+            sales_averages,
+            norm_index,
+        )
+        records.append(
+            _comparison_record_from_averages(return_avg=return_avg, sales_avg=sales_avg)
+        )
+    return records
 
 
 def calculate_sales_return_average_rates(
@@ -168,9 +279,15 @@ def compare_average_rates(
     Compare exact product names only. Flag when return average rate exceeds sales average rate.
     Products without a stored sales baseline are skipped.
     """
+    norm_index = _sales_average_norm_index(sales_averages)
     violations: list[RateComparisonRow] = []
     for product_key, return_avg in return_averages.items():
-        sales_avg = sales_averages.get(product_key)
+        sales_avg = resolve_sales_product_average(
+            product_key,
+            return_avg.product,
+            sales_averages,
+            norm_index,
+        )
         if sales_avg is None:
             continue
         if return_avg.average_rate <= sales_avg.average_rate:

@@ -47,7 +47,7 @@ class SalesAuditProcessor(BaseProcessor):
             or result.summary.get('errorRowsCount')
             or len(result.records)
         )
-        return build_processing_response(
+        response = build_processing_response(
             file_type='sales',
             total_rows=result.total_rows,
             error_rows=distinct_invalid,
@@ -55,3 +55,8 @@ class SalesAuditProcessor(BaseProcessor):
             records=result.records,
             product_averages=result.product_averages,
         )
+        response['exceptionRecords'] = result.exception_records
+        response['exportColumns'] = result.export_columns
+        response['columnDisplayHeaders'] = result.column_display_headers
+        response['sourceColumns'] = result.source_columns
+        return response

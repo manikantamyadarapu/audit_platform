@@ -94,20 +94,18 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
       if (!data?.result && !data?.sheetError && !data?.fileName) return false;
 
       const transform = optionsRef.current.transform;
+      const payloadToStore = transform ? transform(data) : data;
       const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}`;
       if (persistKey === lastPersistKeyRef.current) return true;
       lastPersistKeyRef.current = persistKey;
 
-      const ok = saveAuditSession(registryKey, data, { transform });
+      const ok = saveAuditSession(registryKey, payloadToStore);
       if (ok) {
         updateSessionMeta(readAuditSessionMeta(registryKey));
-        scheduleRemoteSave(data, auditRunId);
-        return true;
       }
 
-      optionsRef.current.onSaveFailed?.();
-      scheduleRemoteSave(data, auditRunId);
-      return false;
+      scheduleRemoteSave(payloadToStore, auditRunId);
+      return ok;
     },
     [registryKey, scheduleRemoteSave, updateSessionMeta]
   );
@@ -136,9 +134,10 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         ? new Date(session.expiresAt).getTime()
         : savedAt + 7 * 24 * 60 * 60 * 1000;
 
-      saveAuditSession(registryKey, session.results, {
-        transform: optionsRef.current.transform,
-      });
+      const payloadToStore = optionsRef.current.transform
+        ? optionsRef.current.transform(session.results)
+        : session.results;
+      saveAuditSession(registryKey, payloadToStore);
       updateSessionMeta({ savedAt, expiresAt });
       applySessionPayload(session.results);
       hydratedRef.current = true;

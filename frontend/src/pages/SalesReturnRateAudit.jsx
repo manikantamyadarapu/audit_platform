@@ -18,9 +18,17 @@ import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SalesReturnExceptionTable } from '../components/tables/SalesReturnExceptionTable';
+import { SalesReturnRateComparisonTable } from '../components/tables/SalesReturnRateComparisonTable';
+import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
+
+const SALES_RETURN_FILTER_LABELS = {
+  ...SALES_FILTER_LABELS,
+  higherReturnRate: 'Higher sales return rate',
+};
 import {
-  exportSalesReturnConsolidated,
+  exportSalesReturnRateComparison,
   validateSalesReturnAudit,
 } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
@@ -32,6 +40,10 @@ import {
 } from '../utils/auditSessionStorage';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
+import {
+  downloadSalesReturnExceptionXlsx,
+  resolveSalesReturnExportColumns,
+} from '../utils/salesReturnXlsxExport';
 
 const SALES_RETURN_SESSION_KEY = 'sales-return-audit';
 
@@ -48,10 +60,14 @@ export default function SalesReturnRateAudit() {
   const [sheetError, setSheetError] = useState(
     () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.sheetError ?? null
   );
+  const [activeFilter, setActiveFilter] = useState(
+    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.activeFilter ?? null
+  );
 
   const applySession = useCallback((data) => {
     setResult(data?.result ?? null);
     setSheetError(data?.sheetError ?? null);
+    setActiveFilter(data?.activeFilter ?? null);
     setRestoredFileName(data?.fileName ?? null);
     setReturnFile(null);
   }, []);
@@ -60,10 +76,10 @@ export default function SalesReturnRateAudit() {
     () => ({
       result,
       sheetError,
-      activeFilter: null,
+      activeFilter,
       fileName: returnFile?.name ?? restoredFileName ?? null,
     }),
-    [result, sheetError, returnFile?.name, restoredFileName]
+    [result, sheetError, activeFilter, returnFile?.name, restoredFileName]
   );
 
   const {
@@ -76,9 +92,6 @@ export default function SalesReturnRateAudit() {
   } = useAuditSessionPersistence(SALES_RETURN_SESSION_KEY, sessionSnapshot, {
     transform: slimSalesLedgerSnapshot,
     onApplySession: applySession,
-    onSaveFailed: () => {
-      toast.error('Results are too large to keep in the browser. Export the final exception report.');
-    },
   });
 
   const displayFile =
@@ -92,6 +105,7 @@ export default function SalesReturnRateAudit() {
     setLoading(true);
     setResult(null);
     setSheetError(null);
+    setActiveFilter(null);
     try {
       const data = await validateSalesReturnAudit(returnFile);
       if (data && data.success === false) {
@@ -116,98 +130,156 @@ export default function SalesReturnRateAudit() {
     }
   }, [returnFile, persist]);
 
+  const productComparisonRecords = useMemo(
+    () =>
+      result?.productAverageComparisonRecords ??
+      result?.rateComparisonRecords ??
+      result?.comparisonIssues ??
+      [],
+    [result]
+  );
+
+  const filteredProductComparison = useMemo(() => {
+    if (activeFilter === 'higherReturnRate') {
+      return productComparisonRecords.filter(
+        (row) => row.status === 'VIOLATION' || (row.issues || []).includes('HIGHER_SALES_RETURN_RATE')
+      );
+    }
+    return productComparisonRecords;
+  }, [productComparisonRecords, activeFilter]);
+
   const exceptionRecords = useMemo(
     () => result?.exceptionRecords ?? result?.records ?? [],
     [result]
   );
 
-  const exceptionColumnOrder = useMemo(() => {
-    const internal = result?.exportColumns ?? [];
-    const headers = result?.columnDisplayHeaders ?? {};
-    if (!internal.length || !exceptionRecords.length) return null;
-    const ordered = internal.map((col) => headers[col] || col);
-    ordered.push('Message');
-    return ordered;
-  }, [result?.exportColumns, result?.columnDisplayHeaders, exceptionRecords.length]);
+  const exceptionColumnOrder = useMemo(
+    () =>
+      exceptionRecords.length
+        ? resolveSalesReturnExportColumns(
+            exceptionRecords,
+            result?.exportColumns,
+            result?.columnDisplayHeaders
+          )
+        : null,
+    [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]
+  );
 
-  const exceptionExportColumns = useMemo(() => {
-    if (!exceptionRecords.length) return [];
+  const filteredRecords = useMemo(
+    () => filterSalesRecords(exceptionRecords, activeFilter),
+    [exceptionRecords, activeFilter]
+  );
+
+  const exportFilteredColumnOrder = useMemo(() => {
+    if (!filteredRecords.length) return exceptionColumnOrder;
     const keys = exceptionColumnOrder?.length
       ? exceptionColumnOrder
-      : Object.keys(exceptionRecords[0]);
-    return keys.map((header) => ({
+      : Object.keys(filteredRecords[0]);
+    return keys.filter((key) => key in filteredRecords[0]);
+  }, [filteredRecords, exceptionColumnOrder]);
+
+  const exceptionExportColumns = useMemo(() => {
+    const order = exportFilteredColumnOrder ?? [];
+    if (!filteredRecords.length || !order.length) return [];
+    return order.map((header) => ({
       header,
       accessor: (row) => row[header] ?? '',
     }));
-  }, [exceptionRecords, exceptionColumnOrder]);
+  }, [filteredRecords, exportFilteredColumnOrder]);
+
+  const toggleCardFilter = useCallback((key) => {
+    setActiveFilter((prev) => (prev === key ? null : key));
+  }, []);
 
   const summary = result?.summary ?? {};
-  const totalReturnRows = result?.totalRows ?? 0;
-  const exceptionRowCount = summary.exceptionRowCount ?? exceptionRecords.length;
-  const returnErrorRows =
-    summary.returnValidationErrorRows ??
+  const totalRows = result?.totalRows ?? 0;
+  const errorRows =
     summary.distinctInvalidRows ??
     summary.errorRowsCount ??
-    0;
+    summary.exceptionRowCount ??
+    result?.errorRows ??
+    exceptionRecords.length;
   const higherRateProducts = summary.higherReturnRateProducts ?? 0;
+  const productComparisonCount =
+    summary.productAverageComparisonCount ?? productComparisonRecords.length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
-  const freeQuantityCount = summary.invalidUnitRateRangeRows ?? 0;
-  const uomErrors = summary.invalidUomRows ?? summary.caratGemErrorRows ?? 0;
+  const accessoriesUnitRateCount = filterSalesRecords(exceptionRecords, 'accessoriesUnitRate').length;
+  const caratGemErrors =
+    summary.invalidUomRows ??
+    summary.caratGemErrorRows ??
+    filterSalesRecords(exceptionRecords, 'caratGemErrors').length;
   const compliance =
-    totalReturnRows > 0
-      ? Math.max(0, Math.min(100, ((totalReturnRows - returnErrorRows) / totalReturnRows) * 100))
-      : null;
+    totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
   const salesBaselineLabel = result?.salesAuditFileName
     ? `Baseline: ${result.salesAuditFileName} (${formatNumber(result.salesAuditBaselineCount ?? summary.salesAuditBaselineCount ?? 0)} products)`
     : 'Sales audit averages loaded from database';
 
-  const exportFinalReportExcel = useCallback(async () => {
-    if (!exceptionRecords.length) {
+  const exportProductComparisonExcel = useCallback(async () => {
+    if (!filteredProductComparison.length) {
+      toast.error('No product averages to export.');
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportSalesReturnRateComparison(filteredProductComparison);
+      toast.success('Product average report downloaded');
+    } catch (e) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [filteredProductComparison]);
+
+  const exportFinalReportExcel = useCallback(() => {
+    if (!filteredRecords.length) {
       toast.error('No exception rows to export.');
       return;
     }
     setExporting(true);
     try {
-      await exportSalesReturnConsolidated({
-        records: exceptionRecords,
-        exportColumns: result?.exportColumns,
-        columnDisplayHeaders: result?.columnDisplayHeaders,
-      });
+      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+      downloadSalesReturnExceptionXlsx(
+        filteredRecords,
+        exportFilteredColumnOrder,
+        `sales-return-exceptions-${tag}-${Date.now()}.xlsx`
+      );
       toast.success('Excel report downloaded');
     } catch (e) {
       toast.error(e.message || 'Export failed');
     } finally {
       setExporting(false);
     }
-  }, [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]);
+  }, [filteredRecords, activeFilter, exportFilteredColumnOrder]);
 
   const exportFinalReportCsv = useCallback(() => {
-    if (!exceptionRecords.length) {
+    if (!filteredRecords.length) {
       toast.error('No exception rows to export.');
       return;
     }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
     exportRowsToCsv(
-      `sales-return-exception-${Date.now()}.csv`,
+      `sales-return-exception-${tag}-${Date.now()}.csv`,
       exceptionExportColumns,
-      exceptionRecords
+      filteredRecords
     );
     toast.success('CSV report downloaded');
-  }, [exceptionRecords, exceptionExportColumns]);
+  }, [filteredRecords, activeFilter, exceptionExportColumns]);
 
   const exportFinalReportPdf = useCallback(() => {
-    if (!exceptionRecords.length) {
+    if (!filteredRecords.length) {
       toast.error('No exception rows to export.');
       return;
     }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
     exportRowsToPdf(
-      `sales-return-exception-${Date.now()}.pdf`,
+      `sales-return-exception-${tag}-${Date.now()}.pdf`,
       'Sales return audit — final exception report',
       exceptionExportColumns,
-      exceptionRecords
+      filteredRecords
     );
     toast.success('PDF report downloaded');
-  }, [exceptionRecords, exceptionExportColumns]);
+  }, [filteredRecords, activeFilter, exceptionExportColumns]);
 
   return (
     <div className="relative space-y-8">
@@ -289,92 +361,100 @@ export default function SalesReturnRateAudit() {
       {result ? (
         <>
           <section>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-base font-bold text-emerald-700">Audit summary</h3>
-                <p className="text-sm text-slate-500">{salesBaselineLabel}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exporting}
-                  disabled={exporting || !exceptionRecords.length}
-                  onClick={exportFinalReportExcel}
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Export Excel
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  disabled={exporting || !exceptionRecords.length}
-                  onClick={exportFinalReportCsv}
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  disabled={exporting || !exceptionRecords.length}
-                  onClick={exportFinalReportPdf}
-                >
-                  <FileText className="h-4 w-4" />
-                  Export PDF
-                </Button>
-              </div>
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-emerald-700">Summary</h3>
+              <p className="text-sm text-slate-500">{salesBaselineLabel}</p>
             </div>
             <div className="flex flex-wrap items-stretch gap-4">
               <div className="min-w-[190px] h-[120px]">
-                <KpiCard label="Return rows" value={formatNumber(totalReturnRows)} icon={Rows3} accent="blue" />
+                <KpiCard label="Total rows" value={formatNumber(totalRows)} icon={Rows3} accent="blue" />
               </div>
+
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Exception rows"
-                  value={formatNumber(exceptionRowCount)}
+                  label="Error rows"
+                  value={formatNumber(errorRows)}
                   icon={AlertTriangle}
                   accent="amber"
+                  interactive
+                  selected={activeFilter === 'errors'}
+                  onClick={() => toggleCardFilter('errors')}
                 />
               </div>
+
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Validation errors"
-                  value={formatNumber(returnErrorRows)}
-                  icon={AlertTriangle}
-                  accent="amber"
+                  label="Account vs product"
+                  value={formatNumber(catVsProduct)}
+                  icon={BookOpen}
+                  accent="rose"
+                  interactive
+                  selected={activeFilter === 'accountVsProduct'}
+                  onClick={() => toggleCardFilter('accountVsProduct')}
                 />
               </div>
-              <div className="min-w-[190px] h-[120px]">
-                <KpiCard label="Ledger mapping" value={formatNumber(catVsProduct)} icon={BookOpen} accent="rose" />
-              </div>
-              <div className="min-w-[190px] h-[120px]">
-                <KpiCard label="Rate deviations" value={formatNumber(rateViolations)} icon={BookOpen} accent="amber" />
-              </div>
+
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Free quantity check"
-                  value={formatNumber(freeQuantityCount)}
+                  label="Range deviations"
+                  value={formatNumber(rateViolations)}
                   icon={BookOpen}
                   accent="amber"
+                  interactive
+                  selected={activeFilter === 'mixedLedgers'}
+                  onClick={() => toggleCardFilter('mixedLedgers')}
                 />
               </div>
-              <div className="min-w-[190px] h-[120px]">
-                <KpiCard label="UOM deviations" value={formatNumber(uomErrors)} icon={Gem} accent="violet" />
-              </div>
+
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Higher return rate"
+                  label="Accessories Unit Rate Check"
+                  value={formatNumber(accessoriesUnitRateCount)}
+                  icon={BookOpen}
+                  accent="amber"
+                  interactive
+                  selected={activeFilter === 'accessoriesUnitRate'}
+                  onClick={() => toggleCardFilter('accessoriesUnitRate')}
+                />
+              </div>
+
+              <div className="min-w-[190px] h-[120px]">
+                <KpiCard
+                  label="Unit of measurement deviations"
+                  value={formatNumber(caratGemErrors)}
+                  icon={Gem}
+                  accent="violet"
+                  interactive
+                  selected={activeFilter === 'caratGemErrors'}
+                  onClick={() => toggleCardFilter('caratGemErrors')}
+                />
+              </div>
+
+              <div className="min-w-[190px] h-[120px]">
+                <KpiCard
+                  label="Products compared"
+                  value={formatNumber(productComparisonCount)}
+                  icon={Rows3}
+                  accent="blue"
+                />
+              </div>
+
+              <div className="min-w-[190px] h-[120px]">
+                <KpiCard
+                  label="Higher sales return rate"
                   value={formatNumber(higherRateProducts)}
                   icon={Undo2}
                   accent="rose"
+                  interactive
+                  selected={activeFilter === 'higherReturnRate'}
+                  onClick={() => toggleCardFilter('higherReturnRate')}
                 />
               </div>
+
               <div className="min-w-[190px] h-[120px]">
                 <KpiCard
-                  label="Return compliance"
+                  label="Compliance"
                   value={compliance != null ? formatPercent(compliance) : '—'}
-                  hint="Clean return rows / total return rows"
                   icon={Rows3}
                   accent="emerald"
                 />
@@ -385,19 +465,92 @@ export default function SalesReturnRateAudit() {
           <Card>
             <CardHeader>
               <div>
-                <h3 className="text-base font-bold text-emerald-700">Final exception report</h3>
+                <h3 className="text-base font-bold text-emerald-700">Product-wise average comparison</h3>
                 <p className="text-sm text-slate-500">
-                  All validation and rate comparison issues in one view. Original upload columns are
-                  preserved with Message (issue codes) appended.
+                  One row per product. Return rows are combined using SUM(gross) ÷ SUM(quantity), then
+                  compared to the stored Sales Audit baseline.
                 </p>
               </div>
             </CardHeader>
             <CardBody>
-              {exceptionRecords.length ? (
-                <SalesReturnExceptionTable
-                  data={exceptionRecords}
-                  columnOrder={exceptionColumnOrder}
+              {productComparisonRecords.length ? (
+                <SalesReturnRateComparisonTable
+                  data={filteredProductComparison}
+                  exporting={exporting}
+                  onExportXlsx={exportProductComparisonExcel}
                 />
+              ) : (
+                <EmptyState
+                  title="No product averages"
+                  description="No eligible return products were found for average comparison."
+                />
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-emerald-700">Row-level exception report</h3>
+                  <p className="text-sm text-slate-500">
+                    All validation and rate comparison issues in one view. Original upload columns are
+                    preserved with Message (issue codes) appended.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={exporting}
+                    disabled={exporting || !filteredRecords.length}
+                    onClick={exportFinalReportExcel}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || !filteredRecords.length}
+                    onClick={exportFinalReportCsv}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || !filteredRecords.length}
+                    onClick={exportFinalReportPdf}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardBody>
+              {exceptionRecords.length || activeFilter != null ? (
+                <div className="space-y-4">
+                  <AuditFilterStrip
+                    activeFilter={activeFilter}
+                    labels={SALES_RETURN_FILTER_LABELS}
+                    count={filteredRecords.length}
+                    onClear={() => setActiveFilter(null)}
+                  />
+                  {filteredRecords.length ? (
+                    <SalesReturnExceptionTable
+                      data={filteredRecords}
+                      columnOrder={exportFilteredColumnOrder}
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No rows for this filter"
+                      description="Clear the filter or choose a different issue category."
+                    />
+                  )}
+                </div>
               ) : (
                 <EmptyState
                   title="No exceptions found"

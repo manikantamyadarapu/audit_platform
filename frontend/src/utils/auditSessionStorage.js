@@ -7,35 +7,89 @@ export const AUDIT_SESSION_RETENTION_DAYS = 7;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const LEGACY_KEY_PREFIX = 'audit-session:';
 
-const SALES_RECORD_STORAGE_OMIT = new Set([
-  'rawExcelRowJson',
-  'rawJson',
-  'metadata',
+const SALES_RECORD_STORAGE_OMIT = new Set(['rawExcelRowJson', 'rawJson', 'metadata']);
+
+const FAT_RECORD_KEYS = new Set([
+  'uploadedUnitRate',
+  'uploadedRate',
+  'masterStandardRate',
+  'standardRate',
+  'currentMarketRate',
+  'minAllowedRate',
+  'maxAllowedRate',
+  'deviationPercent',
+  'rateDifference',
+  'rateValidationSource',
+  'validationStatus',
+  'parsedQuantity',
+  'validationSalesAccount',
+  'validationProduct',
+  'voucherNorm',
+  'auditStatus',
+  'auditReason',
+  'rateMessage',
+  'messages',
+  'rawUnitRate',
+  'originalExcelSalesAccount',
+  'originalExcelProduct',
+  'originalExcelUnitRate',
 ]);
 
 function slimSalesRecord(record) {
   if (!record || typeof record !== 'object') return record;
-  const slim = { ...record };
-  for (const key of SALES_RECORD_STORAGE_OMIT) {
-    delete slim[key];
+
+  if ('Message' in record) {
+    const slim = { ...record };
+    for (const key of SALES_RECORD_STORAGE_OMIT) {
+      delete slim[key];
+    }
+    return slim;
+  }
+
+  const slim = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (SALES_RECORD_STORAGE_OMIT.has(key)) continue;
+    if (key.startsWith('__')) continue;
+    if (FAT_RECORD_KEYS.has(key)) continue;
+    slim[key] = value;
   }
   return slim;
 }
 
-/** Shrink audit payloads so large result sets fit in localStorage. */
+function slimAuditResult(result) {
+  if (!result || typeof result !== 'object') return result;
+
+  const sourceRows = result.exceptionRecords?.length
+    ? result.exceptionRecords
+    : result.records;
+  const rows = Array.isArray(sourceRows) ? sourceRows.map(slimSalesRecord) : [];
+
+  return {
+    success: result.success,
+    fileType: result.fileType,
+    totalRows: result.totalRows,
+    errorRows: result.errorRows,
+    summary: result.summary,
+    exportColumns: result.exportColumns,
+    columnDisplayHeaders: result.columnDisplayHeaders,
+    sourceColumns: result.sourceColumns,
+    auditRunId: result.auditRunId,
+    salesAuditFileName: result.salesAuditFileName,
+    salesAuditBaselineCount: result.salesAuditBaselineCount,
+    salesAuditRunId: result.salesAuditRunId,
+    productAverageComparisonRecords: result.productAverageComparisonRecords,
+    rateComparisonRecords: result.rateComparisonRecords,
+    exceptionRecords: rows,
+    records: rows,
+  };
+}
+
+/** Shrink sales / sales-return audit payloads for localStorage and DB session saves. */
 export function slimSalesLedgerSnapshot(snapshot) {
-  const records = snapshot?.result?.records;
-  const exceptionRecords = snapshot?.result?.exceptionRecords;
-  if (!records?.length && !exceptionRecords?.length) return snapshot;
+  if (!snapshot?.result) return snapshot;
   return {
     ...snapshot,
-    result: {
-      ...snapshot.result,
-      ...(records?.length ? { records: records.map(slimSalesRecord) } : {}),
-      ...(exceptionRecords?.length
-        ? { exceptionRecords: exceptionRecords.map(slimSalesRecord) }
-        : {}),
-    },
+    result: slimAuditResult(snapshot.result),
   };
 }
 

@@ -18,6 +18,7 @@ import { exportRowsToCsv } from '../../utils/csvExport';
 
 const EXPORT_COLS = [
   { header: 'Product', accessor: (r) => r.product ?? '' },
+  { header: 'Return Transaction Count', accessor: (r) => r.returnTransactionCount ?? '' },
   { header: 'Sales Total Gross Amount', accessor: (r) => r.salesTotalGrossAmount ?? '' },
   { header: 'Sales Total Quantity', accessor: (r) => r.salesTotalQuantity ?? '' },
   { header: 'Sales Average Rate', accessor: (r) => r.salesAverageRate ?? '' },
@@ -25,6 +26,7 @@ const EXPORT_COLS = [
   { header: 'Sales Return Total Quantity', accessor: (r) => r.returnTotalQuantity ?? '' },
   { header: 'Sales Return Average Rate', accessor: (r) => r.returnAverageRate ?? '' },
   { header: 'Difference', accessor: (r) => r.difference ?? '' },
+  { header: 'Status', accessor: (r) => r.status ?? '' },
   { header: 'Issue', accessor: (r) => (r.issues || []).join('; ') },
   { header: 'Message', accessor: (r) => (r.messages || []).join('; ') },
 ];
@@ -48,6 +50,13 @@ export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, 
         accessorKey: 'product',
         header: 'Product',
         cell: (info) => <span className="text-sm text-slate-800">{info.getValue() || '—'}</span>,
+      },
+      {
+        accessorKey: 'returnTransactionCount',
+        header: 'Return rows',
+        cell: (info) => (
+          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 0)}</span>
+        ),
       },
       {
         accessorKey: 'salesTotalGrossAmount',
@@ -94,9 +103,26 @@ export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, 
       {
         accessorKey: 'difference',
         header: 'Difference',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-rose-700">{formatNumber(info.getValue(), 2)}</span>
-        ),
+        cell: (info) => {
+          const value = info.getValue();
+          const tone = Number(value) > 0 ? 'text-rose-700' : 'text-slate-800';
+          return <span className={`text-sm tabular-nums ${tone}`}>{formatNumber(value, 2)}</span>;
+        },
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: (info) => {
+          const value = info.getValue();
+          if (!value) return <span className="text-slate-400">—</span>;
+          const tone =
+            value === 'VIOLATION' ? 'rose' : value === 'MISSING_BASELINE' ? 'amber' : 'emerald';
+          return (
+            <Badge tone={tone} caps={false} className="text-[10px] font-medium">
+              {String(value).replace(/_/g, ' ')}
+            </Badge>
+          );
+        },
       },
       {
         accessorKey: 'issues',

@@ -10,6 +10,7 @@ import {
   Rows3,
   Download,
   FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -18,13 +19,17 @@ import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SalesResultsTable } from '../components/tables/SalesResultsTable';
+import { SalesReturnExceptionTable } from '../components/tables/SalesReturnExceptionTable';
 import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
-import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
+import { exportRowsToCsv } from '../utils/csvExport';
+import { exportRowsToPdf } from '../utils/pdfExport';
+import {
+  downloadAuditExceptionXlsx,
+  resolveAuditExportColumns,
+} from '../utils/salesReturnXlsxExport';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
@@ -81,9 +86,6 @@ export default function SalesLedger() {
   } = useAuditSessionPersistence(SALES_LEDGER_SESSION_KEY, sessionSnapshot, {
     transform: slimSalesLedgerSnapshot,
     onApplySession: applySession,
-    onSaveFailed: () => {
-      toast.error('Audit results are too large to keep in the browser. Export the Excel file to keep a copy.');
-    },
   });
 
   const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
@@ -123,20 +125,60 @@ export default function SalesLedger() {
     }
   }, [file, persist]);
 
-  const rawRecords = useMemo(
-    () => dedupeSalesRecordsByRowNumber(result?.records),
-    [result?.records]
+  const exceptionRecords = useMemo(
+    () => result?.exceptionRecords ?? result?.records ?? [],
+    [result]
   );
+
+  const exceptionColumnOrder = useMemo(
+    () =>
+      exceptionRecords.length
+        ? resolveAuditExportColumns(
+            exceptionRecords,
+            result?.exportColumns,
+            result?.columnDisplayHeaders
+          )
+        : null,
+    [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]
+  );
+
+  const exceptionExportColumns = useMemo(() => {
+    if (!exceptionRecords.length) return [];
+    const keys = exceptionColumnOrder?.length
+      ? exceptionColumnOrder
+      : Object.keys(exceptionRecords[0]);
+    return keys.map((header) => ({
+      header,
+      accessor: (row) => row[header] ?? '',
+    }));
+  }, [exceptionRecords, exceptionColumnOrder]);
+
   const filteredRecords = useMemo(
-    () => filterSalesRecords(rawRecords, activeFilter),
-    [rawRecords, activeFilter]
+    () => filterSalesRecords(exceptionRecords, activeFilter),
+    [exceptionRecords, activeFilter]
   );
 
   const toggleCardFilter = useCallback((key) => {
     setActiveFilter((prev) => (prev === key ? null : key));
   }, []);
 
-  const runExport = useCallback(() => {
+  const exportFilteredColumnOrder = useMemo(() => {
+    if (!filteredRecords.length) return exceptionColumnOrder;
+    const keys = exceptionColumnOrder?.length
+      ? exceptionColumnOrder
+      : Object.keys(filteredRecords[0]);
+    return keys.filter((key) => key in filteredRecords[0]);
+  }, [filteredRecords, exceptionColumnOrder]);
+
+  const exportFilteredColumns = useMemo(() => {
+    const order = exportFilteredColumnOrder ?? [];
+    return order.map((header) => ({
+      header,
+      accessor: (row) => row[header] ?? '',
+    }));
+  }, [exportFilteredColumnOrder]);
+
+  const runExportExcel = useCallback(() => {
     if (!filteredRecords.length) {
       toast.error('No rows to export.');
       return;
@@ -144,12 +186,45 @@ export default function SalesLedger() {
     setExporting(true);
     try {
       const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-      downloadSalesRecordsXlsx(filteredRecords, `sales-rows-${tag}-${Date.now()}.xlsx`);
+      downloadAuditExceptionXlsx(
+        filteredRecords,
+        exportFilteredColumnOrder,
+        `sales-ledger-exceptions-${tag}-${Date.now()}.xlsx`
+      );
       toast.success('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter]);
+  }, [filteredRecords, activeFilter, exportFilteredColumnOrder]);
+
+  const runExportCsv = useCallback(() => {
+    if (!filteredRecords.length) {
+      toast.error('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToCsv(
+      `sales-ledger-exceptions-${tag}-${Date.now()}.csv`,
+      exportFilteredColumns,
+      filteredRecords
+    );
+    toast.success('CSV export downloaded');
+  }, [filteredRecords, activeFilter, exportFilteredColumns]);
+
+  const runExportPdf = useCallback(() => {
+    if (!filteredRecords.length) {
+      toast.error('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToPdf(
+      `sales-ledger-exceptions-${tag}-${Date.now()}.pdf`,
+      'Rate and ledger audit — exception report',
+      exportFilteredColumns,
+      filteredRecords
+    );
+    toast.success('PDF export downloaded');
+  }, [filteredRecords, activeFilter, exportFilteredColumns]);
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
@@ -157,14 +232,14 @@ export default function SalesLedger() {
     summary.distinctInvalidRows ??
     summary.errorRowsCount ??
     result?.errorRows ??
-    rawRecords.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0).length;
+    exceptionRecords.length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
-  const accessoriesUnitRateCount = filterSalesRecords(rawRecords, 'accessoriesUnitRate').length;
+  const accessoriesUnitRateCount = filterSalesRecords(exceptionRecords, 'accessoriesUnitRate').length;
   const caratGemErrors =
     summary.invalidUomRows ??
     summary.caratGemErrorRows ??
-    filterSalesRecords(rawRecords, 'caratGemErrors').length;
+    filterSalesRecords(exceptionRecords, 'caratGemErrors').length;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
   const productAverageCount =
@@ -369,23 +444,45 @@ export default function SalesLedger() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
-                  <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV & PDF export</p>
+                  <h3 className="text-base font-bold text-emerald-700">Exception report</h3>
+                  <p className="text-sm text-slate-500">
+                    Original upload columns preserved with Message (issue codes) appended.
+                  </p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exporting}
-                  disabled={exporting || filteredRecords.length === 0}
-                  onClick={runExport}
-                >
-                  <Download className="h-4 w-4" />
-                  Export invalid rows (.xlsx)
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={exporting}
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportExcel}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportCsv}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportPdf}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardBody>
-              {result.records?.length || activeFilter != null ? (
+              {exceptionRecords.length || activeFilter != null ? (
                 <div className="space-y-4">
                   <AuditFilterStrip
                     activeFilter={activeFilter}
@@ -393,12 +490,22 @@ export default function SalesLedger() {
                     count={filteredRecords.length}
                     onClear={() => setActiveFilter(null)}
                   />
-                  <SalesResultsTable data={filteredRecords} />
+                  {filteredRecords.length ? (
+                    <SalesReturnExceptionTable
+                      data={filteredRecords}
+                      columnOrder={exportFilteredColumnOrder}
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No rows for this filter"
+                      description="Clear the filter or choose a different issue category."
+                    />
+                  )}
                 </div>
               ) : (
                 <EmptyState
                   title="No issues detected"
-                  description="Every evaluated row satisfied sales-account and gross-weight checks for this upload."
+                  description="Every evaluated row passed validation for this upload."
                 />
               )}
             </CardBody>
