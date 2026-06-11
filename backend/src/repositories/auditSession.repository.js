@@ -167,6 +167,28 @@ async function deleteExpiredSessions() {
   return result.count;
 }
 
+/**
+ * Active sessions for a user that expire before the given time (still in the future).
+ * @param {number} userId
+ * @param {Date} before
+ */
+async function findActiveSessionsExpiringBefore(userId, before) {
+  const now = new Date();
+  return prisma.auditSession.findMany({
+    where: {
+      userId,
+      isActive: true,
+      expiresAt: { gt: now, lte: before },
+    },
+    include: {
+      auditType: {
+        select: { id: true, auditCode: true, auditName: true },
+      },
+    },
+    orderBy: { expiresAt: 'asc' },
+  });
+}
+
 module.exports = {
   RETENTION_DAYS,
   computeExpiresAt,
@@ -179,4 +201,5 @@ module.exports = {
   deactivateSession,
   deactivateSessionsByAuditType,
   deleteExpiredSessions,
+  findActiveSessionsExpiringBefore,
 };

@@ -180,9 +180,9 @@ export default function SalesLedger() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 backdrop-blur-sm"
           >
-            <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-              <p className="mt-4 text-sm font-semibold text-slate-800">Validating ledger…</p>
+            <div className="flex flex-col items-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] px-10 py-8 shadow-2xl backdrop-blur-sm">
+              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 dark:text-emerald-400" />
+              <p className="mt-4 text-sm font-semibold text-[var(--color-text-primary)]">Validating ledger…</p>
               <p className="mt-1 text-xs text-slate-500">
                 Large ledgers (4k+ rows) usually finish in under a minute. Keep Node and Python running.
               </p>
@@ -265,7 +265,7 @@ export default function SalesLedger() {
             </p>
           </CardHeader>
           <CardBody className="space-y-4">
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white/90 p-4 font-mono text-xs text-slate-800 shadow-inner">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-4 font-mono text-xs text-[var(--color-text-primary)] shadow-inner">
               {formatProcessingErrorHuman(sheetError)}
             </pre>
             {sheetError.error ? (

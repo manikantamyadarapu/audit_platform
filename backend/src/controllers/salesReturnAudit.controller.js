@@ -1,4 +1,6 @@
 const salesReturnRateComparisonService = require('../services/salesReturnRateComparison.service');
+const auditNotification = require('../services/auditNotification.service');
+const { AUDIT_KEYS } = require('../constants/notifications');
 const pythonClient = require('../services/pythonClient.service');
 const logger = require('../utils/logger');
 
@@ -26,8 +28,37 @@ async function runAudit(req, res, next) {
       returnFile.mimetype,
       { requestId: req.requestId }
     );
+
+    if (req.user?.id) {
+      auditNotification
+        .notifyAuditCompleted(
+          req.user.id,
+          AUDIT_KEYS.SALES_RETURN,
+          returnFile.originalname,
+          data
+        )
+        .catch(() => {});
+    }
+
     return res.json(data);
   } catch (err) {
+    if (req.user?.id) {
+      if (err.code === 'MISSING_SALES_AUDIT_BASELINE') {
+        auditNotification
+          .notifyMissingPrerequisite(req.user.id, AUDIT_KEYS.SALES_RETURN, err.message)
+          .catch(() => {});
+      } else {
+        auditNotification
+          .notifyAuditFailed(
+            req.user.id,
+            AUDIT_KEYS.SALES_RETURN,
+            req.file?.originalname,
+            err.message
+          )
+          .catch(() => {});
+      }
+    }
+
     if (err.status === 400) {
       return res.status(400).json({
         success: false,

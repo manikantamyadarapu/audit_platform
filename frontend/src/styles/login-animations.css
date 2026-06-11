@@ -1,0 +1,166 @@
+/* Audit Intelligence Engine — login background animations */
+
+@keyframes audit-scroll-vertical {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, -50%, 0);
+  }
+}
+
+@keyframes audit-scroll-diagonal {
+  0% {
+    transform: translate3d(-8%, 0, 0);
+  }
+  100% {
+    transform: translate3d(8%, -50%, 0);
+  }
+}
+
+@keyframes audit-float-code {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.06;
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0);
+    opacity: 0.11;
+  }
+}
+
+@keyframes audit-drift-blur {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-6%, -20%, 0) scale(1.04);
+  }
+}
+
+@keyframes login-hero-fade-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes login-card-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes login-ambient-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.05);
+  }
+}
+
+.audit-scroll-column {
+  animation: audit-scroll-vertical 90s linear infinite;
+  will-change: transform;
+}
+
+.audit-scroll-column-fast {
+  animation: audit-scroll-vertical 65s linear infinite;
+  will-change: transform;
+}
+
+.audit-scroll-diagonal {
+  animation: audit-scroll-diagonal 110s linear infinite;
+  will-change: transform;
+}
+
+.audit-float-item {
+  animation: audit-float-code 14s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.audit-blur-layer {
+  animation: audit-drift-blur 120s linear infinite alternate;
+  will-change: transform;
+}
+
+.login-hero-fade {
+  animation: login-hero-fade-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-hero-fade-delay-1 {
+  animation-delay: 0.15s;
+}
+
+.login-hero-fade-delay-2 {
+  animation-delay: 0.3s;
+}
+
+.login-hero-fade-delay-3 {
+  animation-delay: 0.45s;
+}
+
+.login-card-float {
+  animation: login-card-float 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.login-ambient-glow {
+  animation: login-ambient-pulse 12s ease-in-out infinite;
+}
+
+.login-hero-title {
+  text-shadow:
+    0 0 40px color-mix(in srgb, #10b981 28%, transparent),
+    0 0 80px color-mix(in srgb, #10b981 12%, transparent);
+}
+
+.login-hero-glass {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.login-noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+}
+
+html.dark .login-noise-overlay {
+  opacity: 0.055;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audit-scroll-column,
+  .audit-scroll-column-fast,
+  .audit-scroll-diagonal,
+  .audit-float-item,
+  .audit-blur-layer,
+  .login-card-float,
+  .login-ambient-glow {
+    animation: none !important;
+  }
+
+  .login-hero-fade,
+  .login-hero-fade-delay-1,
+  .login-hero-fade-delay-2,
+  .login-hero-fade-delay-3 {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}

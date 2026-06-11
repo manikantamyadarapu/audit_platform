@@ -240,6 +240,7 @@ body {
   [class~="bg-slate-50/50"],
   [class~="bg-slate-50/60"],
   [class~="bg-slate-50/70"],
+  [class~="bg-slate-50/80"],
   [class~="bg-slate-50/90"]
 ) {
   background-color: var(--color-surface-elevated);
@@ -467,4 +468,105 @@ table.data-table {
 
 .scrollbar-track-slate-100::-webkit-scrollbar-track {
   background: rgb(241 245 249 / 0.8);
+}
+
+/* ---- Extended dark mode fixes ---- */
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--color-border-soft);
+}
+
+.dark :where(
+  [class~="text-emerald-700"],
+  [class~="text-emerald-800"],
+  [class~="text-emerald-900"]
+) {
+  color: #6ee7b7;
+}
+
+.dark :where([class~="text-emerald-600"]) {
+  color: #34d399;
+}
+
+.dark :where(
+  [class~="border-emerald-200"],
+  [class~="border-emerald-200/80"]
+) {
+  border-color: color-mix(in srgb, #065f46 55%, var(--color-border-soft));
+}
+
+.dark :where(
+  [class~="bg-emerald-50/50"],
+  [class~="bg-emerald-50/60"],
+  [class~="bg-emerald-50/80"]
+) {
+  background-color: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface-elevated));
+}
+
+.dark :where(
+  [class~="bg-sky-50"],
+  [class~="bg-violet-50"],
+  [class~="bg-orange-50"],
+  [class~="bg-rose-50"]
+) {
+  background-color: color-mix(in srgb, var(--color-surface-subtle) 70%, transparent);
+}
+
+.dark :where(
+  [class~="text-sky-600"],
+  [class~="text-violet-600"],
+  [class~="text-orange-600"],
+  [class~="text-rose-600"],
+  [class~="text-amber-600"]
+) {
+  color: #cbd5e1;
+}
+
+.dark :where(
+  [class~="ring-sky-100"],
+  [class~="ring-emerald-100"],
+  [class~="ring-violet-100"],
+  [class~="ring-amber-100"],
+  [class~="ring-rose-100"],
+  [class~="ring-orange-100"]
+) {
+  --tw-ring-color: var(--color-border-soft);
+}
+
+.dark :where([class~="text-amber-700"]) {
+  color: #fbbf24;
+}
+
+.dark :where([class~="bg-amber-100"]) {
+  background-color: color-mix(in srgb, #78350f 35%, var(--color-surface-elevated));
+}
+
+.dark :where(
+  [class~="from-[#dff5df]"],
+  [class~="to-[#d8f3e9]"]
+) {
+  --tw-gradient-from: #064e3b var(--tw-gradient-from-position);
+  --tw-gradient-to: #0f766e var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.dark :where([class~="text-[#07812f]"]) {
+  color: #6ee7b7;
+}
+
+.dark :where([class~="text-[#07812f]/80"]) {
+  color: rgb(110 231 183 / 0.8);
+}
+
+.dark :where([class~="shadow-lg"]) {
+  --tw-shadow-color: rgba(0, 0, 0, 0.45);
+}
+
+.dark :where([class~="shadow-2xl"]) {
+  --tw-shadow-color: rgba(0, 0, 0, 0.55);
+}
+
+.dark :where([class~="border-dashed"]) {
+  border-color: var(--color-border-soft);
 }

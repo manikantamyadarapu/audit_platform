@@ -11,8 +11,12 @@ export async function validateGrossWeightExcel(file, signal) {
   const form = new FormData();
   form.append('file', file);
   try {
+    const token = getAuthToken();
     const { data } = await api.post('/api/v1/process/gross-weight/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal,
     });
     return data;
@@ -75,8 +79,12 @@ export async function validateSalesReturnAudit(returnFile, signal) {
   const form = new FormData();
   form.append('file', returnFile);
   try {
+    const token = getAuthToken();
     const { data } = await api.post('/api/sales-return/run-audit', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal,
     });
     return data;

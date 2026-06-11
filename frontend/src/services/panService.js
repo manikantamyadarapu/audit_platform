@@ -1,4 +1,5 @@
 import api, { getApiErrorMessage } from './api';
+import { getAuthToken } from '../utils/authUser';
 
 /**
  * @param {File} file
@@ -8,8 +9,12 @@ export async function validatePanExcel(file, signal) {
   const form = new FormData();
   form.append('file', file);
   try {
+    const token = getAuthToken();
     const { data } = await api.post('/api/v1/process/pan/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal,
     });
     return data;
