@@ -4,7 +4,9 @@ import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useAppUi } from '../context/AppUiContext';
 import { cn } from '../utils/cn';
+import { AuditIntelligenceBackground } from '../components/auth/AuditIntelligenceBackground';
 import '../styles/fonts.css';
+import '../styles/login-animations.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -100,33 +102,107 @@ export default function Login() {
           : 'bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50'
       )}
     >
+      {/* Ambient page effects */}
+      <div className="login-noise-overlay pointer-events-none absolute inset-0 z-[1]" aria-hidden="true" />
+      <div
+        className={cn(
+          'login-ambient-glow pointer-events-none absolute -left-32 top-1/4 z-[1] h-[28rem] w-[28rem] rounded-full blur-[100px]',
+          isDark ? 'bg-emerald-500/12' : 'bg-emerald-400/20'
+        )}
+        aria-hidden="true"
+      />
+      <div
+        className={cn(
+          'login-ambient-glow pointer-events-none absolute bottom-0 right-1/4 z-[1] h-80 w-80 rounded-full blur-[90px]',
+          isDark ? 'bg-emerald-600/10' : 'bg-teal-400/15'
+        )}
+        style={{ animationDelay: '4s' }}
+        aria-hidden="true"
+      />
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-y-0 left-1/2 z-[1] w-px',
+          isDark
+            ? 'bg-gradient-to-b from-transparent via-emerald-500/10 to-transparent'
+            : 'bg-gradient-to-b from-transparent via-emerald-400/15 to-transparent'
+        )}
+        aria-hidden="true"
+      />
+
       <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
         <ThemeToggle compact />
       </div>
-      {/* Left side - Marketing Content */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 py-12 relative overflow-hidden">
-        {/* Background decorative elements */}
-        <div className="absolute top-20 left-10 w-64 h-64 bg-green-200/30 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-emerald-300/20 rounded-full blur-3xl"></div>
 
-        <div className="relative z-10 max-w-lg mx-auto px-8">
-          <h1 className="text-5xl font-bold text-green-600 leading-tight mb-6 whitespace-nowrap">
-            Smart Audit Management
-          </h1>
-          <p className="text-lg text-green-600/80 leading-relaxed">
-            Simplify complex enterprise compliance with AI-driven validation and real-time risk assessment tools.
-          </p>
+      {/* Left side — Audit Intelligence Engine */}
+      <div className="relative hidden flex-col justify-center overflow-hidden lg:flex lg:w-1/2">
+        <AuditIntelligenceBackground isDark={isDark} />
+
+        {/* Radial glows behind hero */}
+        <div
+          className={cn(
+            'pointer-events-none absolute left-1/4 top-1/4 z-[2] h-72 w-72 -translate-x-1/2 rounded-full blur-3xl',
+            isDark ? 'bg-emerald-500/15' : 'bg-green-200/35'
+          )}
+          aria-hidden="true"
+        />
+        <div
+          className={cn(
+            'pointer-events-none absolute bottom-1/4 right-1/4 z-[2] h-80 w-80 rounded-full blur-3xl',
+            isDark ? 'bg-emerald-600/10' : 'bg-emerald-300/25'
+          )}
+          aria-hidden="true"
+        />
+
+        {/* Glass reflection strip */}
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-y-0 right-0 z-[3] w-24',
+            isDark
+              ? 'bg-gradient-to-l from-white/[0.03] to-transparent'
+              : 'bg-gradient-to-l from-white/25 to-transparent'
+          )}
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 mx-auto max-w-lg px-16 py-12">
+          <div className="login-hero-glass rounded-3xl border border-white/10 bg-white/[0.02] px-8 py-10 dark:border-emerald-500/10 dark:bg-emerald-950/10">
+            <p
+              className={cn(
+                'login-hero-fade login-hero-fade-delay-1 mb-3 font-mono text-xs font-semibold uppercase tracking-[0.35em]',
+                isDark ? 'text-emerald-400/70' : 'text-emerald-700/80'
+              )}
+            >
+              HAA AUDIT
+            </p>
+            <h1
+              className={cn(
+                'login-hero-fade login-hero-fade-delay-2 login-hero-title text-4xl font-bold leading-tight tracking-tight xl:text-5xl',
+                isDark ? 'text-emerald-400' : 'text-green-600'
+              )}
+            >
+              Audit Intelligence Platform
+            </h1>
+            <p
+              className={cn(
+                'login-hero-fade login-hero-fade-delay-3 mt-6 text-base leading-relaxed xl:text-lg',
+                isDark ? 'text-emerald-100/55' : 'text-green-700/75'
+              )}
+            >
+              Automated compliance verification, rate auditing, gross weight validation, and audit
+              analytics.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Right side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+      <div className="relative z-10 flex w-full items-center justify-center p-8 lg:w-1/2">
         <div
           className={cn(
-            'w-full max-w-md backdrop-blur-md rounded-[2.5rem] shadow-xl p-10 border',
+            'login-card-float w-full max-w-md rounded-[2.5rem] border p-10 backdrop-blur-2xl',
             isDark
-              ? 'bg-slate-900/75 border-slate-700/80 shadow-black/30'
-              : 'bg-white/30 border-white/40 shadow-gray-900/5'
+              ? 'border-emerald-500/20 bg-slate-900/65 shadow-[0_8px_40px_rgba(0,0,0,0.45),0_0_0_1px_rgba(16,185,129,0.08),0_0_60px_rgba(16,185,129,0.06)] ring-1 ring-emerald-500/10'
+              : 'border-emerald-400/25 bg-white/25 shadow-[0_8px_40px_rgba(15,23,42,0.08),0_0_0_1px_rgba(16,185,129,0.1),0_0_48px_rgba(16,185,129,0.08)] ring-1 ring-emerald-500/15'
           )}
         >
           {/* Header */}

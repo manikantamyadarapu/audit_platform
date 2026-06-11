@@ -18,15 +18,15 @@ export function AuditSessionBanner({
   const daysLeft = sessionMeta ? daysUntilExpiry(sessionMeta.expiresAt) : AUDIT_SESSION_RETENTION_DAYS;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm text-emerald-900">
+    <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-sm text-emerald-900 dark:text-emerald-200">
         {sessionLabel ? (
           <p>{sessionLabel}</p>
         ) : (
           <p>Previous audit results restored.</p>
         )}
         {daysLeft > 0 ? (
-          <p className="mt-0.5 text-xs text-emerald-800/80">
+          <p className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-300/80">
             Kept for {daysLeft} more day{daysLeft === 1 ? '' : 's'}
           </p>
         ) : null}

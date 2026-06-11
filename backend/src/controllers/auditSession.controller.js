@@ -1,4 +1,5 @@
 const auditSessionService = require('../services/auditSession.service');
+const { syncSessionExpiringNotifications } = require('../services/auditNotification.service');
 const SuccessResponse = require('../utils/successResponse');
 const ErrorResponse = require('../utils/errorResponse');
 const logger = require('../utils/logger');
@@ -20,6 +21,8 @@ async function restore(req, res, next) {
     }
 
     const data = await auditSessionService.restoreSession(userId, { auditTypeId, auditCode });
+
+    syncSessionExpiringNotifications(userId).catch(() => {});
 
     return SuccessResponse(res, data ? 'Audit session restored' : 'No active audit session found', data);
   } catch (error) {
@@ -56,6 +59,8 @@ async function save(req, res, next) {
     }
 
     const data = await auditSessionService.saveSession(userId, req.body);
+
+    syncSessionExpiringNotifications(userId).catch(() => {});
 
     return SuccessResponse(res, 'Audit session saved', data);
   } catch (error) {

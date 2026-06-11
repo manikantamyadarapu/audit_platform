@@ -1,5 +1,6 @@
 const express = require('express');
 const salesReturnAuditController = require('../controllers/salesReturnAudit.controller');
+const { optionalAuth } = require('../middleware/optionalAuth.middleware');
 const { singleSalesReturnFile } = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
 
@@ -9,7 +10,7 @@ const router = express.Router();
  * POST /api/sales-return/run-audit
  * Single-file upload: sales return audit file only.
  */
-router.post('/run-audit', singleSalesReturnFile, salesReturnAuditController.runAudit);
+router.post('/run-audit', optionalAuth, singleSalesReturnFile, salesReturnAuditController.runAudit);
 
 /**
  * GET /api/sales-return/rate-comparison

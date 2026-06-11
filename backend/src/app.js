@@ -62,6 +62,7 @@ app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/sales-audit', require('./routes/salesAudit.routes'));
 app.use('/api/sales-return', require('./routes/salesReturnAudit.routes'));
 app.use('/api/audit-sessions', require('./routes/auditSession.routes'));
+app.use('/api/notifications', require('./routes/notification.routes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

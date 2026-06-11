@@ -4,8 +4,9 @@ const variants = {
   primary:
     'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98]',
   secondary:
-    'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/90 active:scale-[0.98]',
-  ghost: 'text-slate-600 hover:bg-slate-100 active:scale-[0.98]',
+    'border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-subtle)] active:scale-[0.98]',
+  ghost:
+    'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)] active:scale-[0.98]',
   danger: 'bg-rose-500 text-white hover:bg-rose-600 active:scale-[0.98]',
 };
 
@@ -42,7 +43,7 @@ export function Button({
             'h-4 w-4 animate-spin rounded-full border-2 border-t-transparent',
             variant === 'primary' || variant === 'danger'
               ? 'border-white/35 border-t-white'
-              : 'border-slate-300 border-t-emerald-600'
+              : 'border-[var(--color-border-strong)] border-t-emerald-500 dark:border-t-emerald-400'
           )}
         />
       ) : null}

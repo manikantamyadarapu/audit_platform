@@ -49,6 +49,11 @@ const vouchingItems = [
   { label: 'Ledger Review', icon: ListTree },
 ];
 
+const navActive =
+  'bg-[color-mix(in_srgb,var(--color-accent-soft)_55%,var(--color-surface-elevated))] text-emerald-700 dark:text-emerald-400';
+const navIdle =
+  'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]';
+
 function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) {
   return (
     <NavLink
@@ -60,9 +65,7 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) 
         cn(
           'group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
           nested && !collapsed && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
-          isActive
-            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
-            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          isActive ? navActive : navIdle
         )
       }
     >
@@ -102,9 +105,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
           title={label}
           className={cn(
             'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
-            active
-              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+            active ? navActive : navIdle
           )}
         >
           <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
@@ -119,9 +120,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
         className={({ isActive }) =>
           cn(
             'group flex h-11 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-all',
-            isActive || active
-              ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+            isActive || active ? navActive : navIdle
           )
         }
       >
@@ -138,9 +137,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
         className={cn(
           'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-all',
           nested && 'ml-3 h-10 w-[calc(100%-0.75rem)]',
-          active
-            ? 'bg-gradient-to-r from-[#dff5df] to-[#d8f3e9] text-[#07812f]'
-            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+          active ? navActive : navIdle
         )}
       >
         <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />

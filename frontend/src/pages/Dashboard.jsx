@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  Bell,
   Calendar,
   FileSpreadsheet,
   Filter,
@@ -10,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { NotificationBell } from '../components/layout/NotificationBell';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
 import { CustomSelect } from '../components/ui/CustomSelect';
@@ -233,16 +233,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact className="h-14 w-14" />
-          <button
-            type="button"
-            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-medium text-white">
-              3
-            </span>
-          </button>
+          <NotificationBell size="lg" />
         </div>
       </header>
 

@@ -1,4 +1,6 @@
 const pythonClient = require('../services/pythonClient.service');
+const auditNotification = require('../services/auditNotification.service');
+const { AUDIT_KEYS } = require('../constants/notifications');
 const { validateExportInvalidBody } = require('../validators/panExport.validator');
 const salesAuditService = require('../services/salesAudit.service');
 const logger = require('../utils/logger');
@@ -43,11 +45,22 @@ async function validate(req, res, next) {
       }
     }
 
+    if (req.user?.id) {
+      auditNotification
+        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.SALES, req.file.originalname, data)
+        .catch(() => {});
+    }
+
     return res.json({
       ...data,
       auditRunId,
     });
   } catch (err) {
+    if (req.user?.id) {
+      auditNotification
+        .notifyAuditFailed(req.user.id, AUDIT_KEYS.SALES, req.file?.originalname, err.message)
+        .catch(() => {});
+    }
     return next(err);
   }
 }

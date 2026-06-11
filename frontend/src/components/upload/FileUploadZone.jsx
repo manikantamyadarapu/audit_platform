@@ -35,8 +35,9 @@ export function FileUploadZone({
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       className={cn(
-        'relative rounded-[18px] border-2 border-dashed border-slate-200 bg-slate-50/50 p-10 text-center transition-all duration-200',
-        dragOver && 'border-emerald-400 bg-emerald-50/50 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]',
+        'relative rounded-[18px] border-2 border-dashed border-[var(--color-border-soft)] bg-[var(--color-surface-subtle)] p-10 text-center transition-all duration-200',
+        dragOver &&
+          'border-emerald-400 bg-[color-mix(in_srgb,var(--color-accent-soft)_40%,var(--color-surface-elevated))] shadow-[0_0_0_4px_rgba(16,185,129,0.12)]',
         disabled && 'pointer-events-none opacity-60'
       )}
     >
@@ -54,16 +55,16 @@ export function FileUploadZone({
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-teal-400 to-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]">
         <CloudUpload className="h-7 w-7" strokeWidth={1.5} />
       </div>
-      <p className="mt-4 text-base font-semibold text-slate-900">Drag &amp; drop Excel file</p>
-      <p className="mt-1 text-sm text-slate-500">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
+      <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">Drag &amp; drop Excel file</p>
+      <p className="mt-1 text-sm text-[var(--color-text-muted)]">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
 
       {file ? (
-        <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.08)]">
-          <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600" />
-          <span className="truncate text-sm font-medium text-slate-800">{file.name}</span>
+        <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]">
+          <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">{file.name}</span>
         </div>
       ) : (
-        <p className="mt-6 text-xs text-slate-400">No file selected</p>
+        <p className="mt-6 text-xs text-[var(--color-text-faint)]">No file selected</p>
       )}
 
       <div className="mt-8 flex flex-wrap justify-center gap-3">

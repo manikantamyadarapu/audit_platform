@@ -4,32 +4,25 @@ import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { useAppUi } from '../../context/AppUiContext';
 import { formatNumber } from '../../utils/format';
 
+/** Chart axis/tooltip tokens aligned with app theme. */
 const CHART_THEME = {
   dark: {
-    panelBg: '#0f172a',
-    panelBorder: 'rgba(148, 163, 184, 0.22)',
-    bar: '#3b82f6',
-    barHover: '#60a5fa',
-    axis: '#e2e8f0',
+    axis: '#cbd5e1',
     axisMuted: '#94a3b8',
-    grid: 'rgba(148, 163, 184, 0.35)',
-    tooltipBg: '#1e293b',
-    tooltipBorder: 'rgba(148, 163, 184, 0.25)',
+    grid: 'rgba(148, 163, 184, 0.22)',
+    tooltipBg: '#111827',
+    tooltipBorder: 'rgba(71, 85, 105, 0.86)',
     tooltipText: '#f8fafc',
-    tooltipMuted: '#cbd5e1',
+    tooltipMuted: '#94a3b8',
   },
   light: {
-    panelBg: '#ffffff',
-    panelBorder: 'rgba(148, 163, 184, 0.45)',
-    bar: '#3b82f6',
-    barHover: '#2563eb',
     axis: '#334155',
     axisMuted: '#64748b',
-    grid: 'rgba(148, 163, 184, 0.55)',
+    grid: 'rgba(148, 163, 184, 0.38)',
     tooltipBg: '#ffffff',
-    tooltipBorder: 'rgba(148, 163, 184, 0.35)',
-    tooltipText: '#0f172a',
-    tooltipMuted: '#475569',
+    tooltipBorder: 'rgba(226, 232, 240, 0.86)',
+    tooltipText: '#020617',
+    tooltipMuted: '#64748b',
   },
 };
 
@@ -41,6 +34,7 @@ function buildChartOptions(categories, isDark) {
   const theme = isDark ? CHART_THEME.dark : CHART_THEME.light;
   const labels = categories.map((item) => item.name);
   const values = categories.map((item) => item.value);
+  const barColors = categories.map((item) => item.color);
 
   return {
     chart: {
@@ -58,7 +52,7 @@ function buildChartOptions(categories, isDark) {
     theme: {
       mode: isDark ? 'dark' : 'light',
     },
-    colors: [theme.bar],
+    colors: barColors,
     series: [
       {
         name: 'Issues',
@@ -68,16 +62,23 @@ function buildChartOptions(categories, isDark) {
     plotOptions: {
       bar: {
         horizontal: false,
+        distributed: true,
         columnWidth: '48%',
-        borderRadius: 0,
+        borderRadius: 4,
         borderRadiusApplication: 'end',
         dataLabels: { position: 'top' },
       },
     },
     fill: {
-      type: 'solid',
-      opacity: 1,
-      colors: [theme.bar],
+      type: 'gradient',
+      gradient: {
+        shade: isDark ? 'dark' : 'light',
+        type: 'vertical',
+        shadeIntensity: 0.4,
+        opacityFrom: 0.95,
+        opacityTo: 0.72,
+        stops: [0, 100],
+      },
     },
     states: {
       hover: {
@@ -166,6 +167,7 @@ function buildChartOptions(categories, isDark) {
           ">
             <div style="margin-bottom: 4px; font-weight: 600; color: ${theme.tooltipText};">${item.name}</div>
             <div style="color: ${theme.tooltipMuted};">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:${item.color};margin-right:6px;"></span>
               Issues: <strong style="color: ${theme.tooltipText};">${formatNumber(item.value)}</strong>
               <span style="opacity: 0.75;"> (${item.percent})</span>
             </div>
@@ -187,8 +189,6 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
   const isDark = theme === 'dark';
   const chartRef = useRef(null);
   const instanceRef = useRef(null);
-  const panelTheme = isDark ? CHART_THEME.dark : CHART_THEME.light;
-
   const chartCategories = useMemo(() => {
     if (!categories.length) return null;
     return categories.slice(0, 8);
@@ -227,27 +227,15 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
 
   if (!chartCategories?.length) {
     return (
-      <div
-        className="flex h-[320px] w-full items-center justify-center rounded-2xl border text-sm backdrop-blur-sm"
-        style={{
-          borderColor: panelTheme.panelBorder,
-          backgroundColor: panelTheme.panelBg,
-          color: panelTheme.axisMuted,
-        }}
-      >
+      <div className="flex h-[320px] w-full items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-sm text-[var(--color-text-muted)] backdrop-blur-sm">
         No issue data for this period.
       </div>
     );
   }
 
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl border p-3 sm:p-4"
-      style={{
-        borderColor: panelTheme.panelBorder,
-        backgroundColor: panelTheme.panelBg,
-      }}
-    >
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-3 shadow-[var(--shadow-glass)] sm:p-4">
+      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl dark:bg-emerald-500/10" />
       <div
         ref={chartRef}
         className="relative z-[1] w-full"

@@ -1,5 +1,6 @@
 const express = require('express');
 const grossWeightController = require('../controllers/grossWeight.controller');
+const { optionalAuth } = require('../middleware/optionalAuth.middleware');
 const { singlePanFile } = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
 
@@ -24,7 +25,7 @@ const router = express.Router();
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/validate', singlePanFile, grossWeightController.validate);
+router.post('/validate', optionalAuth, singlePanFile, grossWeightController.validate);
 
 /**
  * @swagger

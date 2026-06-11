@@ -219,9 +219,9 @@ export default function SalesReturnRateAudit() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-40 flex items-center justify-center rounded-2xl bg-slate-950/25 backdrop-blur-sm"
           >
-            <div className="flex flex-col items-center rounded-2xl border border-white/40 bg-white/90 px-10 py-8 shadow-2xl">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-              <p className="mt-4 text-sm font-semibold text-slate-800">Running sales return audit…</p>
+            <div className="flex flex-col items-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] px-10 py-8 shadow-2xl backdrop-blur-sm">
+              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 dark:text-emerald-400" />
+              <p className="mt-4 text-sm font-semibold text-[var(--color-text-primary)]">Running sales return audit…</p>
             </div>
           </motion.div>
         ) : null}
@@ -279,7 +279,7 @@ export default function SalesReturnRateAudit() {
             <h3 className="text-base font-semibold text-rose-950">Audit could not run</h3>
           </CardHeader>
           <CardBody>
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white/90 p-4 font-mono text-xs text-slate-800">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-4 font-mono text-xs text-[var(--color-text-primary)]">
               {formatProcessingErrorHuman(sheetError)}
             </pre>
           </CardBody>
