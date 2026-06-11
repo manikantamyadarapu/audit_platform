@@ -9,8 +9,6 @@ import {
 } from '@tanstack/react-table';
 import {
   ArrowDownUp,
-  ChevronLeft,
-  ChevronRight,
   Download,
   FileText,
   Search,
@@ -18,6 +16,7 @@ import {
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
+import { Pagination } from '../ui/Pagination';
 import { cn } from '../../utils/cn';
 import { formatNumber } from '../../utils/format';
 import { auditIssueTone } from '../../utils/auditIssueTone';
@@ -25,26 +24,24 @@ import { exportRowsToCsv } from '../../utils/csvExport';
 import { exportRowsToPdf } from '../../utils/pdfExport';
 
 const GROSS_EXPORT_COLS = [
-  { header: 'Row Number', accessor: (r) => r.rowNumber },
-  { header: 'Manual Gross', accessor: (r) => r.manualGrossWeight ?? '' },
-  { header: 'Auto Gross', accessor: (r) => r.autoGrossWeight ?? '' },
-  { header: 'Difference', accessor: (r) => r.difference ?? '' },
-  { header: 'Issues', accessor: (r) => (r.issues || []).join('; ') },
-  { header: 'Messages', accessor: (r) => (Array.isArray(r.messages) ? r.messages.join('; ') : '') },
+  { header: 'SNo', accessor: (r) => r.rowNumber },
+  { header: 'Voucher No', accessor: (r) => r.voucherNo ?? '' },
+  { header: 'Manual Gross Wt.', accessor: (r) => r.manualGrossWeight ?? '' },
+  { header: 'Auto Gross Wt.', accessor: (r) => r.autoGrossWeight ?? '' },
+  { header: 'Difference in Gross Wt.', accessor: (r) => r.difference ?? '' },
+  { header: 'Issue', accessor: (r) => (r.issues || []).join('; ') },
 ];
 
 function grossGlobalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
   if (!q) return true;
   const r = row.original;
-  const blob = [
-    r.rowNumber,
-    r.manualGrossWeight,
-    r.autoGrossWeight,
-    r.difference,
-    ...(Array.isArray(r.issues) ? r.issues : []),
-    ...(Array.isArray(r.messages) ? r.messages : []),
-  ]
+  const blob = Object.values(r)
+    .map((v) => {
+      if (Array.isArray(v)) return v.join(' ');
+      if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+      return String(v ?? '');
+    })
     .join(' ')
     .toLowerCase();
   return blob.includes(q);
@@ -53,77 +50,57 @@ function grossGlobalFilter(row, _columnId, filterValue) {
 export function GrossWeightResultsTable({ data }) {
   const [globalFilter, setGlobalFilter] = useState('');
 
-  const columns = useMemo(
-    () => [
-      {
-        accessorKey: 'rowNumber',
-        header: 'Row',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-700">{info.getValue()}</span>
-        ),
+  // Static 6-column layout: SNo | Voucher No | Manual Gross Wt. | Auto Gross Wt. | Difference in Gross Wt. | Issue
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'rowNumber',
+      header: 'SNo',
+      enableSorting: true,
+      cell: (info) => <span className="text-sm text-slate-700" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{info.getValue()}</span>,
+    },
+    {
+      accessorKey: 'voucherNo',
+      header: 'Voucher No',
+      enableSorting: true,
+      cell: (info) => <span className="text-sm text-slate-700">{info.getValue() || '—'}</span>,
+    },
+    {
+      accessorKey: 'manualGrossWeight',
+      header: 'Manual Gross Wt.',
+      enableSorting: true,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
+    },
+    {
+      accessorKey: 'autoGrossWeight',
+      header: 'Auto Gross Wt.',
+      enableSorting: true,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
+    },
+    {
+      accessorKey: 'difference',
+      header: 'Difference in Gross Wt.',
+      enableSorting: true,
+      cell: (info) => <span className="text-sm text-slate-800" style={{ fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif", fontVariantNumeric: 'tabular-nums' }}>{formatNumber(info.getValue(), 3)}</span>,
+    },
+    {
+      accessorKey: 'issues',
+      header: 'Issue',
+      enableSorting: false,
+      cell: (info) => {
+        const value = info.getValue();
+        if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map((issue) => (
+              <Badge key={issue} tone={auditIssueTone(issue)} caps={false} className="text-[10px] font-medium">
+                {issue.replace(/_/g, ' ')}
+              </Badge>
+            ))}
+          </div>
+        );
       },
-      {
-        accessorKey: 'manualGrossWeight',
-        header: 'Manual gross',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>
-        ),
-      },
-      {
-        accessorKey: 'autoGrossWeight',
-        header: 'Auto gross',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>
-        ),
-      },
-      {
-        accessorKey: 'difference',
-        header: 'Difference',
-        cell: (info) => (
-          <span className="font-mono text-sm text-slate-800">{formatNumber(info.getValue())}</span>
-        ),
-      },
-      {
-        accessorKey: 'issues',
-        header: 'Issues',
-        enableSorting: false,
-        cell: (info) => {
-          const issues = info.getValue() || [];
-          return (
-            <div className="flex flex-wrap gap-1">
-              {issues.map((issue) => (
-                <Badge
-                  key={issue}
-                  tone={auditIssueTone(issue)}
-                  caps={false}
-                  className="text-[10px] font-medium"
-                >
-                  {issue.replace(/_/g, ' ')}
-                </Badge>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'messages',
-        header: 'Messages',
-        enableSorting: false,
-        cell: (info) => {
-          const msgs = info.getValue();
-          if (!Array.isArray(msgs) || msgs.length === 0) return <span className="text-slate-400">—</span>;
-          return (
-            <ul className="max-w-md list-disc space-y-1 pl-4 text-xs text-slate-700">
-              {msgs.map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
-          );
-        },
-      },
-    ],
-    []
-  );
+    },
+  ], []);
 
   const table = useReactTable({
     data,
@@ -161,7 +138,7 @@ export function GrossWeightResultsTable({ data }) {
           <Input
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search row, weights, issues, messages…"
+            placeholder="Search SNo, voucher, manual gross, auto gross, difference, issue..."
             className="pl-10"
           />
         </div>
@@ -178,8 +155,8 @@ export function GrossWeightResultsTable({ data }) {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner shadow-slate-200/40">
-        <div className="scrollbar-thin overflow-x-auto">
-          <table className="data-table min-w-[720px] w-full text-left text-sm">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          <table className="data-table min-w-max w-full text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-slate-200/80 bg-slate-50/90">
@@ -232,32 +209,7 @@ export function GrossWeightResultsTable({ data }) {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-        <p className="text-xs text-slate-500">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1} ·{' '}
-          {table.getFilteredRowModel().rows.length} rows
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <Pagination table={table} totalLabel="Total" />
     </div>
   );
 }

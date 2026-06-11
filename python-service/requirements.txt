@@ -2,6 +2,10 @@ fastapi
 uvicorn[standard]
 pandas
 openpyxl
+xlsxwriter
+polars
+duckdb
+pyarrow
 pydantic
 pydantic-settings
 python-multipart

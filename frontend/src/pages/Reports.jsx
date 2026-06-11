@@ -63,7 +63,7 @@ export default function Reports() {
           <EmptyState
             icon={FileDown}
             title="Persistent history not configured"
-            description="Wire object storage or ERP hooks here. Until then, rely on browser downloads and gateway logs."
+            description="Saved report history is coming soon. Until then, use browser downloads for each export."
           />
         </CardBody>
       </Card>

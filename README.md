@@ -54,7 +54,7 @@ flowchart LR
   API -->|Axios proxy| PY
 ```
 
-- **`frontend/`** — React 19, Vite 8, Tailwind 4, React Router; calls **`/api/v1/...`** on the Node server (dev proxy to port **3000**).
+- **`frontend/`** — React 19, Vite 8, Tailwind 4, React Router; calls **`/api/v1/...`** on the Node server (dev UI on port **4000**, API proxy to **4001**).
 - **`backend/`** — Express API: CORS, Helmet, Multer uploads, Swagger UI, routes under **`/api/v1/process/...`** → Python.
 - **`python-service/`** — FastAPI: Excel ingest (Pandas / OpenPyXL), validators, processors, PAN invalid-row Excel export.
 
@@ -90,7 +90,7 @@ Per-service setup, env vars, and curl examples: [`backend/README.md`](backend/RE
    uvicorn app.main:app --reload --port 8000
    ```
 
-2. **Node API** (port **3000**)
+2. **Node API** (port **4001** in dev when Vite uses **4000**; set `PORT=4000` in `backend/.env` if you run the API alone)
 
    ```bash
    cd backend
@@ -99,7 +99,7 @@ Per-service setup, env vars, and curl examples: [`backend/README.md`](backend/RE
    npm run dev
    ```
 
-3. **Frontend** (port **5173**, proxies **`/api`** → Node)
+3. **Frontend** (port **4000**, proxies **`/api`** → Node on **4001**)
 
    ```bash
    cd frontend
@@ -108,7 +108,7 @@ Per-service setup, env vars, and curl examples: [`backend/README.md`](backend/RE
    npm run dev
    ```
 
-Open the app at **`http://127.0.0.1:5173`**. Swagger for the gateway: **`http://127.0.0.1:3000/api-docs`** (when `ENABLE_SWAGGER` is not `false`). Python docs: **`http://127.0.0.1:8000/docs`**.
+Open the app at **`http://127.0.0.1:4000`**. Swagger for the gateway: **`http://127.0.0.1:4001/api-docs`** (when `ENABLE_SWAGGER` is not `false`). Python docs: **`http://127.0.0.1:8000/docs`**.
 
 ## Gateway routes (summary)
 

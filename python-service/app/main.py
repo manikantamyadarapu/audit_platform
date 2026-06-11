@@ -6,6 +6,12 @@ from app.config.settings import get_settings
 from app.routers.health_router import router as health_router
 from app.routers.process_router import gateway_router as gateway_process_router
 from app.routers.process_router import router as process_router
+from app.routers.diamond_rate_rules_router import gateway_router as gateway_diamond_rate_rules_router
+from app.routers.diamond_rate_rules_router import router as diamond_rate_rules_router
+from app.routers.rate_book_router import gateway_router as gateway_rate_book_router
+from app.routers.rate_book_router import router as rate_book_router
+from app.routers.rate_rules_router import gateway_router as gateway_rate_rules_router
+from app.routers.rate_rules_router import router as rate_rules_router
 from app.utils.sheet_validation_error import SheetValidationError
 
 settings = get_settings()
@@ -28,6 +34,12 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(process_router)
 app.include_router(gateway_process_router)
+app.include_router(rate_rules_router)
+app.include_router(gateway_rate_rules_router)
+app.include_router(diamond_rate_rules_router)
+app.include_router(gateway_diamond_rate_rules_router)
+app.include_router(rate_book_router)
+app.include_router(gateway_rate_book_router)
 
 
 @app.exception_handler(ValueError)
@@ -42,13 +54,16 @@ async def sheet_validation_handler(_: Request, exc: SheetValidationError):
 
 @app.exception_handler(KeyError)
 async def key_error_handler(_: Request, exc: KeyError):
+    import traceback
     detail = str(exc).replace("'", '')
+    tb = traceback.format_exc()
+    print(f"KeyError: {detail}\nTraceback:\n{tb}")  # Log to console
     return JSONResponse(
         status_code=422,
         content={
             'success': False,
-            'detail': detail,
-            'error': {'code': 'KEY_ERROR', 'message': detail},
+            'detail': f"Missing column: {detail}. Check your Excel headers.",
+            'error': {'code': 'KEY_ERROR', 'message': detail, 'traceback': tb},
         },
     )
 

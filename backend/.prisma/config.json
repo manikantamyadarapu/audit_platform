@@ -1,0 +1,6 @@
+{
+  "schema": "./prisma/schema.prisma",
+  "migrate": {
+    "databaseUrl": "{env.DATABASE_URL}"
+  }
+}

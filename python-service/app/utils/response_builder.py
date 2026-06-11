@@ -7,8 +7,9 @@ def build_processing_response(
     error_rows: int,
     summary: dict[str, Any],
     records: list[dict[str, Any]],
+    product_averages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         'success': True,
         'fileType': file_type,
         'totalRows': total_rows,
@@ -16,3 +17,6 @@ def build_processing_response(
         'summary': summary,
         'records': records,
     }
+    if product_averages is not None:
+        payload['productAverages'] = product_averages
+    return payload

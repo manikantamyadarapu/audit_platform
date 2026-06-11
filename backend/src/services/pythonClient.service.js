@@ -89,6 +89,79 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
   return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
 }
 
+async function postSalesReturnValidate(
+  returnBuffer,
+  returnName,
+  returnMime,
+  salesAverages,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('sales_return_file', returnBuffer, {
+    filename: returnName || 'sales-return-audit.xlsx',
+    contentType: returnMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('sales_averages', JSON.stringify(salesAverages ?? []));
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/sales-return/validate', form, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postSalesReturnExportRateComparison(records, options = {}) {
+  return postExportInvalidRows('/api/process/sales-return/export-rate-comparison', records, options);
+}
+
+async function postSalesReturnExportExceptions(payload, options = {}) {
+  try {
+    const headers = {};
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/sales-return/export-exceptions', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const json = JSON.parse(Buffer.from(response.data).toString('utf8'));
+        if (json && json.detail) detail = json.detail;
+      } catch {
+        // ignore
+      }
+      const err = new Error(detail);
+      if (response.status === 422) err.status = 422;
+      else if (response.status === 400) err.status = 400;
+      else if (response.status >= 500) err.status = 502;
+      else err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentDisposition,
+      contentType,
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 /**
  * @param {Array<Record<string, unknown>>} records
  * @returns {Promise<{ buffer: Buffer, contentDisposition: string | undefined, contentType: string | undefined }>}
@@ -154,6 +227,50 @@ async function postSalesExportInvalid(records, options = {}) {
   return postExportInvalidRows('/api/process/sales/export-invalid', records, options);
 }
 
+async function getRateRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/rate-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postRateRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/rate-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function getDiamondRateRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/diamond-rate-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postDiamondRateRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/diamond-rate-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -161,4 +278,11 @@ module.exports = {
   postGrossWeightExportInvalid,
   postSalesValidate,
   postSalesExportInvalid,
+  postSalesReturnValidate,
+  postSalesReturnExportRateComparison,
+  postSalesReturnExportExceptions,
+  getRateRules,
+  postRateRules,
+  getDiamondRateRules,
+  postDiamondRateRules,
 };

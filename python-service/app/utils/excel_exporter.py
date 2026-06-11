@@ -1,8 +1,14 @@
-from io import BytesIO
 from typing import Any
 
-import pandas as pd
-
+from app.sales_engine.engine.sales_audit_output import (
+    SALES_AUDIT_OUTPUT_COLUMNS,
+    sales_records_for_export,
+)
+from app.sales_return_engine.exception_report import (
+    SALES_RETURN_EXCEPTION_COLUMNS,
+    SALES_RETURN_EXCEPTION_HEADER_MAP,
+)
+from app.utils.audit_reporter import build_audit_excel_report
 
 PAN_EXPORT_COLUMNS = [
     'rowNumber',
@@ -21,86 +27,148 @@ PAN_EXPORT_COLUMNS = [
 
 GROSS_EXPORT_COLUMNS = [
     'rowNumber',
+    'voucherNo',
     'manualGrossWeight',
     'autoGrossWeight',
+    'difference',
+    'issues',
+]
+
+GROSS_EXPORT_HEADER_MAP = {
+    'rowNumber': 'SNo',
+    'voucherNo': 'Voucher No',
+    'manualGrossWeight': 'Manual Gross Wt.',
+    'autoGrossWeight': 'Auto Gross Wt.',
+    'difference': 'Difference in Gross Wt.',
+    'issues': 'Issue',
+}
+
+SALES_EXPORT_COLUMNS = list(SALES_AUDIT_OUTPUT_COLUMNS)
+
+SALES_RETURN_RATE_COMPARISON_COLUMNS = [
+    'product',
+    'salesTotalGrossAmount',
+    'salesTotalQuantity',
+    'salesAverageRate',
+    'returnTotalGrossAmount',
+    'returnTotalQuantity',
+    'returnAverageRate',
     'difference',
     'issues',
     'messages',
 ]
 
-SALES_EXPORT_COLUMNS = [
-    'rowNumber',
-    'voucherNo',
-    'salesAccount',
-    'product',
-    'expectedSalesAccountCategory',
-    'predictedCategory',
-    'usedFuzzyClassification',
-    'manualGrossWt',
-    'autoGrossWt',
-    'issues',
-    'messages',
-]
+SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
+    'product': 'Product',
+    'salesTotalGrossAmount': 'Sales Total Gross Amount',
+    'salesTotalQuantity': 'Sales Total Quantity',
+    'salesAverageRate': 'Sales Average Rate',
+    'returnTotalGrossAmount': 'Sales Return Total Gross Amount',
+    'returnTotalQuantity': 'Sales Return Total Quantity',
+    'returnAverageRate': 'Sales Return Average Rate',
+    'difference': 'Difference',
+    'issues': 'Issue',
+    'messages': 'Message',
+}
 
 
-def export_invalid_pan_records(records: list[dict[str, Any]]) -> bytes:
+def export_invalid_pan_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    return build_audit_excel_report(
+        report_title='PAN Audit Report',
+        invalid_sheet_name='Invalid PAN Rows',
+        source_processor='pan',
+        records=records,
+        export_columns=PAN_EXPORT_COLUMNS,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
+
+
+def export_invalid_gross_weight_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    return build_audit_excel_report(
+        report_title='Gross Weight Audit Report',
+        invalid_sheet_name='Invalid Gross Weight Rows',
+        source_processor='gross_weight',
+        records=records,
+        export_columns=GROSS_EXPORT_COLUMNS,
+        header_map=GROSS_EXPORT_HEADER_MAP,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
+
+
+def export_invalid_sales_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    return build_audit_excel_report(
+        report_title='Sales Audit Report',
+        invalid_sheet_name='Invalid Sales Rows',
+        source_processor='sales',
+        records=sales_records_for_export(records),
+        export_columns=SALES_EXPORT_COLUMNS,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
+
+
+def export_sales_return_exceptions(
+    records: list[dict[str, Any]],
+    *,
+    export_columns: list[str] | None = None,
+    header_map: dict[str, str] | None = None,
+) -> bytes:
     if not records:
-        raise ValueError('No invalid records found to export')
-
-    dataframe = pd.DataFrame(records).copy()
-
-    for column in PAN_EXPORT_COLUMNS:
-        if column not in dataframe.columns:
-            dataframe[column] = ''
-
-    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
-    if 'messages' in dataframe.columns:
-        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
-    dataframe = dataframe[PAN_EXPORT_COLUMNS]
-
-    output = BytesIO()
-    dataframe.to_excel(output, index=False, sheet_name='Invalid PAN Rows')
-    output.seek(0)
-    return output.read()
+        raise ValueError('No exception records to export')
+    resolved_columns = export_columns or list(records[0].keys())
+    resolved_header_map = header_map or {column: column for column in resolved_columns}
+    return build_audit_excel_report(
+        report_title='Sales Return Final Exception Report',
+        invalid_sheet_name='Final Exception Report',
+        source_processor='sales_return',
+        records=records,
+        export_columns=resolved_columns,
+        header_map=resolved_header_map,
+    )
 
 
-def export_invalid_gross_weight_records(records: list[dict[str, Any]]) -> bytes:
+def export_sales_return_rate_comparison(records: list[dict[str, Any]]) -> bytes:
     if not records:
-        raise ValueError('No invalid records found to export')
-    dataframe = pd.DataFrame(records).copy()
-    for column in GROSS_EXPORT_COLUMNS:
-        if column not in dataframe.columns:
-            dataframe[column] = ''
-    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
-    if 'messages' in dataframe.columns:
-        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
-    dataframe = dataframe[GROSS_EXPORT_COLUMNS]
-    output = BytesIO()
-    dataframe.to_excel(output, index=False, sheet_name='Invalid Gross Weight Rows')
-    output.seek(0)
-    return output.read()
-
-
-def export_invalid_sales_records(records: list[dict[str, Any]]) -> bytes:
-    if not records:
-        raise ValueError('No invalid records found to export')
-    dataframe = pd.DataFrame(records).copy()
-    for column in SALES_EXPORT_COLUMNS:
-        if column not in dataframe.columns:
-            dataframe[column] = ''
-    dataframe['issues'] = dataframe['issues'].apply(_stringify_issues)
-    if 'messages' in dataframe.columns:
-        dataframe['messages'] = dataframe['messages'].apply(_stringify_issues)
-    dataframe = dataframe[SALES_EXPORT_COLUMNS]
-    output = BytesIO()
-    dataframe.to_excel(output, index=False, sheet_name='Invalid Sales Rows')
-    output.seek(0)
-    return output.read()
-
-
-def _stringify_issues(value: Any) -> str:
-    if isinstance(value, list):
-        return ', '.join(str(item) for item in value)
-    if value is None:
-        return ''
-    return str(value)
+        raise ValueError('No rate comparison records to export')
+    normalized = []
+    for record in records:
+        issues = record.get('issues') or []
+        messages = record.get('messages') or []
+        normalized.append(
+            {
+                **record,
+                'issues': '; '.join(str(i) for i in issues) if isinstance(issues, list) else issues,
+                'messages': '; '.join(str(m) for m in messages) if isinstance(messages, list) else messages,
+            }
+        )
+    return build_audit_excel_report(
+        report_title='Sales Return Rate Comparison Report',
+        invalid_sheet_name='Higher Return Rate Products',
+        source_processor='sales_return',
+        records=normalized,
+        export_columns=SALES_RETURN_RATE_COMPARISON_COLUMNS,
+        header_map=SALES_RETURN_RATE_COMPARISON_HEADER_MAP,
+    )

@@ -44,8 +44,8 @@ Optional header **`x-request-id`** is accepted on both POST routes and forwarded
 
 With **Python** (`uvicorn`, port **8000** by default) and **this server** running:
 
-- **Swagger UI:** `http://127.0.0.1:3000/api-docs`
-- **Raw spec:** `http://127.0.0.1:3000/openapi.json`
+- **Swagger UI:** `http://127.0.0.1:4001/api-docs` (dev with Vite on 4000) or `http://127.0.0.1:4000/api-docs` if `PORT=4000`
+- **Raw spec:** `http://127.0.0.1:4001/openapi.json`
 
 Use **PAN → POST /api/v1/process/pan/validate**, **Try it out**, attach an Excel file on field **`file`**, **Execute**.
 
@@ -64,7 +64,7 @@ Copy `.env.example` to `.env` and adjust as needed.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `PORT` | `3000` | HTTP listen port |
+| `PORT` | `4000` | HTTP listen port (`4001` in `.env` when Vite dev UI uses 4000) |
 | `NODE_ENV` | `development` | `production` enforces stricter CORS rules |
 | `PYTHON_SERVICE_URL` | `http://127.0.0.1:8000` | FastAPI base URL (no trailing slash) |
 | `CORS_ORIGIN` | `*` in dev | Comma-separated origins; **required** in production (no `*`) |
@@ -97,13 +97,13 @@ npm start
 Validate:
 
 ```bash
-curl -s -X POST "http://127.0.0.1:3000/api/v1/process/pan/validate" -F "file=@./your.xlsx"
+curl -s -X POST "http://127.0.0.1:4001/api/v1/process/pan/validate" -F "file=@./your.xlsx"
 ```
 
 Export (save bytes to file):
 
 ```bash
-curl -s -X POST "http://127.0.0.1:3000/api/v1/process/pan/export-invalid" \
+curl -s -X POST "http://127.0.0.1:4001/api/v1/process/pan/export-invalid" \
   -H "Content-Type: application/json" \
   -d "{\"records\":[{\"rowNumber\":2,\"issues\":[\"MISSING_PAN_ABOVE_2L\"]}]}" \
   --output invalid.xlsx

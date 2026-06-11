@@ -1,0 +1,304 @@
+{
+  "salesEnrichedRows": 10,
+  "returnEnrichedRows": 6,
+  "totalDistinctProductsInSales": 9,
+  "totalDistinctProductsInSalesReturn": 5,
+  "totalDistinctProductsSalesRows": 9,
+  "totalDistinctProductsReturnRows": 5,
+  "matchedProducts": 2,
+  "missingInSales": 3,
+  "missingInReturn": 7,
+  "matchedProductKeys": [
+    "EMERALDS JEM 4400",
+    "GOLD ORNAMENTS 22K"
+  ],
+  "missingInSalesProducts": [
+    {
+      "productKey": "CHAKRI",
+      "product": "Chakri",
+      "returnRowCount": 1,
+      "returnAverageRate": 1000.0,
+      "currentAuditIssue": "PRODUCT_NOT_FOUND_IN_SALES"
+    },
+    {
+      "productKey": "DI. RA 150",
+      "product": "Di. RA 150",
+      "returnRowCount": 1,
+      "returnAverageRate": 17000.0,
+      "currentAuditIssue": "PRODUCT_NOT_FOUND_IN_SALES"
+    },
+    {
+      "productKey": "FLAT POLKI FP 10",
+      "product": "Flat Polki FP 10",
+      "returnRowCount": 1,
+      "returnAverageRate": 10000.0,
+      "currentAuditIssue": "PRODUCT_NOT_FOUND_IN_SALES"
+    }
+  ],
+  "missingInReturnProducts": [
+    {
+      "productKey": "DI. RA 100",
+      "product": "Di. RA 100",
+      "salesRowCount": 1,
+      "salesAverageRate": 100000.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "DI. RA 15",
+      "product": "Di. RA 15",
+      "salesRowCount": 1,
+      "salesAverageRate": 15000.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "FLAT POLKI FP 1",
+      "product": "Flat Polki FP 1",
+      "salesRowCount": 1,
+      "salesAverageRate": 5000.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "LAC",
+      "product": "Lac",
+      "salesRowCount": 1,
+      "salesAverageRate": 0.5,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "PEARLS JPS 2000",
+      "product": "Pearls JPS 2000",
+      "salesRowCount": 1,
+      "salesAverageRate": 2000.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "RUBIES JRU 5000",
+      "product": "Rubies JRU 5000",
+      "salesRowCount": 1,
+      "salesAverageRate": 5000.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    },
+    {
+      "productKey": "SILVER ARTICLES",
+      "product": "Silver Articles",
+      "salesRowCount": 1,
+      "salesAverageRate": 800.0,
+      "currentAuditIssue": null,
+      "note": "Not compared \u2014 Sales Return Audit iterates return products only."
+    }
+  ],
+  "top20ProductsByRowCount": [
+    {
+      "productKey": "GOLD ORNAMENTS 22K",
+      "product": "Gold Ornaments 22K",
+      "salesRowCount": 2,
+      "returnRowCount": 2,
+      "totalRowCount": 4,
+      "inSalesAverage": true,
+      "inReturnAverage": true,
+      "matchStatus": "matched"
+    },
+    {
+      "productKey": "EMERALDS JEM 4400",
+      "product": "Emeralds JEM 4400",
+      "salesRowCount": 1,
+      "returnRowCount": 1,
+      "totalRowCount": 2,
+      "inSalesAverage": true,
+      "inReturnAverage": true,
+      "matchStatus": "matched"
+    },
+    {
+      "productKey": "PEARLS JPS 2000",
+      "product": "Pearls JPS 2000",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 15",
+      "product": "Di. RA 15",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 100",
+      "product": "Di. RA 100",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "LAC",
+      "product": "Lac",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "SILVER ARTICLES",
+      "product": "Silver Articles",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "RUBIES JRU 5000",
+      "product": "Rubies JRU 5000",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "FLAT POLKI FP 1",
+      "product": "Flat Polki FP 1",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "totalRowCount": 1,
+      "inSalesAverage": true,
+      "inReturnAverage": false,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 150",
+      "product": "Di. RA 150",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "totalRowCount": 1,
+      "inSalesAverage": false,
+      "inReturnAverage": true,
+      "matchStatus": "missing_in_sales"
+    },
+    {
+      "productKey": "CHAKRI",
+      "product": "Chakri",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "totalRowCount": 1,
+      "inSalesAverage": false,
+      "inReturnAverage": true,
+      "matchStatus": "missing_in_sales"
+    },
+    {
+      "productKey": "FLAT POLKI FP 10",
+      "product": "Flat Polki FP 10",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "totalRowCount": 1,
+      "inSalesAverage": false,
+      "inReturnAverage": true,
+      "matchStatus": "missing_in_sales"
+    }
+  ],
+  "allProductsRowCounts": [
+    {
+      "productKey": "GOLD ORNAMENTS 22K",
+      "product": "Gold Ornaments 22K",
+      "salesRowCount": 2,
+      "returnRowCount": 2,
+      "matchStatus": "matched"
+    },
+    {
+      "productKey": "EMERALDS JEM 4400",
+      "product": "Emeralds JEM 4400",
+      "salesRowCount": 1,
+      "returnRowCount": 1,
+      "matchStatus": "matched"
+    },
+    {
+      "productKey": "PEARLS JPS 2000",
+      "product": "Pearls JPS 2000",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 15",
+      "product": "Di. RA 15",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 100",
+      "product": "Di. RA 100",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "LAC",
+      "product": "Lac",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "SILVER ARTICLES",
+      "product": "Silver Articles",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "RUBIES JRU 5000",
+      "product": "Rubies JRU 5000",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "FLAT POLKI FP 1",
+      "product": "Flat Polki FP 1",
+      "salesRowCount": 1,
+      "returnRowCount": 0,
+      "matchStatus": "missing_in_return"
+    },
+    {
+      "productKey": "DI. RA 150",
+      "product": "Di. RA 150",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "matchStatus": "missing_in_sales"
+    },
+    {
+      "productKey": "CHAKRI",
+      "product": "Chakri",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "matchStatus": "missing_in_sales"
+    },
+    {
+      "productKey": "FLAT POLKI FP 10",
+      "product": "Flat Polki FP 10",
+      "salesRowCount": 0,
+      "returnRowCount": 1,
+      "matchStatus": "missing_in_sales"
+    }
+  ]
+}

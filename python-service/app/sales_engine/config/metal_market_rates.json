@@ -1,0 +1,12 @@
+{
+  "allowed_variation_percent": 30,
+  "gold_account_standard_rates": {
+    "GOLD SALES ACCOUNT - 14K": 6000.0,
+    "GOLD SALES ACCOUNT - 18K": 7500.0,
+    "GOLD SALES ACCOUNT - 22K": 9000.0,
+    "GOLD SALES ACCOUNT - JADAU": 9500.0,
+    "GOLD SALES ACCOUNT - 24K": 9800.0
+  },
+  "silver_account_standard_rate": 120.0,
+  "updated_at": "2026-05-20T18:00:08.467095+00:00"
+}

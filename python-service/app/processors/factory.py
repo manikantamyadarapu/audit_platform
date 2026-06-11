@@ -1,12 +1,10 @@
 from app.processors.base import BaseProcessor
 from app.processors.gross_weight_processor import GrossWeightProcessor
-from app.processors.gst_processor import GstProcessor
 from app.processors.pan_processor import PanProcessor
 from app.processors.sales_audit_processor import SalesAuditProcessor
 
 PROCESSOR_REGISTRY = {
     'pan': PanProcessor,
-    'gst': GstProcessor,
     'gross_weight': GrossWeightProcessor,
     'sales': SalesAuditProcessor,
 }

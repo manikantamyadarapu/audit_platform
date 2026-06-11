@@ -1,0 +1,20 @@
+{
+  "allowed_variation_percent": 30,
+  "gold_account_standard_rates": {
+    "GOLD SALES ACCOUNT - 14K": null,
+    "GOLD SALES ACCOUNT - 18K": null,
+    "GOLD SALES ACCOUNT - 22K": null,
+    "GOLD SALES ACCOUNT - JADAU": null,
+    "GOLD SALES ACCOUNT - 24K": null
+  },
+  "silver_account_standard_rate": null,
+  "gold_rate_product_patterns": ["^GOLD ORNAMENTS", "^STANDARD GOLD"],
+  "silver_rate_product_patterns": ["^SILVER ARTICLES$"],
+  "metal_rate_skip_product_patterns": [
+    "CUSTOMER",
+    "^BLACK BEADS$",
+    "^DORI$",
+    "^LAC$",
+    "^WAX, DORI ETC$"
+  ]
+}
