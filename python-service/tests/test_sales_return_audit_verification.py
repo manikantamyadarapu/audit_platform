@@ -272,6 +272,31 @@ def test_one_comparison_row_per_product_with_multiple_return_lines() -> None:
     assert comparison[0]['returnTotalGrossAmount'] == 95000
     assert comparison[0]['returnTotalQuantity'] == 10
 
+    product_report = result['productAverageComparisonRecords']
+    assert len(product_report) == 1
+    assert product_report[0]['returnTransactionCount'] == 2
+    assert product_report[0]['status'] == 'VIOLATION'
+
+
+def test_product_average_comparison_includes_all_return_products() -> None:
+    engine = SalesReturnAuditEngine()
+    return_bytes = _build_excel_bytes(
+        [
+            _return_row('Gold Ornaments 22K', 95000, 10, 9500),
+            _return_row('Gold Ornaments 18K', 80000, 10, 8000),
+        ]
+    )
+    stored = [
+        _stored_avg('Gold Ornaments 22K', 900000, 100),
+        _stored_avg('Gold Ornaments 18K', 900000, 100),
+    ]
+    result = engine.process(return_bytes, stored)
+    report = {row['product']: row for row in result['productAverageComparisonRecords']}
+    assert len(report) == 2
+    assert report['Gold Ornaments 22K']['status'] == 'VIOLATION'
+    assert report['Gold Ornaments 18K']['status'] == 'OK'
+    assert report['Gold Ornaments 18K']['issues'] == []
+
 
 # ====================================================
 # TEST 8 — Export file columns
@@ -279,6 +304,7 @@ def test_one_comparison_row_per_product_with_multiple_return_lines() -> None:
 def test_export_excel_has_required_columns() -> None:
     record = {
         'product': 'Gold Ornaments 22K',
+        'returnTransactionCount': 3,
         'salesTotalGrossAmount': 900000,
         'salesTotalQuantity': 100,
         'salesAverageRate': 9000,
@@ -286,16 +312,15 @@ def test_export_excel_has_required_columns() -> None:
         'returnTotalQuantity': 10,
         'returnAverageRate': 9500,
         'difference': 500,
-        'issues': [HIGHER_SALES_RETURN_RATE],
-        'messages': [HIGHER_SALES_RETURN_RATE_MSG],
+        'Message': HIGHER_SALES_RETURN_RATE_MSG,
     }
     excel_bytes = export_sales_return_rate_comparison([record])
-    df = pd.read_excel(BytesIO(excel_bytes), sheet_name='Higher Return Rate Products')
+    df = pd.read_excel(BytesIO(excel_bytes), sheet_name='Product Average Comparison')
     headers = list(df.columns)
     expected_headers = [SALES_RETURN_RATE_COMPARISON_HEADER_MAP[col] for col in SALES_RETURN_RATE_COMPARISON_COLUMNS]
     assert headers == expected_headers
     assert df.iloc[0]['Product'] == 'Gold Ornaments 22K'
-    assert df.iloc[0]['Issue'] == HIGHER_SALES_RETURN_RATE
+    assert df.iloc[0]['Message'] == HIGHER_SALES_RETURN_RATE_MSG
 
 
 # ====================================================

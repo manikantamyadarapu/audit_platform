@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 
 export function getGreeting(date = new Date()) {
   const hour = date.getHours();
-  if (hour < 12) return 'Good Morning';
-  if (hour < 17) return 'Good Afternoon';
-  return 'Good Evening';
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 17) return 'Good Afternoon';
+  if (hour >= 17 && hour < 21) return 'Good Evening';
+  return 'Good Night';
 }
 
 export function formatCurrentDate(date = new Date()) {

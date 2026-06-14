@@ -91,23 +91,26 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
 
   const persist = useCallback(
     (data = snapshotRef.current, auditRunId = null) => {
-      if (!data?.result && !data?.sheetError && !data?.fileName) return false;
+      // Only persist completed/failed audit workspaces — never filename-only snapshots
+      // (avoids wiping saved results when a new validation run clears result state).
+      if (!data?.result && !data?.sheetError) return false;
 
       const transform = optionsRef.current.transform;
-      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}`;
+      const payloadToStore = transform ? transform(data) : data;
+      const resultSig = data.result
+        ? `${data.result.auditRunId ?? ''}:${data.result.totalRows ?? ''}:${data.result.errorRows ?? ''}`
+        : '';
+      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}:${resultSig}`;
       if (persistKey === lastPersistKeyRef.current) return true;
       lastPersistKeyRef.current = persistKey;
 
-      const ok = saveAuditSession(registryKey, data, { transform });
+      const ok = saveAuditSession(registryKey, payloadToStore);
       if (ok) {
         updateSessionMeta(readAuditSessionMeta(registryKey));
-        scheduleRemoteSave(data, auditRunId);
-        return true;
       }
 
-      optionsRef.current.onSaveFailed?.();
-      scheduleRemoteSave(data, auditRunId);
-      return false;
+      scheduleRemoteSave(payloadToStore, auditRunId);
+      return ok;
     },
     [registryKey, scheduleRemoteSave, updateSessionMeta]
   );
@@ -136,9 +139,10 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         ? new Date(session.expiresAt).getTime()
         : savedAt + 7 * 24 * 60 * 60 * 1000;
 
-      saveAuditSession(registryKey, session.results, {
-        transform: optionsRef.current.transform,
-      });
+      const payloadToStore = optionsRef.current.transform
+        ? optionsRef.current.transform(session.results)
+        : session.results;
+      saveAuditSession(registryKey, payloadToStore);
       updateSessionMeta({ savedAt, expiresAt });
       applySessionPayload(session.results);
       hydratedRef.current = true;
@@ -188,7 +192,7 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
 
   // Auto-save when snapshot changes — persist() dedupes identical writes
   useEffect(() => {
-    if (!snapshot?.result && !snapshot?.sheetError && !snapshot?.fileName) return;
+    if (!snapshot?.result && !snapshot?.sheetError) return;
     persist(snapshot);
   }, [registryKey, snapshot, persist]);
 

@@ -570,3 +570,56 @@ table.data-table {
 .dark :where([class~="border-dashed"]) {
   border-color: var(--color-border-soft);
 }
+
+/* Upload dropzone — SVG dashed border (clean corners) + glass fill */
+@keyframes upload-dropzone-dash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+.upload-dropzone-shell {
+  border-radius: 18px;
+  transition: box-shadow 0.2s ease;
+}
+
+.upload-dropzone-shell--active {
+  box-shadow: 0 0 0 4px rgb(16 185 129 / 0.1);
+}
+
+.upload-dropzone-stroke {
+  stroke: rgb(148 163 184 / 0.55);
+  animation: upload-dropzone-dash 1.25s linear infinite;
+}
+
+.dark .upload-dropzone-stroke {
+  stroke: rgb(255 255 255 / 0.18);
+}
+
+.upload-dropzone-stroke--active {
+  stroke: rgb(52 211 153 / 0.65);
+  animation-duration: 0.75s;
+}
+
+.dark .upload-dropzone-stroke--active {
+  stroke: rgb(52 211 153 / 0.55);
+}
+
+.upload-dropzone-inner {
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.upload-dropzone-shell--active .upload-dropzone-inner {
+  background: rgb(16 185 129 / 0.06);
+}
+
+.dark .upload-dropzone-inner {
+  background: rgb(15 23 42 / 0.35);
+}
+
+.dark .upload-dropzone-shell--active .upload-dropzone-inner {
+  background: rgb(16 185 129 / 0.08);
+}

@@ -1,19 +1,26 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Scale, Loader2, Rows3, Download, FileSpreadsheet } from 'lucide-react';
+import { Scale, Loader2, Rows3, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
-import { KpiCard } from '../components/cards/KpiCard';
+import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
+import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
-import { GrossWeightResultsTable } from '../components/tables/GrossWeightResultsTable';
+import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
-import toast from 'react-hot-toast';
 import { validateGrossWeightExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { filterGrossWeightRecords, GROSS_FILTER_LABELS } from '../utils/grossRecordFilters';
 import { downloadGrossWeightRecordsXlsx } from '../utils/grossXlsxExport';
+import { exportRowsToCsv } from '../utils/csvExport';
+import { exportRowsToPdf } from '../utils/pdfExport';
+import {
+  buildExportColumnDefs,
+  resolveAuditColumnOrder,
+} from '../utils/auditTableColumns';
+import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { readAuditSessionData } from '../utils/auditSessionStorage';
 
@@ -65,7 +72,7 @@ export default function GrossWeight() {
 
   const runComparison = useCallback(async () => {
     if (!file) {
-      toast.error('Choose an Excel file first.');
+      auditToastError('Choose an Excel file first.');
       return;
     }
     const ac = new AbortController();
@@ -75,7 +82,7 @@ export default function GrossWeight() {
     try {
       const data = await validateGrossWeightExcel(file, ac.signal);
       if (data && data.success === false) {
-        toast.error(data.detail || 'Comparison failed');
+        auditToastError(data.detail || 'Comparison failed');
         setResult(null);
         return;
       }
@@ -86,9 +93,9 @@ export default function GrossWeight() {
         activeFilter: null,
         fileName: file?.name ?? null,
       });
-      toast.success('Gross weight comparison complete');
+      auditToastSuccess('Gross weight comparison complete');
     } catch (e) {
-      toast.error(e.message || 'Comparison failed');
+      auditToastError(e.message || 'Comparison failed');
     } finally {
       setLoading(false);
     }
@@ -104,20 +111,63 @@ export default function GrossWeight() {
     setActiveFilter((prev) => (prev === key ? null : key));
   }, []);
 
-  const runExport = useCallback(() => {
+  const exportColumnOrder = useMemo(
+    () => (filteredRecords.length ? resolveAuditColumnOrder(filteredRecords) : []),
+    [filteredRecords]
+  );
+
+  const exportColumns = useMemo(
+    () => buildExportColumnDefs(exportColumnOrder, filteredRecords),
+    [exportColumnOrder, filteredRecords]
+  );
+
+  const runExportExcel = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
     try {
       const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-      downloadGrossWeightRecordsXlsx(filteredRecords, `gross-weight-rows-${tag}-${Date.now()}.xlsx`);
-      toast.success('Excel export downloaded');
+      downloadGrossWeightRecordsXlsx(
+        filteredRecords,
+        `gross-weight-rows-${tag}-${Date.now()}.xlsx`,
+        exportColumnOrder
+      );
+      auditToastSuccess('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter]);
+  }, [filteredRecords, activeFilter, exportColumnOrder]);
+
+  const runExportCsv = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToCsv(
+      `gross-weight-rows-${tag}-${Date.now()}.csv`,
+      exportColumns,
+      filteredRecords
+    );
+    auditToastSuccess('CSV export downloaded');
+  }, [filteredRecords, activeFilter, exportColumns]);
+
+  const runExportPdf = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToPdf(
+      `gross-weight-rows-${tag}-${Date.now()}.pdf`,
+      'Gross weight audit — issue register',
+      exportColumns,
+      filteredRecords
+    );
+    auditToastSuccess('PDF export downloaded');
+  }, [filteredRecords, activeFilter, exportColumns]);
 
   const totalRows = result?.totalRows ?? 0;
   const weightMismatch = result?.summary?.weightMismatch ?? result?.errorRows ?? 0;
@@ -183,32 +233,40 @@ export default function GrossWeight() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <KpiCard
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
+              Audit intelligence summary
+            </h3>
+            <AuditSummaryGrid>
+              <AuditSummaryWidget
                 label="Total rows"
                 value={formatNumber(totalRows)}
                 icon={Rows3}
                 accent="blue"
+                importance="secondary"
               />
-              <KpiCard
+              <AuditSummaryWidget
                 label="Weight mismatches"
                 value={formatNumber(weightMismatch)}
                 hint="Manual ≠ Auto Gross Wt."
                 icon={Scale}
                 accent="rose"
+                variant="error"
+                importance="critical"
+                total={totalRows}
                 interactive
                 selected={activeFilter === 'mismatch'}
                 onClick={() => toggleCardFilter('mismatch')}
               />
-              <KpiCard
+              <AuditSummaryWidget
                 label="Compliance"
                 value={compliance != null ? formatPercent(compliance) : '—'}
                 hint="Clean rows / total rows"
                 icon={Rows3}
                 accent="emerald"
+                variant="compliance"
+                importance="critical"
               />
-            </div>
+            </AuditSummaryGrid>
           </section>
 
           <Card>
@@ -217,16 +275,36 @@ export default function GrossWeight() {
                 <div>
                   <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
                 </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exporting}
-                  disabled={exporting || filteredRecords.length === 0}
-                  onClick={runExport}
-                >
-                  <Download className="h-4 w-4" />
-                  Export invalid rows (.xlsx)
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={exporting}
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportExcel}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportCsv}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportPdf}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardBody>
@@ -238,7 +316,10 @@ export default function GrossWeight() {
                     count={filteredRecords.length}
                     onClear={() => setActiveFilter(null)}
                   />
-                  <GrossWeightResultsTable data={filteredRecords} />
+                  <AuditUploadResultsTable
+                    data={filteredRecords}
+                    searchPlaceholder="Search issue rows…"
+                  />
                 </div>
               ) : (
                 <EmptyState

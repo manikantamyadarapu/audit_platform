@@ -10,21 +10,29 @@ import {
   Rows3,
   Download,
   FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
+import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
+import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SalesResultsTable } from '../components/tables/SalesResultsTable';
+import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { dedupeSalesRecordsByRowNumber } from '../utils/dedupeSalesRecords';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
-import { downloadSalesRecordsXlsx } from '../utils/salesXlsxExport';
+import { exportRowsToCsv } from '../utils/csvExport';
+import { exportRowsToPdf } from '../utils/pdfExport';
+import { downloadAuditExceptionXlsx } from '../utils/salesReturnXlsxExport';
+import {
+  buildExportColumnDefs,
+  resolveAuditColumnOrder,
+} from '../utils/auditTableColumns';
+import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
@@ -81,75 +89,142 @@ export default function SalesLedger() {
   } = useAuditSessionPersistence(SALES_LEDGER_SESSION_KEY, sessionSnapshot, {
     transform: slimSalesLedgerSnapshot,
     onApplySession: applySession,
-    onSaveFailed: () => {
-      toast.error('Audit results are too large to keep in the browser. Export the Excel file to keep a copy.');
-    },
   });
 
   const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
 
   const runValidation = useCallback(async () => {
     if (!file) {
-      toast.error('Choose an Excel file first.');
+      auditToastError('Choose an Excel file first.');
       return;
     }
-    const ac = new AbortController();
     setLoading(true);
     setResult(null);
     setSheetError(null);
     setActiveFilter(null);
     try {
-      const data = await validateSalesExcel(file, ac.signal);
+      const data = await validateSalesExcel(file);
       if (data && data.success === false) {
-        toast.error(data.detail || 'Validation failed');
+        auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
         setResult(null);
         return;
       }
       setResult(data);
-      persist({
-        result: data,
-        sheetError: null,
-        activeFilter: null,
-        fileName: file?.name ?? null,
-      });
-      toast.success('Sales validation complete');
+      persist(
+        {
+          result: data,
+          sheetError: null,
+          activeFilter: null,
+          fileName: file?.name ?? null,
+        },
+        data.auditRunId ?? null
+      );
+      auditToastSuccess('Sales validation complete');
     } catch (e) {
       const payload = e.details ?? null;
       setSheetError(payload);
-      toast.error(e.message || 'Validation failed');
+      auditToastError(e.message || 'Validation failed');
     } finally {
       setLoading(false);
     }
   }, [file, persist]);
 
-  const rawRecords = useMemo(
-    () => dedupeSalesRecordsByRowNumber(result?.records),
-    [result?.records]
+  const exceptionRecords = useMemo(() => {
+    const rows = result?.exceptionRecords ?? result?.records ?? [];
+    return Array.isArray(rows) ? rows : [];
+  }, [result]);
+
+  const exceptionColumnOrder = useMemo(
+    () =>
+      exceptionRecords.length
+        ? resolveAuditColumnOrder(
+            exceptionRecords,
+            result?.exportColumns,
+            result?.columnDisplayHeaders
+          )
+        : [],
+    [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]
   );
+
   const filteredRecords = useMemo(
-    () => filterSalesRecords(rawRecords, activeFilter),
-    [rawRecords, activeFilter]
+    () => filterSalesRecords(exceptionRecords, activeFilter),
+    [exceptionRecords, activeFilter]
+  );
+
+  const exportFilteredColumnOrder = useMemo(() => {
+    if (!filteredRecords.length) return exceptionColumnOrder;
+    return exceptionColumnOrder.filter((key) => {
+      if (key === 'Message') return true;
+      return key in filteredRecords[0];
+    });
+  }, [filteredRecords, exceptionColumnOrder]);
+
+  const exportFilteredColumns = useMemo(
+    () => buildExportColumnDefs(exportFilteredColumnOrder, filteredRecords),
+    [exportFilteredColumnOrder, filteredRecords]
   );
 
   const toggleCardFilter = useCallback((key) => {
     setActiveFilter((prev) => (prev === key ? null : key));
   }, []);
 
-  const runExport = useCallback(() => {
+  const runExportExcel = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
     try {
       const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-      downloadSalesRecordsXlsx(filteredRecords, `sales-rows-${tag}-${Date.now()}.xlsx`);
-      toast.success('Excel export downloaded');
+      downloadAuditExceptionXlsx(
+        filteredRecords,
+        exportFilteredColumnOrder,
+        `sales-ledger-exceptions-${tag}-${Date.now()}.xlsx`,
+        'Exception report',
+        result?.exportColumns,
+        result?.columnDisplayHeaders
+      );
+      auditToastSuccess('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter]);
+  }, [
+    filteredRecords,
+    activeFilter,
+    exportFilteredColumnOrder,
+    result?.exportColumns,
+    result?.columnDisplayHeaders,
+  ]);
+
+  const runExportCsv = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToCsv(
+      `sales-ledger-exceptions-${tag}-${Date.now()}.csv`,
+      exportFilteredColumns,
+      filteredRecords
+    );
+    auditToastSuccess('CSV export downloaded');
+  }, [filteredRecords, activeFilter, exportFilteredColumns]);
+
+  const runExportPdf = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToPdf(
+      `sales-ledger-exceptions-${tag}-${Date.now()}.pdf`,
+      'Rate and ledger audit — exception report',
+      exportFilteredColumns,
+      filteredRecords
+    );
+    auditToastSuccess('PDF export downloaded');
+  }, [filteredRecords, activeFilter, exportFilteredColumns]);
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
@@ -157,14 +232,14 @@ export default function SalesLedger() {
     summary.distinctInvalidRows ??
     summary.errorRowsCount ??
     result?.errorRows ??
-    rawRecords.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0).length;
+    exceptionRecords.length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
   const rateViolations = summary.rateDeviationViolations ?? 0;
-  const accessoriesUnitRateCount = filterSalesRecords(rawRecords, 'accessoriesUnitRate').length;
+  const accessoriesUnitRateCount = filterSalesRecords(exceptionRecords, 'accessoriesUnitRate').length;
   const caratGemErrors =
     summary.invalidUomRows ??
     summary.caratGemErrorRows ??
-    filterSalesRecords(rawRecords, 'caratGemErrors').length;
+    filterSalesRecords(exceptionRecords, 'caratGemErrors').length;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
   const productAverageCount =
@@ -283,109 +358,128 @@ export default function SalesLedger() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
-            <div className="flex flex-wrap items-stretch gap-4">
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Total rows"
-                  value={formatNumber(totalRows)}
-                  icon={Rows3}
-                  accent="blue"
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Error rows"
-                  value={formatNumber(errorRows)}
-                  icon={AlertTriangle}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'errors'}
-                  onClick={() => toggleCardFilter('errors')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Account vs product"
-                  value={formatNumber(catVsProduct)}
-                  icon={BookOpen}
-                  accent="rose"
-                  interactive
-                  selected={activeFilter === 'accountVsProduct'}
-                  onClick={() => toggleCardFilter('accountVsProduct')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Range deviations"
-                  value={formatNumber(rateViolations)}
-                  icon={BookOpen}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'mixedLedgers'}
-                  onClick={() => toggleCardFilter('mixedLedgers')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Accessories Unit Rate Check"
-                  value={formatNumber(accessoriesUnitRateCount)}
-                  icon={BookOpen}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'accessoriesUnitRate'}
-                  onClick={() => toggleCardFilter('accessoriesUnitRate')}
-                />
-              </div>
-
-              <div className="min-w-[190px] h-[120px]">
-                <KpiCard
-                  label="Unit of measurement deviations"
-                  value={formatNumber(caratGemErrors)}
-                  icon={Gem}
-                  accent="violet"
-                  interactive
-                  selected={activeFilter === 'caratGemErrors'}
-                  onClick={() => toggleCardFilter('caratGemErrors')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Compliance"
-                  value={compliance != null ? formatPercent(compliance) : '—'}
-                  icon={Rows3}
-                  accent="emerald"
-                />
-              </div>
-            </div>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
+              Audit intelligence summary
+            </h3>
+            <AuditSummaryGrid>
+              <AuditSummaryWidget
+                label="Total rows"
+                value={formatNumber(totalRows)}
+                icon={Rows3}
+                accent="blue"
+                importance="secondary"
+              />
+              <AuditSummaryWidget
+                label="Error rows"
+                value={formatNumber(errorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+                variant="error"
+                importance="critical"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'errors'}
+                onClick={() => toggleCardFilter('errors')}
+              />
+              <AuditSummaryWidget
+                label="Account vs product"
+                value={formatNumber(catVsProduct)}
+                icon={BookOpen}
+                accent="rose"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'accountVsProduct'}
+                onClick={() => toggleCardFilter('accountVsProduct')}
+              />
+              <AuditSummaryWidget
+                label="Range deviations"
+                value={formatNumber(rateViolations)}
+                icon={BookOpen}
+                accent="amber"
+                variant="deviation"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'mixedLedgers'}
+                onClick={() => toggleCardFilter('mixedLedgers')}
+              />
+              <AuditSummaryWidget
+                label="Accessories Unit Rate Check"
+                value={formatNumber(accessoriesUnitRateCount)}
+                icon={BookOpen}
+                accent="amber"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'accessoriesUnitRate'}
+                onClick={() => toggleCardFilter('accessoriesUnitRate')}
+              />
+              <AuditSummaryWidget
+                label="Unit of measurement deviations"
+                value={formatNumber(caratGemErrors)}
+                icon={Gem}
+                accent="violet"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'caratGemErrors'}
+                onClick={() => toggleCardFilter('caratGemErrors')}
+              />
+              <AuditSummaryWidget
+                label="Compliance"
+                value={compliance != null ? formatPercent(compliance) : '—'}
+                icon={Rows3}
+                accent="emerald"
+                variant="compliance"
+                importance="critical"
+              />
+            </AuditSummaryGrid>
           </section>
 
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">Issue register</h3>
-                  <p className="text-sm text-slate-500">TanStack Table · sort · paginate · CSV & PDF export</p>
+                  <h3 className="text-base font-bold text-emerald-700">Exception report</h3>
+                  <p className="text-sm text-slate-500">
+                    Original upload columns preserved with Message (issue codes) appended.
+                  </p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exporting}
-                  disabled={exporting || filteredRecords.length === 0}
-                  onClick={runExport}
-                >
-                  <Download className="h-4 w-4" />
-                  Export invalid rows (.xlsx)
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={exporting}
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportExcel}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportCsv}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportPdf}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardBody>
-              {result.records?.length || activeFilter != null ? (
+              {exceptionRecords.length || activeFilter != null ? (
                 <div className="space-y-4">
                   <AuditFilterStrip
                     activeFilter={activeFilter}
@@ -393,12 +487,25 @@ export default function SalesLedger() {
                     count={filteredRecords.length}
                     onClear={() => setActiveFilter(null)}
                   />
-                  <SalesResultsTable data={filteredRecords} />
+                  {filteredRecords.length ? (
+                    <AuditUploadResultsTable
+                      data={filteredRecords}
+                      columnOrder={exportFilteredColumnOrder}
+                      exportColumns={result?.exportColumns}
+                      columnDisplayHeaders={result?.columnDisplayHeaders}
+                      searchPlaceholder="Search exception rows…"
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No rows for this filter"
+                      description="Clear the filter or choose a different issue category."
+                    />
+                  )}
                 </div>
               ) : (
                 <EmptyState
                   title="No issues detected"
-                  description="Every evaluated row satisfied sales-account and gross-weight checks for this upload."
+                  description="Every evaluated row passed validation for this upload."
                 />
               )}
             </CardBody>

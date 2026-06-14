@@ -188,6 +188,12 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         category=IssueCategory.BUSINESS_RULE,
         default_message=SALES_ISSUE_MESSAGES['INVALID_PRODUCT_MAPPING'],
     ),
+    'INVALID_LEDGER_MAPPING': IssueDefinition(
+        issue_code='INVALID_LEDGER_MAPPING',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message='Sales account and product category do not match.',
+    ),
     'PRODUCT_NOT_FOUND_IN_MASTER': IssueDefinition(
         issue_code='PRODUCT_NOT_FOUND_IN_MASTER',
         severity=IssueSeverity.HIGH,
@@ -228,7 +234,7 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         issue_code='HIGHER_SALES_RETURN_RATE',
         severity=IssueSeverity.MEDIUM,
         category=IssueCategory.BUSINESS_RULE,
-        default_message='Average sales return rate is higher than average sales rate.',
+        default_message='Higher sales return rate',
     ),
     'PRODUCT_NOT_FOUND_IN_SALES': IssueDefinition(
         issue_code='PRODUCT_NOT_FOUND_IN_SALES',
