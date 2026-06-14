@@ -59,4 +59,5 @@ class SalesAuditProcessor(BaseProcessor):
         response['exportColumns'] = result.export_columns
         response['columnDisplayHeaders'] = result.column_display_headers
         response['sourceColumns'] = result.source_columns
+        response['productAverageVerification'] = result.summary.get('productAverageVerification')
         return response

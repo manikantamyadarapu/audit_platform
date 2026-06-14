@@ -1,5 +1,8 @@
 from typing import Any
 
+import pandas as pd
+from io import BytesIO
+
 from app.sales_engine.engine.sales_audit_output import (
     SALES_AUDIT_OUTPUT_COLUMNS,
     sales_records_for_export,
@@ -55,9 +58,7 @@ SALES_RETURN_RATE_COMPARISON_COLUMNS = [
     'returnTotalQuantity',
     'returnAverageRate',
     'difference',
-    'status',
-    'issues',
-    'messages',
+    'Message',
 ]
 
 SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
@@ -70,9 +71,7 @@ SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
     'returnTotalQuantity': 'Sales Return Total Quantity',
     'returnAverageRate': 'Sales Return Average Rate',
     'difference': 'Difference',
-    'status': 'Status',
-    'issues': 'Issue',
-    'messages': 'Message',
+    'Message': 'Message',
 }
 
 
@@ -232,22 +231,49 @@ def _max_value_length(series) -> int:
 def export_sales_return_rate_comparison(records: list[dict[str, Any]]) -> bytes:
     if not records:
         raise ValueError('No rate comparison records to export')
-    normalized = []
+
+    rows: list[dict[str, Any]] = []
     for record in records:
         issues = record.get('issues') or []
         messages = record.get('messages') or []
-        normalized.append(
+        issue_text = '; '.join(str(i) for i in issues) if isinstance(issues, list) else str(issues or '')
+        message_text = '; '.join(str(m) for m in messages) if isinstance(messages, list) else str(messages or '')
+        message_column = record.get('Message')
+        if message_column in (None, ''):
+            message_column = message_text or issue_text
+
+        rows.append(
             {
-                **record,
-                'issues': '; '.join(str(i) for i in issues) if isinstance(issues, list) else issues,
-                'messages': '; '.join(str(m) for m in messages) if isinstance(messages, list) else messages,
+                'product': record.get('product', ''),
+                'returnTransactionCount': record.get('returnTransactionCount', ''),
+                'salesTotalGrossAmount': record.get('salesTotalGrossAmount', ''),
+                'salesTotalQuantity': record.get('salesTotalQuantity', ''),
+                'salesAverageRate': record.get('salesAverageRate', ''),
+                'returnTotalGrossAmount': record.get('returnTotalGrossAmount', ''),
+                'returnTotalQuantity': record.get('returnTotalQuantity', ''),
+                'returnAverageRate': record.get('returnAverageRate', ''),
+                'difference': record.get('difference', ''),
+                'Message': message_column,
             }
         )
-    return build_audit_excel_report(
-        report_title='Sales Return Rate Comparison Report',
-        invalid_sheet_name='Higher Return Rate Products',
-        source_processor='sales_return',
-        records=normalized,
-        export_columns=SALES_RETURN_RATE_COMPARISON_COLUMNS,
-        header_map=SALES_RETURN_RATE_COMPARISON_HEADER_MAP,
-    )
+
+    dataframe = pd.DataFrame(rows)
+    dataframe = dataframe.rename(columns=SALES_RETURN_RATE_COMPARISON_HEADER_MAP)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        sheet_name = 'Product Average Comparison'
+        dataframe.to_excel(writer, index=False, sheet_name=sheet_name)
+        workbook = writer.book
+        header_format = workbook.add_format(
+            {'bold': True, 'font_color': 'white', 'bg_color': '#1F4E78', 'border': 1}
+        )
+        worksheet = writer.sheets[sheet_name]
+        worksheet.freeze_panes(1, 0)
+        for idx, column in enumerate(dataframe.columns):
+            width = max(len(str(column)), _max_value_length(dataframe[column])) + 2
+            worksheet.set_column(idx, idx, min(width, 60))
+            worksheet.write(0, idx, column, header_format)
+
+    output.seek(0)
+    return output.getvalue()

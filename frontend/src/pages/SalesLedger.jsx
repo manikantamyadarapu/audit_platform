@@ -13,23 +13,26 @@ import {
   FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { KpiCard } from '../components/cards/KpiCard';
+import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
+import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
-import { SalesReturnExceptionTable } from '../components/tables/SalesReturnExceptionTable';
+import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
+import { downloadAuditExceptionXlsx } from '../utils/salesReturnXlsxExport';
 import {
-  downloadAuditExceptionXlsx,
-  resolveAuditExportColumns,
-} from '../utils/salesReturnXlsxExport';
+  buildExportColumnDefs,
+  resolveAuditColumnOrder,
+} from '../utils/auditTableColumns';
+import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
@@ -92,95 +95,83 @@ export default function SalesLedger() {
 
   const runValidation = useCallback(async () => {
     if (!file) {
-      toast.error('Choose an Excel file first.');
+      auditToastError('Choose an Excel file first.');
       return;
     }
-    const ac = new AbortController();
     setLoading(true);
     setResult(null);
     setSheetError(null);
     setActiveFilter(null);
     try {
-      const data = await validateSalesExcel(file, ac.signal);
+      const data = await validateSalesExcel(file);
       if (data && data.success === false) {
-        toast.error(data.detail || 'Validation failed');
+        auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
         setResult(null);
         return;
       }
       setResult(data);
-      persist({
-        result: data,
-        sheetError: null,
-        activeFilter: null,
-        fileName: file?.name ?? null,
-      });
-      toast.success('Sales validation complete');
+      persist(
+        {
+          result: data,
+          sheetError: null,
+          activeFilter: null,
+          fileName: file?.name ?? null,
+        },
+        data.auditRunId ?? null
+      );
+      auditToastSuccess('Sales validation complete');
     } catch (e) {
       const payload = e.details ?? null;
       setSheetError(payload);
-      toast.error(e.message || 'Validation failed');
+      auditToastError(e.message || 'Validation failed');
     } finally {
       setLoading(false);
     }
   }, [file, persist]);
 
-  const exceptionRecords = useMemo(
-    () => result?.exceptionRecords ?? result?.records ?? [],
-    [result]
-  );
+  const exceptionRecords = useMemo(() => {
+    const rows = result?.exceptionRecords ?? result?.records ?? [];
+    return Array.isArray(rows) ? rows : [];
+  }, [result]);
 
   const exceptionColumnOrder = useMemo(
     () =>
       exceptionRecords.length
-        ? resolveAuditExportColumns(
+        ? resolveAuditColumnOrder(
             exceptionRecords,
             result?.exportColumns,
             result?.columnDisplayHeaders
           )
-        : null,
+        : [],
     [exceptionRecords, result?.exportColumns, result?.columnDisplayHeaders]
   );
-
-  const exceptionExportColumns = useMemo(() => {
-    if (!exceptionRecords.length) return [];
-    const keys = exceptionColumnOrder?.length
-      ? exceptionColumnOrder
-      : Object.keys(exceptionRecords[0]);
-    return keys.map((header) => ({
-      header,
-      accessor: (row) => row[header] ?? '',
-    }));
-  }, [exceptionRecords, exceptionColumnOrder]);
 
   const filteredRecords = useMemo(
     () => filterSalesRecords(exceptionRecords, activeFilter),
     [exceptionRecords, activeFilter]
   );
 
+  const exportFilteredColumnOrder = useMemo(() => {
+    if (!filteredRecords.length) return exceptionColumnOrder;
+    return exceptionColumnOrder.filter((key) => {
+      if (key === 'Message') return true;
+      return key in filteredRecords[0];
+    });
+  }, [filteredRecords, exceptionColumnOrder]);
+
+  const exportFilteredColumns = useMemo(
+    () => buildExportColumnDefs(exportFilteredColumnOrder, filteredRecords),
+    [exportFilteredColumnOrder, filteredRecords]
+  );
+
   const toggleCardFilter = useCallback((key) => {
     setActiveFilter((prev) => (prev === key ? null : key));
   }, []);
 
-  const exportFilteredColumnOrder = useMemo(() => {
-    if (!filteredRecords.length) return exceptionColumnOrder;
-    const keys = exceptionColumnOrder?.length
-      ? exceptionColumnOrder
-      : Object.keys(filteredRecords[0]);
-    return keys.filter((key) => key in filteredRecords[0]);
-  }, [filteredRecords, exceptionColumnOrder]);
-
-  const exportFilteredColumns = useMemo(() => {
-    const order = exportFilteredColumnOrder ?? [];
-    return order.map((header) => ({
-      header,
-      accessor: (row) => row[header] ?? '',
-    }));
-  }, [exportFilteredColumnOrder]);
-
   const runExportExcel = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
@@ -189,17 +180,26 @@ export default function SalesLedger() {
       downloadAuditExceptionXlsx(
         filteredRecords,
         exportFilteredColumnOrder,
-        `sales-ledger-exceptions-${tag}-${Date.now()}.xlsx`
+        `sales-ledger-exceptions-${tag}-${Date.now()}.xlsx`,
+        'Exception report',
+        result?.exportColumns,
+        result?.columnDisplayHeaders
       );
-      toast.success('Excel export downloaded');
+      auditToastSuccess('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter, exportFilteredColumnOrder]);
+  }, [
+    filteredRecords,
+    activeFilter,
+    exportFilteredColumnOrder,
+    result?.exportColumns,
+    result?.columnDisplayHeaders,
+  ]);
 
   const runExportCsv = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
@@ -208,12 +208,12 @@ export default function SalesLedger() {
       exportFilteredColumns,
       filteredRecords
     );
-    toast.success('CSV export downloaded');
+    auditToastSuccess('CSV export downloaded');
   }, [filteredRecords, activeFilter, exportFilteredColumns]);
 
   const runExportPdf = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
@@ -223,7 +223,7 @@ export default function SalesLedger() {
       exportFilteredColumns,
       filteredRecords
     );
-    toast.success('PDF export downloaded');
+    auditToastSuccess('PDF export downloaded');
   }, [filteredRecords, activeFilter, exportFilteredColumns]);
 
   const summary = result?.summary ?? {};
@@ -358,86 +358,83 @@ export default function SalesLedger() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
-            <div className="flex flex-wrap items-stretch gap-4">
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Total rows"
-                  value={formatNumber(totalRows)}
-                  icon={Rows3}
-                  accent="blue"
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Error rows"
-                  value={formatNumber(errorRows)}
-                  icon={AlertTriangle}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'errors'}
-                  onClick={() => toggleCardFilter('errors')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Account vs product"
-                  value={formatNumber(catVsProduct)}
-                  icon={BookOpen}
-                  accent="rose"
-                  interactive
-                  selected={activeFilter === 'accountVsProduct'}
-                  onClick={() => toggleCardFilter('accountVsProduct')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Range deviations"
-                  value={formatNumber(rateViolations)}
-                  icon={BookOpen}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'mixedLedgers'}
-                  onClick={() => toggleCardFilter('mixedLedgers')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Accessories Unit Rate Check"
-                  value={formatNumber(accessoriesUnitRateCount)}
-                  icon={BookOpen}
-                  accent="amber"
-                  interactive
-                  selected={activeFilter === 'accessoriesUnitRate'}
-                  onClick={() => toggleCardFilter('accessoriesUnitRate')}
-                />
-              </div>
-
-              <div className="min-w-[190px] h-[120px]">
-                <KpiCard
-                  label="Unit of measurement deviations"
-                  value={formatNumber(caratGemErrors)}
-                  icon={Gem}
-                  accent="violet"
-                  interactive
-                  selected={activeFilter === 'caratGemErrors'}
-                  onClick={() => toggleCardFilter('caratGemErrors')}
-                />
-              </div>
-
-              <div className="min-w-[190px]  h-[120px]">
-                <KpiCard
-                  label="Compliance"
-                  value={compliance != null ? formatPercent(compliance) : '—'}
-                  icon={Rows3}
-                  accent="emerald"
-                />
-              </div>
-            </div>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
+              Audit intelligence summary
+            </h3>
+            <AuditSummaryGrid>
+              <AuditSummaryWidget
+                label="Total rows"
+                value={formatNumber(totalRows)}
+                icon={Rows3}
+                accent="blue"
+                importance="secondary"
+              />
+              <AuditSummaryWidget
+                label="Error rows"
+                value={formatNumber(errorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+                variant="error"
+                importance="critical"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'errors'}
+                onClick={() => toggleCardFilter('errors')}
+              />
+              <AuditSummaryWidget
+                label="Account vs product"
+                value={formatNumber(catVsProduct)}
+                icon={BookOpen}
+                accent="rose"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'accountVsProduct'}
+                onClick={() => toggleCardFilter('accountVsProduct')}
+              />
+              <AuditSummaryWidget
+                label="Range deviations"
+                value={formatNumber(rateViolations)}
+                icon={BookOpen}
+                accent="amber"
+                variant="deviation"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'mixedLedgers'}
+                onClick={() => toggleCardFilter('mixedLedgers')}
+              />
+              <AuditSummaryWidget
+                label="Accessories Unit Rate Check"
+                value={formatNumber(accessoriesUnitRateCount)}
+                icon={BookOpen}
+                accent="amber"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'accessoriesUnitRate'}
+                onClick={() => toggleCardFilter('accessoriesUnitRate')}
+              />
+              <AuditSummaryWidget
+                label="Unit of measurement deviations"
+                value={formatNumber(caratGemErrors)}
+                icon={Gem}
+                accent="violet"
+                importance="secondary"
+                total={totalRows}
+                interactive
+                selected={activeFilter === 'caratGemErrors'}
+                onClick={() => toggleCardFilter('caratGemErrors')}
+              />
+              <AuditSummaryWidget
+                label="Compliance"
+                value={compliance != null ? formatPercent(compliance) : '—'}
+                icon={Rows3}
+                accent="emerald"
+                variant="compliance"
+                importance="critical"
+              />
+            </AuditSummaryGrid>
           </section>
 
           <Card>
@@ -491,9 +488,12 @@ export default function SalesLedger() {
                     onClear={() => setActiveFilter(null)}
                   />
                   {filteredRecords.length ? (
-                    <SalesReturnExceptionTable
+                    <AuditUploadResultsTable
                       data={filteredRecords}
                       columnOrder={exportFilteredColumnOrder}
+                      exportColumns={result?.exportColumns}
+                      columnDisplayHeaders={result?.columnDisplayHeaders}
+                      searchPlaceholder="Search exception rows…"
                     />
                   ) : (
                     <EmptyState

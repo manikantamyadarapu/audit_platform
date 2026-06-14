@@ -120,7 +120,7 @@ function KpiCard({ item, loading }) {
 }
 
 export default function Dashboard() {
-  const { greeting, shortDate } = useCurrentDateTime();
+  const { greeting, shortDate, time } = useCurrentDateTime();
   const storedUser = getStoredUser();
   const displayName = storedUser?.name?.split(/\s+/)[0] || 'Admin';
 
@@ -229,7 +229,11 @@ export default function Dashboard() {
           <h1 className="text-[32px] font-semibold tracking-tight text-[var(--color-text-primary)]">
             {greeting}, {displayName}
           </h1>
-          <p className="mt-2 text-base text-[var(--color-text-secondary)]">Here's what's happening with your audits today.</p>
+          <p className="mt-2 text-base text-[var(--color-text-secondary)]">
+            {time}
+            <span aria-hidden="true"> · </span>
+            Here&apos;s what&apos;s happening with your audits today.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact className="h-14 w-14" />

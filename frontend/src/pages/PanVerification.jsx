@@ -4,16 +4,17 @@ import {
   AlertTriangle,
   Download,
   FileSpreadsheet,
+  FileText,
   Loader2,
   Rows3,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { PanResultsTable } from '../components/tables/PanResultsTable';
+import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { EmptyState } from '../components/ui/EmptyState';
-import { KpiCard } from '../components/cards/KpiCard';
+import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
+import { AuditSummaryGroup } from '../components/audit/AuditSummaryGrid';
 import { validatePanExcel } from '../services/panService';
 import { formatNumber } from '../utils/format';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
@@ -22,6 +23,13 @@ import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence'
 import { readAuditSessionData } from '../utils/auditSessionStorage';
 import { filterPanRecords, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
 import { downloadPanRecordsXlsx } from '../utils/panXlsxExport';
+import { exportRowsToCsv } from '../utils/csvExport';
+import { exportRowsToPdf } from '../utils/pdfExport';
+import {
+  buildExportColumnDefs,
+  resolveAuditColumnOrder,
+} from '../utils/auditTableColumns';
+import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAppUi } from '../context/AppUiContext';
 
 const PAN_SESSION_KEY = 'pan-audit';
@@ -73,7 +81,7 @@ export default function PanVerification() {
 
   const runValidate = useCallback(async () => {
     if (!file) {
-      toast.error('Choose an Excel file first.');
+      auditToastError('Choose an Excel file first.');
       return;
     }
     const ac = new AbortController();
@@ -83,7 +91,7 @@ export default function PanVerification() {
     try {
       const data = await validatePanExcel(file, ac.signal);
       if (data && data.success === false) {
-        toast.error(data.detail || 'Validation failed');
+        auditToastError(data.detail || 'Validation failed');
         setResult(null);
         return;
       }
@@ -98,9 +106,9 @@ export default function PanVerification() {
         totalRows: data.totalRows,
         errorRows: data.errorRows,
       });
-      toast.success('PAN validation complete');
+      auditToastSuccess('PAN validation complete');
     } catch (e) {
-      toast.error(e.message || 'Validation failed');
+      auditToastError(e.message || 'Validation failed');
     } finally {
       setLoading(false);
     }
@@ -116,21 +124,66 @@ export default function PanVerification() {
     setActiveFilter((prev) => (prev === key ? null : key));
   }, []);
 
-  const runExport = useCallback(() => {
+  const exportColumnOrder = useMemo(
+    () => (filteredRecords.length ? resolveAuditColumnOrder(filteredRecords) : []),
+    [filteredRecords]
+  );
+
+  const exportColumns = useMemo(
+    () => buildExportColumnDefs(exportColumnOrder, filteredRecords),
+    [exportColumnOrder, filteredRecords]
+  );
+
+  const runExportExcel = useCallback(() => {
     if (!filteredRecords.length) {
-      toast.error('No rows to export.');
+      auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
     try {
       const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-      downloadPanRecordsXlsx(filteredRecords, `pan-rows-${tag}-${Date.now()}.xlsx`);
+      downloadPanRecordsXlsx(
+        filteredRecords,
+        `pan-rows-${tag}-${Date.now()}.xlsx`,
+        exportColumnOrder
+      );
       recordExport();
-      toast.success('Excel export downloaded');
+      auditToastSuccess('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter, recordExport]);
+  }, [filteredRecords, activeFilter, exportColumnOrder, recordExport]);
+
+  const runExportCsv = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToCsv(
+      `pan-rows-${tag}-${Date.now()}.csv`,
+      exportColumns,
+      filteredRecords
+    );
+    recordExport();
+    auditToastSuccess('CSV export downloaded');
+  }, [filteredRecords, activeFilter, exportColumns, recordExport]);
+
+  const runExportPdf = useCallback(() => {
+    if (!filteredRecords.length) {
+      auditToastError('No rows to export.');
+      return;
+    }
+    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    exportRowsToPdf(
+      `pan-rows-${tag}-${Date.now()}.pdf`,
+      'PAN audit — report',
+      exportColumns,
+      filteredRecords
+    );
+    recordExport();
+    auditToastSuccess('PDF export downloaded');
+  }, [filteredRecords, activeFilter, exportColumns, recordExport]);
 
   const summary = result?.summary ?? {};
   const totalRows = result?.totalRows ?? 0;
@@ -200,95 +253,107 @@ export default function PanVerification() {
       {result ? (
         <>
           <section>
-            <h3 className="mb-4 text-base font-bold text-emerald-700">Summary</h3>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
+              Audit intelligence summary
+            </h3>
 
-            {/* KPI widgets arranged in two labeled rows for clarity */}
-            <div>
-              <div className="mb-2 text-sm font-semibold text-slate-700">PAN summary</div>
-              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-1">
-                <KpiCard
+            <div className="space-y-6">
+              <AuditSummaryGroup title="PAN summary">
+                <AuditSummaryWidget
                   label="Total workbook rows"
                   value={formatNumber(totalRows)}
                   icon={Rows3}
                   accent="blue"
+                  importance="secondary"
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="Valid PAN"
                   value={formatNumber(summary.validPanCount ?? 0)}
                   icon={Rows3}
                   accent="emerald"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'validPan'}
                   onClick={() => toggleCardFilter('validPan')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="Incorrect PAN format"
                   value={formatNumber(summary.incorrectPanFormatCount ?? summary.invalidPanFormatCount ?? summary.invalidPanFormat ?? 0)}
                   icon={AlertTriangle}
                   accent="rose"
+                  variant="error"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'invalidPan'}
                   onClick={() => toggleCardFilter('invalidPan')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="No PAN & Form 60 Available"
                   value={formatNumber(noPanForm60AvailableCount)}
                   icon={AlertTriangle}
                   accent="emerald"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'noPanForm60Available'}
                   onClick={() => toggleCardFilter('noPanForm60Available')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="No PAN & Invalid Form 60"
                   value={formatNumber(noPanInvalidForm60Count)}
                   icon={AlertTriangle}
                   accent="rose"
+                  variant="error"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'noPanInvalidForm60'}
                   onClick={() => toggleCardFilter('noPanInvalidForm60')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="No PAN & No Form 60"
                   value={formatNumber(noPanNoForm60Count)}
                   icon={AlertTriangle}
                   accent="amber"
+                  variant="error"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'noPanNoForm60'}
                   onClick={() => toggleCardFilter('noPanNoForm60')}
                 />
-              </div>
+              </AuditSummaryGroup>
 
-              <div className="mt-4 mb-2 text-sm font-semibold text-slate-700">Address checks</div>
-              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-1">
-                <KpiCard
+              <AuditSummaryGroup title="Address checks">
+                <AuditSummaryWidget
                   label="gst>=50k address missing"
                   value={formatNumber(gst50kAddressMissingCount)}
                   icon={AlertTriangle}
                   accent="amber"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'gst50kAddressMissing'}
                   onClick={() => toggleCardFilter('gst50kAddressMissing')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="incorrect address format"
                   value={formatNumber(incorrectAddressFormatCount)}
                   icon={AlertTriangle}
                   accent="rose"
+                  variant="error"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'incorrectAddressFormat'}
                   onClick={() => toggleCardFilter('incorrectAddressFormat')}
                 />
-                <KpiCard
+                <AuditSummaryWidget
                   label="valid address format"
                   value={formatNumber(validAddressFormatCount)}
                   icon={AlertTriangle}
                   accent="emerald"
+                  total={totalRows}
                   interactive
                   selected={activeFilter === 'validAddressFormat'}
                   onClick={() => toggleCardFilter('validAddressFormat')}
                 />
-              </div>
+              </AuditSummaryGroup>
             </div>
           </section>
 
@@ -299,16 +364,36 @@ export default function PanVerification() {
                   <h3 className="text-base font-bold text-emerald-700">PAN reports</h3>
                   <p className="text-sm text-slate-500">Rows where Total Value is above ₹2L and PAN/PAN1 is present or Form 60 status</p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exporting}
-                  disabled={exporting || filteredRecords.length === 0}
-                  onClick={runExport}
-                >
-                  <Download className="h-4 w-4" />
-                  Export shown rows (.xlsx)
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={exporting}
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportExcel}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportCsv}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={exporting || filteredRecords.length === 0}
+                    onClick={runExportPdf}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardBody>
@@ -321,7 +406,10 @@ export default function PanVerification() {
                       count={filteredRecords.length}
                       onClear={() => setActiveFilter(null)}
                     />
-                    <PanResultsTable data={filteredRecords} />
+                    <AuditUploadResultsTable
+                      data={filteredRecords}
+                      searchPlaceholder="Search PAN report rows…"
+                    />
                   </div>
                 </div>
               ) : (

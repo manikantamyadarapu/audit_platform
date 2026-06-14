@@ -11,7 +11,10 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet, VectorizedValidationEngine
 from app.sales_engine.engine.audit_workbook import write_sales_audit_workbook
 from app.sales_engine.engine.debug_trace import attach_debug_identity_columns, write_sales_audit_debug_workbook
-from app.sales_engine.engine.product_averages import product_average_records_from_txn_frame
+from app.sales_engine.engine.product_averages import (
+    build_product_average_verification_summary,
+    product_average_records_from_txn_frame,
+)
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
 from app.sales_engine.exception_report import build_export_metadata, build_sales_exception_records
 from app.sales_engine.engine.reconciliation import log_reconciliation, reconcile_adjudicated_frame
@@ -216,6 +219,10 @@ class VectorizedSalesEngine:
             display_headers,
         )
         product_averages = product_average_records_from_txn_frame(txn_df)
+        product_average_verification = build_product_average_verification_summary(
+            product_averages,
+            total_rows_processed=int(txn_df.height),
+        )
         extraction_ms = (perf_counter() - extraction_start) * 1000
 
         recon = reconciliation.to_dict()
@@ -230,6 +237,7 @@ class VectorizedSalesEngine:
             'errorRowsCount': recon['totalInvalidRows'],
             'exceptionRowCount': len(exception_records),
             'productAverageCount': len(product_averages),
+            'productAverageVerification': product_average_verification,
             'reconciliation': recon,
             'auditTraceSummary': audit_counts,
         }

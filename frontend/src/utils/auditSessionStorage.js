@@ -56,32 +56,88 @@ function slimSalesRecord(record) {
   return slim;
 }
 
+function slimExceptionRowForStorage(record, exportColumns, columnDisplayHeaders) {
+  if (!record || typeof record !== 'object') return record;
+
+  const columns = Array.isArray(exportColumns) ? exportColumns : [];
+  const headers =
+    columnDisplayHeaders && typeof columnDisplayHeaders === 'object'
+      ? columnDisplayHeaders
+      : {};
+
+  if (!columns.length && !('Message' in record)) {
+    return slimSalesRecord(record);
+  }
+
+  const slim = {};
+  for (const col of columns) {
+    const display = headers[col] || col;
+    if (display in record && record[display] != null && record[display] !== '') {
+      slim[display] = record[display];
+      continue;
+    }
+    if (col in record && record[col] != null && record[col] !== '') {
+      slim[display] = record[col];
+    }
+  }
+
+  if ('Message' in record) {
+    slim.Message = record.Message;
+  }
+
+  if (Object.keys(slim).length === 0) {
+    return slimSalesRecord(record);
+  }
+
+  return slim;
+}
+
 function slimAuditResult(result) {
   if (!result || typeof result !== 'object') return result;
 
+  const exportColumns = result.exportColumns ?? [];
+  const columnDisplayHeaders = result.columnDisplayHeaders ?? {};
   const sourceRows = result.exceptionRecords?.length
     ? result.exceptionRecords
     : result.records;
-  const rows = Array.isArray(sourceRows) ? sourceRows.map(slimSalesRecord) : [];
+  const rows = Array.isArray(sourceRows)
+    ? sourceRows.map((row) =>
+        slimExceptionRowForStorage(row, exportColumns, columnDisplayHeaders)
+      )
+    : [];
 
-  return {
+  const summary = {
+    ...(result.summary && typeof result.summary === 'object' ? result.summary : {}),
+    productAverageCount:
+      result.summary?.productAverageCount ??
+      (Array.isArray(result.productAverages) ? result.productAverages.length : 0),
+  };
+
+  const slimmed = {
     success: result.success,
     fileType: result.fileType,
     totalRows: result.totalRows,
     errorRows: result.errorRows,
-    summary: result.summary,
-    exportColumns: result.exportColumns,
-    columnDisplayHeaders: result.columnDisplayHeaders,
+    summary,
+    exportColumns,
+    columnDisplayHeaders,
     sourceColumns: result.sourceColumns,
     auditRunId: result.auditRunId,
     salesAuditFileName: result.salesAuditFileName,
     salesAuditBaselineCount: result.salesAuditBaselineCount,
     salesAuditRunId: result.salesAuditRunId,
-    productAverageComparisonRecords: result.productAverageComparisonRecords,
-    rateComparisonRecords: result.rateComparisonRecords,
     exceptionRecords: rows,
     records: rows,
   };
+
+  if (Array.isArray(result.productAverageComparisonRecords)) {
+    slimmed.productAverageComparisonRecords = result.productAverageComparisonRecords;
+  }
+  if (Array.isArray(result.rateComparisonRecords)) {
+    slimmed.rateComparisonRecords = result.rateComparisonRecords;
+  }
+
+  return slimmed;
 }
 
 /** Shrink sales / sales-return audit payloads for localStorage and DB session saves. */

@@ -7,12 +7,10 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Download, Search } from 'lucide-react';
+import { Download, FileText, Search } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Badge } from '../ui/Badge';
 import { Pagination } from '../ui/Pagination';
-import { auditIssueTone } from '../../utils/auditIssueTone';
 import { formatNumber } from '../../utils/format';
 import { exportRowsToCsv } from '../../utils/csvExport';
 
@@ -26,10 +24,130 @@ const EXPORT_COLS = [
   { header: 'Sales Return Total Quantity', accessor: (r) => r.returnTotalQuantity ?? '' },
   { header: 'Sales Return Average Rate', accessor: (r) => r.returnAverageRate ?? '' },
   { header: 'Difference', accessor: (r) => r.difference ?? '' },
-  { header: 'Status', accessor: (r) => r.status ?? '' },
-  { header: 'Issue', accessor: (r) => (r.issues || []).join('; ') },
-  { header: 'Message', accessor: (r) => (r.messages || []).join('; ') },
+  { header: 'Message', accessor: (r) => r.Message ?? '' },
 ];
+
+const HIGHER_RETURN_RATE_EXPORT_COLS = [
+  { header: 'Product', accessor: (r) => r.product ?? '' },
+  { header: 'Avg_sales_return', accessor: (r) => r.returnAverageRate ?? '' },
+  { header: 'Avg_sales', accessor: (r) => r.salesAverageRate ?? '' },
+  { header: 'Message', accessor: (r) => r.Message ?? '' },
+];
+
+export const SALES_RETURN_COMPARISON_EXPORT_COLS = EXPORT_COLS;
+export const SALES_RETURN_HIGHER_RETURN_EXPORT_COLS = HIGHER_RETURN_RATE_EXPORT_COLS;
+
+export function salesReturnComparisonExportCols(columnMode) {
+  return columnMode === 'higherReturnRate' ? HIGHER_RETURN_RATE_EXPORT_COLS : EXPORT_COLS;
+}
+
+function messageCell(info) {
+  const value = info.getValue();
+  if (value == null || value === '') return <span className="text-slate-400">—</span>;
+  return <span className="text-sm text-slate-600">{String(value)}</span>;
+}
+
+function buildColumns(columnMode) {
+  if (columnMode === 'higherReturnRate') {
+    return [
+      {
+        accessorKey: 'product',
+        header: 'Product',
+        cell: (info) => <span className="text-sm text-slate-800">{info.getValue() || '—'}</span>,
+      },
+      {
+        accessorKey: 'returnAverageRate',
+        header: 'Avg_sales_return',
+        cell: (info) => (
+          <span className="text-sm tabular-nums text-rose-700">{formatNumber(info.getValue(), 2)}</span>
+        ),
+      },
+      {
+        accessorKey: 'salesAverageRate',
+        header: 'Avg_sales',
+        cell: (info) => (
+          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
+        ),
+      },
+      {
+        accessorKey: 'Message',
+        header: 'Message',
+        cell: messageCell,
+      },
+    ];
+  }
+
+  return [
+    {
+      accessorKey: 'product',
+      header: 'Product',
+      cell: (info) => <span className="text-sm text-slate-800">{info.getValue() || '—'}</span>,
+    },
+    {
+      accessorKey: 'returnTransactionCount',
+      header: 'Return rows',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 0)}</span>
+      ),
+    },
+    {
+      accessorKey: 'salesTotalGrossAmount',
+      header: 'Sales Total Gross Amount',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
+      ),
+    },
+    {
+      accessorKey: 'salesTotalQuantity',
+      header: 'Sales Total Quantity',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 3)}</span>
+      ),
+    },
+    {
+      accessorKey: 'salesAverageRate',
+      header: 'Sales Average Rate',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
+      ),
+    },
+    {
+      accessorKey: 'returnTotalGrossAmount',
+      header: 'Sales Return Total Gross Amount',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
+      ),
+    },
+    {
+      accessorKey: 'returnTotalQuantity',
+      header: 'Sales Return Total Quantity',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 3)}</span>
+      ),
+    },
+    {
+      accessorKey: 'returnAverageRate',
+      header: 'Sales Return Average Rate',
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
+      ),
+    },
+    {
+      accessorKey: 'difference',
+      header: 'Difference',
+      cell: (info) => {
+        const value = info.getValue();
+        const tone = Number(value) > 0 ? 'text-rose-700' : 'text-slate-800';
+        return <span className={`text-sm tabular-nums ${tone}`}>{formatNumber(value, 2)}</span>;
+      },
+    },
+    {
+      accessorKey: 'Message',
+      header: 'Message',
+      cell: messageCell,
+    },
+  ];
+}
 
 function globalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
@@ -41,118 +159,18 @@ function globalFilter(row, _columnId, filterValue) {
   return blob.includes(q);
 }
 
-export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, showExport = true }) {
+export function SalesReturnRateComparisonTable({
+  data,
+  onExportXlsx,
+  onExportPdf,
+  exporting,
+  showExport = true,
+  columnMode = 'full',
+}) {
   const [globalFilterState, setGlobalFilterState] = useState('');
 
-  const columns = useMemo(
-    () => [
-      {
-        accessorKey: 'product',
-        header: 'Product',
-        cell: (info) => <span className="text-sm text-slate-800">{info.getValue() || '—'}</span>,
-      },
-      {
-        accessorKey: 'returnTransactionCount',
-        header: 'Return rows',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 0)}</span>
-        ),
-      },
-      {
-        accessorKey: 'salesTotalGrossAmount',
-        header: 'Sales Total Gross Amount',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
-        ),
-      },
-      {
-        accessorKey: 'salesTotalQuantity',
-        header: 'Sales Total Quantity',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 3)}</span>
-        ),
-      },
-      {
-        accessorKey: 'salesAverageRate',
-        header: 'Sales Average Rate',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
-        ),
-      },
-      {
-        accessorKey: 'returnTotalGrossAmount',
-        header: 'Sales Return Total Gross Amount',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
-        ),
-      },
-      {
-        accessorKey: 'returnTotalQuantity',
-        header: 'Sales Return Total Quantity',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 3)}</span>
-        ),
-      },
-      {
-        accessorKey: 'returnAverageRate',
-        header: 'Sales Return Average Rate',
-        cell: (info) => (
-          <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
-        ),
-      },
-      {
-        accessorKey: 'difference',
-        header: 'Difference',
-        cell: (info) => {
-          const value = info.getValue();
-          const tone = Number(value) > 0 ? 'text-rose-700' : 'text-slate-800';
-          return <span className={`text-sm tabular-nums ${tone}`}>{formatNumber(value, 2)}</span>;
-        },
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: (info) => {
-          const value = info.getValue();
-          if (!value) return <span className="text-slate-400">—</span>;
-          const tone =
-            value === 'VIOLATION' ? 'rose' : value === 'MISSING_BASELINE' ? 'amber' : 'emerald';
-          return (
-            <Badge tone={tone} caps={false} className="text-[10px] font-medium">
-              {String(value).replace(/_/g, ' ')}
-            </Badge>
-          );
-        },
-      },
-      {
-        accessorKey: 'issues',
-        header: 'Issue',
-        cell: (info) => {
-          const value = info.getValue();
-          if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
-          return (
-            <div className="flex flex-wrap gap-1">
-              {value.map((issue) => (
-                <Badge key={issue} tone={auditIssueTone(issue)} caps={false} className="text-[10px] font-medium">
-                  {issue.replace(/_/g, ' ')}
-                </Badge>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'messages',
-        header: 'Message',
-        cell: (info) => {
-          const value = info.getValue();
-          if (!Array.isArray(value) || value.length === 0) return <span className="text-slate-400">—</span>;
-          return <span className="text-sm text-slate-600">{value.join('; ')}</span>;
-        },
-      },
-    ],
-    []
-  );
+  const columns = useMemo(() => buildColumns(columnMode), [columnMode]);
+  const exportCols = columnMode === 'higherReturnRate' ? HIGHER_RETURN_RATE_EXPORT_COLS : EXPORT_COLS;
 
   const table = useReactTable({
     data,
@@ -187,7 +205,7 @@ export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, 
               variant="secondary"
               size="md"
               disabled={filteredRows().length === 0}
-              onClick={() => exportRowsToCsv(`sales-return-rate-${Date.now()}.csv`, EXPORT_COLS, filteredRows())}
+              onClick={() => exportRowsToCsv(`sales-return-rate-${Date.now()}.csv`, exportCols, filteredRows())}
             >
               Export CSV
             </Button>
@@ -201,6 +219,17 @@ export function SalesReturnRateComparisonTable({ data, onExportXlsx, exporting, 
               >
                 <Download className="h-4 w-4" />
                 Export Excel
+              </Button>
+            ) : null}
+            {onExportPdf ? (
+              <Button
+                variant="secondary"
+                size="md"
+                disabled={exporting || filteredRows().length === 0}
+                onClick={onExportPdf}
+              >
+                <FileText className="h-4 w-4" />
+                Export PDF
               </Button>
             ) : null}
           </div>

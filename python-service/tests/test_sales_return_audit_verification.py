@@ -312,17 +312,15 @@ def test_export_excel_has_required_columns() -> None:
         'returnTotalQuantity': 10,
         'returnAverageRate': 9500,
         'difference': 500,
-        'status': 'VIOLATION',
-        'issues': [HIGHER_SALES_RETURN_RATE],
-        'messages': [HIGHER_SALES_RETURN_RATE_MSG],
+        'Message': HIGHER_SALES_RETURN_RATE_MSG,
     }
     excel_bytes = export_sales_return_rate_comparison([record])
-    df = pd.read_excel(BytesIO(excel_bytes), sheet_name='Higher Return Rate Products')
+    df = pd.read_excel(BytesIO(excel_bytes), sheet_name='Product Average Comparison')
     headers = list(df.columns)
     expected_headers = [SALES_RETURN_RATE_COMPARISON_HEADER_MAP[col] for col in SALES_RETURN_RATE_COMPARISON_COLUMNS]
     assert headers == expected_headers
     assert df.iloc[0]['Product'] == 'Gold Ornaments 22K'
-    assert df.iloc[0]['Issue'] == HIGHER_SALES_RETURN_RATE
+    assert df.iloc[0]['Message'] == HIGHER_SALES_RETURN_RATE_MSG
 
 
 # ====================================================

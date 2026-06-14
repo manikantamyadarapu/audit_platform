@@ -13,12 +13,14 @@ async function getProductAverageRates(req, res, next) {
       return ErrorResponse(res, 401, 'Access token required');
     }
 
-    const { rows, pagination } = await salesAuditService.getProductAverageRates(req.query);
+    const { rows, pagination, meta } = await salesAuditService.getProductAverageRates(req.query);
     return PaginatedSuccessResponse(
       res,
       'Product average rates fetched successfully',
       rows,
-      pagination
+      pagination,
+      200,
+      meta
     );
   } catch (error) {
     logger.error('Product average rates fetch failed', {

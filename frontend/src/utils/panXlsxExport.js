@@ -1,42 +1,22 @@
 import * as XLSX from 'xlsx';
-
-/** Export workbook rows in the same column order as the uploaded file.
- *  Pass `columnOrder` (array of keys) to control order. `issues` will be skipped
- *  and `messages` will always be appended as the last column when present.
- */
+import { recordsToExportRows, resolveAuditColumnOrder } from './auditTableColumns';
 
 /**
+ * Export workbook rows with all upload columns + Message last.
  * @param {Record<string, unknown>[]} records
  * @param {string} [filename]
+ * @param {string[]} [columnOrder]
  */
 export function downloadPanRecordsXlsx(records, filename, columnOrder) {
-  if (!Array.isArray(records) || records.length === 0) {
-    return;
-  }
+  if (!Array.isArray(records) || records.length === 0) return;
+
   const name = filename || `pan-rows-${Date.now()}.xlsx`;
-  // Determine column order: prefer caller-supplied, else first-record ordering.
-  let cols = Array.isArray(columnOrder) && columnOrder.length ? Array.from(columnOrder) : Object.keys(records[0] || {});
-  // Remove issues if present
-  cols = cols.filter((c) => c !== 'issues');
-  // Ensure messages is last
-  const hasMessages = cols.includes('messages');
-  cols = cols.filter((c) => c !== 'messages');
-  if (hasMessages) cols.push('messages');
+  const order = columnOrder?.length ? columnOrder : resolveAuditColumnOrder(records);
+  const rows = recordsToExportRows(records, order);
+  const headers = rows.length ? Object.keys(rows[0]) : [];
 
-  const rows = records.map((r) => {
-    const o = {};
-    for (const c of cols) {
-      if (c === 'messages') {
-        o[c] = Array.isArray(r.messages) ? r.messages.join('; ') : (r.messages ?? '');
-      } else {
-        const v = r[c];
-        o[c] = v === undefined || v === null ? '' : v;
-      }
-    }
-    return o;
-  });
-
-  const ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A1' });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'PAN rows');
   XLSX.writeFile(wb, name);
