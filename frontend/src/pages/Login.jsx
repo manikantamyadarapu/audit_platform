@@ -34,6 +34,7 @@ export default function Login() {
     try {
       const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -74,7 +75,11 @@ export default function Login() {
       }
 
       if (data.success) {
-        localStorage.setItem('token', data.token);
+        const accessToken = data.accessToken || data.token;
+        if (accessToken) {
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.removeItem('token');
+        }
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('isAuthenticated', 'true');
         navigate('/dashboard');

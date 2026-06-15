@@ -271,6 +271,50 @@ async function postDiamondRateRules(body, options = {}) {
   }
 }
 
+async function getRateBookDiamonds(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/rate-book/diamonds', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postRateBookDiamonds(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/rate-book/diamonds', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function getRateBookGemstones(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/rate-book/gemstones', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postRateBookGemstones(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/rate-book/gemstones', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -285,4 +329,8 @@ module.exports = {
   postRateRules,
   getDiamondRateRules,
   postDiamondRateRules,
+  getRateBookDiamonds,
+  postRateBookDiamonds,
+  getRateBookGemstones,
+  postRateBookGemstones,
 };

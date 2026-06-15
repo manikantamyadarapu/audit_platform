@@ -1,61 +1,41 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Save, RefreshCw, Diamond } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Save, RefreshCw, Diamond, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { EmptyState } from '../components/ui/EmptyState';
 import { cn } from '../utils/cn';
-
-const API_BASE = import.meta.env.VITE_API_URL?.trim() ?? '';
+import { fetchDiamondRateBook, saveDiamondRateBook } from '../services/rateBookService';
 
 export default function DiamondGemRateBook() {
   const [activeTab, setActiveTab] = useState('diamonds');
   const [diamondRates, setDiamondRates] = useState({});
   const [originalDiamonds, setOriginalDiamonds] = useState({});
   const [loading, setLoading] = useState(true);
-  const [configError, setConfigError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [upliftPercent, setUpliftPercent] = useState(25);
   const [deviationPercent, setDeviationPercent] = useState(15);
 
-  useEffect(() => {
-    if (!API_BASE) {
-      setConfigError(
-        'VITE_API_URL is not configured. Set it to your Python service base URL before using the rate book.'
-      );
-      setLoading(false);
-      return;
-    }
-    fetchRates();
-  }, []);
-
-  const fetchRates = async () => {
-    if (!API_BASE) return;
+  const fetchRates = useCallback(async () => {
     setLoading(true);
-    setConfigError(null);
     try {
-      const diamondRes = await fetch(`${API_BASE}/api/rate-book/diamonds`);
-
-      if (!diamondRes.ok) {
-        throw new Error('Failed to fetch rates');
-      }
-
-      const diamondData = await diamondRes.json();
-
-      if (diamondData.success) {
-        setDiamondRates(diamondData.products || {});
-        setOriginalDiamonds(diamondData.products || {});
-        setUpliftPercent(diamondData.uplift_percent || 25);
-        setDeviationPercent(diamondData.deviation_percent || 15);
+      const data = await fetchDiamondRateBook();
+      if (data?.success) {
+        setDiamondRates(data.products || {});
+        setOriginalDiamonds(data.products || {});
+        setUpliftPercent(data.uplift_percent ?? 25);
+        setDeviationPercent(data.deviation_percent ?? 15);
       }
     } catch (error) {
-      toast.error('Failed to load rates: ' + error.message);
-      console.error(error);
+      toast.error(`Failed to load rates: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchRates();
+  }, [fetchRates]);
 
   const handleDiamondChange = (productKey, field, value) => {
     setDiamondRates((prev) => ({
@@ -68,68 +48,24 @@ export default function DiamondGemRateBook() {
     setHasChanges(true);
   };
 
-  const handleGemstoneChange = (account, slab, value) => {
-    setGemstoneRates((prev) => ({
-      ...prev,
-      [account]: {
-        ...prev[account],
-        slabs: {
-          ...prev[account]?.slabs,
-          [slab]: value === '' ? null : parseFloat(value),
-        },
-      },
-    }));
-    setHasChanges(true);
-  };
-
   const handleSave = async () => {
-    if (!API_BASE) {
-      toast.error('VITE_API_URL is not configured.');
-      return;
-    }
     setSaving(true);
     try {
-      const [diamondRes, gemRes] = await Promise.all([
-        fetch(`${API_BASE}/api/rate-book/diamonds`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            products: diamondRates,
-            uplift_percent: upliftPercent,
-            deviation_percent: deviationPercent,
-          }),
-        }),
-        fetch(`${API_BASE}/api/rate-book/gemstones`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accounts: gemstoneRates,
-            deviation_percent: gemstoneDeviation,
-          }),
-        }),
-      ]);
+      const data = await saveDiamondRateBook({
+        products: diamondRates,
+        uplift_percent: upliftPercent,
+        deviation_percent: deviationPercent,
+      });
 
-      if (!diamondRes.ok || !gemRes.ok) {
-        throw new Error('Failed to save rates');
-      }
-
-      const diamondData = await diamondRes.json();
-      const gemData = await gemRes.json();
-
-      if (diamondData.success && gemData.success) {
-        toast.success('Rates saved successfully! Changes will reflect in audits immediately.', {
-          icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
-          duration: 4000,
-        });
+      if (data?.success) {
+        toast.success('Rates saved successfully! Changes will reflect in audits immediately.');
         setOriginalDiamonds(diamondRates);
-        setOriginalGemstones(gemstoneRates);
         setHasChanges(false);
       } else {
         throw new Error('Save returned unsuccessful');
       }
     } catch (error) {
-      toast.error('Failed to save: ' + error.message);
-      console.error(error);
+      toast.error(`Failed to save: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -141,20 +77,10 @@ export default function DiamondGemRateBook() {
     toast('Changes reset to last saved values', { icon: '↩️' });
   };
 
-  const diamondProducts = useMemo(() => {
-    return Object.entries(diamondRates).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [diamondRates]);
-
-
-  if (configError) {
-    return (
-      <EmptyState
-        icon={Diamond}
-        title="Configuration required"
-        description={configError}
-      />
-    );
-  }
+  const diamondProducts = useMemo(
+    () => Object.entries(diamondRates).sort((a, b) => a[0].localeCompare(b[0])),
+    [diamondRates]
+  );
 
   if (loading) {
     return (
@@ -167,7 +93,6 @@ export default function DiamondGemRateBook() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Diamond & Gemstone Rate Book</h2>
@@ -176,12 +101,12 @@ export default function DiamondGemRateBook() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {hasChanges && (
+          {hasChanges ? (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
               <AlertCircle className="h-4 w-4" />
               <span>Unsaved changes</span>
             </div>
-          )}
+          ) : null}
           <Button variant="secondary" onClick={handleReset} disabled={!hasChanges || saving}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Reset
@@ -193,9 +118,9 @@ export default function DiamondGemRateBook() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
         <button
+          type="button"
           onClick={() => setActiveTab('diamonds')}
           className={cn(
             'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
@@ -209,8 +134,7 @@ export default function DiamondGemRateBook() {
         </button>
       </div>
 
-      {/* Global Settings */}
-      {activeTab === 'diamonds' && (
+      {activeTab === 'diamonds' ? (
         <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-slate-700">Uplift %</label>
@@ -219,7 +143,7 @@ export default function DiamondGemRateBook() {
               type="number"
               value={upliftPercent}
               onChange={(e) => {
-                setUpliftPercent(parseInt(e.target.value) || 0);
+                setUpliftPercent(parseInt(e.target.value, 10) || 0);
                 setHasChanges(true);
               }}
               className="mt-1 w-32"
@@ -232,17 +156,16 @@ export default function DiamondGemRateBook() {
               type="number"
               value={deviationPercent}
               onChange={(e) => {
-                setDeviationPercent(parseInt(e.target.value) || 0);
+                setDeviationPercent(parseInt(e.target.value, 10) || 0);
                 setHasChanges(true);
               }}
               className="mt-1 w-32"
             />
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Diamond Rates Table */}
-      {activeTab === 'diamonds' && (
+      {activeTab === 'diamonds' ? (
         <div className="overflow-hidden rounded-xl border border-slate-200">
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
@@ -254,33 +177,32 @@ export default function DiamondGemRateBook() {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {diamondProducts.map(([name, rates]) => (
-                  <tr key={name} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{name}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Input
-                        type="number"
-                        value={rates.min_rate ?? ''}
-                        onChange={(e) => handleDiamondChange(name, 'min_rate', e.target.value)}
-                        placeholder="0"
-                        className="w-32 text-right"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Input
-                        type="number"
-                        value={rates.max_rate ?? ''}
-                        onChange={(e) => handleDiamondChange(name, 'max_rate', e.target.value)}
-                        placeholder="0"
-                        className="w-32 text-right"
-                      />
-                    </td>
-                  </tr>
+                <tr key={name} className="hover:bg-slate-50/50">
+                  <td className="px-4 py-3 font-medium text-slate-900">{name}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Input
+                      type="number"
+                      value={rates.min_rate ?? ''}
+                      onChange={(e) => handleDiamondChange(name, 'min_rate', e.target.value)}
+                      placeholder="0"
+                      className="w-32 text-right"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Input
+                      type="number"
+                      value={rates.max_rate ?? ''}
+                      onChange={(e) => handleDiamondChange(name, 'max_rate', e.target.value)}
+                      placeholder="0"
+                      className="w-32 text-right"
+                    />
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-
+      ) : null}
     </div>
   );
 }

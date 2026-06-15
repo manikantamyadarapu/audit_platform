@@ -1,19 +1,75 @@
 import axios from 'axios';
+import { clearAuthSession, getAccessToken, refreshAccessToken } from '../utils/authUser';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
-const apiTimeout =
-  Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 900_000;
-
 const api = axios.create({
   baseURL,
-  /** Server can spend several minutes on large ledgers before Node returns (see PYTHON_SERVICE_TIMEOUT_MS). */
   timeout: 600_000,
+  withCredentials: true,
   headers: {
     Accept: 'application/json',
   },
 });
+
+let refreshPromise = null;
+
+api.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (!config || config._authRetry) {
+      return Promise.reject(error);
+    }
+
+    const status = error.response?.status;
+    const url = String(config.url || '');
+    const isAuthRoute =
+      url.includes('/auth/login') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/logout');
+
+    if (status === 401 && !isAuthRoute) {
+      config._authRetry = true;
+
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+
+        const newToken = await refreshPromise;
+        if (!newToken) {
+          clearAuthSession();
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+            window.location.assign('/login');
+          }
+          return Promise.reject(error);
+        }
+
+        config.headers.Authorization = `Bearer ${newToken}`;
+        return api(config);
+      } catch (refreshError) {
+        clearAuthSession();
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.assign('/login');
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export function getApiErrorMessage(error) {
   if (!error) return 'Something went wrong';

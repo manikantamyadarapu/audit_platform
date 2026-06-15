@@ -29,6 +29,7 @@ import {
   fetchCurrentUser,
   getStoredUser,
   getUserInitials,
+  logoutUser,
 } from '../../utils/authUser';
 
 const salesItems = [
@@ -354,8 +355,8 @@ export function Sidebar() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      clearAuthSession();
+                    onClick={async () => {
+                      await logoutUser();
                       navigate('/login');
                       setShowUserMenu(false);
                     }}

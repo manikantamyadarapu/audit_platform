@@ -1,9 +1,8 @@
-const express = require('express');
-const { verifyToken } = require('../utils/jwt.util');
+const { verifyAccessToken } = require('../utils/jwt.util');
 
 /**
  * Authentication middleware
- * Verifies JWT token and attaches user to request.
+ * Verifies JWT access token and attaches user to request.
  */
 function authenticate(req, res, next) {
   try {
@@ -25,7 +24,7 @@ function authenticate(req, res, next) {
     }
 
     const token = parts[1];
-    const decoded = verifyToken(token);
+    const decoded = verifyAccessToken(token);
 
     req.user = {
       id: decoded.id,
@@ -37,9 +36,9 @@ function authenticate(req, res, next) {
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError' || error.name === 'JsonWebTokenError') {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token',
+        message: 'Unauthorized',
       });
     }
 
