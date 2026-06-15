@@ -16,6 +16,8 @@
   --shadow-float: 0 12px 40px rgba(15, 23, 42, 0.08);
 
   --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+  --animate-audit-ring-spin: audit-ring-spin 1.6s linear infinite;
+  --animate-audit-engine-glow: audit-engine-glow-breathe 3.2s ease-in-out infinite;
 
   @keyframes shimmer {
     0% {
@@ -33,6 +35,24 @@
     50%,
     100% {
       transform: translateX(100%);
+    }
+  }
+
+  @keyframes audit-ring-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes audit-engine-glow-breathe {
+    0%,
+    100% {
+      opacity: 0.38;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 0.82;
+      transform: scale(1.06);
     }
   }
 }
@@ -111,7 +131,9 @@ html.dark .skeleton-glass {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer,
   .skeleton-shimmer::after,
-  #app-boot-skeleton .boot-block {
+  #app-boot-skeleton .boot-block,
+  .animate-audit-ring-spin,
+  .animate-audit-engine-glow {
     animation: none;
   }
 

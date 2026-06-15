@@ -6,8 +6,6 @@ import {
 
   Gem,
 
-  Loader2,
-
   AlertTriangle,
 
   Rows3,
@@ -22,9 +20,8 @@ import {
 
 } from 'lucide-react';
 
-import { motion, AnimatePresence } from 'framer-motion';
-
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 
 import { Button } from '../components/ui/Button';
@@ -685,35 +682,7 @@ export default function SalesReturnRateAudit() {
 
     <div className="relative space-y-8">
 
-      <AnimatePresence>
-
-        {loading ? (
-
-          <motion.div
-
-            initial={{ opacity: 0 }}
-
-            animate={{ opacity: 1 }}
-
-            exit={{ opacity: 0 }}
-
-            className="absolute inset-0 z-40 flex items-center justify-center rounded-2xl bg-slate-950/25 backdrop-blur-sm"
-
-          >
-
-            <div className="flex flex-col items-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] px-10 py-8 shadow-2xl backdrop-blur-sm">
-
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 dark:text-emerald-400" />
-
-              <p className="mt-4 text-sm font-semibold text-[var(--color-text-primary)]">Running sales return audit…</p>
-
-            </div>
-
-          </motion.div>
-
-        ) : null}
-
-      </AnimatePresence>
+      <AuditValidationOverlay open={loading} scope="container" />
 
 
 
