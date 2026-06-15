@@ -77,18 +77,6 @@ async def export_pan_invalid_rows(payload: PanInvalidRowsExportRequest) -> Strea
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
 
-
-@router.post('/gst')
-@gateway_router.post('/gst/validate')
-async def process_gst(file: UploadFile = File(...)) -> dict:
-    request_id = str(uuid.uuid4())
-    log = get_logger(request_id)
-    log.info('GST processing request received')
-    response = await service.process('gst', file)
-    log.info('GST processing complete')
-    return response
-
-
 @router.post('/gross-weight/export-invalid')
 @gateway_router.post('/gross-weight/export-invalid')
 async def export_gross_weight_invalid_rows(payload: InvalidRowsExportRequest) -> StreamingResponse:

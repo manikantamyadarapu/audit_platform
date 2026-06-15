@@ -51,22 +51,19 @@ class PanProcessor(BaseProcessor):
         validation_ms = (perf_counter() - validation_start) * 1000
 
 
-        # Debug: print a small preview of the read/validated data in terminal
         if get_settings().debug_exports_enabled():
             try:
-                # df is a Polars DataFrame; preview as dict rows
                 df_preview = df.head(20).to_dicts()
-                print('PAN audit - parsed dataframe preview (first 20 rows):')
-                for r in df_preview:
-                    print(r)
+                self._log.debug('PAN audit parsed dataframe preview (first {} rows): {}', len(df_preview), df_preview)
 
                 invalid_preview = invalid_df.head(20).to_dicts()
-                print('PAN audit - invalid rows preview (first 20 rows):')
-                for r in invalid_preview:
-                    print(r)
-
+                self._log.debug(
+                    'PAN audit invalid rows preview (first {} rows): {}',
+                    len(invalid_preview),
+                    invalid_preview,
+                )
             except Exception as exc:
-                print(f'PAN audit debug print failed: {exc}')
+                self._log.warning('PAN audit debug preview failed: {}', exc)
 
 
         extraction_start = perf_counter()

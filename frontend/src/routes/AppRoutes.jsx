@@ -55,7 +55,6 @@ export function AppRoutes() {
           <Route path="/scrutiny/diamond-gem-rates" element={<DiamondGemRateBook />} />
           <Route path="/scrutiny/rate-rules" element={<RateRuleBook />} />
           <Route path="/scrutiny/rule-book" element={<RateRuleBook />} />
-          <Route path="/scrutiny/gst" element={<ModuleSoon />} />
           <Route path="/scrutiny/duplicate-invoice" element={<ModuleSoon />} />
           <Route path="/scrutiny/vendor-reconciliation" element={<ModuleSoon />} />
 

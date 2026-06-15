@@ -13,6 +13,10 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from app.utils.logger import get_logger
+
+log = get_logger('rate-book')
+
 router = APIRouter(prefix='/api/rate-book', tags=['rate-book'])
 gateway_router = APIRouter(prefix='/api/v1/rate-book', tags=['rate-book'])
 
@@ -27,9 +31,9 @@ _GEMSTONE_BOOK_PATH = _CONFIG_DIR / 'gemstone_rate_book.json'
 _DIAMOND_DEFAULTS_PATH = _CONFIG_DIR / 'diamond_hardcoded_rates.json'
 _GEMSTONE_DEFAULTS_PATH = _CONFIG_DIR / 'gemstone_product_catalog.json'
 
-print(f"[RateBook] Config dir: {_CONFIG_DIR}")
-print(f"[RateBook] Diamond defaults exists: {_DIAMOND_DEFAULTS_PATH.exists()}")
-print(f"[RateBook] Gemstone defaults exists: {_GEMSTONE_DEFAULTS_PATH.exists()}")
+log.info('Rate book config dir: {}', _CONFIG_DIR)
+log.info('Diamond defaults exists: {}', _DIAMOND_DEFAULTS_PATH.exists())
+log.info('Gemstone defaults exists: {}', _GEMSTONE_DEFAULTS_PATH.exists())
 
 
 # ============ Models ============
@@ -106,24 +110,28 @@ async def get_diamond_rates() -> dict[str, Any]:
         # Initialize from hardcoded defaults
         data = defaults
         _save_json(_DIAMOND_BOOK_PATH, data)
-        print(f"[RateBook] Created new diamond rate book with {len(default_products)} products")
+        log.info('Created new diamond rate book with {} products', len(default_products))
     else:
         data = _load_json(_DIAMOND_BOOK_PATH)
         current_products = data.get('products', {})
         
         # Check if rate book is empty or missing products - re-initialize if needed
         if not current_products or len(current_products) < len(default_products):
-            print(f"[RateBook] Merging diamonds: current={len(current_products)}, defaults={len(default_products)}")
+            log.info(
+                'Merging diamonds: current={}, defaults={}',
+                len(current_products),
+                len(default_products),
+            )
             # Merge with defaults to ensure ALL products are included
             merged_products = {**default_products, **current_products}
             data['products'] = merged_products
             data['uplift_percent'] = data.get('uplift_percent', 25)
             data['deviation_percent'] = data.get('deviation_percent', 15)
             _save_json(_DIAMOND_BOOK_PATH, data)
-            print(f"[RateBook] Saved merged diamond rate book with {len(merged_products)} products")
+            log.info('Saved merged diamond rate book with {} products', len(merged_products))
     
     final_products = data.get('products', {})
-    print(f"[RateBook] Returning {len(final_products)} diamond products")
+    log.info('Returning {} diamond products', len(final_products))
     
     return _success({
         'products': final_products,
@@ -202,7 +210,11 @@ async def get_gemstone_rates() -> dict[str, Any]:
         data = defaults
         _save_json(_GEMSTONE_BOOK_PATH, data)
         total_slabs = sum(len(acc.get('slabs', {})) for acc in default_accounts.values())
-        print(f"[RateBook] Created new gemstone rate book with {len(default_accounts)} accounts, {total_slabs} slabs")
+        log.info(
+            'Created new gemstone rate book with {} accounts, {} slabs',
+            len(default_accounts),
+            total_slabs,
+        )
     else:
         data = _load_json(_GEMSTONE_BOOK_PATH)
         current_accounts = data.get('accounts', {})
@@ -212,7 +224,11 @@ async def get_gemstone_rates() -> dict[str, Any]:
         default_total_slabs = sum(len(acc.get('slabs', {})) for acc in default_accounts.values())
         
         if not current_accounts or current_total_slabs < default_total_slabs:
-            print(f"[RateBook] Merging gemstones: current={current_total_slabs} slabs, defaults={default_total_slabs} slabs")
+            log.info(
+                'Merging gemstones: current={} slabs, defaults={} slabs',
+                current_total_slabs,
+                default_total_slabs,
+            )
             # Merge with defaults to ensure ALL accounts are included
             merged_accounts = {}
             for account_name in {**default_accounts, **current_accounts}.keys():
@@ -226,11 +242,19 @@ async def get_gemstone_rates() -> dict[str, Any]:
             data['deviation_percent'] = data.get('deviation_percent', 15)
             _save_json(_GEMSTONE_BOOK_PATH, data)
             merged_total = sum(len(acc.get('slabs', {})) for acc in merged_accounts.values())
-            print(f"[RateBook] Saved merged gemstone rate book with {len(merged_accounts)} accounts, {merged_total} slabs")
+            log.info(
+                'Saved merged gemstone rate book with {} accounts, {} slabs',
+                len(merged_accounts),
+                merged_total,
+            )
     
     final_accounts = data.get('accounts', {})
     final_total_slabs = sum(len(acc.get('slabs', {})) for acc in final_accounts.values())
-    print(f"[RateBook] Returning {len(final_accounts)} gemstone accounts with {final_total_slabs} total slabs")
+    log.info(
+        'Returning {} gemstone accounts with {} total slabs',
+        len(final_accounts),
+        final_total_slabs,
+    )
     
     return _success({
         'accounts': final_accounts,

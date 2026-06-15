@@ -19,7 +19,6 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/sales-return-rate/, title: 'Sales Return Audit' },
   { test: /^\/scrutiny\/(rate-rule-book|rate-rules|rule-book)/, title: 'Gold & Silver Rates' },
   { test: /^\/scrutiny\/diamond-gem-rates/, title: 'Diamond & Gemstone Rate Book' },
-  { test: /^\/scrutiny\/gst/, title: 'GST Verification' },
   { test: /^\/scrutiny\/duplicate-invoice/, title: 'Duplicate Invoice Check' },
   { test: /^\/scrutiny\/vendor-reconciliation/, title: 'Vendor Reconciliation' },
   { test: /^\/vouching$/, title: 'Vouching' },

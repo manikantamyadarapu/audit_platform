@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Scale, Shield, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Scale, Users } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -37,7 +37,6 @@ const modules = [
 ];
 
 const soon = [
-  { title: 'GST Verification', to: '/scrutiny/gst', Icon: Shield },
   { title: 'Duplicate Invoice Check', to: '/scrutiny/duplicate-invoice', Icon: Copy },
   { title: 'Vendor Reconciliation', to: '/scrutiny/vendor-reconciliation', Icon: Users },
 ];

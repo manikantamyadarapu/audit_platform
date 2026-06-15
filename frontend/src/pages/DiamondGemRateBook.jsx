@@ -3,27 +3,37 @@ import { Save, RefreshCw, Diamond } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { EmptyState } from '../components/ui/EmptyState';
 import { cn } from '../utils/cn';
-import { formatNumber } from '../utils/format';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL?.trim() ?? '';
 
 export default function DiamondGemRateBook() {
   const [activeTab, setActiveTab] = useState('diamonds');
   const [diamondRates, setDiamondRates] = useState({});
   const [originalDiamonds, setOriginalDiamonds] = useState({});
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [upliftPercent, setUpliftPercent] = useState(25);
   const [deviationPercent, setDeviationPercent] = useState(15);
 
   useEffect(() => {
+    if (!API_BASE) {
+      setConfigError(
+        'VITE_API_URL is not configured. Set it to your Python service base URL before using the rate book.'
+      );
+      setLoading(false);
+      return;
+    }
     fetchRates();
   }, []);
 
   const fetchRates = async () => {
+    if (!API_BASE) return;
     setLoading(true);
+    setConfigError(null);
     try {
       const diamondRes = await fetch(`${API_BASE}/api/rate-book/diamonds`);
 
@@ -73,6 +83,10 @@ export default function DiamondGemRateBook() {
   };
 
   const handleSave = async () => {
+    if (!API_BASE) {
+      toast.error('VITE_API_URL is not configured.');
+      return;
+    }
     setSaving(true);
     try {
       const [diamondRes, gemRes] = await Promise.all([
@@ -131,6 +145,16 @@ export default function DiamondGemRateBook() {
     return Object.entries(diamondRates).sort((a, b) => a[0].localeCompare(b[0]));
   }, [diamondRates]);
 
+
+  if (configError) {
+    return (
+      <EmptyState
+        icon={Diamond}
+        title="Configuration required"
+        description={configError}
+      />
+    );
+  }
 
   if (loading) {
     return (
