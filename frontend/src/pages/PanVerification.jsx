@@ -1,15 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
   Download,
   FileSpreadsheet,
   FileText,
-  Loader2,
   Rows3,
 } from 'lucide-react';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
 import { Button } from '../components/ui/Button';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -196,22 +195,7 @@ export default function PanVerification() {
 
   return (
     <div className="relative space-y-8">
-      <AnimatePresence>
-        {loading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 backdrop-blur-sm"
-          >
-            <div className="flex flex-col items-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] px-10 py-8 shadow-2xl backdrop-blur-sm">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 dark:text-emerald-400" />
-              <p className="mt-4 text-sm font-semibold text-[var(--color-text-primary)]">Validating workbook…</p>
-              <p className="mt-1 text-xs text-slate-500">Securely checking your workbook</p>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      <AuditValidationOverlay open={loading} />
 
       {result ? (
         <AuditSessionBanner
