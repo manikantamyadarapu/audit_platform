@@ -38,7 +38,7 @@ export function TopNavbar() {
     <header className="sticky top-0 z-30 h-20 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-overlay)] backdrop-blur-md">
       <div className="flex h-full items-center justify-between px-5 sm:px-8">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-600">Current view · <span className="text-[var(--color-text-primary)]">{viewTitle}</span></p>
+          <p className="truncate text-base font-semibold text-[var(--color-text-primary)]">{viewTitle}</p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

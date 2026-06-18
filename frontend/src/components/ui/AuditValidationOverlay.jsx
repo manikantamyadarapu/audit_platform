@@ -182,7 +182,7 @@ export function AuditValidationOverlay({ open, scope = 'viewport', className }) 
           aria-label={`Audit processing: ${activeStatus}`}
         >
           <div className="flex flex-col items-center px-6 text-center">
-            <p className="mb-7 font-sans text-[10px] font-medium uppercase tracking-[0.24em] text-slate-400/90 dark:text-slate-500">
+            <p className="mb-7 font-sans text-[14px] font-medium uppercase tracking-[0.24em] text-slate-400/90 dark:text-slate-500">
               Audit Intelligence Engine
             </p>
 

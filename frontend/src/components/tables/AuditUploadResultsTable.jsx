@@ -57,7 +57,7 @@ export function AuditUploadResultsTable({
           return <span className="text-[var(--color-text-faint)]">—</span>;
         }
         return (
-          <span className="block max-w-[320px] whitespace-normal text-sm text-[var(--color-text-primary)]">
+          <span className="block max-w-[320px] whitespace-normal text-sm font-medium text-[var(--color-text-primary)]">
             {value}
           </span>
         );

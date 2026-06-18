@@ -227,21 +227,13 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
 
   if (!chartCategories?.length) {
     return (
-      <div className="flex h-[320px] w-full items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] text-sm text-[var(--color-text-muted)] backdrop-blur-sm">
+      <div className="flex h-[320px] w-full items-center justify-center text-sm text-[var(--color-text-muted)]">
         No issue data for this period.
       </div>
     );
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-3 shadow-[var(--shadow-glass)] sm:p-4">
-      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl dark:bg-emerald-500/10" />
-      <div
-        ref={chartRef}
-        className="relative z-[1] w-full"
-        role="img"
-        aria-label="Issues by category column chart"
-      />
-    </div>
+    <div ref={chartRef} className="w-full" role="img" aria-label="Issues by category column chart" />
   );
 }

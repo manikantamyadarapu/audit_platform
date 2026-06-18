@@ -39,12 +39,6 @@ const KPI_ICONS = {
   accuracy: ShieldCheck,
 };
 
-const TREND_PERIOD_OPTIONS = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-];
-
 const RECENT_AUDITS_PAGE_SIZE = 5;
 
 function Panel({ children, className = '' }) {
@@ -128,10 +122,6 @@ export default function Dashboard() {
     const saved = loadAuditSession(DASHBOARD_UI_KEY);
     return saved?.data?.period ?? 'week';
   });
-  const [trendPeriod, setTrendPeriod] = useState(() => {
-    const saved = loadAuditSession(DASHBOARD_UI_KEY);
-    return saved?.data?.trendPeriod ?? 'daily';
-  });
   const [widgets, setWidgets] = useState(null);
   const [auditTrend, setAuditTrend] = useState(null);
   const [issuesCategory, setIssuesCategory] = useState(null);
@@ -179,12 +169,13 @@ export default function Dashboard() {
     }
   }, []);
 
-  const loadRecentAudits = useCallback(async () => {
+  const loadRecentAudits = useCallback(async (selectedPeriod) => {
     setRecentAuditsLoading(true);
     try {
       const { items } = await fetchDashboardRecentAudits({
         page: 1,
         limit: RECENT_AUDITS_PAGE_SIZE,
+        period: selectedPeriod,
       });
       setRecentAudits(items);
     } catch (error) {
@@ -198,22 +189,16 @@ export default function Dashboard() {
   useEffect(() => {
     loadWidgets(period);
     loadIssuesCategory(period);
-  }, [period, loadWidgets, loadIssuesCategory]);
-
-  useEffect(() => {
-    loadAuditTrend(trendPeriod);
-  }, [trendPeriod, loadAuditTrend]);
-
-  useEffect(() => {
-    loadRecentAudits();
-  }, [loadRecentAudits]);
+    loadAuditTrend(period);
+    loadRecentAudits(period);
+  }, [period, loadWidgets, loadIssuesCategory, loadAuditTrend, loadRecentAudits]);
 
   const refreshDashboard = useCallback(() => {
     loadWidgets(period);
     loadIssuesCategory(period);
-    loadAuditTrend(trendPeriod);
-    loadRecentAudits();
-  }, [period, trendPeriod, loadWidgets, loadIssuesCategory, loadAuditTrend, loadRecentAudits]);
+    loadAuditTrend(period);
+    loadRecentAudits(period);
+  }, [period, loadWidgets, loadIssuesCategory, loadAuditTrend, loadRecentAudits]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -226,8 +211,8 @@ export default function Dashboard() {
   }, [refreshDashboard]);
 
   useEffect(() => {
-    saveAuditSession(DASHBOARD_UI_KEY, { period, trendPeriod });
-  }, [period, trendPeriod]);
+    saveAuditSession(DASHBOARD_UI_KEY, { period });
+  }, [period]);
 
   const kpiItems = useMemo(() => buildDashboardKpiItems(widgets), [widgets]);
   const summaryItems = useMemo(() => buildSummaryStripItems(widgets), [widgets]);
@@ -313,28 +298,25 @@ export default function Dashboard() {
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
         <Panel className="overflow-hidden p-0">
-          <div className="flex flex-col gap-4 border-b border-[var(--color-border-soft)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
             <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Audit Activity Trend</h3>
-            <CustomSelect
-              value={trendPeriod}
-              onChange={setTrendPeriod}
-              options={TREND_PERIOD_OPTIONS}
-              className="w-[8.5rem]"
-              triggerClassName="h-11 px-4"
-            />
           </div>
           <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
             <AuditActivityTrendChart data={auditTrend} loading={trendLoading} />
           </div>
         </Panel>
 
-        <Panel className="p-5">
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
-          <IssuesByCategoryPanel
-            categories={issueCategoryItems}
-            totalIssues={totalIssuesCount}
-            loading={issuesCategoryLoading}
-          />
+        <Panel className="overflow-hidden p-0">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
+          </div>
+          <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
+            <IssuesByCategoryPanel
+              categories={issueCategoryItems}
+              totalIssues={totalIssuesCount}
+              loading={issuesCategoryLoading}
+            />
+          </div>
         </Panel>
       </section>
 
@@ -374,10 +356,8 @@ export default function Dashboard() {
                         <td className="py-3 text-[var(--color-text-secondary)]">{row.auditType}</td>
                         <td className="py-3 text-[var(--color-text-secondary)]">{formatNumber(row.records)}</td>
                         <td className="py-3 text-[var(--color-text-secondary)]">{formatUploadDateTime(row.uploadedOn)}</td>
-                        <td className="py-3 text-right">
-                          <span className={cn('rounded-md px-2 py-1 text-xs font-medium', statusMeta.className)}>
-                            {statusMeta.label}
-                          </span>
+                        <td className="py-3 text-right text-sm font-medium text-[var(--color-text-primary)]">
+                          {statusMeta.label}
                         </td>
                       </tr>
                     );
@@ -394,14 +374,13 @@ export default function Dashboard() {
           </div>
         </Panel>
 
-        <Panel className="overflow-hidden p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issue Breakdown</h3>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Top categories by issue count</p>
-            </div>
+        <Panel className="overflow-hidden p-0">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issue Breakdown</h3>
           </div>
-          <IssuesByCategoryBarChart categories={issueCategoryItems} loading={issuesCategoryLoading} />
+          <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
+            <IssuesByCategoryBarChart categories={issueCategoryItems} loading={issuesCategoryLoading} />
+          </div>
         </Panel>
       </section>
     </div>

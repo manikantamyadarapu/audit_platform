@@ -24,21 +24,19 @@ function validateWidgetsQuery(query = {}) {
 }
 
 /**
- * Validate audit trend query parameters.
+ * Validate audit trend query parameters (aligned with dashboard widgets period).
  * @param {{ period?: string }} query
- * @returns {{ period: 'daily' | 'weekly' | 'monthly' }}
- * @throws {{ statusCode: number, message: string }}
+ * @returns {{ period: 'week' | 'month' | 'year' }}
  */
 function validateTrendQuery(query = {}) {
-  const period = query.period == null || query.period === '' ? 'daily' : String(query.period).toLowerCase();
-
-  if (!ALLOWED_TREND_PERIODS.includes(period)) {
-    const error = new Error('Invalid period filter');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return { period };
+  const raw = query.period == null || query.period === '' ? 'week' : String(query.period).toLowerCase();
+  const legacyMap = {
+    daily: 'week',
+    weekly: 'month',
+    monthly: 'year',
+  };
+  const period = legacyMap[raw] ?? raw;
+  return validateWidgetsQuery({ period });
 }
 
 /**
@@ -108,7 +106,12 @@ function validateRecentAuditsQuery(query = {}) {
     search = String(query.search).trim();
   }
 
-  return { page, limit, status, auditType, search };
+  let period;
+  if (query.period != null && query.period !== '') {
+    period = validateWidgetsQuery({ period: query.period }).period;
+  }
+
+  return { page, limit, status, auditType, search, period };
 }
 
 module.exports = {
