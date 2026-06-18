@@ -41,8 +41,8 @@ def test_gold_22k_ornaments_invalid_when_unit_rate_below_band():
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_RATE_DEVIATION']
     assert rec['currentMarketRate'] == 9000
-    assert rec['minAllowedRate'] == 6300
-    assert rec['maxAllowedRate'] == 11700
+    assert rec['minAllowedRate'] == 7650
+    assert rec['maxAllowedRate'] == 10350
     assert rec['rateValidationSource'] == 'rule_book_product'
 
 
@@ -180,5 +180,5 @@ def test_metal_min_max_band_user_example():
     )
     assert out_bad['errorRows'] == 1
     rec = out_bad['records'][0]
-    assert rec['minAllowedRate'] == 9800
-    assert rec['maxAllowedRate'] == 19500
+    assert rec['minAllowedRate'] == 11900
+    assert rec['maxAllowedRate'] == 17250

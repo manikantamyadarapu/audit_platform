@@ -43,6 +43,9 @@ function slimSalesRecord(record) {
     for (const key of SALES_RECORD_STORAGE_OMIT) {
       delete slim[key];
     }
+    if (Array.isArray(record.issues) && record.issues.length) {
+      slim.issues = record.issues;
+    }
     return slim;
   }
 
@@ -71,6 +74,7 @@ function slimExceptionRowForStorage(record, exportColumns, columnDisplayHeaders)
 
   const slim = {};
   for (const col of columns) {
+    if (col === 'Message') continue;
     const display = headers[col] || col;
     if (display in record && record[display] != null && record[display] !== '') {
       slim[display] = record[display];
@@ -81,8 +85,20 @@ function slimExceptionRowForStorage(record, exportColumns, columnDisplayHeaders)
     }
   }
 
+  // Fallback when export metadata does not match row keys — keep all upload columns.
+  if (Object.keys(slim).length === 0) {
+    for (const [key, value] of Object.entries(record)) {
+      if (key.startsWith('_') || key === 'issues') continue;
+      if (value != null && value !== '') slim[key] = value;
+    }
+  }
+
   if ('Message' in record) {
     slim.Message = record.Message;
+  }
+
+  if (Array.isArray(record.issues) && record.issues.length) {
+    slim.issues = record.issues;
   }
 
   if (Object.keys(slim).length === 0) {
@@ -92,7 +108,16 @@ function slimExceptionRowForStorage(record, exportColumns, columnDisplayHeaders)
   return slim;
 }
 
-function slimAuditResult(result) {
+function trimHeavySummaryFields(summary) {
+  if (!summary || typeof summary !== 'object') return summary ?? {};
+  const trimmed = { ...summary };
+  delete trimmed.reconciliation;
+  delete trimmed.auditTraceSummary;
+  delete trimmed.productAverageVerification;
+  return trimmed;
+}
+
+function slimAuditResult(result, { aggressive = false } = {}) {
   if (!result || typeof result !== 'object') return result;
 
   const exportColumns = result.exportColumns ?? [];
@@ -106,12 +131,10 @@ function slimAuditResult(result) {
       )
     : [];
 
-  const summary = {
-    ...(result.summary && typeof result.summary === 'object' ? result.summary : {}),
-    productAverageCount:
-      result.summary?.productAverageCount ??
-      (Array.isArray(result.productAverages) ? result.productAverages.length : 0),
-  };
+  const summary = trimHeavySummaryFields(result.summary);
+  summary.productAverageCount =
+    result.summary?.productAverageCount ??
+    (Array.isArray(result.productAverages) ? result.productAverages.length : 0);
 
   const slimmed = {
     success: result.success,
@@ -137,7 +160,21 @@ function slimAuditResult(result) {
     slimmed.rateComparisonRecords = result.rateComparisonRecords;
   }
 
+  if (aggressive) {
+    delete slimmed.productAverageComparisonRecords;
+    delete slimmed.rateComparisonRecords;
+  }
+
   return slimmed;
+}
+
+/** Extra pass when localStorage quota is exceeded. */
+export function aggressiveSlimAuditSnapshot(snapshot) {
+  if (!snapshot?.result) return snapshot;
+  return {
+    ...snapshot,
+    result: slimAuditResult(snapshot.result, { aggressive: true }),
+  };
 }
 
 /** Shrink sales / sales-return audit payloads for localStorage and DB session saves. */
@@ -149,9 +186,163 @@ export function slimSalesLedgerSnapshot(snapshot) {
   };
 }
 
+const PAN_RECORD_KEEP_KEYS = new Set([
+  'rowNumber',
+  'voucherNo',
+  'nameOfTheParty',
+  'salesAccount',
+  'product',
+  'totalValue',
+  'grossAmount',
+  'pan',
+  'pan1',
+  'addProof',
+  'addProof2',
+  'address',
+  'uom',
+  'quantity',
+  'unitRate',
+  'date',
+  'Message',
+  'issues',
+  'panReport',
+  'addressReport',
+]);
+
+function slimPanRecord(record, { aggressive = false } = {}) {
+  if (!record || typeof record !== 'object') return record;
+
+  const slim = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'messages') continue;
+    if (value == null || value === '') continue;
+    if (aggressive && !PAN_RECORD_KEEP_KEYS.has(key) && !key.startsWith('_')) continue;
+    slim[key] = value;
+  }
+
+  if (Array.isArray(record.messages) && record.messages.length) {
+    slim.Message = record.messages.join('; ');
+  }
+
+  return slim;
+}
+
+function slimPanResult(result, { aggressive = false } = {}) {
+  if (!result || typeof result !== 'object') return result;
+  const records = Array.isArray(result.records)
+    ? result.records.map((row) => slimPanRecord(row, { aggressive }))
+    : [];
+
+  return {
+    success: result.success,
+    fileType: result.fileType,
+    totalRows: result.totalRows,
+    errorRows: result.errorRows,
+    summary: result.summary ?? {},
+    auditRunId: result.auditRunId ?? null,
+    records,
+  };
+}
+
+/** Shrink PAN / ID proof audit payloads for localStorage and DB session saves. */
+export function slimPanSnapshot(snapshot) {
+  if (!snapshot?.result) return snapshot;
+  return {
+    ...snapshot,
+    result: slimPanResult(snapshot.result),
+  };
+}
+
+/** Extra pass when PAN session exceeds localStorage quota. */
+export function aggressiveSlimPanSnapshot(snapshot) {
+  if (!snapshot?.result) return snapshot;
+  return {
+    ...snapshot,
+    result: slimPanResult(snapshot.result, { aggressive: true }),
+  };
+}
+
+/** Extra pass when gross-weight session exceeds localStorage quota. */
+export function aggressiveSlimGrossWeightSnapshot(snapshot) {
+  return slimGrossWeightSnapshot(snapshot);
+}
+
+export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
+  switch (registryKey) {
+    case 'pan-audit':
+      return aggressiveSlimPanSnapshot(snapshot);
+    case 'gross-weight':
+      return aggressiveSlimGrossWeightSnapshot(snapshot);
+    default:
+      return aggressiveSlimAuditSnapshot(snapshot);
+  }
+}
+
+/** Shrink gross-weight audit payloads for localStorage and DB session saves. */
+export function slimGrossWeightSnapshot(snapshot) {
+  if (!snapshot?.result) return snapshot;
+  const result = snapshot.result;
+  const records = Array.isArray(result.records)
+    ? result.records.map((row) => {
+        if (!row || typeof row !== 'object') return row;
+        const { messages, ...rest } = row;
+        return rest;
+      })
+    : [];
+  return {
+    ...snapshot,
+    result: {
+      success: result.success,
+      totalRows: result.totalRows,
+      errorRows: result.errorRows,
+      summary: result.summary ?? {},
+      records,
+    },
+  };
+}
+
+/** In-memory cache — avoids re-parsing localStorage on every audit page mount. */
+const sessionMemoryCache = new Map();
+
+function memoryCacheKey(registryKey) {
+  return resolveScopedStorageKey(registryKey);
+}
+
+function readCachedSession(registryKey) {
+  const key = memoryCacheKey(registryKey);
+  if (sessionMemoryCache.has(key)) {
+    return sessionMemoryCache.get(key);
+  }
+  const payload = loadScopedSessionFromDisk(registryKey);
+  if (payload) {
+    sessionMemoryCache.set(key, payload);
+  }
+  return payload ?? null;
+}
+
+function writeCachedSession(registryKey, payload) {
+  sessionMemoryCache.set(memoryCacheKey(registryKey), payload);
+}
+
+function dropCachedSession(registryKey) {
+  sessionMemoryCache.delete(memoryCacheKey(registryKey));
+}
+
+/**
+ * Single read for page bootstrap — data + meta together (one localStorage parse).
+ * @param {string} registryKey
+ */
+export function bootstrapAuditSessionState(registryKey) {
+  const session = readCachedSession(registryKey);
+  return {
+    data: session?.data ?? null,
+    meta: session ? { savedAt: session.savedAt, expiresAt: session.expiresAt } : null,
+  };
+}
+
 /**
  * Resolve user-scoped localStorage key for an audit workspace.
- * Format: audit_session_{userId}_{suffix}  e.g. audit_session_1_sales_return
+ * Format: audit_session_USERID_suffix (e.g. audit_session_1_sales_return)
  *
  * @param {string} registryKey - key from AUDIT_SESSION_REGISTRY
  * @returns {string}
@@ -194,24 +385,42 @@ function writeRaw(key, payload) {
  * Load session for one audit type only (with legacy key migration).
  * @param {string} registryKey
  */
-function loadScopedSession(registryKey) {
+function loadScopedSessionFromDisk(registryKey) {
+  const config = getAuditSessionConfig(registryKey);
+  const suffix =
+    config?.localStorageAlias?.replace(/^audit_session_/, '') ??
+    registryKey.replace(/-/g, '_');
   const scopedKey = resolveScopedStorageKey(registryKey);
-  let payload = readRaw(scopedKey);
+  const keysToTry = [scopedKey];
 
-  if (!payload) {
-    const legacy = readRaw(legacyStorageKey(registryKey));
-    if (legacy) {
+  const userId = getStoredUser()?.id;
+  if (userId != null) {
+    keysToTry.push(`audit_session_anon_${suffix}`);
+  }
+  keysToTry.push(legacyStorageKey(registryKey));
+
+  for (const key of keysToTry) {
+    const payload = readRaw(key);
+    if (!payload?.data) continue;
+    if (!payload.data.result && !payload.data.sheetError) continue;
+
+    if (key !== scopedKey) {
       try {
-        writeRaw(scopedKey, legacy);
-        localStorage.removeItem(legacyStorageKey(registryKey));
+        writeRaw(scopedKey, payload);
+        if (key.startsWith('audit_session_') && key !== scopedKey) {
+          localStorage.removeItem(key);
+        }
+        if (key === legacyStorageKey(registryKey)) {
+          localStorage.removeItem(key);
+        }
       } catch {
-        /* keep legacy if migration fails */
+        /* keep readable copy under legacy key */
       }
-      payload = legacy;
     }
+    return payload;
   }
 
-  return payload;
+  return null;
 }
 
 /**
@@ -237,11 +446,16 @@ export function saveAuditSession(registryKey, data, options = {}) {
   };
 
   try {
-    return tryWrite(payload);
+    const ok = tryWrite(payload);
+    if (ok) writeCachedSession(registryKey, payload);
+    return ok;
   } catch {
     try {
-      const slimmed = slimSalesLedgerSnapshot(transformed);
-      return tryWrite({ ...payload, data: slimmed });
+      const aggressive = aggressiveSlimSnapshotForRegistry(registryKey, transformed);
+      const body = { ...payload, data: aggressive };
+      const ok = tryWrite(body);
+      if (ok) writeCachedSession(registryKey, body);
+      return ok;
     } catch {
       return false;
     }
@@ -253,13 +467,19 @@ export function saveAuditSession(registryKey, data, options = {}) {
  * @returns {{ savedAt: number, expiresAt: number, auditKey?: string, data: unknown } | null}
  */
 export function loadAuditSession(registryKey) {
-  return loadScopedSession(registryKey);
+  return readCachedSession(registryKey);
 }
 
 export function clearAuditSession(registryKey) {
   const scopedKey = resolveScopedStorageKey(registryKey);
+  dropCachedSession(registryKey);
   localStorage.removeItem(scopedKey);
   localStorage.removeItem(legacyStorageKey(registryKey));
+  const config = getAuditSessionConfig(registryKey);
+  const suffix =
+    config?.localStorageAlias?.replace(/^audit_session_/, '') ??
+    registryKey.replace(/-/g, '_');
+  localStorage.removeItem(`audit_session_anon_${suffix}`);
 }
 
 /** Whole days remaining before this session expires. */
@@ -290,11 +510,9 @@ export function formatSavedSessionLabel(savedAt, expiresAt) {
  * @returns {T | null}
  */
 export function readAuditSessionData(registryKey) {
-  return loadAuditSession(registryKey)?.data ?? null;
+  return bootstrapAuditSessionState(registryKey).data;
 }
 
 export function readAuditSessionMeta(registryKey) {
-  const session = loadAuditSession(registryKey);
-  if (!session) return null;
-  return { savedAt: session.savedAt, expiresAt: session.expiresAt };
+  return bootstrapAuditSessionState(registryKey).meta;
 }

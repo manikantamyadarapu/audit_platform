@@ -325,6 +325,14 @@ class VectorizedSalesEngine:
             if alias in seen_aliases or column not in dataframe.columns:
                 continue
             seen_aliases.add(alias)
+            if column == 'sales_account' and '__upload_sales_account_raw' in dataframe.columns:
+                freeze_exprs.append(
+                    pl.col('__upload_sales_account_raw')
+                    .cast(pl.Utf8, strict=False)
+                    .fill_null('')
+                    .alias('__original_sales_account')
+                )
+                continue
             freeze_exprs.append(
                 pl.col(column).cast(pl.Utf8, strict=False).fill_null('').alias(alias)
             )

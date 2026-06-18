@@ -1,0 +1,122 @@
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
+const DEFAULT_AUDIT_TYPES = {
+  SALES: {
+    auditName: 'Rate & Ledger Audit',
+    description: 'Sales rate and ledger validation',
+  },
+  SALES_RETURN: {
+    auditName: 'Sales Return Audit',
+    description: 'Sales return validation and rate comparison',
+  },
+  PAN: {
+    auditName: 'ID Proof Audit',
+    description: 'PAN and address proof validation',
+  },
+  GROSS: {
+    auditName: 'Gross Weight Audit',
+    description: 'Gross weight mismatch validation',
+  },
+};
+
+const CODE_ALIASES = {
+  GROSS_WEIGHT: 'GROSS',
+  PAN_AUDIT: 'PAN',
+};
+
+/**
+ * @param {string} auditCode
+ * @returns {Promise<number | null>}
+ */
+async function resolveAuditTypeId(auditCode) {
+  let code = String(auditCode || '').trim().toUpperCase();
+  if (!code) return null;
+  if (CODE_ALIASES[code]) {
+    code = CODE_ALIASES[code];
+  }
+
+  const candidates = new Set([code]);
+  for (const [alias, canonical] of Object.entries(CODE_ALIASES)) {
+    if (canonical === code) candidates.add(alias);
+    if (alias === code) candidates.add(canonical);
+  }
+
+  for (const candidate of candidates) {
+    const existing = await prisma.auditType.findUnique({
+      where: { auditCode: candidate },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+  }
+
+  const definition = DEFAULT_AUDIT_TYPES[code];
+  if (!definition) return null;
+
+  const created = await prisma.auditType.create({
+    data: {
+      auditCode: code,
+      auditName: definition.auditName,
+      description: definition.description,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
+/**
+ * @param {{
+ *   auditTypeId: number,
+ *   uploadedBy: number,
+ *   fileName?: string,
+ *   totalRows?: number,
+ *   invalidRows?: number,
+ *   issueCounts?: Array<{ code: string, name: string, count: number }>,
+ * }} params
+ */
+async function createAuditRun({
+  auditTypeId,
+  uploadedBy,
+  fileName,
+  totalRows,
+  invalidRows,
+  issueCounts,
+}) {
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const auditRun = await tx.auditRun.create({
+      data: {
+        auditTypeId,
+        fileName: String(fileName || 'audit.xlsx').slice(0, 255),
+        uploadedBy,
+        status: 'COMPLETED',
+        totalRows: Number(totalRows) || 0,
+        invalidRows: Number(invalidRows) || 0,
+        startedAt: now,
+        completedAt: now,
+      },
+    });
+
+    const issueRows = (issueCounts || []).filter((row) => Number(row.count) > 0);
+    if (issueRows.length) {
+      await tx.auditIssueCount.createMany({
+        data: issueRows.map((row) => ({
+          auditRunId: auditRun.id,
+          issueCode: String(row.code).slice(0, 50),
+          issueName: String(row.name).slice(0, 100),
+          issueCount: Number(row.count) || 0,
+        })),
+      });
+    }
+
+    return auditRun;
+  });
+}
+
+module.exports = {
+  resolveAuditTypeId,
+  createAuditRun,
+};

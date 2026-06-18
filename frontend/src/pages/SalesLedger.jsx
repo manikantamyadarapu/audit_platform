@@ -36,7 +36,7 @@ import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import {
-  readAuditSessionData,
+  bootstrapAuditSessionState,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
 
@@ -44,20 +44,17 @@ const SALES_LEDGER_SESSION_KEY = 'sales-ledger';
 
 export default function SalesLedger() {
   const navigate = useNavigate();
+  const [initialSession] = useState(() => bootstrapAuditSessionState(SALES_LEDGER_SESSION_KEY));
   const [file, setFile] = useState(null);
   const [restoredFileName, setRestoredFileName] = useState(
-    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.fileName ?? null
+    () => initialSession.data?.fileName ?? null
   );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(
-    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.result ?? null
-  );
-  const [sheetError, setSheetError] = useState(
-    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.sheetError ?? null
-  );
+  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
+  const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
   const [activeFilter, setActiveFilter] = useState(
-    () => readAuditSessionData(SALES_LEDGER_SESSION_KEY)?.activeFilter ?? null
+    () => initialSession.data?.activeFilter ?? null
   );
 
   const applySession = useCallback((data) => {
@@ -88,6 +85,9 @@ export default function SalesLedger() {
   } = useAuditSessionPersistence(SALES_LEDGER_SESSION_KEY, sessionSnapshot, {
     transform: slimSalesLedgerSnapshot,
     onApplySession: applySession,
+    onSaveFailed: () => {
+      auditToastError('Could not save audit results locally. Free browser storage or start a new audit.');
+    },
   });
 
   const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
@@ -98,27 +98,28 @@ export default function SalesLedger() {
       return;
     }
     setLoading(true);
-    setResult(null);
-    setSheetError(null);
-    setActiveFilter(null);
     try {
       const data = await validateSalesExcel(file);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
-        setResult(null);
         return;
       }
       setResult(data);
-      persist(
+      setSheetError(null);
+      setActiveFilter(null);
+      const saved = persist(
         {
           result: data,
           sheetError: null,
           activeFilter: null,
           fileName: file?.name ?? null,
         },
-        data.auditRunId ?? null
+        { notifyOnFailure: true, force: true }
       );
+      if (saved === false) {
+        auditToastError('Results loaded but could not be saved for later.');
+      }
       auditToastSuccess('Sales validation complete');
     } catch (e) {
       const payload = e.details ?? null;
@@ -287,6 +288,8 @@ export default function SalesLedger() {
             onFileChange={(f) => {
               setSheetError(null);
               setRestoredFileName(null);
+              setResult(null);
+              setActiveFilter(null);
               setFile(f);
             }}
             disabled={loading}

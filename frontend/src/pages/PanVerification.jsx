@@ -19,7 +19,10 @@ import { formatNumber } from '../utils/format';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
-import { readAuditSessionData } from '../utils/auditSessionStorage';
+import {
+  bootstrapAuditSessionState,
+  slimPanSnapshot,
+} from '../utils/auditSessionStorage';
 import { filterPanRecords, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
 import { downloadPanRecordsXlsx } from '../utils/panXlsxExport';
 import { exportRowsToCsv } from '../utils/csvExport';
@@ -35,17 +38,16 @@ const PAN_SESSION_KEY = 'pan-audit';
 
 export default function PanVerification() {
   const { recordPanValidation, recordExport } = useAppUi();
+  const [initialSession] = useState(() => bootstrapAuditSessionState(PAN_SESSION_KEY));
   const [file, setFile] = useState(null);
   const [restoredFileName, setRestoredFileName] = useState(
-    () => readAuditSessionData(PAN_SESSION_KEY)?.fileName ?? null
+    () => initialSession.data?.fileName ?? null
   );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(
-    () => readAuditSessionData(PAN_SESSION_KEY)?.result ?? null
-  );
+  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [activeFilter, setActiveFilter] = useState(
-    () => readAuditSessionData(PAN_SESSION_KEY)?.activeFilter ?? null
+    () => initialSession.data?.activeFilter ?? null
   );
 
   const applySession = useCallback((data) => {
@@ -73,7 +75,11 @@ export default function PanVerification() {
     startNewAudit,
     restoring,
   } = useAuditSessionPersistence(PAN_SESSION_KEY, sessionSnapshot, {
+    transform: slimPanSnapshot,
     onApplySession: applySession,
+    onSaveFailed: () => {
+      auditToastError('Could not save audit results locally. Free browser storage or start a new audit.');
+    },
   });
 
   const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
@@ -85,22 +91,26 @@ export default function PanVerification() {
     }
     const ac = new AbortController();
     setLoading(true);
-    setResult(null);
-    setActiveFilter(null);
     try {
       const data = await validatePanExcel(file, ac.signal);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Validation failed');
-        setResult(null);
         return;
       }
       setResult(data);
-      persist({
-        result: data,
-        sheetError: null,
-        activeFilter: null,
-        fileName: file?.name ?? null,
-      });
+      setActiveFilter(null);
+      const saved = persist(
+        {
+          result: data,
+          sheetError: null,
+          activeFilter: null,
+          fileName: file?.name ?? null,
+        },
+        { notifyOnFailure: true, force: true }
+      );
+      if (saved === false) {
+        auditToastError('Results loaded but could not be saved for later. Clear browser storage if this persists.');
+      }
       recordPanValidation({
         totalRows: data.totalRows,
         errorRows: data.errorRows,
@@ -227,6 +237,8 @@ export default function PanVerification() {
             file={displayFile}
             onFileChange={(f) => {
               setRestoredFileName(null);
+              setResult(null);
+              setActiveFilter(null);
               setFile(f);
             }}
             disabled={loading}

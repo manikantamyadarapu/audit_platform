@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
@@ -143,6 +144,15 @@ export function AuditValidationOverlay({ open, scope = 'viewport', className }) 
   const [statusIndex, setStatusIndex] = useState(0);
 
   useEffect(() => {
+    if (!open || scope !== 'viewport' || typeof document === 'undefined') return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open, scope]);
+
+  useEffect(() => {
     if (!open) {
       setStatusIndex(0);
       return undefined;
@@ -157,7 +167,7 @@ export function AuditValidationOverlay({ open, scope = 'viewport', className }) 
 
   const activeStatus = STATUS_MESSAGES[statusIndex];
 
-  return (
+  const overlay = (
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -199,4 +209,10 @@ export function AuditValidationOverlay({ open, scope = 'viewport', className }) 
       ) : null}
     </AnimatePresence>
   );
+
+  if (scope === 'viewport' && typeof document !== 'undefined') {
+    return createPortal(overlay, document.body);
+  }
+
+  return overlay;
 }

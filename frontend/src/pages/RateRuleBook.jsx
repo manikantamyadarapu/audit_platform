@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Loader2, Save } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -77,9 +77,9 @@ export default function RateRuleBook() {
       const data = await saveRateRules(toPayload(form));
       setForm(toForm(data));
       setUpdatedAt(data.updated_at ?? null);
-      toast.success('Rate rule book saved');
+      auditToastSuccess('Rate rule book saved');
     } catch (e) {
-      toast.error(e.message || 'Save failed');
+      auditToastError(e.message || 'Save failed');
     } finally {
       setSaving(false);
     }

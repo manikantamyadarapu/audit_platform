@@ -5,6 +5,8 @@ import { SessionBootstrap } from '../components/auth/SessionBootstrap';
 import { LoginSkeleton } from '../components/layout/LoginSkeleton';
 
 const Login = lazy(() => import('../pages/Login'));
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const ScrutinyHub = lazy(() => import('../pages/ScrutinyHub'));
 const VouchingHub = lazy(() => import('../pages/VouchingHub'));
@@ -30,6 +32,22 @@ export function AppRoutes() {
         element={
           <Suspense fallback={<LoginSkeleton />}>
             <Login />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <Suspense fallback={<LoginSkeleton />}>
+            <ForgotPassword />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <Suspense fallback={<LoginSkeleton />}>
+            <ResetPassword />
           </Suspense>
         }
       />

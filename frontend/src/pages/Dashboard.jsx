@@ -208,6 +208,23 @@ export default function Dashboard() {
     loadRecentAudits();
   }, [loadRecentAudits]);
 
+  const refreshDashboard = useCallback(() => {
+    loadWidgets(period);
+    loadIssuesCategory(period);
+    loadAuditTrend(trendPeriod);
+    loadRecentAudits();
+  }, [period, trendPeriod, loadWidgets, loadIssuesCategory, loadAuditTrend, loadRecentAudits]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshDashboard();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshDashboard]);
+
   useEffect(() => {
     saveAuditSession(DASHBOARD_UI_KEY, { period, trendPeriod });
   }, [period, trendPeriod]);

@@ -23,6 +23,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { preloadAuditRoute } from '../../utils/auditRoutePreload';
 import { useAppUi } from '../../context/AppUiContext';
 import {
   clearAuthSession,
@@ -60,6 +61,8 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) 
       to={to}
       end={end}
       onClick={onNavigate}
+      onMouseEnter={() => preloadAuditRoute(to)}
+      onFocus={() => preloadAuditRoute(to)}
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(

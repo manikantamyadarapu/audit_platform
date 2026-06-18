@@ -28,6 +28,18 @@ LEDGER_MAPPING_ISSUES = frozenset({
 })
 INVALID_LEDGER_MAPPING = 'INVALID_LEDGER_MAPPING'
 
+# Match UI display (2 dp) so 2000.00 vs 2000.00 is not flagged due to float noise.
+_RATE_COMPARE_DECIMALS = 2
+
+
+def _normalized_comparison_rate(rate: float) -> float:
+    return round(float(rate), _RATE_COMPARE_DECIMALS)
+
+
+def return_average_exceeds_sales(return_rate: float, sales_rate: float) -> bool:
+    """True only when return avg rate is higher after normalizing display precision."""
+    return _normalized_comparison_rate(return_rate) > _normalized_comparison_rate(sales_rate)
+
 
 @dataclass(slots=True)
 class ProductAverage:
@@ -158,7 +170,10 @@ def sales_averages_from_stored_records(
         total_qty = float(row.get('totalQuantity') or row.get('total_quantity') or 0)
         if total_qty <= 0:
             continue
-        average_rate = float(row.get('averageRate') or row.get('average_rate') or (total_gross / total_qty))
+        if total_gross > 0 and total_qty > 0:
+            average_rate = total_gross / total_qty
+        else:
+            average_rate = float(row.get('averageRate') or row.get('average_rate') or 0)
         sales_account = str(row.get('salesAccount') or row.get('sales_account') or '').strip()
         transaction_count = int(row.get('transactionCount') or row.get('transaction_count') or 0)
         averages[product_norm] = ProductAverage(
@@ -224,7 +239,7 @@ def _comparison_record_from_averages(
         }
 
     difference = return_avg.average_rate - sales_avg.average_rate
-    if difference > 0:
+    if return_average_exceeds_sales(return_avg.average_rate, sales_avg.average_rate):
         issues = [HIGHER_SALES_RETURN_RATE]
         messages = [HIGHER_SALES_RETURN_RATE_MSG]
         status = 'VIOLATION'
@@ -303,7 +318,7 @@ def compare_average_rates(
         )
         if sales_avg is None:
             continue
-        if return_avg.average_rate <= sales_avg.average_rate:
+        if not return_average_exceeds_sales(return_avg.average_rate, sales_avg.average_rate):
             continue
         violations.append(
             RateComparisonRow(

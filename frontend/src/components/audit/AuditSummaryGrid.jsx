@@ -8,6 +8,7 @@ export function AuditSummaryGrid({ children, className }) {
     <div
       className={cn(
         'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6',
+        '[&>*]:min-w-0',
         className
       )}
     >
@@ -18,9 +19,9 @@ export function AuditSummaryGrid({ children, className }) {
 
 export function AuditSummaryGroup({ title, children, className }) {
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-2.5', className)}>
       {title ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
           {title}
         </p>
       ) : null}

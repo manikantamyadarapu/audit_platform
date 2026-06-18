@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { recordsToExportRows, resolveAuditColumnOrder } from './auditTableColumns';
+import { recordsToExportRows } from './auditTableColumns';
+import { resolveGrossWeightColumnOrder } from './grossTableColumns';
 
 /**
  * @param {Record<string, unknown>[]} records
@@ -10,7 +11,7 @@ export function downloadGrossWeightRecordsXlsx(records, filename, columnOrder) {
   if (!Array.isArray(records) || records.length === 0) return;
 
   const name = filename || `gross-weight-rows-${Date.now()}.xlsx`;
-  const order = columnOrder?.length ? columnOrder : resolveAuditColumnOrder(records);
+  const order = columnOrder?.length ? columnOrder : resolveGrossWeightColumnOrder(records);
   const rows = recordsToExportRows(records, order);
   const headers = rows.length ? Object.keys(rows[0]) : [];
 

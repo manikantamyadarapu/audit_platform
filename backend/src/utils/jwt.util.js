@@ -11,8 +11,8 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
  * @param {string} payload.role - User role
  * @returns {string} JWT token
  */
-function generateToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+function generateToken(payload, expiresIn = JWT_EXPIRES_IN) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
 /**

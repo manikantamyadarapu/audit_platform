@@ -63,11 +63,19 @@ import {
 
   enrichProductComparisonRecords,
 
+  enrichSalesReturnExceptionRecords,
+
   filterSalesRecords,
+
+  filterSalesReturnRecords,
+
+  filterSalesReturnRecordsForDisplay,
 
   filterSalesRecordsForDisplay,
 
-  isSalesReturnValidationFilter,
+  resolveSalesReturnActiveFilter,
+
+  salesReturnRecordsForExport,
 
   SALES_FILTER_LABELS,
 
@@ -92,7 +100,7 @@ import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence'
 
 import {
 
-  readAuditSessionData,
+  bootstrapAuditSessionState,
 
   slimSalesLedgerSnapshot,
 
@@ -116,11 +124,13 @@ const SALES_RETURN_FILTER_LABELS = {
 
 export default function SalesReturnRateAudit() {
 
+  const [initialSession] = useState(() => bootstrapAuditSessionState(SALES_RETURN_SESSION_KEY));
+
   const [returnFile, setReturnFile] = useState(null);
 
   const [restoredFileName, setRestoredFileName] = useState(
 
-    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.fileName ?? null
+    () => initialSession.data?.fileName ?? null
 
   );
 
@@ -128,23 +138,27 @@ export default function SalesReturnRateAudit() {
 
   const [exporting, setExporting] = useState(false);
 
-  const [result, setResult] = useState(
+  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
 
-    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.result ?? null
+  const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
 
-  );
+  const [activeFilter, setActiveFilter] = useState(() => {
 
-  const [sheetError, setSheetError] = useState(
+    if (initialSession.data?.activeFilter != null) return initialSession.data.activeFilter;
 
-    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.sheetError ?? null
+    const errorCount =
 
-  );
+      initialSession.data?.result?.summary?.distinctInvalidRows ??
 
-  const [activeFilter, setActiveFilter] = useState(
+      initialSession.data?.result?.summary?.errorRowsCount ??
 
-    () => readAuditSessionData(SALES_RETURN_SESSION_KEY)?.activeFilter ?? null
+      initialSession.data?.result?.errorRows ??
 
-  );
+      0;
+
+    return errorCount > 0 ? 'errors' : null;
+
+  });
 
 
 
@@ -154,7 +168,21 @@ export default function SalesReturnRateAudit() {
 
     setSheetError(data?.sheetError ?? null);
 
-    setActiveFilter(data?.activeFilter ?? null);
+    const errorCount =
+
+      data?.result?.summary?.distinctInvalidRows ??
+
+      data?.result?.summary?.errorRowsCount ??
+
+      data?.result?.errorRows ??
+
+      0;
+
+    setActiveFilter(
+
+      data?.activeFilter != null ? data.activeFilter : errorCount > 0 ? 'errors' : null
+
+    );
 
     setRestoredFileName(data?.fileName ?? null);
 
@@ -204,6 +232,12 @@ export default function SalesReturnRateAudit() {
 
     onApplySession: applySession,
 
+    onSaveFailed: () => {
+
+      auditToastError('Could not save audit results locally. Free browser storage or start a new audit.');
+
+    },
+
   });
 
 
@@ -226,12 +260,6 @@ export default function SalesReturnRateAudit() {
 
     setLoading(true);
 
-    setResult(null);
-
-    setSheetError(null);
-
-    setActiveFilter(null);
-
     try {
 
       const data = await validateSalesReturnAudit(returnFile);
@@ -242,25 +270,39 @@ export default function SalesReturnRateAudit() {
 
         setSheetError(typeof data.error === 'object' ? data : { ...data });
 
-        setResult(null);
-
         return;
 
       }
 
       setResult(data);
 
-      persist({
+      const defaultFilter =
+        (data?.summary?.distinctInvalidRows ??
+          data?.summary?.errorRowsCount ??
+          data?.errorRows ??
+          0) > 0
+          ? 'errors'
+          : null;
 
-        result: data,
+      setActiveFilter(defaultFilter);
 
-        sheetError: null,
+      setSheetError(null);
 
-        activeFilter: null,
+      const saved = persist(
+        {
+          result: data,
+          sheetError: null,
+          activeFilter: defaultFilter,
+          fileName: returnFile?.name ?? null,
+        },
+        { notifyOnFailure: true, force: true }
+      );
 
-        fileName: returnFile?.name ?? null,
+      if (saved === false) {
 
-      });
+        auditToastError('Results loaded but could not be saved for later.');
+
+      }
 
       auditToastSuccess('Sales return audit complete');
 
@@ -302,7 +344,7 @@ export default function SalesReturnRateAudit() {
 
     const rows = result?.exceptionRecords ?? result?.records ?? [];
 
-    return Array.isArray(rows) ? rows : [];
+    return enrichSalesReturnExceptionRecords(Array.isArray(rows) ? rows : []);
 
   }, [result]);
 
@@ -352,71 +394,77 @@ export default function SalesReturnRateAudit() {
 
 
 
-  const filteredExceptionRecords = useMemo(
-
-    () => filterSalesRecordsForDisplay(exceptionRecords, activeFilter),
-
-    [exceptionRecords, activeFilter]
-
-  );
-
-
-
-  const showExceptionTable = isSalesReturnValidationFilter(activeFilter);
-
-
-
-  const toggleCardFilter = useCallback((key) => {
-
-    setActiveFilter((prev) => (prev === key ? null : key));
-
-  }, []);
-
-
-
   const summary = result?.summary ?? {};
 
   const totalRows = result?.totalRows ?? 0;
+
+  const errorRows =
+
+    summary.distinctInvalidRows ??
+
+    summary.errorRowsCount ??
+
+    summary.returnValidationErrorRows ??
+
+    result?.errorRows ??
+
+    filterSalesReturnRecords(exceptionRecords, 'errors').length;
+
+  const effectiveActiveFilter = resolveSalesReturnActiveFilter(activeFilter, errorRows);
+
+  const filteredExceptionRecords = useMemo(
+
+    () => filterSalesReturnRecordsForDisplay(exceptionRecords, effectiveActiveFilter),
+
+    [exceptionRecords, effectiveActiveFilter]
+
+  );
+
+  const exportExceptionRows = useMemo(
+
+    () => salesReturnRecordsForExport(filteredExceptionRecords),
+
+    [filteredExceptionRecords]
+
+  );
+
+  const showExceptionTable = effectiveActiveFilter !== 'higherReturnRate';
+
+  const toggleCardFilter = useCallback((key) => {
+
+    setActiveFilter(key);
+
+  }, []);
 
   const productComparisonCount =
 
     summary.productAverageComparisonCount ?? enrichedProductRecords.length;
 
-  const errorProducts = filterSalesRecords(exceptionRecords, 'errors').length;
+  const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
 
-  const catVsProduct = filterSalesRecords(exceptionRecords, 'accountVsProduct').length;
+  const rateViolations = summary.rateDeviationViolations ?? 0;
 
-  const rateViolations = filterSalesRecords(exceptionRecords, 'mixedLedgers').length;
+  const accessoriesUnitRateCount =
 
-  const accessoriesUnitRateCount = filterSalesRecords(
+    summary.invalidFreeQuantityRows ??
 
-    exceptionRecords,
+    filterSalesReturnRecords(exceptionRecords, 'accessoriesUnitRate').length;
 
-    'accessoriesUnitRate'
+  const caratGemErrors =
 
-  ).length;
+    summary.invalidUomRows ??
 
-  const caratGemErrors = filterSalesRecords(exceptionRecords, 'caratGemErrors').length;
+    summary.caratGemErrorRows ??
+
+    filterSalesReturnRecords(exceptionRecords, 'caratGemErrors').length;
 
   const higherRateProducts = filterSalesRecords(enrichedProductRecords, 'higherReturnRate').length;
 
   const compliance =
 
-    productComparisonCount > 0
+    totalRows > 0
 
-      ? Math.max(
-
-          0,
-
-          Math.min(
-
-            100,
-
-            ((productComparisonCount - higherRateProducts) / productComparisonCount) * 100
-
-          )
-
-        )
+      ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100))
 
       : null;
 
@@ -456,9 +504,9 @@ export default function SalesReturnRateAudit() {
 
         : [];
 
-    return buildExportColumnDefs(order, filteredExceptionRecords);
+    return buildExportColumnDefs(order, exportExceptionRows);
 
-  }, [exceptionColumnOrder, filteredExceptionRecords]);
+  }, [exceptionColumnOrder, exportExceptionRows]);
 
 
 
@@ -546,7 +594,7 @@ export default function SalesReturnRateAudit() {
 
   const exportExceptionExcel = useCallback(async () => {
 
-    if (!filteredExceptionRecords.length) {
+    if (!exportExceptionRows.length) {
 
       auditToastError('No exception rows to export.');
 
@@ -558,13 +606,13 @@ export default function SalesReturnRateAudit() {
 
     try {
 
-      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+      const tag = effectiveActiveFilter ? `filtered-${effectiveActiveFilter}` : 'all';
 
       if (result?.exportColumns?.length) {
 
         await exportSalesReturnConsolidated({
 
-          records: filteredExceptionRecords,
+          records: exportExceptionRows,
 
           exportColumns: result.exportColumns,
 
@@ -576,7 +624,7 @@ export default function SalesReturnRateAudit() {
 
         downloadAuditExceptionXlsx(
 
-          filteredExceptionRecords,
+          exportExceptionRows,
 
           exceptionColumnOrder,
 
@@ -606,9 +654,9 @@ export default function SalesReturnRateAudit() {
 
   }, [
 
-    filteredExceptionRecords,
+    exportExceptionRows,
 
-    activeFilter,
+    effectiveActiveFilter,
 
     exceptionColumnOrder,
 
@@ -622,7 +670,7 @@ export default function SalesReturnRateAudit() {
 
   const exportExceptionPdf = useCallback(() => {
 
-    if (!filteredExceptionRecords.length) {
+    if (!exportExceptionRows.length) {
 
       auditToastError('No exception rows to export.');
 
@@ -630,7 +678,7 @@ export default function SalesReturnRateAudit() {
 
     }
 
-    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    const tag = effectiveActiveFilter ? `filtered-${effectiveActiveFilter}` : 'all';
 
     exportRowsToPdf(
 
@@ -640,19 +688,19 @@ export default function SalesReturnRateAudit() {
 
       exceptionExportColumns,
 
-      filteredExceptionRecords
+      exportExceptionRows
 
     );
 
     auditToastSuccess('PDF export downloaded');
 
-  }, [filteredExceptionRecords, activeFilter, exceptionExportColumns]);
+  }, [exportExceptionRows, effectiveActiveFilter, exceptionExportColumns]);
 
 
 
   const exportExceptionCsv = useCallback(() => {
 
-    if (!filteredExceptionRecords.length) {
+    if (!exportExceptionRows.length) {
 
       auditToastError('No exception rows to export.');
 
@@ -660,7 +708,7 @@ export default function SalesReturnRateAudit() {
 
     }
 
-    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
+    const tag = effectiveActiveFilter ? `filtered-${effectiveActiveFilter}` : 'all';
 
     exportRowsToCsv(
 
@@ -668,13 +716,13 @@ export default function SalesReturnRateAudit() {
 
       exceptionExportColumns,
 
-      filteredExceptionRecords
+      exportExceptionRows
 
     );
 
     auditToastSuccess('CSV export downloaded');
 
-  }, [filteredExceptionRecords, activeFilter, exceptionExportColumns]);
+  }, [exportExceptionRows, effectiveActiveFilter, exceptionExportColumns]);
 
 
 
@@ -682,7 +730,7 @@ export default function SalesReturnRateAudit() {
 
     <div className="relative space-y-8">
 
-      <AuditValidationOverlay open={loading} scope="container" />
+      <AuditValidationOverlay open={loading} />
 
 
 
@@ -759,13 +807,11 @@ export default function SalesReturnRateAudit() {
             file={displayFile}
 
             onFileChange={(f) => {
-
               setSheetError(null);
-
               setRestoredFileName(null);
-
+              setResult(null);
+              setActiveFilter(null);
               setReturnFile(f);
-
             }}
 
             disabled={loading}
@@ -842,7 +888,7 @@ export default function SalesReturnRateAudit() {
 
                 label="Error rows"
 
-                value={formatNumber(errorProducts)}
+                value={formatNumber(errorRows)}
 
                 icon={AlertTriangle}
 
@@ -850,11 +896,13 @@ export default function SalesReturnRateAudit() {
 
                 variant="error"
 
+                importance="critical"
+
                 total={totalRows}
 
                 interactive
 
-                selected={activeFilter === 'errors'}
+                selected={effectiveActiveFilter === 'errors'}
 
                 onClick={() => toggleCardFilter('errors')}
 
@@ -876,7 +924,7 @@ export default function SalesReturnRateAudit() {
 
                 interactive
 
-                selected={activeFilter === 'accountVsProduct'}
+                selected={effectiveActiveFilter === 'accountVsProduct'}
 
                 onClick={() => toggleCardFilter('accountVsProduct')}
 
@@ -900,7 +948,7 @@ export default function SalesReturnRateAudit() {
 
                 interactive
 
-                selected={activeFilter === 'mixedLedgers'}
+                selected={effectiveActiveFilter === 'mixedLedgers'}
 
                 onClick={() => toggleCardFilter('mixedLedgers')}
 
@@ -922,7 +970,7 @@ export default function SalesReturnRateAudit() {
 
                 interactive
 
-                selected={activeFilter === 'accessoriesUnitRate'}
+                selected={effectiveActiveFilter === 'accessoriesUnitRate'}
 
                 onClick={() => toggleCardFilter('accessoriesUnitRate')}
 
@@ -930,7 +978,7 @@ export default function SalesReturnRateAudit() {
 
               <AuditSummaryWidget
 
-                label="UOM deviations"
+                label="Unit of measurement deviations"
 
                 value={formatNumber(caratGemErrors)}
 
@@ -944,7 +992,7 @@ export default function SalesReturnRateAudit() {
 
                 interactive
 
-                selected={activeFilter === 'caratGemErrors'}
+                selected={effectiveActiveFilter === 'caratGemErrors'}
 
                 onClick={() => toggleCardFilter('caratGemErrors')}
 
@@ -966,7 +1014,7 @@ export default function SalesReturnRateAudit() {
 
                 interactive
 
-                selected={activeFilter === 'higherReturnRate'}
+                selected={effectiveActiveFilter === 'higherReturnRate'}
 
                 onClick={() => toggleCardFilter('higherReturnRate')}
 
@@ -984,11 +1032,7 @@ export default function SalesReturnRateAudit() {
 
                 variant="compliance"
 
-                interactive
-
-                selected={activeFilter === 'compliance'}
-
-                onClick={() => toggleCardFilter('compliance')}
+                importance="critical"
 
               />
 
@@ -1013,7 +1057,9 @@ export default function SalesReturnRateAudit() {
                 <p className="text-sm text-slate-500">
 
                   {showExceptionTable
-                    ? 'Original upload columns with Message for the selected issue category.'
+                    ? effectiveActiveFilter
+                      ? 'Showing rows for the selected issue category. Export includes only these rows with matching messages.'
+                      : 'Click a summary widget above to filter exception rows by issue category.'
                     : 'One row per product. Return lines use SUM(gross) ÷ SUM(quantity) compared to the Sales Audit baseline.'}
 
                 </p>
@@ -1025,13 +1071,13 @@ export default function SalesReturnRateAudit() {
             <CardBody>
 
               {showExceptionTable ? (
-                exceptionRecords.length || activeFilter != null ? (
+                exceptionRecords.length || effectiveActiveFilter != null ? (
                   <div className="space-y-4">
                     <AuditFilterStrip
-                      activeFilter={activeFilter}
+                      activeFilter={effectiveActiveFilter}
                       labels={SALES_RETURN_FILTER_LABELS}
                       count={filteredExceptionRecords.length}
-                      onClear={() => setActiveFilter(null)}
+                      onClear={() => setActiveFilter(errorRows > 0 ? 'errors' : null)}
                     />
                     {filteredExceptionRecords.length ? (
                       <>

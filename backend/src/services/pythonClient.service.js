@@ -271,6 +271,28 @@ async function postDiamondRateRules(body, options = {}) {
   }
 }
 
+async function getRateBookDiamonds(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/rate-book/diamonds', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function saveRateBookDiamonds(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/rate-book/diamonds', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -285,4 +307,6 @@ module.exports = {
   postRateRules,
   getDiamondRateRules,
   postDiamondRateRules,
+  getRateBookDiamonds,
+  saveRateBookDiamonds,
 };

@@ -125,7 +125,7 @@ def rate_validation_families() -> frozenset[str]:
 
 @lru_cache(maxsize=1)
 def deviation_fraction() -> float:
-    pct = float(load_gemstone_config().get('deviation_percent', 30))
+    pct = float(load_gemstone_config().get('deviation_percent', 15))
     return pct / 100.0
 
 
@@ -364,7 +364,7 @@ def clear_metal_rate_caches() -> None:
 
 @lru_cache(maxsize=1)
 def metal_deviation_fraction() -> float:
-    pct = float(load_metal_rate_rule_book_config().get('allowed_variation_percent', 30))
+    pct = float(load_metal_rate_rule_book_config().get('allowed_variation_percent', 15))
     return pct / 100.0
 
 

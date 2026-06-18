@@ -1,4 +1,5 @@
 const auditSessionRepository = require('../repositories/auditSession.repository');
+const auditRunRepository = require('../repositories/auditRun.repository');
 
 /**
  * Build unique session key: USER_{userId}_{auditCode}
@@ -25,13 +26,24 @@ async function resolveAuditType({ auditTypeId, auditCode }) {
   }
 
   if (auditCode) {
-    const auditType = await auditSessionRepository.findAuditTypeByCode(String(auditCode).toUpperCase());
-    if (!auditType) {
+    const normalized = String(auditCode).toUpperCase();
+    const existing = await auditSessionRepository.findAuditTypeByCode(normalized);
+    if (existing) return existing;
+
+    const auditTypeId = await auditRunRepository.resolveAuditTypeId(normalized);
+    if (!auditTypeId) {
       const err = new Error('Invalid audit type code');
       err.statusCode = 400;
       throw err;
     }
-    return auditType;
+
+    const created = await auditSessionRepository.findAuditTypeById(auditTypeId);
+    if (!created) {
+      const err = new Error('Invalid audit type code');
+      err.statusCode = 400;
+      throw err;
+    }
+    return created;
   }
 
   const err = new Error('auditTypeId or auditCode is required');
