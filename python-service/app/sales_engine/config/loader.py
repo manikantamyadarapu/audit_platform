@@ -8,6 +8,11 @@ from app.utils.normalization_engine import normalize_strict_text
 _CONFIG_DIR = Path(__file__).resolve().parent
 
 
+def round_rate_band(value: float) -> float:
+    """Round computed band edges so inclusive limits stay stable (e.g. 12000 × 1.15 → 13800)."""
+    return round(float(value), 2)
+
+
 @lru_cache(maxsize=1)
 def load_mappings_config() -> dict:
     return json.loads((_CONFIG_DIR / 'mappings.json').read_text(encoding='utf-8'))
@@ -181,8 +186,8 @@ def _diamond_band_values(
         'base_max': base_max,
         'adjusted_min': adjusted_min,
         'adjusted_max': adjusted_max,
-        'final_min': final_min,
-        'final_max': final_max,
+        'final_min': round_rate_band(final_min),
+        'final_max': round_rate_band(final_max),
     }
 
 
@@ -313,8 +318,8 @@ def _metal_band_values(base_min: float, base_max: float, *, deviation_fraction: 
     return {
         'base_min': base_min,
         'base_max': base_max,
-        'final_min': base_min * (1.0 - deviation_fraction),
-        'final_max': base_max * (1.0 + deviation_fraction),
+        'final_min': round_rate_band(base_min * (1.0 - deviation_fraction)),
+        'final_max': round_rate_band(base_max * (1.0 + deviation_fraction)),
     }
 
 
