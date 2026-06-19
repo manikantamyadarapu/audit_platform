@@ -414,8 +414,8 @@ def test_sales_rubies_jru_1000_invalid_rate_deviation():
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_RATE_DEVIATION']
     assert rec['standardRate'] == 1000
-    assert rec['minAllowedRate'] == 700
-    assert rec['maxAllowedRate'] == 1300
+    assert rec['minAllowedRate'] == 850
+    assert rec['maxAllowedRate'] == 1150
 
 
 def test_sales_rubies_jru_1000_valid_rate_within_band():
@@ -426,7 +426,7 @@ def test_sales_rubies_jru_1000_valid_rate_within_band():
                 voucher='RV2',
                 sales_account='Jewels sales account - Rubies',
                 product='Rubies JRU 1000',
-                unit_rate=1200,
+                unit_rate=1100,
             )
         ]
     )
@@ -825,8 +825,8 @@ def test_sales_rubies_jru_3400_rate_deviation_1358():
     assert out['errorRows'] == 1
     assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
     assert out['records'][0]['standardRate'] == 3400
-    assert out['records'][0]['minAllowedRate'] == 2380
-    assert out['records'][0]['maxAllowedRate'] == 4420
+    assert out['records'][0]['minAllowedRate'] == pytest.approx(2890)
+    assert out['records'][0]['maxAllowedRate'] == pytest.approx(3910)
 
 
 def test_sales_pearls_jps_2000_rate_deviation_4416():
@@ -845,6 +845,6 @@ def test_sales_pearls_jps_2000_rate_deviation_4416():
     assert out['errorRows'] == 1
     assert out['records'][0]['issues'] == ['INVALID_RATE_DEVIATION']
     assert out['records'][0]['standardRate'] == 2000
-    assert out['records'][0]['minAllowedRate'] == 1400
-    assert out['records'][0]['maxAllowedRate'] == 2600
+    assert out['records'][0]['minAllowedRate'] == 1700
+    assert out['records'][0]['maxAllowedRate'] == 2300
 

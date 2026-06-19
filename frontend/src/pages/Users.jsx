@@ -5,11 +5,13 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
 
+import { getAuthToken } from '../utils/authUser';
+
 // API helper function
 const API_BASE_URL = '/api/v1';
 
 function getToken() {
-  return localStorage.getItem('token');
+  return getAuthToken();
 }
 
 async function apiRequest(endpoint, options = {}) {

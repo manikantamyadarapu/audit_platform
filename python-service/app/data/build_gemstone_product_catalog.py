@@ -102,7 +102,7 @@ def main() -> None:
     catalog = {
         'version': 1,
         'rate_model': 'slab_in_product_name',
-        'deviation_percent': 30,
+        'deviation_percent': 15,
         'accounts': {
             'JEWELS SALES ACCOUNT - COLOR STONES': {
                 'customer_products': ['Customer Stones'],

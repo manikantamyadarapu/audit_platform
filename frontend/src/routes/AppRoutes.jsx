@@ -5,6 +5,8 @@ import { SessionBootstrap } from '../components/auth/SessionBootstrap';
 import { LoginSkeleton } from '../components/layout/LoginSkeleton';
 
 const Login = lazy(() => import('../pages/Login'));
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const ScrutinyHub = lazy(() => import('../pages/ScrutinyHub'));
 const VouchingHub = lazy(() => import('../pages/VouchingHub'));
@@ -33,6 +35,22 @@ export function AppRoutes() {
           </Suspense>
         }
       />
+      <Route
+        path="/forgot-password"
+        element={
+          <Suspense fallback={<LoginSkeleton />}>
+            <ForgotPassword />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <Suspense fallback={<LoginSkeleton />}>
+            <ResetPassword />
+          </Suspense>
+        }
+      />
 
       <Route element={<SessionBootstrap />}>
         <Route element={<AppLayout />}>
@@ -55,7 +73,6 @@ export function AppRoutes() {
           <Route path="/scrutiny/diamond-gem-rates" element={<DiamondGemRateBook />} />
           <Route path="/scrutiny/rate-rules" element={<RateRuleBook />} />
           <Route path="/scrutiny/rule-book" element={<RateRuleBook />} />
-          <Route path="/scrutiny/gst" element={<ModuleSoon />} />
           <Route path="/scrutiny/duplicate-invoice" element={<ModuleSoon />} />
           <Route path="/scrutiny/vendor-reconciliation" element={<ModuleSoon />} />
 

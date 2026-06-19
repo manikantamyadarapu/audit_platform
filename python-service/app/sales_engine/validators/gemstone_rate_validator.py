@@ -17,8 +17,8 @@ def enrich_rate_columns(
     fraction = deviation_fraction()
     slab = extracted_slab_price_expr(product_col=product_col, family_col=family_col)
     rate_families = pl.col(family_col).is_in(list(rate_validation_families()))
-    min_rate = slab * (1.0 - fraction)
-    max_rate = slab * (1.0 + fraction)
+    min_rate = (slab * (1.0 - fraction)).round(2)
+    max_rate = (slab * (1.0 + fraction)).round(2)
     uploaded = pl.col(uploaded_unit_rate_col)
     rate_ready = (
         rate_families

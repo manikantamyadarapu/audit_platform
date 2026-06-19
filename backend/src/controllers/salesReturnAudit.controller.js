@@ -1,5 +1,6 @@
 const salesReturnRateComparisonService = require('../services/salesReturnRateComparison.service');
 const auditNotification = require('../services/auditNotification.service');
+const auditRunPersistence = require('../services/auditRunPersistence.service');
 const { AUDIT_KEYS } = require('../constants/notifications');
 const pythonClient = require('../services/pythonClient.service');
 const logger = require('../utils/logger');
@@ -29,6 +30,13 @@ async function runAudit(req, res, next) {
       { requestId: req.requestId }
     );
 
+    const auditRunId = await auditRunPersistence.tryPersistAuditRun(
+      req,
+      AUDIT_KEYS.SALES_RETURN,
+      returnFile.originalname,
+      data
+    );
+
     if (req.user?.id) {
       auditNotification
         .notifyAuditCompleted(
@@ -40,7 +48,7 @@ async function runAudit(req, res, next) {
         .catch(() => {});
     }
 
-    return res.json(data);
+    return res.json({ ...data, auditRunId });
   } catch (err) {
     if (req.user?.id) {
       if (err.code === 'MISSING_SALES_AUDIT_BASELINE') {

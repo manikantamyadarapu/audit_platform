@@ -1,10 +1,75 @@
-/**
- * Read and refresh the logged-in user from localStorage / auth API.
- */
+const AUTH_TOKEN_KEY = 'token';
+const AUTH_USER_KEY = 'user';
+const AUTH_FLAG_KEY = 'isAuthenticated';
+const REMEMBER_ME_KEY = 'rememberMe';
+const REMEMBER_EMAIL_KEY = 'rememberedEmail';
+
+function getSessionStorage() {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage;
+}
+
+function getLocalStorage() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage;
+}
+
+function getActiveStorage() {
+  const local = getLocalStorage();
+  if (local?.getItem(AUTH_TOKEN_KEY)) return local;
+  return getSessionStorage();
+}
+
+export function getRememberMePreference() {
+  return getLocalStorage()?.getItem(REMEMBER_ME_KEY) === 'true';
+}
+
+export function getRememberedEmail() {
+  if (!getRememberMePreference()) return '';
+  return getLocalStorage()?.getItem(REMEMBER_EMAIL_KEY) || '';
+}
+
+export function persistAuthSession({ token, user, rememberMe, email }) {
+  const local = getLocalStorage();
+  const session = getSessionStorage();
+  if (!local || !session) return;
+
+  const payload = {
+    token,
+    user: JSON.stringify(user),
+    isAuthenticated: 'true',
+  };
+
+  if (rememberMe) {
+    local.setItem(AUTH_TOKEN_KEY, payload.token);
+    local.setItem(AUTH_USER_KEY, payload.user);
+    local.setItem(AUTH_FLAG_KEY, payload.isAuthenticated);
+    local.setItem(REMEMBER_ME_KEY, 'true');
+    if (email) local.setItem(REMEMBER_EMAIL_KEY, email);
+
+    session.removeItem(AUTH_TOKEN_KEY);
+    session.removeItem(AUTH_USER_KEY);
+    session.removeItem(AUTH_FLAG_KEY);
+    return;
+  }
+
+  session.setItem(AUTH_TOKEN_KEY, payload.token);
+  session.setItem(AUTH_USER_KEY, payload.user);
+  session.setItem(AUTH_FLAG_KEY, payload.isAuthenticated);
+
+  local.removeItem(AUTH_TOKEN_KEY);
+  local.removeItem(AUTH_USER_KEY);
+  local.removeItem(AUTH_FLAG_KEY);
+  local.removeItem(REMEMBER_ME_KEY);
+  local.removeItem(REMEMBER_EMAIL_KEY);
+}
 
 export function getStoredUser() {
   try {
-    const raw = localStorage.getItem('user');
+    const raw =
+      getActiveStorage()?.getItem(AUTH_USER_KEY) ||
+      getLocalStorage()?.getItem(AUTH_USER_KEY) ||
+      getSessionStorage()?.getItem(AUTH_USER_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -13,7 +78,11 @@ export function getStoredUser() {
 }
 
 export function getAuthToken() {
-  return localStorage.getItem('token');
+  return (
+    getActiveStorage()?.getItem(AUTH_TOKEN_KEY) ||
+    getLocalStorage()?.getItem(AUTH_TOKEN_KEY) ||
+    getSessionStorage()?.getItem(AUTH_TOKEN_KEY)
+  );
 }
 
 export function getUserInitials(name) {
@@ -28,15 +97,23 @@ export function getUserInitials(name) {
 }
 
 export function persistUser(user) {
-  if (user) {
-    localStorage.setItem('user', JSON.stringify(user));
+  const storage = getActiveStorage() || getLocalStorage();
+  if (user && storage) {
+    storage.setItem(AUTH_USER_KEY, JSON.stringify(user));
   }
 }
 
 export function clearAuthSession() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  localStorage.removeItem('isAuthenticated');
+  const local = getLocalStorage();
+  const session = getSessionStorage();
+
+  local?.removeItem(AUTH_TOKEN_KEY);
+  local?.removeItem(AUTH_USER_KEY);
+  local?.removeItem(AUTH_FLAG_KEY);
+
+  session?.removeItem(AUTH_TOKEN_KEY);
+  session?.removeItem(AUTH_USER_KEY);
+  session?.removeItem(AUTH_FLAG_KEY);
 }
 
 /**

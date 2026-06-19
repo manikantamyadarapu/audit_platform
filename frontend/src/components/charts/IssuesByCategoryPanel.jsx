@@ -146,17 +146,17 @@ export function IssuesByCategoryPanel({ categories, totalIssues, loading = false
   };
 
   if (loading) {
-    return <ChartSkeleton variant="donut" className="mt-5" />;
+    return <ChartSkeleton height={320} variant="donut" aria-label="Loading issues by category chart" />;
   }
 
   if (!categories.length) {
     return (
-      <p className="mt-4 text-sm text-[var(--color-text-muted)]">No issue data for this period.</p>
+      <p className="text-sm text-[var(--color-text-muted)]">No issue data for this period.</p>
     );
   }
 
   return (
-    <div className="mt-5 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:gap-8 lg:gap-10">
+    <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:gap-8 lg:gap-10">
       <div className="relative h-[210px] w-[210px] shrink-0">
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}

@@ -55,8 +55,8 @@ def test_rate_below_minimum_message():
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_RATE_DEVIATION']
     assert MSG_RATE_BELOW in rec['messages']
-    assert rec['minAllowedRate'] == 6300
-    assert rec['maxAllowedRate'] == 11700
+    assert rec['minAllowedRate'] == 7650
+    assert rec['maxAllowedRate'] == 10350
     assert rec['currentMarketRate'] == 9000
 
 

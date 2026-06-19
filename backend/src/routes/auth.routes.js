@@ -27,6 +27,33 @@ router.post('/login', authController.login);
 
 /**
  * @swagger
+ * /api/v1/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset email
+ *     tags: [Auth]
+ */
+router.post('/forgot-password', authController.forgotPassword);
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password/validate:
+ *   get:
+ *     summary: Validate password reset token
+ *     tags: [Auth]
+ */
+router.get('/reset-password/validate', authController.validateResetToken);
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     tags: [Auth]
+ */
+router.post('/reset-password', authController.resetPassword);
+
+/**
+ * @swagger
  * /api/v1/auth/me:
  *   get:
  *     summary: Get current user

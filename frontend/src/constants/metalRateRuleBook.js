@@ -10,4 +10,4 @@ export const RULE_BOOK_PRODUCTS = [
   'Silver articles',
 ];
 
-export const RULE_BOOK_VARIATION_PCT = 30;
+export const RULE_BOOK_VARIATION_PCT = 15;

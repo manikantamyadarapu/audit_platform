@@ -10,6 +10,7 @@ const userRoutes = require('./user.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const salesAuditRoutes = require('./salesAudit.routes');
 const auditSessionRoutes = require('./auditSession.routes');
+const rateBookRoutes = require('./rateBook.routes');
 
 const router = express.Router();
 
@@ -24,5 +25,6 @@ router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/sales-audit', salesAuditRoutes);
 router.use('/audit-sessions', auditSessionRoutes);
+router.use('/rate-book', rateBookRoutes);
 
 module.exports = router;

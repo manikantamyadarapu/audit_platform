@@ -46,7 +46,7 @@ def load_rule_book() -> dict[str, Any]:
 def _empty_rule_book() -> dict[str, Any]:
     return {
         **{product: {'min_rate': None, 'max_rate': None} for product in METAL_RATE_RULE_BOOK_PRODUCTS},
-        'allowed_variation_percent': 30,
+        'allowed_variation_percent': 15,
         'updated_at': None,
     }
 
@@ -64,7 +64,7 @@ def save_rule_book(payload: dict[str, Any]) -> dict[str, Any]:
         'allowed_variation_percent': int(
             payload.get('allowed_variation_percent')
             or load_metal_rate_rule_book_config().get('allowed_variation_percent')
-            or 30
+            or 15
         ),
         'updated_at': datetime.now(timezone.utc).isoformat(),
     }
@@ -80,7 +80,7 @@ def api_response_from_stored(stored: dict[str, Any]) -> dict[str, Any]:
         rates[product] = _parse_product_rates(raw)
     return {
         'rates': rates,
-        'allowed_variation_percent': stored.get('allowed_variation_percent', 30),
+        'allowed_variation_percent': stored.get('allowed_variation_percent', 15),
         'updated_at': stored.get('updated_at'),
     }
 

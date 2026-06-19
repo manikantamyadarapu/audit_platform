@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
+const auditRunRepository = require('./auditRun.repository');
+const { extractIssueCounts, extractMetrics } = require('../services/auditRunPersistence.service');
 
 const prisma = new PrismaClient();
 
@@ -125,44 +127,41 @@ async function createAuditRunWithProductAverages({
   totalRows,
   invalidRows,
   productAverages,
+  pythonResult,
 }) {
-  const auditTypeId = await findSalesAuditTypeId();
+  const auditTypeId = await auditRunRepository.resolveAuditTypeId('SALES');
   if (!auditTypeId) {
     throw new Error('SALES audit type is not configured');
   }
 
-  const now = new Date();
-  return prisma.$transaction(async (tx) => {
-    const auditRun = await tx.auditRun.create({
-      data: {
-        auditTypeId,
-        fileName: fileName || 'sales-audit.xlsx',
-        uploadedBy,
-        status: 'COMPLETED',
-        totalRows: totalRows ?? 0,
-        invalidRows: invalidRows ?? 0,
-        startedAt: now,
-        completedAt: now,
-      },
-    });
+  const metrics = pythonResult ? extractMetrics(pythonResult) : { totalRows, invalidRows };
+  const issueCounts = pythonResult ? extractIssueCounts(pythonResult) : [];
 
-    if (productAverages?.length) {
-      const deduped = dedupeProductAverages(productAverages);
-      await tx.salesProductAverageRate.createMany({
-        data: deduped.map((row) => ({
-          auditRunId: auditRun.id,
-          product: String(row.product || '').slice(0, 255),
-          salesAccount: String(row.salesAccount || '').slice(0, 255),
-          totalQuantity: row.totalQuantity ?? 0,
-          totalGrossAmount: row.totalGrossAmount ?? 0,
-          averageRate: row.averageRate ?? 0,
-          transactionCount: Number(row.transactionCount) || 0,
-        })),
-      });
-    }
-
-    return auditRun;
+  const auditRun = await auditRunRepository.createAuditRun({
+    auditTypeId,
+    uploadedBy,
+    fileName: fileName || 'sales-audit.xlsx',
+    totalRows: metrics.totalRows ?? totalRows ?? 0,
+    invalidRows: metrics.invalidRows ?? invalidRows ?? 0,
+    issueCounts,
   });
+
+  if (productAverages?.length) {
+    const deduped = dedupeProductAverages(productAverages);
+    await prisma.salesProductAverageRate.createMany({
+      data: deduped.map((row) => ({
+        auditRunId: auditRun.id,
+        product: String(row.product || '').slice(0, 255),
+        salesAccount: String(row.salesAccount || '').slice(0, 255),
+        totalQuantity: row.totalQuantity ?? 0,
+        totalGrossAmount: row.totalGrossAmount ?? 0,
+        averageRate: row.averageRate ?? 0,
+        transactionCount: Number(row.transactionCount) || 0,
+      })),
+    });
+  }
+
+  return auditRun;
 }
 
 async function findProductAverageRates({

@@ -57,16 +57,24 @@ function buildColumnItems(seed, count = 24) {
   return items;
 }
 
-function ScrollColumn({ items, className, trackClassName }) {
+function ScrollColumn({ items, className, trackClassName, size = 'sm' }) {
   const doubled = [...items, ...items];
+  const sizeClass =
+    size === 'xl'
+      ? 'text-xl font-bold tracking-[0.14em]'
+      : size === 'lg'
+        ? 'text-lg font-semibold tracking-[0.15em]'
+        : size === 'md'
+          ? 'text-base font-medium tracking-[0.16em]'
+          : 'text-sm tracking-[0.17em]';
 
   return (
     <div className={cn('relative h-full overflow-hidden', className)}>
-      <div className={cn('flex flex-col gap-5 py-4', trackClassName)}>
+      <div className={cn('flex flex-col gap-6 py-4', trackClassName)}>
         {doubled.map((item, index) => (
           <span
             key={`${item}-${index}`}
-            className="whitespace-nowrap font-mono text-[11px] tracking-[0.18em] uppercase"
+            className={cn('whitespace-nowrap font-mono uppercase', sizeClass)}
           >
             {item}
           </span>
@@ -78,16 +86,16 @@ function ScrollColumn({ items, className, trackClassName }) {
 
 export function AuditIntelligenceBackground({ isDark }) {
   const textTone = isDark
-    ? 'text-emerald-400/[0.09] [text-shadow:0_0_20px_rgba(16,185,129,0.08)]'
-    : 'text-emerald-700/[0.08] [text-shadow:0_0_16px_rgba(16,185,129,0.06)]';
+    ? 'text-slate-500/[0.38] [text-shadow:0_0_20px_rgba(100,116,139,0.12)]'
+    : 'text-slate-700/[0.32] [text-shadow:0_0_16px_rgba(51,65,85,0.1)]';
 
   const blurTone = isDark
-    ? 'text-emerald-300/[0.06] blur-[6px]'
-    : 'text-emerald-600/[0.05] blur-[5px]';
+    ? 'text-slate-600/[0.28] blur-[6px]'
+    : 'text-slate-600/[0.22] blur-[5px]';
 
   const floatTone = isDark
-    ? 'text-emerald-400/[0.1] [text-shadow:0_0_24px_rgba(16,185,129,0.12)]'
-    : 'text-emerald-700/[0.09] [text-shadow:0_0_20px_rgba(16,185,129,0.08)]';
+    ? 'text-slate-400/[0.42] [text-shadow:0_0_24px_rgba(148,163,184,0.14)]'
+    : 'text-slate-700/[0.36] [text-shadow:0_0_20px_rgba(51,65,85,0.12)]';
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -97,7 +105,10 @@ export function AuditIntelligenceBackground({ isDark }) {
           {AUDIT_CODES.slice(0, 18).map((code, i) => (
             <span
               key={`blur-${code}`}
-              className="font-mono text-2xl font-light tracking-widest"
+              className={cn(
+                'font-mono font-light tracking-widest',
+                i % 4 === 0 ? 'text-6xl' : i % 2 === 0 ? 'text-5xl' : 'text-4xl'
+              )}
               style={{ marginLeft: `${(i % 5) * 12}px` }}
             >
               {SYMBOLS[i % SYMBOLS.length]} {code.split('_')[0]}
@@ -107,33 +118,36 @@ export function AuditIntelligenceBackground({ isDark }) {
       </div>
 
       {/* Layer 1 — slow vertical scroll */}
-      <div className={cn('absolute inset-0 grid grid-cols-4 gap-6 px-6 opacity-90', textTone)}>
-        <ScrollColumn items={buildColumnItems(0)} trackClassName="audit-scroll-column" />
-        <ScrollColumn items={buildColumnItems(7)} trackClassName="audit-scroll-column-fast" />
-        <ScrollColumn items={buildColumnItems(14)} trackClassName="audit-scroll-column" />
-        <ScrollColumn items={buildColumnItems(21)} trackClassName="audit-scroll-column-fast" />
+      <div className={cn('absolute inset-0 grid grid-cols-4 gap-8 px-4 opacity-100', textTone)}>
+        <ScrollColumn items={buildColumnItems(0)} trackClassName="audit-scroll-column" size="lg" />
+        <ScrollColumn items={buildColumnItems(7)} trackClassName="audit-scroll-column-fast" size="xl" />
+        <ScrollColumn items={buildColumnItems(14)} trackClassName="audit-scroll-column" size="md" />
+        <ScrollColumn items={buildColumnItems(21)} trackClassName="audit-scroll-column-fast" size="lg" />
       </div>
 
       {/* Layer 2 — diagonal scroll */}
       <div
         className={cn(
-          'absolute inset-[-20%] rotate-[-14deg] opacity-70',
+          'absolute inset-[-20%] rotate-[-14deg] opacity-85',
           textTone
         )}
       >
-        <div className="audit-scroll-diagonal grid h-[140%] grid-cols-3 gap-10 px-12">
-          <ScrollColumn items={buildColumnItems(3, 20)} trackClassName="audit-scroll-column" />
-          <ScrollColumn items={buildColumnItems(11, 20)} trackClassName="audit-scroll-column-fast" />
-          <ScrollColumn items={buildColumnItems(19, 20)} trackClassName="audit-scroll-column" />
+        <div className="audit-scroll-diagonal grid h-[140%] grid-cols-3 gap-12 px-8">
+          <ScrollColumn items={buildColumnItems(3, 20)} trackClassName="audit-scroll-column" size="xl" />
+          <ScrollColumn items={buildColumnItems(11, 20)} trackClassName="audit-scroll-column-fast" size="lg" />
+          <ScrollColumn items={buildColumnItems(19, 20)} trackClassName="audit-scroll-column" size="xl" />
         </div>
       </div>
 
       {/* Layer 3 — floating audit codes */}
       <div className={cn('absolute inset-0', floatTone)}>
-        {FLOATING_ITEMS.map((item) => (
+        {FLOATING_ITEMS.map((item, index) => (
           <span
             key={item.text}
-            className="audit-float-item absolute font-mono text-xs font-medium tracking-[0.2em]"
+            className={cn(
+              'audit-float-item absolute font-mono font-bold tracking-[0.16em]',
+              index % 3 === 0 ? 'text-2xl' : index % 2 === 0 ? 'text-xl' : 'text-lg'
+            )}
             style={{
               top: item.top,
               left: item.left,
@@ -151,8 +165,8 @@ export function AuditIntelligenceBackground({ isDark }) {
         className={cn(
           'absolute inset-0',
           isDark
-            ? 'bg-gradient-to-r from-slate-950/40 via-transparent to-slate-950/20'
-            : 'bg-gradient-to-r from-emerald-50/50 via-transparent to-emerald-50/30'
+            ? 'bg-gradient-to-r from-slate-950/55 via-slate-900/20 to-slate-950/35'
+            : 'bg-gradient-to-r from-slate-200/40 via-transparent to-slate-200/25'
         )}
       />
     </div>

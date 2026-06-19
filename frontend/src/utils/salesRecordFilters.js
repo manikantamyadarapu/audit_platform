@@ -34,6 +34,39 @@ const HIGHER_RETURN_RATE_ISSUES = new Set([
   'PRODUCT_NOT_FOUND_IN_SALES',
 ]);
 
+/** Sales Return file-validation issue codes (excludes rate comparison). */
+export const SALES_RETURN_VALIDATION_ISSUES = new Set([
+  'INVALID_RATE_DEVIATION',
+  'INVALID_LEDGER_MAPPING',
+  'INVALID_FREE_QUANTITY',
+  'INVALID_UOM',
+]);
+
+export const SALES_RETURN_ISSUE_MESSAGES = {
+  INVALID_RATE_DEVIATION: 'Unit rate outside allowed range.',
+  INVALID_LEDGER_MAPPING: 'Invalid sales return ledger mapping.',
+  INVALID_FREE_QUANTITY: 'Free quantity not allowed for this product.',
+  INVALID_UOM: 'Invalid UOM for product.',
+  HIGHER_SALES_RETURN_RATE: 'Average sales return rate is higher than average sales rate.',
+};
+
+const SALES_RETURN_MESSAGE_TO_ISSUE = Object.fromEntries(
+  Object.entries(SALES_RETURN_ISSUE_MESSAGES).map(([code, message]) => [message, code])
+);
+
+const SALES_RETURN_ACCOUNT_VS_PRODUCT_ISSUES = new Set(['INVALID_LEDGER_MAPPING']);
+const SALES_RETURN_RATE_DEVIATION_ISSUES = new Set(['INVALID_RATE_DEVIATION']);
+const SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES = new Set(['INVALID_FREE_QUANTITY']);
+const SALES_RETURN_UOM_ISSUES = new Set(['INVALID_UOM']);
+
+const SALES_RETURN_FILTER_ISSUE_SETS = {
+  accountVsProduct: SALES_RETURN_ACCOUNT_VS_PRODUCT_ISSUES,
+  mixedLedgers: SALES_RETURN_RATE_DEVIATION_ISSUES,
+  accessoriesUnitRate: SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES,
+  caratGemErrors: SALES_RETURN_UOM_ISSUES,
+  higherReturnRate: HIGHER_RETURN_RATE_ISSUES,
+};
+
 const FILTER_ISSUE_SETS = {
   accountVsProduct: ACCOUNT_VS_PRODUCT_ISSUES,
   mixedLedgers: RATE_DEVIATION_ISSUES,
@@ -61,14 +94,53 @@ export function isSalesReturnValidationFilter(filter) {
  */
 export function recordIssueCodes(record) {
   if (Array.isArray(record?.issues) && record.issues.length) {
-    return record.issues.map((code) => String(code).trim()).filter(Boolean);
+    return normalizeSalesReturnIssueCodes(
+      record.issues.map((code) => String(code).trim()).filter(Boolean)
+    );
   }
   const message = record?.Message;
   if (message == null || message === '') return [];
-  return String(message)
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
+  return normalizeSalesReturnIssueCodes(
+    String(message)
+      .split(/[;,]/)
+      .map((part) => part.trim())
+      .map((part) => SALES_RETURN_MESSAGE_TO_ISSUE[part] || part)
+      .filter(Boolean)
+  );
+}
+
+/** Map legacy sales-engine codes to sales-return widget codes. */
+function normalizeSalesReturnIssueCodes(codes) {
+  const mapped = [];
+  for (const code of codes) {
+    let next = code;
+    if (
+      code === 'INVALID_PRODUCT_MAPPING' ||
+      code === 'MISSING_PRODUCT_CATEGORY_FOR_VALIDATION' ||
+      code === 'PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT'
+    ) {
+      next = 'INVALID_LEDGER_MAPPING';
+    }
+    if (code === 'INVALID_UNIT_RATE_RANGE') {
+      next = 'INVALID_FREE_QUANTITY';
+    }
+    if (next && !mapped.includes(next)) mapped.push(next);
+  }
+  return mapped;
+}
+
+export function enrichSalesReturnExceptionRecords(records) {
+  const list = Array.isArray(records) ? records : [];
+  return list.map((record) => {
+    const codes = recordIssueCodes(record);
+    if (!codes.length) return record;
+    if (Array.isArray(record?.issues) && record.issues.length) return record;
+    return { ...record, issues: codes };
+  });
+}
+
+export function salesReturnValidationIssueCodes(record) {
+  return recordIssueCodes(record).filter((code) => SALES_RETURN_VALIDATION_ISSUES.has(code));
 }
 
 /**
@@ -126,7 +198,7 @@ function relevantIssueCodes(record, filter) {
   return codes.filter((code) => allowed.has(code));
 }
 
-function messageTextForIssueCodes(record, codes) {
+function messageTextForIssueCodes(record, codes, messageMap = null) {
   if (!codes.length) return '';
   const issues = Array.isArray(record?.issues) ? record.issues.map((code) => String(code)) : [];
   const messages = Array.isArray(record?.messages)
@@ -134,11 +206,100 @@ function messageTextForIssueCodes(record, codes) {
     : [];
   return codes
     .map((code) => {
+      if (messageMap?.[code]) return messageMap[code];
       const index = issues.indexOf(code);
       if (index >= 0 && messages[index]?.trim()) return messages[index].trim();
       return code;
     })
     .join('; ');
+}
+
+function salesReturnRelevantIssueCodes(record, filter) {
+  const codes = recordIssueCodes(record);
+  if (!filter || filter === 'total' || filter === 'compliance') {
+    return codes.filter((code) => SALES_RETURN_VALIDATION_ISSUES.has(code));
+  }
+  if (filter === 'errors') {
+    return salesReturnValidationIssueCodes(record);
+  }
+  const allowed = SALES_RETURN_FILTER_ISSUE_SETS[filter];
+  if (!allowed) return codes;
+  return codes.filter((code) => allowed.has(code));
+}
+
+/** Message text for the active Sales Return widget filter only. */
+export function salesReturnMessageForActiveFilter(record, filter) {
+  if (filter === 'compliance') return '';
+  return messageTextForIssueCodes(
+    record,
+    salesReturnRelevantIssueCodes(record, filter),
+    SALES_RETURN_ISSUE_MESSAGES
+  );
+}
+
+export function applySalesReturnFilterDisplayMessage(records, filter) {
+  if (!filter || filter === 'total') return records;
+  return records.map((row) => ({
+    ...row,
+    Message: salesReturnMessageForActiveFilter(row, filter),
+  }));
+}
+
+export function filterSalesReturnRecordsForDisplay(records, filter) {
+  return applySalesReturnFilterDisplayMessage(filterSalesReturnRecords(records, filter), filter);
+}
+
+/** Default widget filter when none selected (Error rows when validation issues exist). */
+export function resolveSalesReturnActiveFilter(activeFilter, errorRows = 0) {
+  if (activeFilter != null) return activeFilter;
+  return errorRows > 0 ? 'errors' : null;
+}
+
+/** Rows sent to Excel/CSV/PDF — widget-scoped Message only, no internal issue arrays. */
+export function salesReturnRecordsForExport(records) {
+  return (Array.isArray(records) ? records : []).map((record) => {
+    const { issues, messages, ...rest } = record;
+    return rest;
+  });
+}
+
+export function filterSalesReturnRecords(records, filter) {
+  const list = Array.isArray(records) ? records : [];
+  if (filter == null || filter === 'total') {
+    return list;
+  }
+  if (filter === 'errors' || filter === 'exceptions') {
+    return list.filter((r) => salesReturnValidationIssueCodes(r).length > 0);
+  }
+  if (filter === 'accountVsProduct') {
+    return list.filter((r) =>
+      recordIssueCodes(r).some((code) => SALES_RETURN_ACCOUNT_VS_PRODUCT_ISSUES.has(code))
+    );
+  }
+  if (filter === 'mixedLedgers') {
+    return list.filter((r) =>
+      recordIssueCodes(r).some((code) => SALES_RETURN_RATE_DEVIATION_ISSUES.has(code))
+    );
+  }
+  if (filter === 'accessoriesUnitRate') {
+    return list.filter((r) =>
+      recordIssueCodes(r).some((code) => SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES.has(code))
+    );
+  }
+  if (filter === 'caratGemErrors') {
+    return list.filter((r) =>
+      recordIssueCodes(r).some((code) => SALES_RETURN_UOM_ISSUES.has(code))
+    );
+  }
+  if (filter === 'compliance') {
+    return list.filter((r) => salesReturnValidationIssueCodes(r).length === 0);
+  }
+  if (filter === 'higherReturnRate') {
+    return list.filter((r) =>
+      recordIssueCodes(r).some((code) => HIGHER_RETURN_RATE_ISSUES.has(code))
+    );
+  }
+  return list;
 }
 
 /** Message text for the active widget filter only (not unrelated issues). */

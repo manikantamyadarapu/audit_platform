@@ -13,31 +13,33 @@ import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { validateGrossWeightExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { filterGrossWeightRecords, GROSS_FILTER_LABELS } from '../utils/grossRecordFilters';
+import { resolveGrossWeightColumnOrder } from '../utils/grossTableColumns';
 import { downloadGrossWeightRecordsXlsx } from '../utils/grossXlsxExport';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
 import {
   buildExportColumnDefs,
-  resolveAuditColumnOrder,
 } from '../utils/auditTableColumns';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
-import { readAuditSessionData } from '../utils/auditSessionStorage';
+import {
+  bootstrapAuditSessionState,
+  slimGrossWeightSnapshot,
+} from '../utils/auditSessionStorage';
 
 const GROSS_WEIGHT_SESSION_KEY = 'gross-weight';
 
 export default function GrossWeight() {
+  const [initialSession] = useState(() => bootstrapAuditSessionState(GROSS_WEIGHT_SESSION_KEY));
   const [file, setFile] = useState(null);
   const [restoredFileName, setRestoredFileName] = useState(
-    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.fileName ?? null
+    () => initialSession.data?.fileName ?? null
   );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(
-    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.result ?? null
-  );
+  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [activeFilter, setActiveFilter] = useState(
-    () => readAuditSessionData(GROSS_WEIGHT_SESSION_KEY)?.activeFilter ?? null
+    () => initialSession.data?.activeFilter ?? null
   );
 
   const applySession = useCallback((data) => {
@@ -65,7 +67,11 @@ export default function GrossWeight() {
     startNewAudit,
     restoring,
   } = useAuditSessionPersistence(GROSS_WEIGHT_SESSION_KEY, sessionSnapshot, {
+    transform: slimGrossWeightSnapshot,
     onApplySession: applySession,
+    onSaveFailed: () => {
+      auditToastError('Could not save audit results locally. Free browser storage or start a new audit.');
+    },
   });
 
   const displayFile = file ?? (restoredFileName ? { name: restoredFileName } : null);
@@ -77,22 +83,26 @@ export default function GrossWeight() {
     }
     const ac = new AbortController();
     setLoading(true);
-    setResult(null);
-    setActiveFilter(null);
     try {
       const data = await validateGrossWeightExcel(file, ac.signal);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Comparison failed');
-        setResult(null);
         return;
       }
       setResult(data);
-      persist({
-        result: data,
-        sheetError: null,
-        activeFilter: null,
-        fileName: file?.name ?? null,
-      });
+      setActiveFilter(null);
+      const saved = persist(
+        {
+          result: data,
+          sheetError: null,
+          activeFilter: null,
+          fileName: file?.name ?? null,
+        },
+        { notifyOnFailure: true, force: true }
+      );
+      if (saved === false) {
+        auditToastError('Results loaded but could not be saved for later.');
+      }
       auditToastSuccess('Gross weight comparison complete');
     } catch (e) {
       auditToastError(e.message || 'Comparison failed');
@@ -112,7 +122,7 @@ export default function GrossWeight() {
   }, []);
 
   const exportColumnOrder = useMemo(
-    () => (filteredRecords.length ? resolveAuditColumnOrder(filteredRecords) : []),
+    () => (filteredRecords.length ? resolveGrossWeightColumnOrder(filteredRecords) : []),
     [filteredRecords]
   );
 
@@ -208,6 +218,8 @@ export default function GrossWeight() {
             file={displayFile}
             onFileChange={(f) => {
               setRestoredFileName(null);
+              setResult(null);
+              setActiveFilter(null);
               setFile(f);
             }}
             disabled={loading}
@@ -303,6 +315,7 @@ export default function GrossWeight() {
                   />
                   <AuditUploadResultsTable
                     data={filteredRecords}
+                    columnOrder={exportColumnOrder}
                     searchPlaceholder="Search issue rows…"
                   />
                 </div>

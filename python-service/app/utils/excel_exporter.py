@@ -34,16 +34,16 @@ GROSS_EXPORT_COLUMNS = [
     'manualGrossWeight',
     'autoGrossWeight',
     'difference',
-    'issues',
+    'messages',
 ]
 
 GROSS_EXPORT_HEADER_MAP = {
-    'rowNumber': 'SNo',
+    'rowNumber': 'Row Number',
     'voucherNo': 'Voucher No',
-    'manualGrossWeight': 'Manual Gross Wt.',
-    'autoGrossWeight': 'Auto Gross Wt.',
-    'difference': 'Difference in Gross Wt.',
-    'issues': 'Issue',
+    'manualGrossWeight': 'Manual Gross Weight',
+    'autoGrossWeight': 'Auto Gross Weight',
+    'difference': 'Difference',
+    'messages': 'Message',
 }
 
 SALES_EXPORT_COLUMNS = list(SALES_AUDIT_OUTPUT_COLUMNS)
@@ -169,9 +169,8 @@ def _resolve_sales_return_export_columns(
         return _message_column_last(record_keys)
 
     ordered = [column for column in export_columns if column in record_keys]
-    for key in record_keys:
-        if key not in ordered:
-            ordered.append(key)
+    if not ordered:
+        return _message_column_last(record_keys)
     return _message_column_last(ordered)
 
 

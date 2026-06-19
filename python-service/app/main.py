@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config.settings import get_settings
+from app.utils.logger import get_logger
 from app.routers.health_router import router as health_router
 from app.routers.process_router import gateway_router as gateway_process_router
 from app.routers.process_router import router as process_router
@@ -55,22 +56,24 @@ async def sheet_validation_handler(_: Request, exc: SheetValidationError):
 @app.exception_handler(KeyError)
 async def key_error_handler(_: Request, exc: KeyError):
     import traceback
+
     detail = str(exc).replace("'", '')
     tb = traceback.format_exc()
-    print(f"KeyError: {detail}\nTraceback:\n{tb}")  # Log to console
+    get_logger('key-error').error('KeyError: {}\nTraceback:\n{}', detail, tb)
     return JSONResponse(
         status_code=422,
         content={
             'success': False,
             'detail': f"Missing column: {detail}. Check your Excel headers.",
-            'error': {'code': 'KEY_ERROR', 'message': detail, 'traceback': tb},
+            'error': {'code': 'KEY_ERROR', 'message': detail},
         },
     )
 
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(_: Request, exc: Exception):
+    get_logger('api-error').exception('Unhandled exception')
     return JSONResponse(
         status_code=500,
-        content={'success': False, 'detail': f'Processing failure: {str(exc)}'},
+        content={'success': False, 'message': 'Internal server error'},
     )

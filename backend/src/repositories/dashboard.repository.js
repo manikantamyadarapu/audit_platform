@@ -197,11 +197,15 @@ async function getIssuesByCategory(startDate, endDate) {
  * @returns {Promise<{ runs: Array<{ id: number, fileName: string, totalRows: number, createdAt: Date, status: string, auditType: { auditName: string } }>, total: number }>}
  */
 async function getRecentAudits(filters) {
-  const { page, limit, status, auditType, search } = filters;
+  const { page, limit, status, auditType, search, startDate, endDate } = filters;
   const skip = (page - 1) * limit;
 
   /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
   const where = {};
+
+  if (startDate && endDate) {
+    where.createdAt = createdAtRange(startDate, endDate);
+  }
 
   if (status) {
     where.status = status;

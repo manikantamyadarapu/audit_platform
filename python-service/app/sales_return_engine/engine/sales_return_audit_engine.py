@@ -24,6 +24,7 @@ from app.sales_return_engine.exception_report import (
     build_consolidated_exception_records,
     build_export_metadata,
     build_source_rows_by_product,
+    summarize_return_validation_records,
 )
 from app.utils.sheet_validation_error import SheetValidationError
 
@@ -89,16 +90,12 @@ class SalesReturnAuditEngine:
             source_rows_by_product=source_rows_by_product,
         )
 
-        return_error_rows = int(
-            return_validation.summary.get('distinctInvalidRows')
-            or return_validation.summary.get('errorRowsCount')
-            or len(return_validation.records)
-        )
+        validation_summary = summarize_return_validation_records(return_validation.records)
 
         total_ms = (perf_counter() - start) * 1000
         summary = {
             **return_validation.summary,
-            'returnValidationErrorRows': return_error_rows,
+            **validation_summary,
             'salesProductCount': len(sales_averages),
             'returnProductCount': len(return_averages),
             'higherReturnRateProducts': sum(
@@ -125,7 +122,7 @@ class SalesReturnAuditEngine:
             'success': True,
             'fileType': 'sales_return',
             'totalRows': return_validation.total_rows,
-            'errorRows': len(exception_records),
+            'errorRows': validation_summary['distinctInvalidRows'],
             'summary': summary,
             'validationIssues': return_validation.records,
             'rateComparisonRecords': comparison_records,
@@ -196,6 +193,12 @@ class SalesReturnAuditEngine:
             dataframe = dataframe.rename(renames)
 
         if is_return and 'sales_account' in dataframe.columns:
+            dataframe = dataframe.with_columns(
+                pl.col('sales_account')
+                .cast(pl.Utf8, strict=False)
+                .fill_null('')
+                .alias('__upload_sales_account_raw')
+            )
             dataframe = dataframe.with_columns(
                 pl.col('sales_account')
                 .cast(pl.Utf8, strict=False)

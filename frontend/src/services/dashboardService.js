@@ -24,10 +24,10 @@ export function getDashboardWidgetsErrorMessage(error) {
 }
 
 /**
- * @param {'daily'|'weekly'|'monthly'} [period='daily']
+ * @param {'week'|'month'|'year'} [period='week']
  * @returns {Promise<import('../types/dashboard').DashboardAuditTrendData>}
  */
-export async function fetchDashboardAuditTrend(period = 'daily') {
+export async function fetchDashboardAuditTrend(period = 'week') {
   const token = getAuthToken();
   const { data } = await api.get('/api/dashboard/audit-trend', {
     params: { period },
@@ -71,6 +71,7 @@ export function getDashboardIssuesCategoryErrorMessage(error) {
  * @param {{
  *   page?: number,
  *   limit?: number,
+ *   period?: 'week'|'month'|'year',
  *   status?: import('../types/dashboard').DashboardAuditStatus,
  *   auditType?: number,
  *   search?: string,
