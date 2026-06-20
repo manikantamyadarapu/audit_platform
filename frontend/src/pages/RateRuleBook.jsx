@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BookOpen, Loader2, Save } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { fetchRateRules, saveRateRules } from '../services/rateRuleService';
 import { RULE_BOOK_PRODUCTS, RULE_BOOK_VARIATION_PCT } from '../constants/metalRateRuleBook';
 import { formatSavedDateTime } from '../utils/dateTime';
+import { hasConfiguredRateRules } from '../utils/metalRateRules';
 
 function emptyForm() {
   return Object.fromEntries(RULE_BOOK_PRODUCTS.map((p) => [p, { min: '', max: '' }]));
@@ -49,10 +50,13 @@ function toPayload(form) {
 }
 
 export default function RateRuleBook() {
+  const location = useLocation();
+  const returnTo = location.state?.returnTo ?? '/scrutiny/sales-ledger';
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [ratesSaved, setRatesSaved] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,8 +64,9 @@ export default function RateRuleBook() {
       const data = await fetchRateRules();
       setForm(toForm(data));
       setUpdatedAt(data.updated_at ?? null);
+      setRatesSaved(hasConfiguredRateRules(data));
     } catch (e) {
-      toast.error(e.message || 'Could not load rate rule book');
+      auditToastError(e.message || 'Could not load rate rule book');
     } finally {
       setLoading(false);
     }
@@ -77,6 +82,7 @@ export default function RateRuleBook() {
       const data = await saveRateRules(toPayload(form));
       setForm(toForm(data));
       setUpdatedAt(data.updated_at ?? null);
+      setRatesSaved(true);
       auditToastSuccess('Rate rule book saved');
     } catch (e) {
       auditToastError(e.message || 'Save failed');
@@ -95,33 +101,36 @@ export default function RateRuleBook() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Scrutiny</p>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Gold & Silver Rates</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Enter min and max unit rates for gold and silver products. Sales audit compares{' '}
-              <strong>invoice unit rate only</strong> after −{RULE_BOOK_VARIATION_PCT}% on min and +
-              {RULE_BOOK_VARIATION_PCT}% on max.
-            </p>
-          </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Scrutiny</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Gold & Silver Rates</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Enter min and max unit rates for gold and silver products. Sales audit compares{' '}
+            <strong>invoice unit rate only</strong> after −{RULE_BOOK_VARIATION_PCT}% on min and +
+            {RULE_BOOK_VARIATION_PCT}% on max.
+          </p>
         </div>
         {updatedAt ? <p className="text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p> : null}
       </div>
 
+      {ratesSaved ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+            Gold & silver rates saved. You can return to the audit and run validation.
+          </p>
+          <Link
+            to={returnTo}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to audit
+          </Link>
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
           <h2 className="text-lg font-semibold text-slate-900">Rule book ranges</h2>
-          <p className="text-sm text-slate-600">
-            Edit base min/max, then run{' '}
-            <Link to="/scrutiny/sales-ledger" className="font-medium text-emerald-700 hover:underline">
-              Sales Audit
-            </Link>
-            .
-          </p>
         </CardHeader>
         <CardBody>
           {loading ? (

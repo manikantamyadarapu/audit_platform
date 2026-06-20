@@ -1,15 +1,18 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { Search } from 'lucide-react';
 
-const ACCENT = '#6EE7B7';
-const ACCENT_SOFT = '#A7F3D0';
+const ACCENT = '#34D399';
+const ACCENT_SOFT = '#34D399';
 const RADAR_DURATION = 4;
 const RIPPLE_COUNT = 5;
 const RIPPLE_STAGGER = 0.5;
 
-/** Rings begin just outside the magnifying glass (~30 viewBox units from center). */
-const RIPPLE_BASE_R = 32;
-const STATIC_RING_RADII = [36, 48, 60, 72, 84, 96];
+/** Search icon container is 38% of the scanner — pulse starts at its outer edge. */
+const SEARCH_ICON_SIZE_RATIO = 0.38;
+const VIEWBOX_CENTER = 100;
+const SEARCH_OUTER_R = VIEWBOX_CENTER * SEARCH_ICON_SIZE_RATIO;
+const PULSE_END_R = 98;
+const STATIC_RING_RADII = [42, 54, 66, 78, 90, 98];
 
 const smoothEase = [0.22, 1, 0.36, 1];
 
@@ -37,8 +40,8 @@ function RadarSvg({ animated = true }) {
       {STATIC_RING_RADII.map((radius, index) => (
         <circle
           key={`static-${radius}`}
-          cx="100"
-          cy="100"
+          cx={VIEWBOX_CENTER}
+          cy={VIEWBOX_CENTER}
           r={radius}
           fill="none"
           stroke={ACCENT}
@@ -47,26 +50,24 @@ function RadarSvg({ animated = true }) {
         />
       ))}
 
-      {/* Pulse rings — expand from outside glass to full panel edge */}
+      {/* Pulse rings — expand outward from search icon outer edge */}
       {animated
         ? Array.from({ length: RIPPLE_COUNT }, (_, index) => (
             <motion.circle
               key={`ripple-${index}`}
-              cx="100"
-              cy="100"
-              r={RIPPLE_BASE_R}
+              cx={VIEWBOX_CENTER}
+              cy={VIEWBOX_CENTER}
               fill="none"
               stroke={ACCENT}
               strokeWidth="0.8"
-              initial={{ scale: 1, opacity: 0 }}
-              animate={{ scale: [1, 2.75], opacity: [0.18, 0] }}
+              initial={{ r: SEARCH_OUTER_R, opacity: 0 }}
+              animate={{ r: [SEARCH_OUTER_R, PULSE_END_R], opacity: [0.18, 0] }}
               transition={{
                 duration: RADAR_DURATION,
                 repeat: Infinity,
                 delay: index * RIPPLE_STAGGER,
                 ease: smoothEase,
               }}
-              style={{ transformOrigin: '100px 100px' }}
             />
           ))
         : null}
@@ -136,7 +137,7 @@ export function AuditSearchIllustration() {
         <div className="absolute left-1/2 top-1/2 z-10 flex h-[38%] w-[38%] -translate-x-1/2 -translate-y-1/2 items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-emerald-200/25 blur-2xl" aria-hidden="true" />
           <Search
-            className="relative h-full w-full rotate-45 text-emerald-300 opacity-[0.35] dark:text-emerald-200 dark:opacity-[0.28]"
+            className="relative h-full w-full -rotate-2 text-emerald-300 opacity-[0.35] dark:text-emerald-200 dark:opacity-[0.28]"
             strokeWidth={1.25}
           />
         </div>
