@@ -23,7 +23,7 @@ import {
   bootstrapAuditSessionState,
   slimPanSnapshot,
 } from '../utils/auditSessionStorage';
-import { filterPanRecords, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
+import { filterPanRecordsForDisplay, PAN_FILTER_LABELS } from '../utils/panRecordFilters';
 import { downloadPanRecordsXlsx } from '../utils/panXlsxExport';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
@@ -125,7 +125,7 @@ export default function PanVerification() {
 
   const rawRecords = result?.records;
   const filteredRecords = useMemo(
-    () => filterPanRecords(rawRecords, activeFilter),
+    () => filterPanRecordsForDisplay(rawRecords, activeFilter),
     [rawRecords, activeFilter]
   );
 

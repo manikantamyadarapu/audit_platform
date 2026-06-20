@@ -1,5 +1,6 @@
 import { getAuditSessionConfig } from '../config/auditSessionConfig';
 import { getStoredUser } from './authUser';
+import { panMessageForRecord } from './panRecordFilters';
 
 /** How long audit page results/filters are kept when switching tabs (days). */
 export const AUDIT_SESSION_RETENTION_DAYS = 7;
@@ -220,8 +221,12 @@ function slimPanRecord(record, { aggressive = false } = {}) {
     slim[key] = value;
   }
 
-  if (Array.isArray(record.messages) && record.messages.length) {
+  if (Array.isArray(record.messages) && record.messages.length && !slim.Message) {
     slim.Message = record.messages.join('; ');
+  }
+  const computedMessage = panMessageForRecord(record);
+  if (computedMessage) {
+    slim.Message = computedMessage;
   }
 
   return slim;

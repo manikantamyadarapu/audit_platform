@@ -107,9 +107,6 @@ export function auditCellValue(record, columnKey) {
     if (Array.isArray(record.messages) && record.messages.length) {
       return record.messages.join('; ');
     }
-    if (Array.isArray(record.issues) && record.issues.length) {
-      return record.issues.join(', ');
-    }
     return '';
   }
 
