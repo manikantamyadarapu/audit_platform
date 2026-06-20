@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   BarChart3,
@@ -10,6 +10,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Info,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
@@ -32,6 +33,7 @@ import {
   resolveAuditColumnOrder,
 } from '../utils/auditTableColumns';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
+import { cn } from '../utils/cn';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
@@ -39,11 +41,14 @@ import {
   bootstrapAuditSessionState,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
+import { fetchRateRules } from '../services/rateRuleService';
+import { hasConfiguredRateRules } from '../utils/metalRateRules';
 
 const SALES_LEDGER_SESSION_KEY = 'sales-ledger';
 
 export default function SalesLedger() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [initialSession] = useState(() => bootstrapAuditSessionState(SALES_LEDGER_SESSION_KEY));
   const [file, setFile] = useState(null);
   const [restoredFileName, setRestoredFileName] = useState(
@@ -56,6 +61,26 @@ export default function SalesLedger() {
   const [activeFilter, setActiveFilter] = useState(
     () => initialSession.data?.activeFilter ?? null
   );
+  const [rateRulesReady, setRateRulesReady] = useState(false);
+  const [rateRulesLoading, setRateRulesLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setRateRulesLoading(true);
+    fetchRateRules(controller.signal)
+      .then((data) => {
+        setRateRulesReady(hasConfiguredRateRules(data));
+      })
+      .catch(() => {
+        setRateRulesReady(false);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setRateRulesLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [location.key]);
 
   const applySession = useCallback((data) => {
     setResult(data?.result ?? null);
@@ -97,6 +122,10 @@ export default function SalesLedger() {
       auditToastError('Choose an Excel file first.');
       return;
     }
+    if (!rateRulesReady) {
+      auditToastError('Please save gold & silver rates before running the audit.');
+      return;
+    }
     setLoading(true);
     try {
       const data = await validateSalesExcel(file);
@@ -128,7 +157,7 @@ export default function SalesLedger() {
     } finally {
       setLoading(false);
     }
-  }, [file, persist]);
+  }, [file, persist, rateRulesReady]);
 
   const exceptionRecords = useMemo(() => {
     const rows = result?.exceptionRecords ?? result?.records ?? [];
@@ -265,24 +294,59 @@ export default function SalesLedger() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; validate</h2>
-
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {rateRulesLoading
+                  ? 'Checking gold & silver rate book…'
+                  : rateRulesReady
+                    ? 'Gold & silver rates are saved. Upload your ledger and run validation.'
+                    : 'Please save gold & silver rates before running the audit.'}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 to="/scrutiny/rate-rule-book"
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800"
+                state={{ returnTo: '/scrutiny/sales-ledger' }}
+                className={cn(
+                  'inline-flex h-12 items-center gap-2 rounded-full border px-5 text-sm font-semibold transition',
+                  rateRulesLoading
+                    ? 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+                    : rateRulesReady
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                      : 'border-rose-300 bg-rose-50 text-rose-800 hover:border-rose-400 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200'
+                )}
               >
                 <Coins className="h-4 w-4" />
-                Gold & silver rates
+                Gold and silver rates
               </Link>
-              <Button variant="primary" size="md" loading={loading} disabled={loading || !file} onClick={runValidation}>
+              <Button
+                variant="primary"
+                size="md"
+                loading={loading}
+                disabled={loading || !file || rateRulesLoading || !rateRulesReady}
+                onClick={runValidation}
+              >
                 <FileSpreadsheet className="h-4 w-4" />
                 Run validation
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardBody>
+        <CardBody className="space-y-4">
+          {!rateRulesLoading && !rateRulesReady ? (
+            <div className="flex gap-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">Save gold & silver rates first</p>
+                <p className="mt-1 text-amber-900/85 dark:text-amber-100/85">
+                  Open{' '}
+                  <Link to="/scrutiny/rate-rule-book" state={{ returnTo: '/scrutiny/sales-ledger' }} className="font-semibold underline">
+                    Gold and silver rates
+                  </Link>{' '}
+                  and save min/max ranges before you upload and validate the ledger.
+                </p>
+              </div>
+            </div>
+          ) : null}
           <FileUploadZone
             file={displayFile}
             onFileChange={(f) => {
