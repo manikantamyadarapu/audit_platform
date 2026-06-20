@@ -14,7 +14,18 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.engines.vectorized_validation_engine import VectorizedValidationEngine
 from app.processors.base import BaseProcessor
-from app.utils.constants import SPREADSHEET_EMPTY_TOKENS, compact_pan_input_for_validation
+from app.utils.constants import (
+    ADDRESS_PROOF_MISSING_MESSAGE,
+    INVALID_ADDRESS_MESSAGE,
+    INVALID_PAN_FORMAT_MESSAGE,
+    NO_PAN_FORM60_AVAILABLE_MESSAGE,
+    NO_PAN_INVALID_FORM60_MESSAGE,
+    NO_PAN_NO_FORM60_MESSAGE,
+    SPREADSHEET_EMPTY_TOKENS,
+    VALID_ADDRESS_FORMAT_MESSAGE,
+    VALID_PAN_MESSAGE,
+    compact_pan_input_for_validation,
+)
 
 
 from app.utils.header_cleaner import normalize_header
@@ -26,6 +37,18 @@ class PanProcessor(BaseProcessor):
     AMOUNT_COLUMN_OPTIONS = frozenset({'total_value', 'net_amount'})
     PAN_COLUMN_OPTIONS = {'pan', 'pan1'}
     ADDRESS_COLUMN_OPTIONS = {'add_proof', 'add_proof_2'}
+    PAN_REPORT_MESSAGES: dict[str, str] = {
+        'validPan': VALID_PAN_MESSAGE,
+        'invalidPan': INVALID_PAN_FORMAT_MESSAGE,
+        'noPanNoForm60': NO_PAN_NO_FORM60_MESSAGE,
+        'noPanForm60Available': NO_PAN_FORM60_AVAILABLE_MESSAGE,
+        'noPanInvalidForm60': NO_PAN_INVALID_FORM60_MESSAGE,
+    }
+    ADDRESS_REPORT_MESSAGES: dict[str, str] = {
+        'gst50kAddressMissing': ADDRESS_PROOF_MISSING_MESSAGE,
+        'incorrectAddressFormat': INVALID_ADDRESS_MESSAGE,
+        'validAddressFormat': VALID_ADDRESS_FORMAT_MESSAGE,
+    }
 
     def __init__(self) -> None:
         self.engine = VectorizedValidationEngine('pan')
@@ -143,7 +166,7 @@ class PanProcessor(BaseProcessor):
                     record[camel_col] = ''
             
             record['issues'] = issues
-            record['messages'] = self._messages_for_issues(issues)
+            record['messages'] = self._display_messages_for_reports(report_type, address_report)
             record['Message'] = '; '.join(record['messages']) if record['messages'] else ''
             if report_type is None:
                 self._log.info(
@@ -572,6 +595,21 @@ class PanProcessor(BaseProcessor):
 
         number = float(cleaned)
         return int(number) if number.is_integer() else number
+
+    @staticmethod
+    def _display_messages_for_reports(
+        pan_report: str | None,
+        address_report: str | None,
+    ) -> list[str]:
+        if pan_report:
+            pan_message = PanProcessor.PAN_REPORT_MESSAGES.get(pan_report)
+            if pan_message:
+                return [pan_message]
+        if address_report:
+            address_message = PanProcessor.ADDRESS_REPORT_MESSAGES.get(address_report)
+            if address_message:
+                return [address_message]
+        return []
 
     @staticmethod
     def _messages_for_issues(issues: list[str]) -> list[str]:
