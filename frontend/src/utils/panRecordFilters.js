@@ -3,12 +3,12 @@
 /** @type {Record<NonNullable<PanCardFilter>, string>} */
 export const PAN_FILTER_LABELS = {
   total: 'Eligible PAN rows',
-  validPan: 'Valid PAN',
-  invalidPan: 'Incorrect PAN format',
-  noPanNoForm60: 'No PAN & No Form 60 (No Proof)',
-  noPanForm60Available: 'No PAN & Form 60 Available (Valid Proof)',
-  noPanInvalidForm60: 'No PAN & Invalid Form 60 (Short Proof)',
-  gst50kAddressMissing: 'gst>=50k address missing',
+  validPan: 'valid pan',
+  invalidPan: 'incorrect pan format',
+  noPanNoForm60: 'no pan & no form 60',
+  noPanForm60Available: 'form 60 available',
+  noPanInvalidForm60: 'no pan & invalid form 60',
+  gst50kAddressMissing: 'addressing missing',
   incorrectAddressFormat: 'incorrect address format',
   validAddressFormat: 'valid address format',
 };

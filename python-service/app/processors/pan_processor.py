@@ -91,6 +91,7 @@ class PanProcessor(BaseProcessor):
                 issues.append('INVALID_PAN_FORMAT')
                 report_type = 'invalidPan'
             elif invalid_row.get('valid_pan_issue'):
+                issues.append('VALID_PAN')
                 report_type = 'validPan'
             elif invalid_row.get('no_pan_no_form60_issue'):
                 issues.append('NO_PAN_NO_FORM60')
@@ -143,6 +144,7 @@ class PanProcessor(BaseProcessor):
             
             record['issues'] = issues
             record['messages'] = self._messages_for_issues(issues)
+            record['Message'] = '; '.join(record['messages']) if record['messages'] else ''
             if report_type is None:
                 self._log.info(
                     'PAN row missing primary report_type',

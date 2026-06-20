@@ -263,7 +263,7 @@ export default function PanVerification() {
                   importance="secondary"
                 />
                 <AuditSummaryWidget
-                  label="Valid PAN"
+                  label="valid pan"
                   value={formatNumber(summary.validPanCount ?? 0)}
                   icon={Rows3}
                   accent="emerald"
@@ -273,7 +273,7 @@ export default function PanVerification() {
                   onClick={() => toggleCardFilter('validPan')}
                 />
                 <AuditSummaryWidget
-                  label="Incorrect PAN format"
+                  label="incorrect pan format"
                   value={formatNumber(summary.incorrectPanFormatCount ?? summary.invalidPanFormatCount ?? summary.invalidPanFormat ?? 0)}
                   icon={AlertTriangle}
                   accent="rose"
@@ -284,7 +284,7 @@ export default function PanVerification() {
                   onClick={() => toggleCardFilter('invalidPan')}
                 />
                 <AuditSummaryWidget
-                  label="No PAN & Form 60 Available"
+                  label="form 60 available"
                   value={formatNumber(noPanForm60AvailableCount)}
                   icon={AlertTriangle}
                   accent="emerald"
@@ -294,7 +294,7 @@ export default function PanVerification() {
                   onClick={() => toggleCardFilter('noPanForm60Available')}
                 />
                 <AuditSummaryWidget
-                  label="No PAN & Invalid Form 60"
+                  label="no pan & invalid form 60"
                   value={formatNumber(noPanInvalidForm60Count)}
                   icon={AlertTriangle}
                   accent="rose"
@@ -305,7 +305,7 @@ export default function PanVerification() {
                   onClick={() => toggleCardFilter('noPanInvalidForm60')}
                 />
                 <AuditSummaryWidget
-                  label="No PAN & No Form 60"
+                  label="no pan & no form 60"
                   value={formatNumber(noPanNoForm60Count)}
                   icon={AlertTriangle}
                   accent="amber"
@@ -319,7 +319,7 @@ export default function PanVerification() {
 
               <AuditSummaryGroup title="Address checks">
                 <AuditSummaryWidget
-                  label="gst>=50k address missing"
+                  label="addressing missing"
                   value={formatNumber(gst50kAddressMissingCount)}
                   icon={AlertTriangle}
                   accent="amber"

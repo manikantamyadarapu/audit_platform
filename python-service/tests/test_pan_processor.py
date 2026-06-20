@@ -124,7 +124,9 @@ def test_above_2_lakh_blank_pan_valid_pan1_passes():
     assert result['summary']['invalidPanFormat'] == 0
     assert result['summary']['validPanCount'] == 1
     assert result['records'][0]['panReport'] == 'validPan'
-    assert result['records'][0]['issues'] == []
+    assert result['records'][0]['issues'] == ['VALID_PAN']
+    assert result['records'][0]['messages'] == ['valid pan']
+    assert result['records'][0]['Message'] == 'valid pan'
 
 
 def test_above_50k_without_address_proof_flags_issue():
@@ -253,7 +255,9 @@ def test_valid_row_has_no_issues():
     assert result['errorRows'] == 0
     assert result['summary']['validPanCount'] == 1
     assert result['records'][0]['panReport'] == 'validPan'
-    assert result['records'][0]['issues'] == []
+    assert result['records'][0]['issues'] == ['VALID_PAN']
+    assert result['records'][0]['messages'] == ['valid pan']
+    assert result['records'][0]['Message'] == 'valid pan'
 
 
 def test_amount_with_commas_is_parsed_and_exposed():
@@ -426,7 +430,9 @@ def test_above_2_lakh_valid_pan_blank_pan1_passes():
     assert result['errorRows'] == 0
     assert result['summary']['validPanCount'] == 1
     assert result['records'][0]['panReport'] == 'validPan'
-    assert result['records'][0]['issues'] == []
+    assert result['records'][0]['issues'] == ['VALID_PAN']
+    assert result['records'][0]['messages'] == ['valid pan']
+    assert result['records'][0]['Message'] == 'valid pan'
 
 
 def test_blank_row_is_ignored_from_error_records():
@@ -758,3 +764,20 @@ def test_duplicate_mid_sheet_header_row_is_skipped():
     result = processor.process(file_bytes)
     assert result['errorRows'] == 0
     assert result['records'] == []
+
+
+def test_pan_widget_messages_use_business_wording() -> None:
+    from app.core.issue_engine import get_issue_definition
+
+    expected = {
+        'VALID_PAN': 'valid pan',
+        'INVALID_PAN_FORMAT': 'incorrect pan format',
+        'NO_PAN_INVALID_FORM60': 'no pan & invalid form 60',
+        'NO_PAN_NO_FORM60': 'no pan & no form 60',
+        'NO_PAN_FORM60_AVAILABLE': 'form 60 available',
+        'MISSING_ADDRESS_PROOF_ABOVE_50K': 'addressing missing',
+        'INVALID_ADDRESS': 'incorrect address format',
+        'VALID_ADDRESS_FORMAT': 'valid address format',
+    }
+    for code, message in expected.items():
+        assert get_issue_definition(code).default_message == message
