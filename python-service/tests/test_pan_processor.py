@@ -343,6 +343,78 @@ def test_missing_total_value_column_raises_key_error():
         processor.process(file_bytes)
 
 
+def test_net_amount_column_used_when_total_value_missing():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            {
+                'SNo': 1,
+                'Date': '03-04-2025',
+                'Voucher No': 'JH/B/2526/1',
+                'Party': 'Kundan Crafts Private Limited',
+                'Gross Amount': 1000,
+                'Net Amount': 300000,
+                'PAN': '',
+                'PAN1': 'ABCDE1234F',
+                'Add. proof': 'Lease Agreement',
+                'Add. Proof 2': '',
+            }
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 0
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+    assert result['records'][0]['netAmount'] == 300000
+
+
+def test_net_amount_fallback_when_total_value_cell_blank():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': '',
+                    'Net Amount': 300000,
+                    'PAN': '',
+                    'PAN1': 'ABCDE1234F',
+                    'Add. proof': 'Lease Agreement',
+                }
+            )
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 0
+    assert result['summary']['validPanCount'] == 1
+    assert result['records'][0]['panReport'] == 'validPan'
+
+
+def test_total_value_preferred_over_net_amount_for_pan_threshold():
+    processor = PanProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            _base_row(
+                **{
+                    'Total Value': 10000,
+                    'Net Amount': 300000,
+                    'PAN': 'INVALID',
+                    'PAN1': '',
+                    'Add. proof': '',
+                }
+            )
+        ]
+    )
+
+    result = processor.process(file_bytes)
+
+    assert result['errorRows'] == 0
+    assert result['records'] == []
+
+
 def test_above_2_lakh_valid_pan_blank_pan1_passes():
     processor = PanProcessor()
     file_bytes = _build_excel_bytes(

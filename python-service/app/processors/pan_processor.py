@@ -23,7 +23,7 @@ from app.utils.response_builder import build_processing_response
 
 
 class PanProcessor(BaseProcessor):
-    REQUIRED_BASE_COLUMNS = {'total_value'}
+    AMOUNT_COLUMN_OPTIONS = frozenset({'total_value', 'net_amount'})
     PAN_COLUMN_OPTIONS = {'pan', 'pan1'}
     ADDRESS_COLUMN_OPTIONS = {'add_proof', 'add_proof_2'}
 
@@ -126,6 +126,8 @@ class PanProcessor(BaseProcessor):
                     col_value = invalid_row.get(col)
                     if col == 'total_value':
                         col_value = invalid_row.get('__total_value_amount')
+                    elif col == 'net_amount':
+                        col_value = invalid_row.get('__net_amount_amount')
                     elif col == 'gross_amount':
                         col_value = invalid_row.get('__gross_amount_amount')
                     # Use camelCase for output
@@ -402,12 +404,25 @@ class PanProcessor(BaseProcessor):
         )
 
     def _validate_dataframe(self, df: pl.DataFrame, data_columns: list[str]) -> pl.DataFrame:
-        working = self._ensure_columns(df, ['total_value', 'pan', 'pan1', '__excel_row_number__', 'add_proof', 'add_proof_2', 'address'])
+        working = self._ensure_columns(
+            df,
+            [
+                'total_value',
+                'net_amount',
+                'pan',
+                'pan1',
+                '__excel_row_number__',
+                'add_proof',
+                'add_proof_2',
+                'address',
+            ],
+        )
         column_set = set(data_columns)
 
         validated = working.with_columns(
             pl.col('__excel_row_number__').cast(pl.Int64, strict=False).alias('row_number'),
             pl.col('total_value').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__total_value_amount'),
+            pl.col('net_amount').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__net_amount_amount'),
             pl.col('gross_amount').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__gross_amount_amount'),
             pl.col('pan').map_elements(self.normalize_empty_value, return_dtype=pl.Utf8).alias('__pan_text'),
             pl.col('pan1').map_elements(self.normalize_empty_value, return_dtype=pl.Utf8).alias('__pan1_text'),
@@ -439,12 +454,15 @@ class PanProcessor(BaseProcessor):
                 lambda value: value is not None and len(value) > 5,
                 return_dtype=pl.Boolean,
             ).alias('__address_valid'),
+        ).with_columns(
+            pl.coalesce(
+                pl.col('__total_value_amount'),
+                pl.col('__net_amount_amount'),
+            ).alias('__pan_threshold_amount'),
         )
 
-        
-
         should_check = pl.col('__should_skip').fill_null(False).not_()
-        pan_needed = pl.col('__total_value_amount') > 200000
+        pan_needed = pl.col('__pan_threshold_amount') > 200000
         pan_valid = pl.col('__pan_ok').fill_null(False) | pl.col('__pan1_ok').fill_null(False)
         pan_present = pl.col('__pan_text').is_not_null() | pl.col('__pan1_text').is_not_null()
         pan_invalid_specific = (
@@ -563,9 +581,9 @@ class PanProcessor(BaseProcessor):
 
     def _validate_required_columns(self, columns: Any) -> None:
         column_set = set(columns)
-        missing_base = self.REQUIRED_BASE_COLUMNS - column_set
-        if missing_base:
-            raise KeyError(f"Missing required columns: {', '.join(sorted(missing_base))}")
+        if not self.AMOUNT_COLUMN_OPTIONS & column_set:
+            missing = ', '.join(sorted(self.AMOUNT_COLUMN_OPTIONS))
+            raise KeyError(f'Missing required columns: one of {missing}')
 
         missing_pan_columns = self.PAN_COLUMN_OPTIONS - column_set
         if missing_pan_columns:
@@ -578,7 +596,8 @@ class PanProcessor(BaseProcessor):
         return 'pan' in cols or 'pan1' in cols
 
     def _headers_match_pan_sheet(self, headers: set[str]) -> bool:
-        if 'total_value' not in headers or not ('pan' in headers or 'pan1' in headers):
+        has_amount = 'total_value' in headers or 'net_amount' in headers
+        if not has_amount or not ('pan' in headers or 'pan1' in headers):
             return False
         return True
 
@@ -613,6 +632,11 @@ class PanProcessor(BaseProcessor):
         total_value = row.get('total_value')
         if self.normalize_empty_value(total_value) is not None:
             if normalize_header(total_value) == 'total_value':
+                return True
+
+        net_amount = row.get('net_amount')
+        if self.normalize_empty_value(net_amount) is not None:
+            if normalize_header(net_amount) == 'net_amount':
                 return True
 
         pan = row.get('pan')
