@@ -30,8 +30,16 @@ def is_acceptable_pan_equivalent(value: object) -> bool:
     return bool(key) and key in PAN_ALTERNATIVE_NORMALIZED
 
 # Human-readable PAN / address messages (codes remain in records['issues'] for API compatibility)
-PAN_MISSING_OR_INVALID_MESSAGE = 'No valid PAN found in PAN or PAN1 columns'
-ADDRESS_PROOF_MISSING_MESSAGE = 'Address proof missing in both address proof columns'
+VALID_PAN_MESSAGE = 'valid pan'
+INVALID_PAN_FORMAT_MESSAGE = 'incorrect pan format'
+NO_PAN_INVALID_FORM60_MESSAGE = 'no pan & invalid form 60'
+NO_PAN_NO_FORM60_MESSAGE = 'no pan & no form 60'
+NO_PAN_FORM60_AVAILABLE_MESSAGE = 'form 60 available'
+ADDRESS_PROOF_MISSING_MESSAGE = 'addressing missing'
+INVALID_ADDRESS_MESSAGE = 'incorrect address format'
+VALID_ADDRESS_FORMAT_MESSAGE = 'valid address format'
+# Legacy PAN codes still registered for exports/API compatibility
+PAN_MISSING_OR_INVALID_MESSAGE = INVALID_PAN_FORMAT_MESSAGE
 
 GST_REGEX = r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}$'
 
