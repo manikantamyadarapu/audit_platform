@@ -9,7 +9,7 @@ function validateEnvOrThrow() {
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing required environment variable(s): ${missing.join(', ')}. See backend/.env.example.`
+      `Missing required environment variable(s): ${missing.join(', ')}. See backend/.env.`
     );
   }
 
