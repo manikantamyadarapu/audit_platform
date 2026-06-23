@@ -75,6 +75,8 @@ import {
 
   resolveSalesReturnActiveFilter,
 
+  normalizeSalesFilter,
+
   salesReturnRecordsForExport,
 
   SALES_FILTER_LABELS,
@@ -144,7 +146,9 @@ export default function SalesReturnRateAudit() {
 
   const [activeFilter, setActiveFilter] = useState(() => {
 
-    if (initialSession.data?.activeFilter != null) return initialSession.data.activeFilter;
+    if (initialSession.data?.activeFilter != null) {
+      return normalizeSalesFilter(initialSession.data.activeFilter);
+    }
 
     const errorCount =
 
@@ -179,9 +183,11 @@ export default function SalesReturnRateAudit() {
       0;
 
     setActiveFilter(
-
-      data?.activeFilter != null ? data.activeFilter : errorCount > 0 ? 'errors' : null
-
+      data?.activeFilter != null
+        ? normalizeSalesFilter(data.activeFilter)
+        : errorCount > 0
+          ? 'errors'
+          : null
     );
 
     setRestoredFileName(data?.fileName ?? null);
@@ -442,13 +448,10 @@ export default function SalesReturnRateAudit() {
 
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
 
-  const rateViolations = summary.rateDeviationViolations ?? 0;
-
-  const accessoriesUnitRateCount =
-
-    summary.invalidFreeQuantityRows ??
-
-    filterSalesReturnRecords(exceptionRecords, 'accessoriesUnitRate').length;
+  const rateViolations =
+    exceptionRecords.length > 0
+      ? filterSalesReturnRecords(exceptionRecords, 'mixedLedgers').length
+      : summary.rateDeviationViolations ?? 0;
 
   const caratGemErrors =
 
@@ -734,28 +737,6 @@ export default function SalesReturnRateAudit() {
 
 
 
-      {result ? (
-
-        <AuditSessionBanner
-
-          sessionMeta={sessionMeta}
-
-          sessionLabel={sessionLabel}
-
-          hasResults={Boolean(result)}
-
-          onRestore={restoreSession}
-
-          onStartNew={startNewAudit}
-
-          restoring={restoring}
-
-        />
-
-      ) : null}
-
-
-
       <Card>
 
         <CardHeader>
@@ -821,6 +802,28 @@ export default function SalesReturnRateAudit() {
         </CardBody>
 
       </Card>
+
+
+
+      {result ? (
+
+        <AuditSessionBanner
+
+          sessionMeta={sessionMeta}
+
+          sessionLabel={sessionLabel}
+
+          hasResults={Boolean(result)}
+
+          onRestore={restoreSession}
+
+          onStartNew={startNewAudit}
+
+          restoring={restoring}
+
+        />
+
+      ) : null}
 
 
 
@@ -910,7 +913,7 @@ export default function SalesReturnRateAudit() {
 
               <AuditSummaryWidget
 
-                label="Account vs product"
+                label="Sales ledger mismatch"
 
                 value={formatNumber(catVsProduct)}
 
@@ -956,29 +959,7 @@ export default function SalesReturnRateAudit() {
 
               <AuditSummaryWidget
 
-                label="Accessories Unit Rate Check"
-
-                value={formatNumber(accessoriesUnitRateCount)}
-
-                icon={BookOpen}
-
-                accent="amber"
-
-                importance="secondary"
-
-                total={totalRows}
-
-                interactive
-
-                selected={effectiveActiveFilter === 'accessoriesUnitRate'}
-
-                onClick={() => toggleCardFilter('accessoriesUnitRate')}
-
-              />
-
-              <AuditSummaryWidget
-
-                label="Unit of measurement deviations"
+                label="Invalid UOM"
 
                 value={formatNumber(caratGemErrors)}
 

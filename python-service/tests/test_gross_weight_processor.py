@@ -185,7 +185,7 @@ def test_invalid_record_excludes_internal_columns_and_orders_output() -> None:
     assert 'valueRowIndex' not in record
     assert 'voucherRowIndex' not in record
     assert record['rowNumber'] == 1
-    assert record['Message'] == 'Manual gross weight does not match auto gross weight.'
+    assert record['Message'] == 'gross weight mismatch'
     assert list(record.keys())[:6] == [
         'rowNumber',
         'voucherNo',

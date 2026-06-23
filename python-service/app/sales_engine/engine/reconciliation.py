@@ -75,7 +75,9 @@ def reconcile_adjudicated_frame(dataframe: pl.DataFrame) -> AuditReconciliation:
 
     txn_df = dataframe.filter(txn)
     mapping = _issue_row_count(txn_df, '__invalid_product_mapping')
-    rate = _issue_row_count(txn_df, '__invalid_rate_deviation')
+    rate = _issue_row_count(txn_df, '__invalid_rate_deviation') + _issue_row_count(
+        txn_df, '__invalid_unit_rate_range'
+    )
     pattern = _issue_row_count(txn_df, '__invalid_product_pattern')
 
     return AuditReconciliation(

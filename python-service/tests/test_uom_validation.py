@@ -61,7 +61,7 @@ def test_gold_22k_carats_uom_invalid():
     assert out['errorRows'] == 1
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_UOM']
-    assert rec['messages'] == ['Invalid UOM for product.']
+    assert rec['messages'] == ['invalid UOM']
 
 
 def test_di_ra_20_carats_uom_valid():
@@ -92,7 +92,7 @@ def test_di_ra_20_grams_uom_invalid():
     assert out['errorRows'] >= 1
     rec = out['records'][0]
     assert 'INVALID_UOM' in rec['issues']
-    assert 'Invalid UOM for product.' in rec['messages']
+    assert 'invalid UOM' in rec['messages']
 
 
 def test_pearls_jps_grams_uom_valid():
@@ -131,4 +131,61 @@ def test_pearls_jps_carats_uom_invalid():
     assert out['errorRows'] >= 1
     rec = out['records'][0]
     assert 'INVALID_UOM' in rec['issues']
-    assert 'Invalid UOM for product.' in rec['messages']
+    assert 'invalid UOM' in rec['messages']
+
+
+def test_kundan_grams_uom_valid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='K1',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Kundan Necklace 22K',
+                    unit_rate=14500,
+                    uom='Grams',
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0
+
+
+def test_kundan_carats_uom_invalid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='K2',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Kundan Set',
+                    unit_rate=14500,
+                    uom='Carats',
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] >= 1
+    rec = out['records'][0]
+    assert 'INVALID_UOM' in rec['issues']
+    assert rec['messages'] == ['invalid UOM']
+
+
+def test_gold_ornaments_prefix_grams_uom_valid():
+    proc = SalesAuditProcessor()
+    out = proc.process(
+        _wb_bytes(
+            [
+                _row(
+                    voucher='G1',
+                    sales_account='Gold Sales Account - 22k',
+                    product='Gold Ornaments',
+                    unit_rate=14500,
+                    uom='Grams',
+                )
+            ]
+        )
+    )
+    assert out['errorRows'] == 0

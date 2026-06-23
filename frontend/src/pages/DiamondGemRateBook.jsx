@@ -165,14 +165,14 @@ export default function DiamondGemRateBook() {
 
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900/60">
+          <thead className="bg-[var(--color-surface-subtle)]">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Product</th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">Min Rate (₹)</th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">Max Rate (₹)</th>
+              <th className="px-4 py-3 text-left font-semibold text-[var(--color-text-secondary)]">Product</th>
+              <th className="px-4 py-3 text-right font-semibold text-[var(--color-text-secondary)]">Min Rate (₹)</th>
+              <th className="px-4 py-3 text-right font-semibold text-[var(--color-text-secondary)]">Max Rate (₹)</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+          <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
             {diamondProducts.map(([name, rates]) => (
               <tr key={name} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
                 <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{name}</td>

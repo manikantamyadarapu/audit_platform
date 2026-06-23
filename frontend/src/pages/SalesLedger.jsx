@@ -24,7 +24,7 @@ import { AuditUploadResultsTable } from '../components/tables/AuditUploadResults
 import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
-import { filterSalesRecords, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
+import { filterSalesRecords, normalizeSalesFilter, SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
 import { downloadAuditExceptionXlsx } from '../utils/salesReturnXlsxExport';
@@ -59,7 +59,7 @@ export default function SalesLedger() {
   const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
   const [activeFilter, setActiveFilter] = useState(
-    () => initialSession.data?.activeFilter ?? null
+    () => normalizeSalesFilter(initialSession.data?.activeFilter ?? null)
   );
   const [rateRulesReady, setRateRulesReady] = useState(false);
   const [rateRulesLoading, setRateRulesLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function SalesLedger() {
   const applySession = useCallback((data) => {
     setResult(data?.result ?? null);
     setSheetError(data?.sheetError ?? null);
-    setActiveFilter(data?.activeFilter ?? null);
+    setActiveFilter(normalizeSalesFilter(data?.activeFilter ?? null));
     setRestoredFileName(data?.fileName ?? null);
     setFile(null);
   }, []);
@@ -263,8 +263,10 @@ export default function SalesLedger() {
     result?.errorRows ??
     exceptionRecords.length;
   const catVsProduct = summary.invalidProductMappings ?? summary.salesAccountProductMismatches ?? 0;
-  const rateViolations = summary.rateDeviationViolations ?? 0;
-  const accessoriesUnitRateCount = filterSalesRecords(exceptionRecords, 'accessoriesUnitRate').length;
+  const rateViolations =
+    exceptionRecords.length > 0
+      ? filterSalesRecords(exceptionRecords, 'mixedLedgers').length
+      : summary.rateDeviationViolations ?? 0;
   const caratGemErrors =
     summary.invalidUomRows ??
     summary.caratGemErrorRows ??
@@ -277,17 +279,6 @@ export default function SalesLedger() {
   return (
     <div className="relative space-y-8">
       <AuditValidationOverlay open={loading} />
-
-      {result ? (
-        <AuditSessionBanner
-          sessionMeta={sessionMeta}
-          sessionLabel={sessionLabel}
-          hasResults={Boolean(result)}
-          onRestore={restoreSession}
-          onStartNew={startNewAudit}
-          restoring={restoring}
-        />
-      ) : null}
 
       <Card>
         <CardHeader>
@@ -361,6 +352,17 @@ export default function SalesLedger() {
         </CardBody>
       </Card>
 
+      {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
+      ) : null}
+
       <section>
         <h3 className="mb-4 text-base font-bold text-emerald-700">Analytics</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -431,7 +433,7 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('errors')}
               />
               <AuditSummaryWidget
-                label="Account vs product"
+                label="Sales ledger mismatch"
                 value={formatNumber(catVsProduct)}
                 icon={BookOpen}
                 accent="rose"
@@ -454,18 +456,7 @@ export default function SalesLedger() {
                 onClick={() => toggleCardFilter('mixedLedgers')}
               />
               <AuditSummaryWidget
-                label="Accessories Unit Rate Check"
-                value={formatNumber(accessoriesUnitRateCount)}
-                icon={BookOpen}
-                accent="amber"
-                importance="secondary"
-                total={totalRows}
-                interactive
-                selected={activeFilter === 'accessoriesUnitRate'}
-                onClick={() => toggleCardFilter('accessoriesUnitRate')}
-              />
-              <AuditSummaryWidget
-                label="Unit of measurement deviations"
+                label="Invalid UOM"
                 value={formatNumber(caratGemErrors)}
                 icon={Gem}
                 accent="violet"
@@ -492,7 +483,7 @@ export default function SalesLedger() {
                 <div>
                   <h3 className="text-base font-bold text-emerald-700">Exception report</h3>
                   <p className="text-sm text-slate-500">
-                    Original upload columns preserved with Message (issue codes) appended.
+                    Original upload columns preserved with Message appended.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

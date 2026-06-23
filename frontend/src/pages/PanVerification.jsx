@@ -115,7 +115,7 @@ export default function PanVerification() {
         totalRows: data.totalRows,
         errorRows: data.errorRows,
       });
-      auditToastSuccess('PAN validation complete');
+      auditToastSuccess('ID proof audit complete');
     } catch (e) {
       auditToastError(e.message || 'Validation failed');
     } finally {
@@ -186,7 +186,7 @@ export default function PanVerification() {
     const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
     exportRowsToPdf(
       `pan-rows-${tag}-${Date.now()}.pdf`,
-      'PAN audit — report',
+      'ID proof audit — report',
       exportColumns,
       filteredRecords
     );
@@ -206,17 +206,6 @@ export default function PanVerification() {
   return (
     <div className="relative space-y-8">
       <AuditValidationOverlay open={loading} />
-
-      {result ? (
-        <AuditSessionBanner
-          sessionMeta={sessionMeta}
-          sessionLabel={sessionLabel}
-          hasResults={Boolean(result)}
-          onRestore={restoreSession}
-          onStartNew={startNewAudit}
-          restoring={restoring}
-        />
-      ) : null}
 
       <Card>
         <CardHeader>
@@ -247,6 +236,17 @@ export default function PanVerification() {
       </Card>
 
       {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
+      ) : null}
+
+      {result ? (
         <>
           <section>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
@@ -254,7 +254,7 @@ export default function PanVerification() {
             </h3>
 
             <div className="space-y-6">
-              <AuditSummaryGroup title="PAN summary">
+              <AuditSummaryGroup title="ID proof summary">
                 <AuditSummaryWidget
                   label="Total workbook rows"
                   value={formatNumber(totalRows)}
@@ -284,7 +284,7 @@ export default function PanVerification() {
                   onClick={() => toggleCardFilter('invalidPan')}
                 />
                 <AuditSummaryWidget
-                  label="form 60 available"
+                  label="no pan and form 60 available"
                   value={formatNumber(noPanForm60AvailableCount)}
                   icon={AlertTriangle}
                   accent="emerald"
@@ -319,7 +319,7 @@ export default function PanVerification() {
 
               <AuditSummaryGroup title="Address checks">
                 <AuditSummaryWidget
-                  label="addressing missing"
+                  label="gst >= 50k address missing"
                   value={formatNumber(gst50kAddressMissingCount)}
                   icon={AlertTriangle}
                   accent="amber"
@@ -357,7 +357,7 @@ export default function PanVerification() {
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">PAN reports</h3>
+                  <h3 className="text-base font-bold text-emerald-700">ID proof reports</h3>
                   <p className="text-sm text-slate-500">Rows where Total Value is above ₹2L and PAN/PAN1 is present or Form 60 status</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -404,13 +404,13 @@ export default function PanVerification() {
                     />
                     <AuditUploadResultsTable
                       data={filteredRecords}
-                      searchPlaceholder="Search PAN report rows…"
+                      searchPlaceholder="Search ID proof report rows…"
                     />
                   </div>
                 </div>
               ) : (
                 <EmptyState
-                  title="No PAN report rows"
+                  title="No ID proof report rows"
                   description="No rows matched Total Value > ₹2L with PAN or PAN1 present."
                 />
               )}

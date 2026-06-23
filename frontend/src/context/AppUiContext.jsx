@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
 }
 
 const seedActivities = [
-  { id: '1', text: 'PAN workbook uploaded · Finance batch Q4', tone: 'info' },
+  { id: '1', text: 'ID proof workbook uploaded · Finance batch Q4', tone: 'info' },
   { id: '2', text: '1,240 rows processed · Scrutiny pipeline', tone: 'info' },
   { id: '3', text: '305 variance rows flagged for review', tone: 'warn' },
   { id: '4', text: 'Invalid-row export downloaded (.xlsx)', tone: 'success' },
@@ -56,7 +56,7 @@ export function AppUiProvider({ children }) {
         exportsDownloaded: prev.exportsDownloaded,
       }));
       pushActivity(
-        `PAN validated · ${payload.totalRows ?? 0} rows · ${payload.errorRows ?? 0} error rows`,
+        `ID proof audit · ${payload.totalRows ?? 0} rows · ${payload.errorRows ?? 0} error rows`,
         (payload.errorRows ?? 0) > 0 ? 'warn' : 'success'
       );
     },
@@ -68,7 +68,7 @@ export function AppUiProvider({ children }) {
       ...prev,
       exportsDownloaded: prev.exportsDownloaded + 1,
     }));
-    pushActivity('Invalid PAN rows exported to Excel', 'success');
+    pushActivity('Invalid ID proof rows exported to Excel', 'success');
   }, [pushActivity]);
 
   useEffect(() => {

@@ -43,7 +43,7 @@ def test_consolidated_report_merges_same_product_issues() -> None:
     )
     assert len(records) == 1
     assert records[0][MESSAGE_COLUMN] == (
-        'Invalid UOM for product.; Average sales return rate is higher than average sales rate.'
+        'invalid UOM; Average sales return rate is higher than average sales rate.'
     )
     assert records[0]['Product'] == 'Gold Ornaments 22K'
     assert 'Issue' not in records[0]
@@ -62,7 +62,7 @@ def test_consolidated_report_deduplicates_same_row() -> None:
     )
     assert len(records) == 1
     assert records[0][MESSAGE_COLUMN] == (
-        'Invalid UOM for product.; Unit rate outside allowed range.'
+        'invalid UOM; Unit rate outside allowed range.'
     )
     assert records[0]['issues'] == ['INVALID_UOM', 'INVALID_RATE_DEVIATION']
 
@@ -110,7 +110,7 @@ def test_consolidated_report_includes_rows_without_excel_row_number() -> None:
         column_display_headers={'product': 'Product'},
     )
     assert len(records) == 1
-    assert records[0][MESSAGE_COLUMN] == 'Invalid UOM for product.'
+    assert records[0][MESSAGE_COLUMN] == 'invalid UOM'
 
 
 def test_validation_summary_excludes_higher_return_rate() -> None:

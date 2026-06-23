@@ -6,11 +6,21 @@ async function parseJsonResponse(response) {
   return data;
 }
 
-export async function loginRequest({ email, password, rememberMe }) {
-  const response = await fetch('/api/v1/auth/login', {
+export async function loginRequest({ email, password }) {
+  const response = await fetch('/api/auth/login', {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, rememberMe }),
+    body: JSON.stringify({ email, password }),
+  });
+  return parseJsonResponse(response);
+}
+
+export async function logoutRequest() {
+  const response = await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
   });
   return parseJsonResponse(response);
 }

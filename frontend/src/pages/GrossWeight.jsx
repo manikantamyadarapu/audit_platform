@@ -188,17 +188,6 @@ export default function GrossWeight() {
     <div className="relative space-y-8">
       <AuditValidationOverlay open={loading} />
 
-      {result ? (
-        <AuditSessionBanner
-          sessionMeta={sessionMeta}
-          sessionLabel={sessionLabel}
-          hasResults={Boolean(result)}
-          onRestore={restoreSession}
-          onStartNew={startNewAudit}
-          restoring={restoring}
-        />
-      ) : null}
-
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -228,6 +217,17 @@ export default function GrossWeight() {
       </Card>
 
       {result ? (
+        <AuditSessionBanner
+          sessionMeta={sessionMeta}
+          sessionLabel={sessionLabel}
+          hasResults={Boolean(result)}
+          onRestore={restoreSession}
+          onStartNew={startNewAudit}
+          restoring={restoring}
+        />
+      ) : null}
+
+      {result ? (
         <>
           <section>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
@@ -242,9 +242,8 @@ export default function GrossWeight() {
                 importance="secondary"
               />
               <AuditSummaryWidget
-                label="Weight mismatches"
+                label="gross weight mismatch"
                 value={formatNumber(weightMismatch)}
-                hint="Manual ≠ Auto Gross Wt."
                 icon={Scale}
                 accent="rose"
                 variant="error"

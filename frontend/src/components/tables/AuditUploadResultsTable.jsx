@@ -93,7 +93,7 @@ export function AuditUploadResultsTable({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[var(--color-border-soft)]">
-        <table className="min-w-max w-full divide-y divide-slate-200">
+        <table className="min-w-max w-full divide-y divide-[var(--color-border-soft)]">
           <thead className="bg-[var(--color-surface-subtle)]">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
@@ -108,7 +108,7 @@ export function AuditUploadResultsTable({
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-[var(--color-surface-elevated)]">
+          <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="hover:bg-[var(--color-surface-subtle)]">
                 {row.getVisibleCells().map((cell) => (

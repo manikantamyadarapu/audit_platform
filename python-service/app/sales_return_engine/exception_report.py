@@ -21,7 +21,7 @@ SALES_RETURN_ISSUE_MESSAGES: dict[str, str] = {
     'INVALID_RATE_DEVIATION': 'Unit rate outside allowed range.',
     'INVALID_LEDGER_MAPPING': 'Invalid sales return ledger mapping.',
     'INVALID_FREE_QUANTITY': 'Free quantity not allowed for this product.',
-    'INVALID_UOM': 'Invalid UOM for product.',
+    'INVALID_UOM': 'invalid UOM',
     'HIGHER_SALES_RETURN_RATE': 'Average sales return rate is higher than average sales rate.',
 }
 
@@ -268,7 +268,7 @@ def summarize_return_validation_records(
         error_rows += 1
         if 'INVALID_LEDGER_MAPPING' in widget_issues:
             ledger += 1
-        if 'INVALID_RATE_DEVIATION' in widget_issues:
+        if widget_issues & {'INVALID_RATE_DEVIATION', 'INVALID_FREE_QUANTITY'}:
             rate += 1
         if 'INVALID_FREE_QUANTITY' in widget_issues:
             free_qty += 1

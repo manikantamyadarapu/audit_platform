@@ -1,4 +1,5 @@
-const AUTH_TOKEN_KEY = 'token';
+const AUTH_TOKEN_KEY = 'accessToken';
+const LEGACY_AUTH_TOKEN_KEY = 'token';
 const AUTH_USER_KEY = 'user';
 const AUTH_FLAG_KEY = 'isAuthenticated';
 const REMEMBER_ME_KEY = 'rememberMe';
@@ -16,7 +17,7 @@ function getLocalStorage() {
 
 function getActiveStorage() {
   const local = getLocalStorage();
-  if (local?.getItem(AUTH_TOKEN_KEY)) return local;
+  if (local?.getItem(AUTH_TOKEN_KEY) || local?.getItem(LEGACY_AUTH_TOKEN_KEY)) return local;
   return getSessionStorage();
 }
 
@@ -29,39 +30,51 @@ export function getRememberedEmail() {
   return getLocalStorage()?.getItem(REMEMBER_EMAIL_KEY) || '';
 }
 
-export function persistAuthSession({ token, user, rememberMe, email }) {
+export function persistAuthSession({ accessToken, token, user, rememberMe, email }) {
   const local = getLocalStorage();
   const session = getSessionStorage();
   if (!local || !session) return;
 
+  const resolvedToken = accessToken || token;
   const payload = {
-    token,
+    token: resolvedToken,
     user: JSON.stringify(user),
     isAuthenticated: 'true',
   };
 
   if (rememberMe) {
     local.setItem(AUTH_TOKEN_KEY, payload.token);
+    local.removeItem(LEGACY_AUTH_TOKEN_KEY);
     local.setItem(AUTH_USER_KEY, payload.user);
     local.setItem(AUTH_FLAG_KEY, payload.isAuthenticated);
     local.setItem(REMEMBER_ME_KEY, 'true');
     if (email) local.setItem(REMEMBER_EMAIL_KEY, email);
 
     session.removeItem(AUTH_TOKEN_KEY);
+    session.removeItem(LEGACY_AUTH_TOKEN_KEY);
     session.removeItem(AUTH_USER_KEY);
     session.removeItem(AUTH_FLAG_KEY);
     return;
   }
 
   session.setItem(AUTH_TOKEN_KEY, payload.token);
+  session.removeItem(LEGACY_AUTH_TOKEN_KEY);
   session.setItem(AUTH_USER_KEY, payload.user);
   session.setItem(AUTH_FLAG_KEY, payload.isAuthenticated);
 
   local.removeItem(AUTH_TOKEN_KEY);
+  local.removeItem(LEGACY_AUTH_TOKEN_KEY);
   local.removeItem(AUTH_USER_KEY);
   local.removeItem(AUTH_FLAG_KEY);
   local.removeItem(REMEMBER_ME_KEY);
   local.removeItem(REMEMBER_EMAIL_KEY);
+}
+
+export function persistAccessToken(token) {
+  const storage = getActiveStorage() || getSessionStorage();
+  if (!storage || !token) return;
+  storage.setItem(AUTH_TOKEN_KEY, token);
+  storage.removeItem(LEGACY_AUTH_TOKEN_KEY);
 }
 
 export function getStoredUser() {
@@ -80,8 +93,11 @@ export function getStoredUser() {
 export function getAuthToken() {
   return (
     getActiveStorage()?.getItem(AUTH_TOKEN_KEY) ||
+    getActiveStorage()?.getItem(LEGACY_AUTH_TOKEN_KEY) ||
     getLocalStorage()?.getItem(AUTH_TOKEN_KEY) ||
-    getSessionStorage()?.getItem(AUTH_TOKEN_KEY)
+    getLocalStorage()?.getItem(LEGACY_AUTH_TOKEN_KEY) ||
+    getSessionStorage()?.getItem(AUTH_TOKEN_KEY) ||
+    getSessionStorage()?.getItem(LEGACY_AUTH_TOKEN_KEY)
   );
 }
 
@@ -108,10 +124,12 @@ export function clearAuthSession() {
   const session = getSessionStorage();
 
   local?.removeItem(AUTH_TOKEN_KEY);
+  local?.removeItem(LEGACY_AUTH_TOKEN_KEY);
   local?.removeItem(AUTH_USER_KEY);
   local?.removeItem(AUTH_FLAG_KEY);
 
   session?.removeItem(AUTH_TOKEN_KEY);
+  session?.removeItem(LEGACY_AUTH_TOKEN_KEY);
   session?.removeItem(AUTH_USER_KEY);
   session?.removeItem(AUTH_FLAG_KEY);
 }
@@ -123,7 +141,8 @@ export async function fetchCurrentUser() {
   const token = getAuthToken();
   if (!token) return null;
 
-  const response = await fetch('/api/v1/auth/me', {
+  const response = await fetch('/api/auth/me', {
+    credentials: 'include',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

@@ -774,8 +774,8 @@ def test_pan_widget_messages_use_business_wording() -> None:
         'INVALID_PAN_FORMAT': 'incorrect pan format',
         'NO_PAN_INVALID_FORM60': 'no pan & invalid form 60',
         'NO_PAN_NO_FORM60': 'no pan & no form 60',
-        'NO_PAN_FORM60_AVAILABLE': 'form 60 available',
-        'MISSING_ADDRESS_PROOF_ABOVE_50K': 'addressing missing',
+        'NO_PAN_FORM60_AVAILABLE': 'no pan and form 60 available',
+        'MISSING_ADDRESS_PROOF_ABOVE_50K': 'gst >= 50k address missing',
         'INVALID_ADDRESS': 'incorrect address format',
         'VALID_ADDRESS_FORMAT': 'valid address format',
     }

@@ -25,9 +25,9 @@ def test_export_invalid_pan_rows_returns_excel_file() -> None:
                 'issues': ['MISSING_PAN_ABOVE_2L', 'MISSING_ADDRESS_PROOF_ABOVE_50K'],
                 'messages': [
                     'incorrect pan format',
-                    'addressing missing',
+                    'gst >= 50k address missing',
                 ],
-                'Message': 'incorrect pan format; addressing missing',
+                'Message': 'incorrect pan format; gst >= 50k address missing',
             }
         ]
     }
@@ -64,7 +64,7 @@ def test_export_invalid_pan_rows_returns_excel_file() -> None:
     )
     assert sheet.cell(row=2, column=11).value == (
         'incorrect pan format, '
-        'addressing missing'
+        'gst >= 50k address missing'
     )
 
 

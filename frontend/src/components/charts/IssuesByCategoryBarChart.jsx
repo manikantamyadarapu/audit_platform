@@ -200,16 +200,17 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
   );
 
   useEffect(() => {
-    if (!chartRef.current || loading || !chartCategories?.length) {
+    if (!chartRef.current || !chartCategories?.length) {
       return undefined;
     }
 
+    const options = buildChartOptions(chartCategories, isDark);
+
     if (instanceRef.current) {
-      instanceRef.current.destroy();
-      instanceRef.current = null;
+      void instanceRef.current.updateOptions(options, true, true);
+      return undefined;
     }
 
-    const options = buildChartOptions(chartCategories, isDark);
     instanceRef.current = new ApexCharts(chartRef.current, options);
     instanceRef.current.render();
 
@@ -219,9 +220,9 @@ export function IssuesByCategoryBarChart({ categories = [], loading = false }) {
         instanceRef.current = null;
       }
     };
-  }, [chartCategories, chartKey, loading, isDark]);
+  }, [chartCategories, chartKey, isDark]);
 
-  if (loading) {
+  if (loading && !chartCategories?.length) {
     return <ChartSkeleton height={320} variant="bar" aria-label="Loading issue breakdown chart" />;
   }
 

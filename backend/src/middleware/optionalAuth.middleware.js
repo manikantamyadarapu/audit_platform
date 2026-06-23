@@ -1,5 +1,5 @@
 const express = require('express');
-const { verifyToken } = require('../utils/jwt.util');
+const { verifyAccessToken } = require('../utils/jwt.util');
 
 /**
  * Attach req.user when a valid Bearer token is present; continue without user otherwise.
@@ -16,7 +16,7 @@ function optionalAuth(req, _res, next) {
   }
 
   try {
-    const decoded = verifyToken(parts[1]);
+    const decoded = verifyAccessToken(parts[1]);
     req.user = {
       id: decoded.id,
       userId: decoded.id,

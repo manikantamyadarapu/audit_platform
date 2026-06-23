@@ -255,13 +255,13 @@ export default function ProductAverageRates() {
               </p>
               <div className="overflow-x-auto rounded-xl border border-slate-200/80">
                 <table className="min-w-full divide-y divide-slate-200 text-left">
-                  <thead className="bg-slate-50/90">
+                  <thead className="bg-[var(--color-surface-subtle)]">
                     {table.getHeaderGroups().map((headerGroup) => (
                       <tr key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                            className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]"
                             onClick={header.column.getToggleSortingHandler()}
                           >
                             <span className="inline-flex items-center gap-1">
@@ -276,7 +276,7 @@ export default function ProductAverageRates() {
                       </tr>
                     ))}
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
                     {table.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="hover:bg-emerald-50/30">
                         {row.getVisibleCells().map((cell) => (

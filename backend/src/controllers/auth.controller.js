@@ -1,4 +1,9 @@
 const authService = require('../services/auth.service');
+const {
+  setRefreshTokenCookie,
+  clearRefreshTokenCookie,
+  getRefreshTokenFromRequest,
+} = require('../utils/refreshCookie.util');
 
 /**
  * Login user
@@ -6,7 +11,7 @@ const authService = require('../services/auth.service');
  */
 async function login(req, res, next) {
   try {
-    const { email, password, rememberMe } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -15,14 +20,57 @@ async function login(req, res, next) {
       });
     }
 
-    const { token, user } = await authService.login(email, password, Boolean(rememberMe));
+    const { accessToken, refreshToken, user } = await authService.login(email, password);
+
+    setRefreshTokenCookie(res, refreshToken);
 
     res.json({
       success: true,
-      token,
+      accessToken,
       user,
     });
   } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Refresh access token
+ * POST /api/auth/refresh
+ */
+async function refresh(req, res, next) {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    const { accessToken } = await authService.refreshAccessToken(refreshToken);
+
+    res.json({
+      success: true,
+      accessToken,
+    });
+  } catch (error) {
+    if (!error.statusCode) {
+      error.statusCode = 401;
+    }
+    next(error);
+  }
+}
+
+/**
+ * Logout user
+ * POST /api/auth/logout
+ */
+async function logout(req, res, next) {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    const result = await authService.logout(refreshToken);
+    clearRefreshTokenCookie(res);
+
+    res.json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    clearRefreshTokenCookie(res);
     next(error);
   }
 }
@@ -51,10 +99,6 @@ async function getMe(req, res, next) {
   }
 }
 
-/**
- * Request password reset
- * POST /api/auth/forgot-password
- */
 async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body;
@@ -70,10 +114,6 @@ async function forgotPassword(req, res, next) {
   }
 }
 
-/**
- * Validate reset token
- * GET /api/auth/reset-password/validate
- */
 async function validateResetToken(req, res, next) {
   try {
     const { token } = req.query;
@@ -88,10 +128,6 @@ async function validateResetToken(req, res, next) {
   }
 }
 
-/**
- * Reset password
- * POST /api/auth/reset-password
- */
 async function resetPassword(req, res, next) {
   try {
     const { token, newPassword } = req.body;
@@ -108,6 +144,8 @@ async function resetPassword(req, res, next) {
 
 module.exports = {
   login,
+  refresh,
+  logout,
   getMe,
   forgotPassword,
   validateResetToken,
