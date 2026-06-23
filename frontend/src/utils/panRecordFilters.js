@@ -5,13 +5,13 @@ export const PAN_REPORT_MESSAGES = {
   validPan: 'valid pan',
   invalidPan: 'incorrect pan format',
   noPanNoForm60: 'no pan & no form 60',
-  noPanForm60Available: 'form 60 available',
+  noPanForm60Available: 'no pan and form 60 available',
   noPanInvalidForm60: 'no pan & invalid form 60',
 };
 
 /** Business-approved row messages keyed by address report type. */
 export const ADDRESS_REPORT_MESSAGES = {
-  gst50kAddressMissing: 'addressing missing',
+  gst50kAddressMissing: 'gst >= 50k address missing',
   incorrectAddressFormat: 'incorrect address format',
   validAddressFormat: 'valid address format',
 };

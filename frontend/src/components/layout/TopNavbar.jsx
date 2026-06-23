@@ -11,7 +11,7 @@ const TITLE_MAP = [
   { test: /^\/profile/, title: 'My Profile' },
   { test: /^\/users/, title: 'Users' },
   { test: /^\/scrutiny$/, title: 'Scrutiny' },
-  { test: /^\/scrutiny\/pan/, title: 'PAN Verification' },
+  { test: /^\/scrutiny\/pan/, title: 'ID Proof Audit' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
   { test: /^\/scrutiny\/sales-ledger/, title: 'Rate and Ledger Audit' },
   { test: /^\/sales-audit\/product-average-rates/, title: 'Product Average Rates' },

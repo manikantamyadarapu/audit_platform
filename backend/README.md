@@ -60,7 +60,11 @@ Set **`ENABLE_SWAGGER=false`** to disable `/api-docs` and `/openapi.json` (typic
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and adjust as needed.
+All settings live in **`backend/.env`** (see `.env.example` in this folder).
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Default | Purpose |
 |----------|---------|---------|

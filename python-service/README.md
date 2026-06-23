@@ -65,7 +65,7 @@ Useful URLs:
 
 ## Environment Variables
 
-Defaults are in `app/config/settings.py`.
+Settings are loaded from **`python-service/.env`** (see `.env.example` in this folder). Defaults are also in `app/config/settings.py`.
 
 ```env
 APP_ENV=development
@@ -73,7 +73,7 @@ APP_PORT=8000
 LOG_LEVEL=INFO
 CHUNK_SIZE=2500
 GROSS_WEIGHT_TOLERANCE=0.5
-GROSS_WEIGHT_MATCH_EPSILON=0.001
+GROSS_WEIGHT_MATCH_EPSILON=0.002
 SALES_DEBUG_EXPORT=false
 AUDIT_DEBUG_EXPORT=false
 ```
@@ -292,7 +292,7 @@ python-service/
 | File | Logic |
 | --- | --- |
 | `__init__.py` | Package marker. |
-| `settings.py` | Pydantic settings, `.env` loading, app metadata, ports, logging level, tolerances, and debug export flags. |
+| `settings.py` | Pydantic settings, `python-service/.env` loading, app metadata, ports, logging level, tolerances, and debug export flags. |
 
 ### `app/core/`
 

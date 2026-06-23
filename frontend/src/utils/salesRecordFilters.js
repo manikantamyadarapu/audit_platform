@@ -3,11 +3,24 @@
 export const SALES_FILTER_LABELS = {
   total: 'All rows',
   errors: 'Error rows',
-  accountVsProduct: 'Account vs product',
+  accountVsProduct: 'Sales ledger mismatch',
   mixedLedgers: 'Range deviations',
-  accessoriesUnitRate: 'Accessories Unit Rate Check',
-  caratGemErrors: 'Unit of measurement deviations',
+  caratGemErrors: 'Invalid UOM',
   compliance: 'Compliance (no issues)',
+};
+
+export const SALES_ISSUE_MESSAGES = {
+  INVALID_PRODUCT_MAPPING: 'Product mapping mismatch',
+  INVALID_LEDGER_MAPPING: 'Invalid sales return ledger mapping.',
+  MISSING_PRODUCT_CATEGORY_FOR_VALIDATION: 'Product mapping mismatch',
+  PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT: 'Product mapping mismatch',
+  INVALID_RATE_DEVIATION: 'Rate below allowed range',
+  INVALID_PRODUCT_PATTERN: 'Product pattern invalid',
+  MISSING_UNIT_RATE: 'Unit rate missing',
+  MISSING_RATE_RULE: 'Rate rule not configured',
+  INVALID_UNIT_RATE_RANGE: 'Unit rate must be between 0 and 1 for this product.',
+  INVALID_FREE_QUANTITY: 'Free quantity not allowed for this product.',
+  INVALID_UOM: 'invalid UOM',
 };
 
 const ACCOUNT_VS_PRODUCT_ISSUES = new Set([
@@ -23,9 +36,9 @@ const RATE_DEVIATION_ISSUES = new Set([
   'MISSING_UNIT_RATE',
   'MISSING_RATE_RULE',
   'RATE_DEVIATION_VIOLATION',
+  'INVALID_UNIT_RATE_RANGE',
+  'INVALID_FREE_QUANTITY',
 ]);
-
-const ACCESSORIES_UNIT_RATE_ISSUES = new Set(['INVALID_UNIT_RATE_RANGE', 'INVALID_FREE_QUANTITY']);
 
 const CARAT_GEM_ISSUES = new Set(['INVALID_UOM']);
 
@@ -46,7 +59,7 @@ export const SALES_RETURN_ISSUE_MESSAGES = {
   INVALID_RATE_DEVIATION: 'Unit rate outside allowed range.',
   INVALID_LEDGER_MAPPING: 'Invalid sales return ledger mapping.',
   INVALID_FREE_QUANTITY: 'Free quantity not allowed for this product.',
-  INVALID_UOM: 'Invalid UOM for product.',
+  INVALID_UOM: 'invalid UOM',
   HIGHER_SALES_RETURN_RATE: 'Average sales return rate is higher than average sales rate.',
 };
 
@@ -55,14 +68,12 @@ const SALES_RETURN_MESSAGE_TO_ISSUE = Object.fromEntries(
 );
 
 const SALES_RETURN_ACCOUNT_VS_PRODUCT_ISSUES = new Set(['INVALID_LEDGER_MAPPING']);
-const SALES_RETURN_RATE_DEVIATION_ISSUES = new Set(['INVALID_RATE_DEVIATION']);
-const SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES = new Set(['INVALID_FREE_QUANTITY']);
+const SALES_RETURN_RATE_DEVIATION_ISSUES = new Set(['INVALID_RATE_DEVIATION', 'INVALID_FREE_QUANTITY']);
 const SALES_RETURN_UOM_ISSUES = new Set(['INVALID_UOM']);
 
 const SALES_RETURN_FILTER_ISSUE_SETS = {
   accountVsProduct: SALES_RETURN_ACCOUNT_VS_PRODUCT_ISSUES,
   mixedLedgers: SALES_RETURN_RATE_DEVIATION_ISSUES,
-  accessoriesUnitRate: SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES,
   caratGemErrors: SALES_RETURN_UOM_ISSUES,
   higherReturnRate: HIGHER_RETURN_RATE_ISSUES,
 };
@@ -70,17 +81,21 @@ const SALES_RETURN_FILTER_ISSUE_SETS = {
 const FILTER_ISSUE_SETS = {
   accountVsProduct: ACCOUNT_VS_PRODUCT_ISSUES,
   mixedLedgers: RATE_DEVIATION_ISSUES,
-  accessoriesUnitRate: ACCESSORIES_UNIT_RATE_ISSUES,
   caratGemErrors: CARAT_GEM_ISSUES,
   higherReturnRate: HIGHER_RETURN_RATE_ISSUES,
 };
+
+/** Legacy widget keys from saved sessions map to current filters. */
+export function normalizeSalesFilter(filter) {
+  if (filter === 'accessoriesUnitRate') return 'mixedLedgers';
+  return filter;
+}
 
 /** KPI filters that show row-level exception data (upload columns + Message). */
 export const SALES_RETURN_VALIDATION_FILTERS = new Set([
   'errors',
   'accountVsProduct',
   'mixedLedgers',
-  'accessoriesUnitRate',
   'caratGemErrors',
 ]);
 
@@ -181,10 +196,13 @@ export function enrichProductComparisonRecords(productRecords, exceptionRecords)
     const rateMessages = Array.isArray(row.messages)
       ? row.messages.map((m) => String(m).trim()).filter(Boolean)
       : [];
-    const validationPart = validationCodes.join(', ');
+    const validationMessages = validationCodes
+      .map((code) => SALES_ISSUE_MESSAGES[code] || '')
+      .filter(Boolean);
     const ratePart = rateMessages.join('; ');
+    const validationPart = validationMessages.join('; ');
     const messageParts = [ratePart, validationPart].filter(Boolean);
-    const Message = messageParts.length ? messageParts.join('; ') : merged.join(', ');
+    const Message = messageParts.length ? messageParts.join('; ') : merged.map((code) => SALES_ISSUE_MESSAGES[code] || '').filter(Boolean).join('; ');
     return { ...row, issues: merged, Message };
   });
 }
@@ -204,13 +222,15 @@ function messageTextForIssueCodes(record, codes, messageMap = null) {
   const messages = Array.isArray(record?.messages)
     ? record.messages.map((message) => String(message))
     : [];
+  const lookup = { ...SALES_ISSUE_MESSAGES, ...messageMap };
   return codes
     .map((code) => {
-      if (messageMap?.[code]) return messageMap[code];
+      if (lookup[code]) return lookup[code];
       const index = issues.indexOf(code);
       if (index >= 0 && messages[index]?.trim()) return messages[index].trim();
-      return code;
+      return '';
     })
+    .filter(Boolean)
     .join('; ');
 }
 
@@ -238,8 +258,14 @@ export function salesReturnMessageForActiveFilter(record, filter) {
 }
 
 export function applySalesReturnFilterDisplayMessage(records, filter) {
-  if (!filter || filter === 'total') return records;
-  return records.map((row) => ({
+  const list = Array.isArray(records) ? records : [];
+  if (!filter || filter === 'total') {
+    return list.map((row) => ({
+      ...row,
+      Message: messageTextForIssueCodes(row, recordIssueCodes(row), SALES_RETURN_ISSUE_MESSAGES),
+    }));
+  }
+  return list.map((row) => ({
     ...row,
     Message: salesReturnMessageForActiveFilter(row, filter),
   }));
@@ -251,7 +277,8 @@ export function filterSalesReturnRecordsForDisplay(records, filter) {
 
 /** Default widget filter when none selected (Error rows when validation issues exist). */
 export function resolveSalesReturnActiveFilter(activeFilter, errorRows = 0) {
-  if (activeFilter != null) return activeFilter;
+  const normalized = normalizeSalesFilter(activeFilter);
+  if (normalized != null) return normalized;
   return errorRows > 0 ? 'errors' : null;
 }
 
@@ -281,11 +308,6 @@ export function filterSalesReturnRecords(records, filter) {
       recordIssueCodes(r).some((code) => SALES_RETURN_RATE_DEVIATION_ISSUES.has(code))
     );
   }
-  if (filter === 'accessoriesUnitRate') {
-    return list.filter((r) =>
-      recordIssueCodes(r).some((code) => SALES_RETURN_ACCESSORIES_UNIT_RATE_ISSUES.has(code))
-    );
-  }
   if (filter === 'caratGemErrors') {
     return list.filter((r) =>
       recordIssueCodes(r).some((code) => SALES_RETURN_UOM_ISSUES.has(code))
@@ -305,12 +327,18 @@ export function filterSalesReturnRecords(records, filter) {
 /** Message text for the active widget filter only (not unrelated issues). */
 export function messageForActiveFilter(record, filter) {
   if (filter === 'compliance') return '';
-  return messageTextForIssueCodes(record, relevantIssueCodes(record, filter));
+  return messageTextForIssueCodes(record, relevantIssueCodes(record, filter), SALES_ISSUE_MESSAGES);
 }
 
 export function applyFilterDisplayMessage(records, filter) {
-  if (!filter || filter === 'total') return records;
-  return records.map((row) => ({
+  const list = Array.isArray(records) ? records : [];
+  if (!filter || filter === 'total') {
+    return list.map((row) => ({
+      ...row,
+      Message: messageTextForIssueCodes(row, recordIssueCodes(row), SALES_ISSUE_MESSAGES),
+    }));
+  }
+  return list.map((row) => ({
     ...row,
     Message: messageForActiveFilter(row, filter),
   }));
@@ -333,11 +361,6 @@ export function filterSalesRecords(records, filter) {
   }
   if (filter === 'mixedLedgers') {
     return list.filter((r) => recordIssueCodes(r).some((code) => RATE_DEVIATION_ISSUES.has(code)));
-  }
-  if (filter === 'accessoriesUnitRate') {
-    return list.filter((r) =>
-      recordIssueCodes(r).some((code) => ACCESSORIES_UNIT_RATE_ISSUES.has(code))
-    );
   }
   if (filter === 'caratGemErrors') {
     return list.filter((r) => recordIssueCodes(r).some((code) => CARAT_GEM_ISSUES.has(code)));

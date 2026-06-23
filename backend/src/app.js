@@ -2,9 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
 const apiV1 = require('./routes');
+const authRoutes = require('./routes/auth.routes');
 const openapiSpec = require('./openapi/openapi.json');
 const { requestIdMiddleware } = require('./middleware/requestId.middleware');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.middleware');
@@ -17,12 +19,14 @@ if (config.isProduction) {
 
 app.disable('x-powered-by');
 app.use(requestIdMiddleware);
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(
   cors({
     origin: config.getCorsOrigin(),
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
     maxAge: 86400,
@@ -57,6 +61,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'audit-platform-node-backend' });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/v1', apiV1);
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/sales-audit', require('./routes/salesAudit.routes'));

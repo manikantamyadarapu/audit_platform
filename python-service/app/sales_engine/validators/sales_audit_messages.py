@@ -9,7 +9,7 @@ MSG_PRODUCT_MAPPING = 'Product mapping mismatch'
 MSG_RATE_RULE_MISSING = 'Rate rule not configured'
 MSG_UNIT_RATE_MISSING = 'Unit rate missing'
 MSG_PRODUCT_PATTERN = 'Product pattern invalid'
-MSG_INVALID_UOM = 'Invalid UOM for product.'
+MSG_INVALID_UOM = 'invalid UOM'
 MSG_INVALID_UNIT_RATE_RANGE = 'Unit rate must be between 0 and 1 for this product.'
 
 _ISSUE_MESSAGE: dict[str, str] = {
@@ -96,3 +96,34 @@ def format_messages_field(messages: list[str] | None) -> str:
     if not messages:
         return ''
     return messages[0] if messages else ''
+
+
+def format_issues_as_display_messages(issues: list[str]) -> str:
+    """Map issue codes to business-approved display text (never raw codes in Message)."""
+    messages: list[str] = []
+    for code in issues:
+        if not code:
+            continue
+        text = _ISSUE_MESSAGE.get(code)
+        if not text:
+            continue
+        if text not in messages:
+            messages.append(text)
+    return '; '.join(messages)
+
+
+def format_record_issues_as_display_messages(row: dict[str, Any], issues: list[str]) -> str:
+    """Business text for export — respects rate above/below when row flags are set."""
+    messages: list[str] = []
+    for code in issues:
+        if not code:
+            continue
+        if code == 'INVALID_RATE_DEVIATION':
+            text = _rate_direction_message(row)
+        else:
+            text = _ISSUE_MESSAGE.get(code)
+        if not text:
+            continue
+        if text not in messages:
+            messages.append(text)
+    return '; '.join(messages)

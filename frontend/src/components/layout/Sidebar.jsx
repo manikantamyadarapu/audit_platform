@@ -22,6 +22,7 @@ import {
   LogOut,
   UserCircle,
 } from 'lucide-react';
+import { logoutRequest } from '../../services/authService';
 import { cn } from '../../utils/cn';
 import { preloadAuditRoute } from '../../utils/auditRoutePreload';
 import { useAppUi } from '../../context/AppUiContext';
@@ -357,7 +358,12 @@ export function Sidebar() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
+                      try {
+                        await logoutRequest();
+                      } catch {
+                        // Clear local session even if server logout fails.
+                      }
                       clearAuthSession();
                       navigate('/login');
                       setShowUserMenu(false);

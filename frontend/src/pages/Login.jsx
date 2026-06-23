@@ -31,8 +31,9 @@ async function postLoginWithRetry(credentials) {
 
   for (let attempt = 1; attempt <= LOGIN_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch('/api/v1/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -106,7 +107,6 @@ export default function Login() {
       response = await postLoginWithRetry({
         email: formData.email,
         password: formData.password,
-        rememberMe,
       });
 
       if (!response.ok) {
@@ -137,7 +137,7 @@ export default function Login() {
 
       if (data.success) {
         persistAuthSession({
-          token: data.token,
+          accessToken: data.accessToken || data.token,
           user: data.user,
           rememberMe,
           email: formData.email,

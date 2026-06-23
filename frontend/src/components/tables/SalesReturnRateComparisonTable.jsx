@@ -236,15 +236,15 @@ export function SalesReturnRateComparisonTable({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border-soft)]">
+        <table className="min-w-full divide-y divide-[var(--color-border-soft)]">
+          <thead className="bg-[var(--color-surface-subtle)]">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]"
                   >
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
@@ -252,9 +252,9 @@ export function SalesReturnRateComparisonTable({
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-slate-50/80">
+              <tr key={row.id} className="hover:bg-[var(--color-surface-subtle)]">
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

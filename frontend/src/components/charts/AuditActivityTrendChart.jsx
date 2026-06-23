@@ -177,7 +177,7 @@ export function AuditActivityTrendChart({ data, loading = false }) {
   useEffect(() => () => destroyChart(instanceRef), []);
 
   useLayoutEffect(() => {
-    if (loading || !chartPayload) {
+    if (!chartPayload) {
       destroyChart(instanceRef);
       return undefined;
     }
@@ -198,9 +198,9 @@ export function AuditActivityTrendChart({ data, loading = false }) {
     void instanceRef.current.render();
 
     return () => destroyChart(instanceRef);
-  }, [chartPayload, loading, isDark]);
+  }, [chartPayload, isDark]);
 
-  if (loading) {
+  if (loading && !chartPayload) {
     return <ChartSkeleton height={320} variant="area" aria-label="Loading audit activity chart" />;
   }
 

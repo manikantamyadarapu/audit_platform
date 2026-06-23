@@ -31,7 +31,7 @@ def test_sales_exception_preserves_upload_columns_and_message() -> None:
     assert records[0]['Voucher No'] == 'V-12'
     assert records[0]['Product'] == 'Gold Ring'
     assert records[0]['Quantity'] == '2'
-    assert records[0][MESSAGE_COLUMN] == 'INVALID_UOM, INVALID_RATE_DEVIATION'
+    assert records[0][MESSAGE_COLUMN] == 'invalid UOM; Rate below allowed range'
 
 
 def test_sales_processor_returns_exception_records_with_display_headers() -> None:

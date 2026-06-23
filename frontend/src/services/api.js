@@ -1,4 +1,9 @@
 import axios from 'axios';
+import {
+  clearAuthSession,
+  getAuthToken,
+  persistAccessToken,
+} from '../utils/authUser';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -8,12 +13,79 @@ const apiTimeout =
 
 const api = axios.create({
   baseURL,
-  /** Server can spend several minutes on large ledgers before Node returns (see PYTHON_SERVICE_TIMEOUT_MS). */
-  timeout: 600_000,
+  timeout: apiTimeout,
+  withCredentials: true,
   headers: {
     Accept: 'application/json',
   },
 });
+
+let refreshPromise = null;
+
+const AUTH_REFRESH_PATH = '/api/auth/refresh';
+const AUTH_LOGIN_PATH = '/api/auth/login';
+
+function shouldSkipRefresh(config) {
+  const url = config?.url || '';
+  return (
+    url.includes(AUTH_REFRESH_PATH) ||
+    url.includes(AUTH_LOGIN_PATH) ||
+    url.includes('/api/auth/logout')
+  );
+}
+
+api.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      !originalRequest ||
+      originalRequest._retry ||
+      shouldSkipRefresh(originalRequest) ||
+      error.response?.status !== 401
+    ) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      if (!refreshPromise) {
+        refreshPromise = axios
+          .post(AUTH_REFRESH_PATH, {}, { baseURL, withCredentials: true })
+          .finally(() => {
+            refreshPromise = null;
+          });
+      }
+
+      const { data } = await refreshPromise;
+      const nextToken = data?.accessToken;
+
+      if (!nextToken) {
+        throw new Error('Refresh failed');
+      }
+
+      persistAccessToken(nextToken);
+      originalRequest.headers.Authorization = `Bearer ${nextToken}`;
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearAuthSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(refreshError);
+    }
+  }
+);
 
 export function getApiErrorMessage(error) {
   if (!error) return 'Something went wrong';

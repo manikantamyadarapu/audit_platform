@@ -17,7 +17,7 @@ def test_export_gross_weight_invalid_rows() -> None:
                 'autoGrossWeight': 11.0,
                 'difference': 0.5,
                 'issues': ['GROSS_WEIGHT_MISMATCH'],
-                'messages': ['Manual gross weight does not match auto gross weight.'],
+                'messages': ['gross weight mismatch'],
             }
         ],
         'summary': {'mismatchCount': 1},

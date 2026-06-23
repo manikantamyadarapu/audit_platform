@@ -1,15 +1,15 @@
-"""Sales ledger exception report — original Excel columns + Message (issue codes)."""
+"""Sales ledger exception report — original Excel columns + Message (business text)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+from app.sales_engine.validators.sales_audit_messages import format_record_issues_as_display_messages
 from app.sales_return_engine.exception_report import (
     MESSAGE_COLUMN,
     _as_issue_list,
     _excel_row_from_record,
-    _finalize_row,
     _merge_issues,
     _strip_internal_fields,
     build_export_metadata,
@@ -20,6 +20,31 @@ __all__ = [
     'build_export_metadata',
     'build_sales_exception_records',
 ]
+
+
+def _message_for_record(record: dict[str, Any], issues: list[str]) -> str:
+    if issues:
+        return format_record_issues_as_display_messages(record, issues)
+    row_messages = _as_issue_list(record.get('messages'))
+    if row_messages:
+        return '; '.join(row_messages)
+    return ''
+
+
+def _finalize_sales_row(
+    excel_row: dict[str, Any],
+    record: dict[str, Any],
+    issues: list[str],
+) -> dict[str, Any]:
+    row_number = excel_row.get('_rowNumber') or record.get('rowNumber') or ''
+    message = _message_for_record(record, issues)
+    return {
+        **excel_row,
+        MESSAGE_COLUMN: message,
+        'issues': list(issues),
+        '_issues': issues,
+        '_rowNumber': row_number,
+    }
 
 
 def build_sales_exception_records(
@@ -44,11 +69,11 @@ def build_sales_exception_records(
 
         existing = merged.get(key)
         if existing is None:
-            merged[key] = _finalize_row(excel_row, issues)
+            merged[key] = _finalize_sales_row(excel_row, record, issues)
             continue
 
         merged_issues = _merge_issues(existing, {'_issues': issues})
-        merged[key] = _finalize_row({**existing, **excel_row}, merged_issues)
+        merged[key] = _finalize_sales_row({**existing, **excel_row}, record, merged_issues)
 
     ordered = list(merged.values())
     product_header = display_headers.get('product', 'Product')

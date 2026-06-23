@@ -226,10 +226,12 @@ class VectorizedSalesEngine:
         extraction_ms = (perf_counter() - extraction_start) * 1000
 
         recon = reconciliation.to_dict()
+        invalid_uom = int(txn_df.filter(pl.col('__invalid_uom').fill_null(False)).height)
         summary = {
             'invalidSalesAccounts': 0,
             'invalidProductMappings': recon['invalidProductMappings'],
             'invalidProductPatterns': recon['invalidProductPatterns'],
+            'invalidUomRows': invalid_uom,
             'productsNotFoundInMaster': 0,
             'rateMasterNotFound': 0,
             'rateDeviationViolations': recon['rateDeviationViolations'],

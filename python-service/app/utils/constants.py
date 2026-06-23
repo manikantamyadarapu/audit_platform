@@ -34,8 +34,8 @@ VALID_PAN_MESSAGE = 'valid pan'
 INVALID_PAN_FORMAT_MESSAGE = 'incorrect pan format'
 NO_PAN_INVALID_FORM60_MESSAGE = 'no pan & invalid form 60'
 NO_PAN_NO_FORM60_MESSAGE = 'no pan & no form 60'
-NO_PAN_FORM60_AVAILABLE_MESSAGE = 'form 60 available'
-ADDRESS_PROOF_MISSING_MESSAGE = 'addressing missing'
+NO_PAN_FORM60_AVAILABLE_MESSAGE = 'no pan and form 60 available'
+ADDRESS_PROOF_MISSING_MESSAGE = 'gst >= 50k address missing'
 INVALID_ADDRESS_MESSAGE = 'incorrect address format'
 VALID_ADDRESS_FORMAT_MESSAGE = 'valid address format'
 # Legacy PAN codes still registered for exports/API compatibility
@@ -48,7 +48,7 @@ SPREADSHEET_EMPTY_TOKENS = frozenset(
 )
 
 NEGATIVE_WEIGHT_MESSAGE = 'Negative weight values are not allowed'
-GROSS_WEIGHT_MISMATCH_MESSAGE = 'Manual gross weight does not match auto gross weight.'
+GROSS_WEIGHT_MISMATCH_MESSAGE = 'gross weight mismatch'
 GROSS_WEIGHT_DIFFERENCE_MESSAGE = 'Difference must be 0.00.'
 
 SALES_ISSUE_MESSAGES = {

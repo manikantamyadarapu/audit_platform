@@ -3,9 +3,9 @@ const logger = require('../utils/logger');
 
 const SUMMARY_ISSUE_FIELDS = [
   { key: 'rateDeviationViolations', code: 'INVALID_RATE_DEVIATION', name: 'Rate Deviation' },
-  { key: 'invalidProductMappings', code: 'INVALID_PRODUCT_MAPPING', name: 'Product Mapping' },
+  { key: 'invalidProductMappings', code: 'INVALID_PRODUCT_MAPPING', name: 'Sales ledger mismatch' },
   { key: 'invalidProductPatterns', code: 'INVALID_PRODUCT_PATTERN', name: 'Product Pattern' },
-  { key: 'invalidUomRows', code: 'INVALID_UOM', name: 'Invalid UOM' },
+  { key: 'invalidUomRows', code: 'INVALID_UOM', name: 'invalid UOM' },
   { key: 'invalidFreeQuantityRows', code: 'INVALID_FREE_QUANTITY', name: 'Free Quantity' },
   { key: 'higherReturnRateProducts', code: 'HIGHER_SALES_RETURN_RATE', name: 'Higher Return Rate' },
   {
@@ -18,17 +18,17 @@ const SUMMARY_ISSUE_FIELDS = [
   {
     key: 'noPanForm60AvailableCount',
     code: 'PAN_FORM60_AVAILABLE',
-    name: 'PAN Form 60 Available',
+    name: 'no pan and form 60 available',
   },
   { key: 'noPanInvalidForm60Count', code: 'INVALID_FORM60', name: 'Invalid Form 60' },
-  { key: 'gst50kAddressMissingCount', code: 'GST_ADDRESS_MISSING', name: 'GST Address Missing' },
+  { key: 'gst50kAddressMissingCount', code: 'GST_ADDRESS_MISSING', name: 'gst >= 50k address missing' },
   {
     key: 'incorrectAddressFormatCount',
     code: 'INVALID_ADDRESS_FORMAT',
     name: 'Invalid Address Format',
   },
-  { key: 'mismatchCount', code: 'GROSS_WEIGHT_MISMATCH', name: 'Gross Weight Mismatch' },
-  { key: 'weightMismatch', code: 'GROSS_WEIGHT_MISMATCH', name: 'Gross Weight Mismatch' },
+  { key: 'mismatchCount', code: 'GROSS_WEIGHT_MISMATCH', name: 'gross weight mismatch' },
+  { key: 'weightMismatch', code: 'GROSS_WEIGHT_MISMATCH', name: 'gross weight mismatch' },
   { key: 'negativeValueViolations', code: 'NEGATIVE_GROSS_WEIGHT', name: 'Negative Gross Weight' },
 ];
 
