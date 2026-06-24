@@ -39,7 +39,8 @@
         "^GOLD ORNAMENTS 22K$",
         "^LAC$",
         "^WAX, DORI ETC$"
-      ]
+      ],
+      "exact": ["KUNDAN", "NAIL"]
     },
     "GOLD SALES ACCOUNT - JADAU": {
       "patterns": ["^GOLD ORNAMENTS JADAU$"]
@@ -64,6 +65,16 @@
         "^POLKI A$",
         "^SD DI\\. \\d+$",
         "^SD DI\\. MIX$"
+      ],
+      "exact": [
+        "DI. BEADS",
+        "DI. BEADS 1",
+        "DI. BEADS 2",
+        "DI. BEADS 3",
+        "DI. RC 3",
+        "DI. RC 4",
+        "DI. RC 18",
+        "DI. RC 20"
       ]
     },
     "JEWELS SALES ACCOUNT - COLOR STONES": {
@@ -73,7 +84,8 @@
         "^PRECIOUS STONES LOOSE JOS \\d+$",
         "^SEMI PRECIOUS JSP \\d+$",
         "^SYNTHETIC JSY \\d+$"
-      ]
+      ],
+      "exact": ["SYNTHETIC SYN 100", "SYNTHETIC SYN 300", "SYTHETIC JSY 300"]
     },
     "JEWELS SALES ACCOUNT - EMERALDS": {
       "patterns": [
@@ -81,7 +93,8 @@
         "^EMERALDS JEM \\d+$",
         "^EMERALDS JEM LOOSE \\d+$",
         "^EMERALDS JEM MIX$"
-      ]
+      ],
+      "exact": ["EMERALDS JEM 5900"]
     },
     "JEWELS SALES ACCOUNT - PEARLS": {
       "patterns": ["^CUSTOMER PEARLS$", "^PEARLS JPS \\d+$"]
@@ -92,7 +105,8 @@
         "^RUBIES JRU \\d+$",
         "^RUBIES JRU LOOSE \\d+$",
         "^RUBIES JRU MIX$"
-      ]
+      ],
+      "exact": ["RUBIES JRU 7700"]
     }
   }
 }
