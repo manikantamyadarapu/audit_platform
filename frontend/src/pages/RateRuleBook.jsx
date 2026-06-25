@@ -100,6 +100,14 @@ export default function RateRuleBook() {
 
   return (
     <div className="space-y-8">
+      <Link
+        to={returnTo}
+        className="inline-flex h-10 w-fit items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+      >
+        <ArrowLeft className="h-4 w-4 shrink-0" />
+        <span>Back to audit</span>
+      </Link>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Scrutiny</p>
@@ -114,17 +122,10 @@ export default function RateRuleBook() {
       </div>
 
       {ratesSaved ? (
-        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-emerald-950/30">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
           <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
             Gold & silver rates saved. You can return to the audit and run validation.
           </p>
-          <Link
-            to={returnTo}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to audit
-          </Link>
         </div>
       ) : null}
 
