@@ -21,12 +21,13 @@ function SuccessResponse(res, message, data, statusCode = 200) {
  * @param {{ page: number, limit: number, total: number, totalPages: number }} pagination
  * @param {number} [statusCode=200]
  */
-function PaginatedSuccessResponse(res, message, data, pagination, statusCode = 200) {
+function PaginatedSuccessResponse(res, message, data, pagination, statusCode = 200, meta = undefined) {
   return res.status(statusCode).json({
     success: true,
     message,
     data,
     pagination,
+    ...(meta ? { meta } : {}),
   });
 }
 

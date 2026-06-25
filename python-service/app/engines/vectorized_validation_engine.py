@@ -202,6 +202,8 @@ class VectorizedValidationEngine:
         checks: list[str] = []
         if 'total_value' in columns:
             checks.append(f"{cls.header_normalized_sql('total_value')} = 'total_value'")
+        if 'net_amount' in columns:
+            checks.append(f"{cls.header_normalized_sql('net_amount')} = 'net_amount'")
         if 'pan' in columns and 'pan1' in columns:
             pan = cls.quote_identifier('pan')
             pan1 = cls.quote_identifier('pan1')

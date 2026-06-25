@@ -1,5 +1,8 @@
 from typing import Any
 
+import pandas as pd
+from io import BytesIO
+
 from app.sales_engine.engine.sales_audit_output import (
     SALES_AUDIT_OUTPUT_COLUMNS,
     sales_records_for_export,
@@ -31,22 +34,23 @@ GROSS_EXPORT_COLUMNS = [
     'manualGrossWeight',
     'autoGrossWeight',
     'difference',
-    'issues',
+    'messages',
 ]
 
 GROSS_EXPORT_HEADER_MAP = {
-    'rowNumber': 'SNo',
+    'rowNumber': 'Row Number',
     'voucherNo': 'Voucher No',
-    'manualGrossWeight': 'Manual Gross Wt.',
-    'autoGrossWeight': 'Auto Gross Wt.',
-    'difference': 'Difference in Gross Wt.',
-    'issues': 'Issue',
+    'manualGrossWeight': 'Manual Gross Weight',
+    'autoGrossWeight': 'Auto Gross Weight',
+    'difference': 'Difference',
+    'messages': 'Message',
 }
 
 SALES_EXPORT_COLUMNS = list(SALES_AUDIT_OUTPUT_COLUMNS)
 
 SALES_RETURN_RATE_COMPARISON_COLUMNS = [
     'product',
+    'returnTransactionCount',
     'salesTotalGrossAmount',
     'salesTotalQuantity',
     'salesAverageRate',
@@ -54,12 +58,12 @@ SALES_RETURN_RATE_COMPARISON_COLUMNS = [
     'returnTotalQuantity',
     'returnAverageRate',
     'difference',
-    'issues',
-    'messages',
+    'Message',
 ]
 
 SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
     'product': 'Product',
+    'returnTransactionCount': 'Return Transaction Count',
     'salesTotalGrossAmount': 'Sales Total Gross Amount',
     'salesTotalQuantity': 'Sales Total Quantity',
     'salesAverageRate': 'Sales Average Rate',
@@ -67,8 +71,7 @@ SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
     'returnTotalQuantity': 'Sales Return Total Quantity',
     'returnAverageRate': 'Sales Return Average Rate',
     'difference': 'Difference',
-    'issues': 'Issue',
-    'messages': 'Message',
+    'Message': 'Message',
 }
 
 
@@ -114,19 +117,28 @@ def export_invalid_gross_weight_records(
 def export_invalid_sales_records(
     records: list[dict[str, Any]],
     *,
+    export_columns: list[str] | None = None,
     summary: dict[str, Any] | None = None,
     processing_statistics: dict[str, Any] | None = None,
     execution_timing: dict[str, Any] | None = None,
 ) -> bytes:
-    return build_audit_excel_report(
-        report_title='Sales Audit Report',
-        invalid_sheet_name='Invalid Sales Rows',
-        source_processor='sales',
-        records=sales_records_for_export(records),
-        export_columns=SALES_EXPORT_COLUMNS,
-        summary=summary,
-        processing_statistics=processing_statistics,
-        execution_timing=execution_timing,
+    """Single-sheet export: exception table rows (original columns + Message)."""
+    del summary, processing_statistics, execution_timing
+    if not records:
+        raise ValueError('No exception records to export')
+    sample = records[0]
+    if 'Message' in sample or export_columns:
+        resolved_columns = _resolve_sales_return_export_columns(records, export_columns)
+        return _build_single_sheet_excel(
+            records,
+            resolved_columns,
+            sheet_name='Invalid Sales Rows',
+        )
+    normalized = sales_records_for_export(records)
+    return _build_single_sheet_excel(
+        normalized,
+        list(SALES_EXPORT_COLUMNS),
+        sheet_name='Invalid Sales Rows',
     )
 
 
@@ -136,39 +148,131 @@ def export_sales_return_exceptions(
     export_columns: list[str] | None = None,
     header_map: dict[str, str] | None = None,
 ) -> bytes:
+    """Single-sheet export: exception table rows only (no summary/metrics sheets)."""
+    del header_map  # Records already use display column headers.
     if not records:
         raise ValueError('No exception records to export')
-    resolved_columns = export_columns or list(records[0].keys())
-    resolved_header_map = header_map or {column: column for column in resolved_columns}
-    return build_audit_excel_report(
-        report_title='Sales Return Final Exception Report',
-        invalid_sheet_name='Final Exception Report',
-        source_processor='sales_return',
-        records=records,
-        export_columns=resolved_columns,
-        header_map=resolved_header_map,
+    resolved_columns = _resolve_sales_return_export_columns(records, export_columns)
+    return _build_single_sheet_excel(
+        records,
+        resolved_columns,
+        sheet_name='Final Exception Report',
     )
+
+
+def _resolve_sales_return_export_columns(
+    records: list[dict[str, Any]],
+    export_columns: list[str] | None,
+) -> list[str]:
+    record_keys = list(records[0].keys())
+    if not export_columns:
+        return _message_column_last(record_keys)
+
+    ordered = [column for column in export_columns if column in record_keys]
+    if not ordered:
+        return _message_column_last(record_keys)
+    return _message_column_last(ordered)
+
+
+def _message_column_last(columns: list[str]) -> list[str]:
+    message = 'Message'
+    without = [column for column in columns if column != message]
+    if message in columns:
+        without.append(message)
+    return without
+
+
+def _build_single_sheet_excel(
+    records: list[dict[str, Any]],
+    export_columns: list[str],
+    *,
+    sheet_name: str,
+) -> bytes:
+    import pandas as pd
+    from io import BytesIO
+
+    dataframe = pd.DataFrame(records).copy()
+    for column in export_columns:
+        if column not in dataframe.columns:
+            dataframe[column] = ''
+    dataframe = dataframe[export_columns]
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        dataframe.to_excel(writer, index=False, sheet_name=sheet_name)
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+        header_format = workbook.add_format(
+            {
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': '#1F4E78',
+                'border': 1,
+            }
+        )
+        worksheet.freeze_panes(1, 0)
+        worksheet.autofilter(0, 0, max(len(dataframe), 1), max(len(dataframe.columns) - 1, 0))
+        for idx, column in enumerate(dataframe.columns):
+            width = max(len(str(column)), _max_value_length(dataframe[column])) + 2
+            worksheet.set_column(idx, idx, min(width, 60))
+            worksheet.write(0, idx, column, header_format)
+
+    output.seek(0)
+    return output.getvalue()
+
+
+def _max_value_length(series) -> int:
+    if series.empty:
+        return 0
+    return max(len(str(value)) for value in series.fillna('').tolist())
 
 
 def export_sales_return_rate_comparison(records: list[dict[str, Any]]) -> bytes:
     if not records:
         raise ValueError('No rate comparison records to export')
-    normalized = []
+
+    rows: list[dict[str, Any]] = []
     for record in records:
         issues = record.get('issues') or []
         messages = record.get('messages') or []
-        normalized.append(
+        issue_text = '; '.join(str(i) for i in issues) if isinstance(issues, list) else str(issues or '')
+        message_text = '; '.join(str(m) for m in messages) if isinstance(messages, list) else str(messages or '')
+        message_column = record.get('Message')
+        if message_column in (None, ''):
+            message_column = message_text or issue_text
+
+        rows.append(
             {
-                **record,
-                'issues': '; '.join(str(i) for i in issues) if isinstance(issues, list) else issues,
-                'messages': '; '.join(str(m) for m in messages) if isinstance(messages, list) else messages,
+                'product': record.get('product', ''),
+                'returnTransactionCount': record.get('returnTransactionCount', ''),
+                'salesTotalGrossAmount': record.get('salesTotalGrossAmount', ''),
+                'salesTotalQuantity': record.get('salesTotalQuantity', ''),
+                'salesAverageRate': record.get('salesAverageRate', ''),
+                'returnTotalGrossAmount': record.get('returnTotalGrossAmount', ''),
+                'returnTotalQuantity': record.get('returnTotalQuantity', ''),
+                'returnAverageRate': record.get('returnAverageRate', ''),
+                'difference': record.get('difference', ''),
+                'Message': message_column,
             }
         )
-    return build_audit_excel_report(
-        report_title='Sales Return Rate Comparison Report',
-        invalid_sheet_name='Higher Return Rate Products',
-        source_processor='sales_return',
-        records=normalized,
-        export_columns=SALES_RETURN_RATE_COMPARISON_COLUMNS,
-        header_map=SALES_RETURN_RATE_COMPARISON_HEADER_MAP,
-    )
+
+    dataframe = pd.DataFrame(rows)
+    dataframe = dataframe.rename(columns=SALES_RETURN_RATE_COMPARISON_HEADER_MAP)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        sheet_name = 'Product Average Comparison'
+        dataframe.to_excel(writer, index=False, sheet_name=sheet_name)
+        workbook = writer.book
+        header_format = workbook.add_format(
+            {'bold': True, 'font_color': 'white', 'bg_color': '#1F4E78', 'border': 1}
+        )
+        worksheet = writer.sheets[sheet_name]
+        worksheet.freeze_panes(1, 0)
+        for idx, column in enumerate(dataframe.columns):
+            width = max(len(str(column)), _max_value_length(dataframe[column])) + 2
+            worksheet.set_column(idx, idx, min(width, 60))
+            worksheet.write(0, idx, column, header_format)
+
+    output.seek(0)
+    return output.getvalue()

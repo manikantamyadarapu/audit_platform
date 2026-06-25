@@ -44,11 +44,28 @@ model User {
   uploadedFiles UploadedFile[]
   ruleUpdates   MasterRule[]
   auditSessions AuditSession[]
+  notifications Notification[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
   @@index([roleId])
   @@index([isActive])
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 // ============================================================================
@@ -433,4 +450,34 @@ model AuditSession {
   @@index([expiresAt])
   @@index([isActive])
   @@map("audit_sessions")
+}
+
+// ============================================================================
+// 16. NOTIFICATIONS - In-app alerts (no email)
+// ============================================================================
+enum NotificationType {
+  AUDIT_COMPLETED
+  AUDIT_FAILED
+  HIGH_EXCEPTION_COUNT
+  SESSION_EXPIRING_SOON
+  MISSING_PREREQUISITE
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement())
+  userId      Int              @map("user_id")
+  type        NotificationType
+  title       String           @db.VarChar(200)
+  message     String           @db.Text
+  actionUrl   String?          @map("action_url") @db.VarChar(255)
+  metadata    Json?
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("notifications")
 }

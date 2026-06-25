@@ -30,6 +30,12 @@ def is_repeated_header_row(row: pd.Series) -> bool:
         if ts and normalize_header(ts) == 'total_value':
             return True
 
+    na = row.get('net_amount')
+    if na is not None and not pd.isna(na):
+        ns = str(na).strip()
+        if ns and normalize_header(ns) == 'net_amount':
+            return True
+
     pan_raw = row.get('pan')
     if isinstance(pan_raw, str) and pan_raw.strip().upper() == 'PAN':
         pan1_raw = row.get('pan1')

@@ -31,6 +31,7 @@ async function persistSalesAuditProductAverages({
     totalRows: pythonResult?.totalRows ?? 0,
     invalidRows: pythonResult?.errorRows ?? 0,
     productAverages,
+    pythonResult,
   });
 
   return auditRun.id;

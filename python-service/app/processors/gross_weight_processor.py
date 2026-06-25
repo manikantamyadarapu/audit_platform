@@ -16,6 +16,21 @@ from app.utils.header_cleaner import normalize_headers
 from app.utils.response_builder import build_processing_response
 from app.utils.weight_decimal import parse_weight_decimal
 
+GROSS_EXCLUDED_RECORD_FIELDS = frozenset({
+    "date",
+    "party",
+    "sno",
+    "value_row_index",
+    "voucher_row_index",
+})
+
+GROSS_RECORD_FIELD_ORDER = (
+    "voucher_no",
+    "manual_gross_weight",
+    "auto_gross_weight",
+    "difference",
+)
+
 
 class GrossWeightProcessor(BaseProcessor):
     def __init__(self) -> None:
@@ -145,22 +160,63 @@ class GrossWeightProcessor(BaseProcessor):
             if diff_val is None:
                 continue
 
-            # Build record with all columns from the row
-            record = {}
-            
-            # Add all attributes from the row
+            record: dict[str, Any] = {}
+
             for col in invalid_rows_df.columns:
+                if col in GROSS_EXCLUDED_RECORD_FIELDS:
+                    continue
                 col_value = getattr(row, col, None)
-                # Convert column name to camelCase for output
                 camel_col = self._to_camel_case(col)
+                if camel_col in self._excluded_camel_record_fields():
+                    continue
                 record[camel_col] = self._json_value(col_value)
-            
-            # Add rowNumber for SNo column (use valueRowIndex which has the actual Excel row number)
-            record["rowNumber"] = record.get("valueRowIndex") if record.get("valueRowIndex") is not None else ""
+
+            row_number = getattr(row, "sno", None)
+            if row_number is None:
+                row_number = getattr(row, "value_row_index", None)
+            if row_number is not None:
+                record["rowNumber"] = self._json_value(row_number)
+
+            message = issue_message("GROSS_WEIGHT_MISMATCH")
+            record["Message"] = message
+            record["messages"] = [message]
             record["issues"] = ["GROSS_WEIGHT_MISMATCH"]
-            records.append(record)
+            records.append(self._order_gross_record(record))
 
         return records
+
+    @staticmethod
+    def _excluded_camel_record_fields() -> frozenset[str]:
+        return frozenset(
+            GrossWeightProcessor._to_camel_case(column)
+            for column in GROSS_EXCLUDED_RECORD_FIELDS
+        ) | frozenset({"valueRowIndex", "voucherRowIndex", "sno"})
+
+    @staticmethod
+    def _order_gross_record(record: dict[str, Any]) -> dict[str, Any]:
+        issues = record.pop("issues", [])
+        messages = record.pop("messages", None)
+        message = record.pop("Message", None)
+        row_number = record.pop("rowNumber", None)
+
+        priority = [
+            GrossWeightProcessor._to_camel_case(column)
+            for column in GROSS_RECORD_FIELD_ORDER
+        ]
+        ordered: dict[str, Any] = {}
+        if row_number is not None:
+            ordered["rowNumber"] = row_number
+        for key in priority:
+            if key in record:
+                ordered[key] = record.pop(key)
+        for key in sorted(record):
+            ordered[key] = record[key]
+        if message is not None:
+            ordered["Message"] = message
+        if messages is not None:
+            ordered["messages"] = messages
+        ordered["issues"] = issues
+        return ordered
 
     @staticmethod
     def _to_camel_case(snake_str: str) -> str:
@@ -245,12 +301,9 @@ class GrossWeightProcessor(BaseProcessor):
             
             row_dict.update({
                 "voucher_no": voucher_no,
-                "date": voucher_row.get("date") if "date" in columns_set else None,
-                "party": voucher_row.get("party") if "party" in columns_set else None,
                 "manual_gross_weight": manual_raw,
                 "auto_gross_weight": auto_raw,
                 "difference": difference,
-                "voucher_row_index": idx + 2,
                 "value_row_index": idx + 3,
             })
             
@@ -259,12 +312,9 @@ class GrossWeightProcessor(BaseProcessor):
         # Get all columns from df plus our calculated columns
         all_cols = list(df.columns) + [
             "voucher_no",
-            "date",
-            "party",
             "manual_gross_weight",
             "auto_gross_weight",
             "difference",
-            "voucher_row_index",
             "value_row_index",
         ]
         # Remove duplicates while preserving order
@@ -323,13 +373,10 @@ class GrossWeightProcessor(BaseProcessor):
             
             row_dict.update({
                 "voucher_no": self._voucher_value(row, columns_set),
-                "date": row.get("date") if "date" in columns_set else None,
-                "party": row.get("party") if "party" in columns_set else None,
                 "manual_gross_weight": manual_raw,
                 "auto_gross_weight": auto_raw,
                 "difference": difference,
-                "voucher_row_index": idx + 2,
-                "value_row_index": idx + 2,
+                "value_row_index": int(idx) + 2,
             })
             
             flat_rows.append(row_dict)

@@ -14,7 +14,18 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.engines.vectorized_validation_engine import VectorizedValidationEngine
 from app.processors.base import BaseProcessor
-from app.utils.constants import SPREADSHEET_EMPTY_TOKENS, compact_pan_input_for_validation
+from app.utils.constants import (
+    ADDRESS_PROOF_MISSING_MESSAGE,
+    INVALID_ADDRESS_MESSAGE,
+    INVALID_PAN_FORMAT_MESSAGE,
+    NO_PAN_FORM60_AVAILABLE_MESSAGE,
+    NO_PAN_INVALID_FORM60_MESSAGE,
+    NO_PAN_NO_FORM60_MESSAGE,
+    SPREADSHEET_EMPTY_TOKENS,
+    VALID_ADDRESS_FORMAT_MESSAGE,
+    VALID_PAN_MESSAGE,
+    compact_pan_input_for_validation,
+)
 
 
 from app.utils.header_cleaner import normalize_header
@@ -23,9 +34,21 @@ from app.utils.response_builder import build_processing_response
 
 
 class PanProcessor(BaseProcessor):
-    REQUIRED_BASE_COLUMNS = {'total_value'}
+    AMOUNT_COLUMN_OPTIONS = frozenset({'total_value', 'net_amount'})
     PAN_COLUMN_OPTIONS = {'pan', 'pan1'}
     ADDRESS_COLUMN_OPTIONS = {'add_proof', 'add_proof_2'}
+    PAN_REPORT_MESSAGES: dict[str, str] = {
+        'validPan': VALID_PAN_MESSAGE,
+        'invalidPan': INVALID_PAN_FORMAT_MESSAGE,
+        'noPanNoForm60': NO_PAN_NO_FORM60_MESSAGE,
+        'noPanForm60Available': NO_PAN_FORM60_AVAILABLE_MESSAGE,
+        'noPanInvalidForm60': NO_PAN_INVALID_FORM60_MESSAGE,
+    }
+    ADDRESS_REPORT_MESSAGES: dict[str, str] = {
+        'gst50kAddressMissing': ADDRESS_PROOF_MISSING_MESSAGE,
+        'incorrectAddressFormat': INVALID_ADDRESS_MESSAGE,
+        'validAddressFormat': VALID_ADDRESS_FORMAT_MESSAGE,
+    }
 
     def __init__(self) -> None:
         self.engine = VectorizedValidationEngine('pan')
@@ -51,22 +74,19 @@ class PanProcessor(BaseProcessor):
         validation_ms = (perf_counter() - validation_start) * 1000
 
 
-        # Debug: print a small preview of the read/validated data in terminal
         if get_settings().debug_exports_enabled():
             try:
-                # df is a Polars DataFrame; preview as dict rows
                 df_preview = df.head(20).to_dicts()
-                print('PAN audit - parsed dataframe preview (first 20 rows):')
-                for r in df_preview:
-                    print(r)
+                self._log.debug('PAN audit parsed dataframe preview (first {} rows): {}', len(df_preview), df_preview)
 
                 invalid_preview = invalid_df.head(20).to_dicts()
-                print('PAN audit - invalid rows preview (first 20 rows):')
-                for r in invalid_preview:
-                    print(r)
-
+                self._log.debug(
+                    'PAN audit invalid rows preview (first {} rows): {}',
+                    len(invalid_preview),
+                    invalid_preview,
+                )
             except Exception as exc:
-                print(f'PAN audit debug print failed: {exc}')
+                self._log.warning('PAN audit debug preview failed: {}', exc)
 
 
         extraction_start = perf_counter()
@@ -94,6 +114,7 @@ class PanProcessor(BaseProcessor):
                 issues.append('INVALID_PAN_FORMAT')
                 report_type = 'invalidPan'
             elif invalid_row.get('valid_pan_issue'):
+                issues.append('VALID_PAN')
                 report_type = 'validPan'
             elif invalid_row.get('no_pan_no_form60_issue'):
                 issues.append('NO_PAN_NO_FORM60')
@@ -129,6 +150,8 @@ class PanProcessor(BaseProcessor):
                     col_value = invalid_row.get(col)
                     if col == 'total_value':
                         col_value = invalid_row.get('__total_value_amount')
+                    elif col == 'net_amount':
+                        col_value = invalid_row.get('__net_amount_amount')
                     elif col == 'gross_amount':
                         col_value = invalid_row.get('__gross_amount_amount')
                     # Use camelCase for output
@@ -143,7 +166,8 @@ class PanProcessor(BaseProcessor):
                     record[camel_col] = ''
             
             record['issues'] = issues
-            record['messages'] = self._messages_for_issues(issues)
+            record['messages'] = self._display_messages_for_reports(report_type, address_report)
+            record['Message'] = '; '.join(record['messages']) if record['messages'] else ''
             if report_type is None:
                 self._log.info(
                     'PAN row missing primary report_type',
@@ -405,12 +429,25 @@ class PanProcessor(BaseProcessor):
         )
 
     def _validate_dataframe(self, df: pl.DataFrame, data_columns: list[str]) -> pl.DataFrame:
-        working = self._ensure_columns(df, ['total_value', 'pan', 'pan1', '__excel_row_number__', 'add_proof', 'add_proof_2', 'address'])
+        working = self._ensure_columns(
+            df,
+            [
+                'total_value',
+                'net_amount',
+                'pan',
+                'pan1',
+                '__excel_row_number__',
+                'add_proof',
+                'add_proof_2',
+                'address',
+            ],
+        )
         column_set = set(data_columns)
 
         validated = working.with_columns(
             pl.col('__excel_row_number__').cast(pl.Int64, strict=False).alias('row_number'),
             pl.col('total_value').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__total_value_amount'),
+            pl.col('net_amount').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__net_amount_amount'),
             pl.col('gross_amount').map_elements(self._parse_amount_float, return_dtype=pl.Float64).alias('__gross_amount_amount'),
             pl.col('pan').map_elements(self.normalize_empty_value, return_dtype=pl.Utf8).alias('__pan_text'),
             pl.col('pan1').map_elements(self.normalize_empty_value, return_dtype=pl.Utf8).alias('__pan1_text'),
@@ -442,12 +479,15 @@ class PanProcessor(BaseProcessor):
                 lambda value: value is not None and len(value) > 5,
                 return_dtype=pl.Boolean,
             ).alias('__address_valid'),
+        ).with_columns(
+            pl.coalesce(
+                pl.col('__total_value_amount'),
+                pl.col('__net_amount_amount'),
+            ).alias('__pan_threshold_amount'),
         )
 
-        
-
         should_check = pl.col('__should_skip').fill_null(False).not_()
-        pan_needed = pl.col('__total_value_amount') > 200000
+        pan_needed = pl.col('__pan_threshold_amount') > 200000
         pan_valid = pl.col('__pan_ok').fill_null(False) | pl.col('__pan1_ok').fill_null(False)
         pan_present = pl.col('__pan_text').is_not_null() | pl.col('__pan1_text').is_not_null()
         pan_invalid_specific = (
@@ -557,6 +597,21 @@ class PanProcessor(BaseProcessor):
         return int(number) if number.is_integer() else number
 
     @staticmethod
+    def _display_messages_for_reports(
+        pan_report: str | None,
+        address_report: str | None,
+    ) -> list[str]:
+        if pan_report:
+            pan_message = PanProcessor.PAN_REPORT_MESSAGES.get(pan_report)
+            if pan_message:
+                return [pan_message]
+        if address_report:
+            address_message = PanProcessor.ADDRESS_REPORT_MESSAGES.get(address_report)
+            if address_message:
+                return [address_message]
+        return []
+
+    @staticmethod
     def _messages_for_issues(issues: list[str]) -> list[str]:
         return messages_for_codes(issues)
 
@@ -566,9 +621,9 @@ class PanProcessor(BaseProcessor):
 
     def _validate_required_columns(self, columns: Any) -> None:
         column_set = set(columns)
-        missing_base = self.REQUIRED_BASE_COLUMNS - column_set
-        if missing_base:
-            raise KeyError(f"Missing required columns: {', '.join(sorted(missing_base))}")
+        if not self.AMOUNT_COLUMN_OPTIONS & column_set:
+            missing = ', '.join(sorted(self.AMOUNT_COLUMN_OPTIONS))
+            raise KeyError(f'Missing required columns: one of {missing}')
 
         missing_pan_columns = self.PAN_COLUMN_OPTIONS - column_set
         if missing_pan_columns:
@@ -581,7 +636,8 @@ class PanProcessor(BaseProcessor):
         return 'pan' in cols or 'pan1' in cols
 
     def _headers_match_pan_sheet(self, headers: set[str]) -> bool:
-        if 'total_value' not in headers or not ('pan' in headers or 'pan1' in headers):
+        has_amount = 'total_value' in headers or 'net_amount' in headers
+        if not has_amount or not ('pan' in headers or 'pan1' in headers):
             return False
         return True
 
@@ -616,6 +672,11 @@ class PanProcessor(BaseProcessor):
         total_value = row.get('total_value')
         if self.normalize_empty_value(total_value) is not None:
             if normalize_header(total_value) == 'total_value':
+                return True
+
+        net_amount = row.get('net_amount')
+        if self.normalize_empty_value(net_amount) is not None:
+            if normalize_header(net_amount) == 'net_amount':
                 return True
 
         pan = row.get('pan')

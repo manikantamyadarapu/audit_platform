@@ -54,7 +54,7 @@ flowchart LR
   API -->|Axios proxy| PY
 ```
 
-- **`frontend/`** — React 19, Vite 8, Tailwind 4, React Router; calls **`/api/v1/...`** on the Node server (dev UI on port **4000**, API proxy to **4001**).
+- **`frontend/`** — React 19, Vite 8, Tailwind 4, React Router; calls **`/api/v1/...`** on the Node server (dev UI on port **4000**, API proxy to **4002**).
 - **`backend/`** — Express API: CORS, Helmet, Multer uploads, Swagger UI, routes under **`/api/v1/process/...`** → Python.
 - **`python-service/`** — FastAPI: Excel ingest (Pandas / OpenPyXL), validators, processors, PAN invalid-row Excel export.
 
@@ -79,36 +79,38 @@ Per-service setup, env vars, and curl examples: [`backend/README.md`](backend/RE
 
 ## Run locally (development)
 
+Each app has its own `.env` in its folder (`backend/.env`, `frontend/.env`, `python-service/.env`). Copy from `.env.example` where needed.
+
 1. **Python service** (port **8000** by default)
 
    ```bash
    cd python-service
+   cp .env.example .env      # optional if .env already exists
    python -m venv .venv
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
    pip install -r requirements.txt
-   cp .env.example .env      # optional
    uvicorn app.main:app --reload --port 8000
    ```
 
-2. **Node API** (port **4001** in dev when Vite uses **4000**; set `PORT=4000` in `backend/.env` if you run the API alone)
+2. **Node API** (`PORT` in `backend/.env`, default **4002**; must match `VITE_BACKEND_PORT` in `frontend/.env`)
 
    ```bash
    cd backend
-   cp .env.example .env       # set PYTHON_SERVICE_URL if Python is not on 127.0.0.1:8000
+   cp .env.example .env
    npm install
    npm run dev
    ```
 
-3. **Frontend** (port **4000**, proxies **`/api`** → Node on **4001**)
+3. **Frontend** (port **4000**, proxies **`/api`** → Node on **4002**)
 
    ```bash
    cd frontend
-   cp .env.example .env       # empty VITE_API_BASE_URL uses the proxy
+   cp .env.example .env
    npm install
    npm run dev
    ```
 
-Open the app at **`http://127.0.0.1:4000`**. Swagger for the gateway: **`http://127.0.0.1:4001/api-docs`** (when `ENABLE_SWAGGER` is not `false`). Python docs: **`http://127.0.0.1:8000/docs`**.
+Open the app at **`http://127.0.0.1:4000`**. Swagger for the gateway: **`http://127.0.0.1:4002/api-docs`**. Python docs: **`http://127.0.0.1:8000/docs`**.
 
 ## Gateway routes (summary)
 

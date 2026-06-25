@@ -14,13 +14,17 @@ from app.sales_return_engine.engine.sales_return_average_engine import (
     INVALID_FREE_QUANTITY_MSG,
     INVALID_LEDGER_MAPPING,
     LEDGER_MAPPING_ISSUES,
+    PRODUCT_NOT_FOUND_IN_SALES,
+    build_all_product_average_comparison_records,
     calculate_sales_return_average_rates,
     compare_average_rates,
     sales_averages_from_stored_records,
 )
 from app.sales_return_engine.exception_report import (
     build_consolidated_exception_records,
+    build_export_metadata,
     build_source_rows_by_product,
+    summarize_return_validation_records,
 )
 from app.utils.sheet_validation_error import SheetValidationError
 
@@ -69,6 +73,10 @@ class SalesReturnAuditEngine:
 
         sales_averages = sales_averages_from_stored_records(stored_sales_averages or [])
         return_averages = calculate_sales_return_average_rates(return_loaded, self.sales_engine)
+        product_average_comparison_records = build_all_product_average_comparison_records(
+            sales_averages,
+            return_averages,
+        )
         rate_comparison = compare_average_rates(sales_averages, return_averages)
         comparison_records = [row.to_record() for row in rate_comparison]
         source_columns = self.sales_engine.loader.user_columns(return_loaded.dataframe)
@@ -82,39 +90,48 @@ class SalesReturnAuditEngine:
             source_rows_by_product=source_rows_by_product,
         )
 
-        return_error_rows = int(
-            return_validation.summary.get('distinctInvalidRows')
-            or return_validation.summary.get('errorRowsCount')
-            or len(return_validation.records)
-        )
+        validation_summary = summarize_return_validation_records(return_validation.records)
 
         total_ms = (perf_counter() - start) * 1000
         summary = {
             **return_validation.summary,
-            'returnValidationErrorRows': return_error_rows,
+            **validation_summary,
             'salesProductCount': len(sales_averages),
             'returnProductCount': len(return_averages),
             'higherReturnRateProducts': sum(
                 1 for row in rate_comparison if row.issue == HIGHER_SALES_RETURN_RATE
             ),
+            'missingSalesBaselineProducts': sum(
+                1
+                for row in product_average_comparison_records
+                if PRODUCT_NOT_FOUND_IN_SALES in (row.get('issues') or [])
+            ),
+            'productAverageComparisonCount': len(product_average_comparison_records),
             'rateComparisonViolations': len(comparison_records),
             'exceptionRowCount': len(exception_records),
             'processingMs': round(total_ms, 2),
             'salesAuditBaselineCount': len(sales_averages),
         }
 
+        export_column_labels, _export_header_map = build_export_metadata(
+            source_columns,
+            display_headers,
+        )
+
         return {
             'success': True,
             'fileType': 'sales_return',
             'totalRows': return_validation.total_rows,
-            'errorRows': len(exception_records),
+            'errorRows': validation_summary['distinctInvalidRows'],
             'summary': summary,
             'validationIssues': return_validation.records,
             'rateComparisonRecords': comparison_records,
             'comparisonIssues': comparison_records,
+            'productAverageComparisonRecords': product_average_comparison_records,
             'exceptionRecords': exception_records,
             'records': exception_records,
-            'exportColumns': source_columns,
+            'exportColumns': export_column_labels,
+            'sourceColumns': source_columns,
             'columnDisplayHeaders': display_headers,
         }
 
@@ -176,6 +193,12 @@ class SalesReturnAuditEngine:
             dataframe = dataframe.rename(renames)
 
         if is_return and 'sales_account' in dataframe.columns:
+            dataframe = dataframe.with_columns(
+                pl.col('sales_account')
+                .cast(pl.Utf8, strict=False)
+                .fill_null('')
+                .alias('__upload_sales_account_raw')
+            )
             dataframe = dataframe.with_columns(
                 pl.col('sales_account')
                 .cast(pl.Utf8, strict=False)

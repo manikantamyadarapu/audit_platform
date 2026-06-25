@@ -63,3 +63,33 @@ def test_equal_return_rate_not_flagged() -> None:
     stored = _stored_avg('Di. RA 15', 150000, 10, 'JEWEL SALES ACCOUNT - DIAMONDS')
     result = engine.process(return_bytes, stored)
     assert result['rateComparisonRecords'] == []
+
+
+def test_equal_display_rates_not_flagged_despite_float_noise() -> None:
+    from app.sales_return_engine.engine.sales_return_average_engine import (
+        ProductAverage,
+        return_average_exceeds_sales,
+        _comparison_record_from_averages,
+    )
+
+    assert not return_average_exceeds_sales(2000.0001, 2000.0)
+    assert not return_average_exceeds_sales(50.0004, 50.0)
+    assert return_average_exceeds_sales(9500.0, 9000.0)
+
+    sales = ProductAverage(
+        product_key='RUBIES JRU 2000',
+        product='Rubies JRU 2000',
+        total_gross_amount=20000,
+        total_quantity=10,
+        average_rate=2000.0,
+    )
+    ret = ProductAverage(
+        product_key='RUBIES JRU 2000',
+        product='Rubies JRU 2000',
+        total_gross_amount=20000.001,
+        total_quantity=10,
+        average_rate=2000.0001,
+    )
+    record = _comparison_record_from_averages(return_avg=ret, sales_avg=sales)
+    assert record['issues'] == []
+    assert record['status'] == 'OK'

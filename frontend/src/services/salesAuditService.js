@@ -22,6 +22,7 @@ export async function fetchProductAverageRates(params = {}) {
   return {
     rows: data.data ?? [],
     pagination: data.pagination ?? { page: 1, limit: 25, total: 0, totalPages: 1 },
+    meta: data.meta ?? null,
   };
 }
 

@@ -1,24 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import {
   AlertTriangle,
-  Bell,
   Calendar,
   FileSpreadsheet,
   Filter,
   ShieldCheck,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { NotificationBell } from '../components/layout/NotificationBell';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
-import { CustomSelect } from '../components/ui/CustomSelect';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
-import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage, getDashboardAuditTrendErrorMessage, getDashboardIssuesCategoryErrorMessage, getDashboardRecentAuditsErrorMessage } from '../services/dashboardService';
+import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage } from '../services/dashboardService';
 import { AuditActivityTrendChart } from '../components/charts/AuditActivityTrendChart';
 import { IssuesByCategoryPanel } from '../components/charts/IssuesByCategoryPanel';
-import { IssuesByCategoryBarChart } from '../components/charts/IssuesByCategoryBarChart';
 import {
   buildDashboardKpiItems,
   buildSummaryStripItems,
@@ -38,12 +37,6 @@ const KPI_ICONS = {
   totalIssues: AlertTriangle,
   accuracy: ShieldCheck,
 };
-
-const TREND_PERIOD_OPTIONS = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-];
 
 const RECENT_AUDITS_PAGE_SIZE = 5;
 
@@ -128,10 +121,6 @@ export default function Dashboard() {
     const saved = loadAuditSession(DASHBOARD_UI_KEY);
     return saved?.data?.period ?? 'week';
   });
-  const [trendPeriod, setTrendPeriod] = useState(() => {
-    const saved = loadAuditSession(DASHBOARD_UI_KEY);
-    return saved?.data?.trendPeriod ?? 'daily';
-  });
   const [widgets, setWidgets] = useState(null);
   const [auditTrend, setAuditTrend] = useState(null);
   const [issuesCategory, setIssuesCategory] = useState(null);
@@ -140,87 +129,120 @@ export default function Dashboard() {
   const [issuesCategoryLoading, setIssuesCategoryLoading] = useState(true);
   const [recentAudits, setRecentAudits] = useState([]);
   const [recentAuditsLoading, setRecentAuditsLoading] = useState(true);
-  const loadWidgets = useCallback(async (selectedPeriod) => {
-    setWidgetsLoading(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const requestIdRef = useRef(0);
+
+  const loadDashboard = useCallback(async (selectedPeriod) => {
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+
+    if (isInitial) {
+      setWidgetsLoading(true);
+      setTrendLoading(true);
+      setIssuesCategoryLoading(true);
+      setRecentAuditsLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     try {
-      const data = await fetchDashboardWidgets(selectedPeriod);
-      setWidgets(data);
-    } catch (error) {
-      setWidgets(null);
-      toast.error(getDashboardWidgetsErrorMessage(error));
+      const [widgetsResult, trendResult, issuesResult, recentResult] = await Promise.allSettled([
+        fetchDashboardWidgets(selectedPeriod),
+        fetchDashboardAuditTrend(selectedPeriod),
+        fetchDashboardIssuesCategory(selectedPeriod),
+        fetchDashboardRecentAudits({
+          page: 1,
+          limit: RECENT_AUDITS_PAGE_SIZE,
+          period: selectedPeriod,
+        }),
+      ]);
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      let hadError = false;
+
+      if (widgetsResult.status === 'fulfilled') {
+        setWidgets(widgetsResult.value);
+      } else {
+        hadError = true;
+      }
+
+      if (trendResult.status === 'fulfilled') {
+        setAuditTrend(trendResult.value);
+      } else {
+        hadError = true;
+      }
+
+      if (issuesResult.status === 'fulfilled') {
+        setIssuesCategory(issuesResult.value);
+      } else {
+        hadError = true;
+      }
+
+      if (recentResult.status === 'fulfilled') {
+        setRecentAudits(recentResult.value.items ?? []);
+      } else {
+        hadError = true;
+      }
+
+      if (hadError) {
+        toast.error(getDashboardWidgetsErrorMessage(new Error('Failed to refresh dashboard')));
+      }
+
+      hasLoadedRef.current = true;
     } finally {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       setWidgetsLoading(false);
-    }
-  }, []);
-
-  const loadAuditTrend = useCallback(async (selectedPeriod) => {
-    setTrendLoading(true);
-    try {
-      const data = await fetchDashboardAuditTrend(selectedPeriod);
-      setAuditTrend(data);
-    } catch (error) {
-      setAuditTrend(null);
-      toast.error(getDashboardAuditTrendErrorMessage(error));
-    } finally {
       setTrendLoading(false);
-    }
-  }, []);
-
-  const loadIssuesCategory = useCallback(async (selectedPeriod) => {
-    setIssuesCategoryLoading(true);
-    try {
-      const data = await fetchDashboardIssuesCategory(selectedPeriod);
-      setIssuesCategory(data);
-    } catch (error) {
-      setIssuesCategory(null);
-      toast.error(getDashboardIssuesCategoryErrorMessage(error));
-    } finally {
       setIssuesCategoryLoading(false);
-    }
-  }, []);
-
-  const loadRecentAudits = useCallback(async () => {
-    setRecentAuditsLoading(true);
-    try {
-      const { items } = await fetchDashboardRecentAudits({
-        page: 1,
-        limit: RECENT_AUDITS_PAGE_SIZE,
-      });
-      setRecentAudits(items);
-    } catch (error) {
-      setRecentAudits([]);
-      toast.error(getDashboardRecentAuditsErrorMessage(error));
-    } finally {
       setRecentAuditsLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadWidgets(period);
-    loadIssuesCategory(period);
-  }, [period, loadWidgets, loadIssuesCategory]);
+    loadDashboard(period);
+  }, [period, loadDashboard]);
+
+  const refreshDashboard = useCallback(() => {
+    loadDashboard(period);
+  }, [period, loadDashboard]);
 
   useEffect(() => {
-    loadAuditTrend(trendPeriod);
-  }, [trendPeriod, loadAuditTrend]);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshDashboard();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshDashboard]);
 
   useEffect(() => {
-    loadRecentAudits();
-  }, [loadRecentAudits]);
-
-  useEffect(() => {
-    saveAuditSession(DASHBOARD_UI_KEY, { period, trendPeriod });
-  }, [period, trendPeriod]);
+    saveAuditSession(DASHBOARD_UI_KEY, { period });
+  }, [period]);
 
   const kpiItems = useMemo(() => buildDashboardKpiItems(widgets), [widgets]);
   const summaryItems = useMemo(() => buildSummaryStripItems(widgets), [widgets]);
-  const issueCategoryItems = useMemo(() => buildIssueCategoryItems(issuesCategory), [issuesCategory]);
+  const issueCategoryItems = useMemo(() => {
+    const items = buildIssueCategoryItems(issuesCategory);
+    return [...items].sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [issuesCategory]);
   const totalIssuesCount = issuesCategory?.totalIssues ?? widgets?.totalIssues?.value ?? 0;
+  const showWidgetsSkeleton = widgetsLoading && !widgets;
+  const showTrendSkeleton = trendLoading && !auditTrend;
+  const showIssuesSkeleton = issuesCategoryLoading && !issuesCategory;
+  const showRecentSkeleton = recentAuditsLoading && !recentAudits.length;
 
-  const periodSelectOptions = useMemo(
-    () => DASHBOARD_PERIOD_OPTIONS.map((option) => ({ value: option.id, label: option.label })),
-    []
-  );
+  const handlePeriodChange = useCallback((nextPeriod) => {
+    if (nextPeriod === period) return;
+    startTransition(() => setPeriod(nextPeriod));
+  }, [period]);
 
   return (
     <div className="min-h-[calc(100svh-3rem)] space-y-6 pb-2">
@@ -229,20 +251,13 @@ export default function Dashboard() {
           <h1 className="text-[32px] font-semibold tracking-tight text-[var(--color-text-primary)]">
             {greeting}, {displayName}
           </h1>
-          <p className="mt-2 text-base text-[var(--color-text-secondary)]">Here's what's happening with your audits today.</p>
+          <p className="mt-2 text-base text-[var(--color-text-secondary)]">
+            Here&apos;s what&apos;s happening with your audits today.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact className="h-14 w-14" />
-          <button
-            type="button"
-            className="relative flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-medium text-white">
-              3
-            </span>
-          </button>
+          <NotificationBell size="lg" />
         </div>
       </header>
 
@@ -252,13 +267,38 @@ export default function Dashboard() {
           <ButtonPill className="w-12 justify-center px-0">
             <Filter className="h-4 w-4" />
           </ButtonPill>
-          <CustomSelect
-            value={period}
-            onChange={setPeriod}
-            options={periodSelectOptions}
-            className="w-[7.5rem]"
-            triggerClassName="h-12 px-5"
-          />
+          <div
+            className="relative inline-flex h-12 items-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-1"
+            role="group"
+            aria-label="Audit overview period"
+          >
+            {DASHBOARD_PERIOD_OPTIONS.map((option) => {
+              const isActive = period === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handlePeriodChange(option.id)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'relative z-10 h-10 rounded-full px-5 text-sm font-semibold transition-colors duration-200',
+                    isActive
+                      ? 'text-white'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  )}
+                >
+                  {isActive ? (
+                    <motion.span
+                      layoutId="dashboard-period-indicator"
+                      className="absolute inset-0 rounded-full bg-emerald-600 shadow-sm"
+                      transition={{ type: 'spring', stiffness: 520, damping: 38 }}
+                    />
+                  ) : null}
+                  <span className="relative z-10">{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
           <ButtonPill>
             <Calendar className="h-4 w-4" />
             {shortDate}
@@ -266,14 +306,20 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div
+        className={cn(
+          'space-y-6 transition-opacity duration-300 ease-out',
+          refreshing ? 'pointer-events-none opacity-70' : 'opacity-100'
+        )}
+      >
       <section className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
         {kpiItems.map((item) => (
-          <KpiCard key={item.key} item={item} loading={widgetsLoading} />
+          <KpiCard key={item.key} item={item} loading={showWidgetsSkeleton} />
         ))}
       </section>
 
-      <Panel className={cn('px-6 py-5', !widgetsLoading && 'grid gap-0 md:grid-cols-4')}>
-        {widgetsLoading ? (
+      <Panel className={cn('px-6 py-5', !showWidgetsSkeleton && 'grid gap-0 md:grid-cols-4')}>
+        {showWidgetsSkeleton ? (
           <SummaryStripSkeleton columns={summaryItems.length || 4} />
         ) : (
           summaryItems.map((item, index) => (
@@ -303,32 +349,29 @@ export default function Dashboard() {
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
         <Panel className="overflow-hidden p-0">
-          <div className="flex flex-col gap-4 border-b border-[var(--color-border-soft)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
             <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Audit Activity Trend</h3>
-            <CustomSelect
-              value={trendPeriod}
-              onChange={setTrendPeriod}
-              options={TREND_PERIOD_OPTIONS}
-              className="w-[8.5rem]"
-              triggerClassName="h-11 px-4"
-            />
           </div>
           <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
-            <AuditActivityTrendChart data={auditTrend} loading={trendLoading} />
+            <AuditActivityTrendChart data={auditTrend} loading={showTrendSkeleton} />
           </div>
         </Panel>
 
-        <Panel className="p-5">
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
-          <IssuesByCategoryPanel
-            categories={issueCategoryItems}
-            totalIssues={totalIssuesCount}
-            loading={issuesCategoryLoading}
-          />
+        <Panel className="overflow-hidden p-0">
+          <div className="border-b border-[var(--color-border-soft)] px-6 py-5">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issues by Category</h3>
+          </div>
+          <div className="bg-[var(--color-surface-elevated)] px-3 py-4 sm:px-5">
+            <IssuesByCategoryPanel
+              categories={issueCategoryItems}
+              totalIssues={totalIssuesCount}
+              loading={showIssuesSkeleton}
+            />
+          </div>
         </Panel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+      <section>
         <Panel className="overflow-hidden p-5">
           <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Recent Audit Uploads</h3>
@@ -345,7 +388,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentAuditsLoading ? (
+                {showRecentSkeleton ? (
                   Array.from({ length: RECENT_AUDITS_PAGE_SIZE }).map((_, index) => (
                     <TableRowSkeleton key={index} columns={5} />
                   ))
@@ -364,10 +407,8 @@ export default function Dashboard() {
                         <td className="py-3 text-[var(--color-text-secondary)]">{row.auditType}</td>
                         <td className="py-3 text-[var(--color-text-secondary)]">{formatNumber(row.records)}</td>
                         <td className="py-3 text-[var(--color-text-secondary)]">{formatUploadDateTime(row.uploadedOn)}</td>
-                        <td className="py-3 text-right">
-                          <span className={cn('rounded-md px-2 py-1 text-xs font-medium', statusMeta.className)}>
-                            {statusMeta.label}
-                          </span>
+                        <td className="py-3 text-right text-sm font-medium text-[var(--color-text-primary)]">
+                          {statusMeta.label}
                         </td>
                       </tr>
                     );
@@ -383,17 +424,8 @@ export default function Dashboard() {
             </table>
           </div>
         </Panel>
-
-        <Panel className="overflow-hidden p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Issue Breakdown</h3>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Top categories by issue count</p>
-            </div>
-          </div>
-          <IssuesByCategoryBarChart categories={issueCategoryItems} loading={issuesCategoryLoading} />
-        </Panel>
       </section>
+      </div>
     </div>
   );
 }

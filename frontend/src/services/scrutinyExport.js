@@ -1,5 +1,14 @@
 import api, { getApiErrorMessage } from './api';
 
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * POST JSON { records } → Excel blob (multipart/binary scrutiny exports).
  *
@@ -35,6 +44,7 @@ export async function exportInvalidRecordsXlsx(path, records, signal) {
       }
       throw new Error(typeof j.detail === 'string' ? j.detail : 'Export failed');
     }
+    triggerBlobDownload(blob, filename);
     return { blob, filename };
   } catch (err) {
     if (err.response?.data instanceof Blob) {

@@ -162,6 +162,40 @@ def test_missing_voucher_row_skipped() -> None:
     assert result['errorRows'] == 1
 
 
+def test_invalid_record_excludes_internal_columns_and_orders_output() -> None:
+    processor = GrossWeightProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            {
+                'SNo': 1,
+                'Date': '2024-01-01',
+                'Party': 'Acme',
+                'Voucher No': 'V1',
+                'Manual Gross Weight': 10.5,
+                'Auto Gross Weight': 10.9,
+                'Difference': 0.4,
+            }
+        ]
+    )
+    result = processor.process(file_bytes)
+    record = result['records'][0]
+    assert 'date' not in record
+    assert 'party' not in record
+    assert 'sno' not in record
+    assert 'valueRowIndex' not in record
+    assert 'voucherRowIndex' not in record
+    assert record['rowNumber'] == 1
+    assert record['Message'] == 'gross weight mismatch'
+    assert list(record.keys())[:6] == [
+        'rowNumber',
+        'voucherNo',
+        'manualGrossWeight',
+        'autoGrossWeight',
+        'difference',
+        'Message',
+    ]
+
+
 def test_weight_summary_aliases_weight_mismatch_total() -> None:
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(

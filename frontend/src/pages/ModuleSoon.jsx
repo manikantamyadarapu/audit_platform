@@ -7,10 +7,6 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 
 const COPY = {
-  gst: {
-    title: 'GST verification',
-    body: 'Indian GST pattern checks, reconciliation windows, and multi-sheet ingestion will land here next.',
-  },
   'duplicate-invoice': {
     title: 'Duplicate invoice detection',
     body: 'Fuzzy vendor matching + numeric fingerprinting for recurring invoice clusters.',

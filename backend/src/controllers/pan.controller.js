@@ -1,4 +1,7 @@
 const pythonClient = require('../services/pythonClient.service');
+const auditNotification = require('../services/auditNotification.service');
+const auditRunPersistence = require('../services/auditRunPersistence.service');
+const { AUDIT_KEYS } = require('../constants/notifications');
 const { validateExportInvalidBody } = require('../validators/panExport.validator');
 const logger = require('../utils/logger');
 
@@ -24,8 +27,27 @@ async function validatePan(req, res, next) {
       req.file.mimetype,
       { requestId: req.requestId }
     );
-    return res.json(data);
+
+    const auditRunId = await auditRunPersistence.tryPersistAuditRun(
+      req,
+      AUDIT_KEYS.PAN,
+      req.file.originalname,
+      data
+    );
+
+    if (req.user?.id) {
+      auditNotification
+        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.PAN, req.file.originalname, data)
+        .catch(() => {});
+    }
+
+    return res.json({ ...data, auditRunId });
   } catch (err) {
+    if (req.user?.id) {
+      auditNotification
+        .notifyAuditFailed(req.user.id, AUDIT_KEYS.PAN, req.file?.originalname, err.message)
+        .catch(() => {});
+    }
     return next(err);
   }
 }

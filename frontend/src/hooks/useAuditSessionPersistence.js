@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAuditSessionConfig } from '../config/auditSessionConfig';
-import {
-  clearAuditSessionRemote,
-  restoreAuditSession,
-  saveAuditSessionRemote,
-} from '../services/auditSessionService';
-import { getAuthToken } from '../utils/authUser';
 import {
   clearAuditSession,
   formatSavedSessionLabel,
   loadAuditSession,
   readAuditSessionMeta,
   saveAuditSession,
+  aggressiveSlimSnapshotForRegistry,
 } from '../utils/auditSessionStorage';
-
-const SERVER_SAVE_DEBOUNCE_MS = 800;
 
 function metaEquals(a, b) {
   if (!a && !b) return true;
@@ -23,7 +15,8 @@ function metaEquals(a, b) {
 }
 
 /**
- * Persist audit page state for ONE audit type only (localStorage + database, 7-day TTL).
+ * Persist audit page state in the browser only (localStorage, 7-day TTL).
+ * Latest completed validation always wins — no server/DB sync.
  *
  * @template T
  * @param {string} registryKey
@@ -35,15 +28,11 @@ function metaEquals(a, b) {
  * }} [options]
  */
 export function useAuditSessionPersistence(registryKey, snapshot, options = {}) {
-  const config = getAuditSessionConfig(registryKey);
-
   const [sessionMeta, setSessionMeta] = useState(() => readAuditSessionMeta(registryKey));
   const [restoring, setRestoring] = useState(false);
 
   const snapshotRef = useRef(snapshot);
-  const serverSaveTimerRef = useRef(null);
   const mountGenerationRef = useRef(0);
-  const hydratedRef = useRef(false);
   const lastPersistKeyRef = useRef('');
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -60,146 +49,85 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
     }
   }, []);
 
-  const scheduleRemoteSave = useCallback(
-    (data, auditRunId = null) => {
-      if (!config || !getAuthToken()) return;
-
-      if (serverSaveTimerRef.current) {
-        clearTimeout(serverSaveTimerRef.current);
-      }
-
-      serverSaveTimerRef.current = setTimeout(async () => {
-        try {
-          const resolvedAuditRunId =
-            auditRunId ?? data?.result?.auditRunId ?? data?.auditRunId ?? null;
-
-          await saveAuditSessionRemote({
-            auditCode: config.auditCode,
-            pageRoute: config.pageRoute,
-            auditRunId: resolvedAuditRunId,
-            fileName: data?.fileName ?? null,
-            status: data?.sheetError ? 'FAILED' : data?.result ? 'COMPLETED' : 'PROCESSING',
-            sessionData: data,
-          });
-        } catch {
-          /* best-effort */
-        }
-      }, SERVER_SAVE_DEBOUNCE_MS);
-    },
-    [config]
-  );
-
   const persist = useCallback(
-    (data = snapshotRef.current, auditRunId = null) => {
-      if (!data?.result && !data?.sheetError && !data?.fileName) return false;
+    (data = snapshotRef.current, persistOptions = {}) => {
+      const notifyOnFailure = persistOptions.notifyOnFailure === true;
+      const force = persistOptions.force === true;
+
+      // Only persist completed/failed audit workspaces — never filename-only snapshots.
+      if (!data?.result && !data?.sheetError) return false;
 
       const transform = optionsRef.current.transform;
-      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}`;
-      if (persistKey === lastPersistKeyRef.current) return true;
+      const payloadToStore = transform ? transform(data) : data;
+      const resultSig = data.result
+        ? `${data.result.auditRunId ?? ''}:${data.result.totalRows ?? ''}:${data.result.errorRows ?? ''}`
+        : '';
+      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}:${resultSig}`;
+
+      if (!force && persistKey === lastPersistKeyRef.current) return true;
       lastPersistKeyRef.current = persistKey;
 
-      const ok = saveAuditSession(registryKey, data, { transform });
-      if (ok) {
-        updateSessionMeta(readAuditSessionMeta(registryKey));
-        scheduleRemoteSave(data, auditRunId);
-        return true;
+      const payloadForStorage = force
+        ? { ...payloadToStore, validatedAt: Date.now() }
+        : payloadToStore;
+
+      let storedPayload = payloadForStorage;
+      let ok = saveAuditSession(registryKey, storedPayload);
+      if (!ok && payloadToStore?.result) {
+        storedPayload = aggressiveSlimSnapshotForRegistry(registryKey, payloadForStorage);
+        ok = saveAuditSession(registryKey, storedPayload);
       }
 
-      optionsRef.current.onSaveFailed?.();
-      scheduleRemoteSave(data, auditRunId);
-      return false;
+      if (ok) {
+        updateSessionMeta(readAuditSessionMeta(registryKey));
+      } else if (notifyOnFailure && optionsRef.current.onSaveFailed) {
+        optionsRef.current.onSaveFailed();
+      }
+
+      return ok;
     },
-    [registryKey, scheduleRemoteSave, updateSessionMeta]
+    [registryKey, updateSessionMeta]
   );
 
-  const fetchRemoteSession = useCallback(async () => {
-    if (!config || !getAuthToken()) return null;
-
-    const response = await restoreAuditSession({ auditCode: config.auditCode });
-    const session = response?.data;
-    if (!session?.results) return null;
-
-    if (session.pageRoute && session.pageRoute !== config.pageRoute) {
-      return null;
-    }
-
-    return session;
-  }, [config]);
-
-  const hydrateFromRemote = useCallback(
-    async (generation) => {
-      const session = await fetchRemoteSession();
-      if (generation !== mountGenerationRef.current || !session?.results) return null;
-
-      const savedAt = session.savedAt ? new Date(session.savedAt).getTime() : Date.now();
-      const expiresAt = session.expiresAt
-        ? new Date(session.expiresAt).getTime()
-        : savedAt + 7 * 24 * 60 * 60 * 1000;
-
-      saveAuditSession(registryKey, session.results, {
-        transform: optionsRef.current.transform,
-      });
-      updateSessionMeta({ savedAt, expiresAt });
-      applySessionPayload(session.results);
-      hydratedRef.current = true;
-      return session.results;
-    },
-    [fetchRemoteSession, registryKey, applySessionPayload, updateSessionMeta]
-  );
-
-  // Hydrate this audit workspace once on mount (local first, then DB)
+  // Hydrate from browser storage once on mount.
   useEffect(() => {
     const generation = ++mountGenerationRef.current;
-    hydratedRef.current = false;
     lastPersistKeyRef.current = '';
-
-    if (serverSaveTimerRef.current) {
-      clearTimeout(serverSaveTimerRef.current);
-      serverSaveTimerRef.current = null;
-    }
 
     const local = loadAuditSession(registryKey);
     if (local?.data) {
-      applySessionPayload(local.data);
+      const snap = snapshotRef.current;
+      const alreadyHasWorkspace = Boolean(snap?.result || snap?.sheetError);
+      const localHasWorkspace = Boolean(local.data?.result || local.data?.sheetError);
+      if (localHasWorkspace && !alreadyHasWorkspace) {
+        applySessionPayload(local.data);
+      }
       updateSessionMeta({ savedAt: local.savedAt, expiresAt: local.expiresAt });
-      hydratedRef.current = true;
       return undefined;
     }
 
-    updateSessionMeta(null);
+    if (generation === mountGenerationRef.current) {
+      updateSessionMeta(null);
+    }
 
-    let cancelled = false;
-    (async () => {
-      try {
-        await hydrateFromRemote(generation);
-      } catch {
-        /* fresh workspace */
-      } finally {
-        if (!cancelled && generation === mountGenerationRef.current) {
-          updateSessionMeta(readAuditSessionMeta(registryKey));
-        }
-      }
-    })();
+    return undefined;
+  }, [registryKey, applySessionPayload, updateSessionMeta]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [registryKey, applySessionPayload, hydrateFromRemote, updateSessionMeta]);
-
-  // Auto-save when snapshot changes — persist() dedupes identical writes
+  // Auto-save filter/workspace changes — persist() dedupes identical writes.
   useEffect(() => {
-    if (!snapshot?.result && !snapshot?.sheetError && !snapshot?.fileName) return;
+    if (!snapshot?.result && !snapshot?.sheetError) return;
     persist(snapshot);
   }, [registryKey, snapshot, persist]);
 
-  // Flush on unmount only
+  // Flush latest snapshot when leaving the page.
   useEffect(() => {
     return () => {
-      if (serverSaveTimerRef.current) {
-        clearTimeout(serverSaveTimerRef.current);
-      }
-      lastPersistKeyRef.current = '';
-      persist(snapshotRef.current);
+      const snap = snapshotRef.current;
+      queueMicrotask(() => {
+        if (snap?.result || snap?.sheetError) {
+          persist(snap);
+        }
+      });
     };
   }, [registryKey, persist]);
 
@@ -211,31 +139,17 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
       if (local?.data) {
         applySessionPayload(local.data);
         updateSessionMeta({ savedAt: local.savedAt, expiresAt: local.expiresAt });
-        return;
       }
-      await hydrateFromRemote(mountGenerationRef.current);
     } finally {
       setRestoring(false);
     }
-  }, [registryKey, applySessionPayload, hydrateFromRemote, updateSessionMeta]);
+  }, [registryKey, applySessionPayload, updateSessionMeta]);
 
   const startNewAudit = useCallback(async () => {
     setRestoring(true);
     try {
-      if (serverSaveTimerRef.current) {
-        clearTimeout(serverSaveTimerRef.current);
-        serverSaveTimerRef.current = null;
-      }
-
       lastPersistKeyRef.current = '';
       clearAuditSession(registryKey);
-      if (config && getAuthToken()) {
-        try {
-          await clearAuditSessionRemote({ auditCode: config.auditCode });
-        } catch {
-          /* ignore */
-        }
-      }
       updateSessionMeta(null);
       applySessionPayload({
         result: null,
@@ -246,7 +160,7 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
     } finally {
       setRestoring(false);
     }
-  }, [registryKey, config, applySessionPayload, updateSessionMeta]);
+  }, [registryKey, applySessionPayload, updateSessionMeta]);
 
   const sessionLabel = sessionMeta
     ? formatSavedSessionLabel(sessionMeta.savedAt, sessionMeta.expiresAt)

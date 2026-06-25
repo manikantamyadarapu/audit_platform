@@ -16,6 +16,8 @@
   --shadow-float: 0 12px 40px rgba(15, 23, 42, 0.08);
 
   --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+  --animate-audit-ring-spin: audit-ring-spin 1.6s linear infinite;
+  --animate-audit-engine-glow: audit-engine-glow-breathe 3.2s ease-in-out infinite;
 
   @keyframes shimmer {
     0% {
@@ -33,6 +35,24 @@
     50%,
     100% {
       transform: translateX(100%);
+    }
+  }
+
+  @keyframes audit-ring-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes audit-engine-glow-breathe {
+    0%,
+    100% {
+      opacity: 0.38;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 0.82;
+      transform: scale(1.06);
     }
   }
 }
@@ -111,7 +131,9 @@ html.dark .skeleton-glass {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer,
   .skeleton-shimmer::after,
-  #app-boot-skeleton .boot-block {
+  #app-boot-skeleton .boot-block,
+  .animate-audit-ring-spin,
+  .animate-audit-engine-glow {
     animation: none;
   }
 
@@ -240,6 +262,7 @@ body {
   [class~="bg-slate-50/50"],
   [class~="bg-slate-50/60"],
   [class~="bg-slate-50/70"],
+  [class~="bg-slate-50/80"],
   [class~="bg-slate-50/90"]
 ) {
   background-color: var(--color-surface-elevated);
@@ -467,4 +490,158 @@ table.data-table {
 
 .scrollbar-track-slate-100::-webkit-scrollbar-track {
   background: rgb(241 245 249 / 0.8);
+}
+
+/* ---- Extended dark mode fixes ---- */
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--color-border-soft);
+}
+
+.dark :where(
+  [class~="text-emerald-700"],
+  [class~="text-emerald-800"],
+  [class~="text-emerald-900"]
+) {
+  color: #6ee7b7;
+}
+
+.dark :where([class~="text-emerald-600"]) {
+  color: #34d399;
+}
+
+.dark :where(
+  [class~="border-emerald-200"],
+  [class~="border-emerald-200/80"]
+) {
+  border-color: color-mix(in srgb, #065f46 55%, var(--color-border-soft));
+}
+
+.dark :where(
+  [class~="bg-emerald-50/50"],
+  [class~="bg-emerald-50/60"],
+  [class~="bg-emerald-50/80"]
+) {
+  background-color: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface-elevated));
+}
+
+.dark :where(
+  [class~="bg-sky-50"],
+  [class~="bg-violet-50"],
+  [class~="bg-orange-50"],
+  [class~="bg-rose-50"]
+) {
+  background-color: color-mix(in srgb, var(--color-surface-subtle) 70%, transparent);
+}
+
+.dark :where(
+  [class~="text-sky-600"],
+  [class~="text-violet-600"],
+  [class~="text-orange-600"],
+  [class~="text-rose-600"],
+  [class~="text-amber-600"]
+) {
+  color: #cbd5e1;
+}
+
+.dark :where(
+  [class~="ring-sky-100"],
+  [class~="ring-emerald-100"],
+  [class~="ring-violet-100"],
+  [class~="ring-amber-100"],
+  [class~="ring-rose-100"],
+  [class~="ring-orange-100"]
+) {
+  --tw-ring-color: var(--color-border-soft);
+}
+
+.dark :where([class~="text-amber-700"]) {
+  color: #fbbf24;
+}
+
+.dark :where([class~="bg-amber-100"]) {
+  background-color: color-mix(in srgb, #78350f 35%, var(--color-surface-elevated));
+}
+
+.dark :where(
+  [class~="from-[#dff5df]"],
+  [class~="to-[#d8f3e9]"]
+) {
+  --tw-gradient-from: #064e3b var(--tw-gradient-from-position);
+  --tw-gradient-to: #0f766e var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.dark :where([class~="text-[#07812f]"]) {
+  color: #6ee7b7;
+}
+
+.dark :where([class~="text-[#07812f]/80"]) {
+  color: rgb(110 231 183 / 0.8);
+}
+
+.dark :where([class~="shadow-lg"]) {
+  --tw-shadow-color: rgba(0, 0, 0, 0.45);
+}
+
+.dark :where([class~="shadow-2xl"]) {
+  --tw-shadow-color: rgba(0, 0, 0, 0.55);
+}
+
+.dark :where([class~="border-dashed"]) {
+  border-color: var(--color-border-soft);
+}
+
+/* Upload dropzone — SVG dashed border (clean corners) + glass fill */
+@keyframes upload-dropzone-dash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+.upload-dropzone-shell {
+  border-radius: 18px;
+  transition: box-shadow 0.2s ease;
+}
+
+.upload-dropzone-shell--active {
+  box-shadow: 0 0 0 4px rgb(16 185 129 / 0.1);
+}
+
+.upload-dropzone-stroke {
+  stroke: rgb(148 163 184 / 0.55);
+  animation: upload-dropzone-dash 1.25s linear infinite;
+}
+
+.dark .upload-dropzone-stroke {
+  stroke: rgb(255 255 255 / 0.18);
+}
+
+.upload-dropzone-stroke--active {
+  stroke: rgb(52 211 153 / 0.65);
+  animation-duration: 0.75s;
+}
+
+.dark .upload-dropzone-stroke--active {
+  stroke: rgb(52 211 153 / 0.55);
+}
+
+.upload-dropzone-inner {
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.upload-dropzone-shell--active .upload-dropzone-inner {
+  background: rgb(16 185 129 / 0.06);
+}
+
+.dark .upload-dropzone-inner {
+  background: rgb(15 23 42 / 0.35);
+}
+
+.dark .upload-dropzone-shell--active .upload-dropzone-inner {
+  background: rgb(16 185 129 / 0.08);
 }

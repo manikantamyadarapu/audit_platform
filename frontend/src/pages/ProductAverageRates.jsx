@@ -35,6 +35,7 @@ function formatDate(value) {
 
 export default function ProductAverageRates() {
   const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(() => readUiSession()?.page ?? 1);
@@ -77,6 +78,7 @@ export default function ProductAverageRates() {
         sortOrder,
       });
       setRows(result.rows);
+      setMeta(result.meta ?? null);
       setTotal(result.pagination.total ?? 0);
       setTotalPages(result.pagination.totalPages ?? 1);
     } catch (error) {
@@ -177,14 +179,50 @@ export default function ProductAverageRates() {
           </Link>
           <h2 className="text-2xl font-bold text-slate-900">Product Average Rates</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Product-wise average unit rate using SUM(Gross Amount) / SUM(Quantity).
+            One average per individual product SKU using SUM(Gross Amount) ÷ SUM(Quantity). Not grouped
+            by category or sales account.
           </p>
+          {meta?.fileName ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Latest audit: {meta.fileName}
+              {meta.verification?.totalDistinctProducts != null
+                ? ` · ${formatNumber(meta.verification.totalDistinctProducts)} distinct products`
+                : ''}
+            </p>
+          ) : null}
         </div>
         <Button variant="primary" size="md" loading={exporting} disabled={exporting} onClick={handleExport}>
           <Download className="h-4 w-4" />
           Export Excel
         </Button>
       </div>
+
+      {meta?.verification ? (
+        <Card>
+          <CardHeader>
+            <h3 className="text-base font-bold text-emerald-700">Verification summary</h3>
+            <p className="text-sm text-slate-500">
+              Distinct product SKU counts from the latest sales audit — not category-level averages.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SummaryStat label="Total rows processed" value={meta.verification.totalRowsProcessed} />
+              <SummaryStat label="Total distinct products" value={meta.verification.totalDistinctProducts} />
+              <SummaryStat label="DI. RA products" value={meta.verification.diRaProducts} />
+              <SummaryStat label="DI. RC products" value={meta.verification.diRcProducts} />
+              <SummaryStat label="Flat Polki products" value={meta.verification.flatPolkiProducts} />
+              <SummaryStat label="Gold products" value={meta.verification.goldProducts} />
+              <SummaryStat label="Silver products" value={meta.verification.silverProducts} />
+              <SummaryStat label="Emerald products" value={meta.verification.emeraldProducts} />
+              <SummaryStat label="Ruby products" value={meta.verification.rubyProducts} />
+              <SummaryStat label="Color stone products" value={meta.verification.colorStoneProducts} />
+              <SummaryStat label="Pearl products" value={meta.verification.pearlProducts} />
+              <SummaryStat label="Other products" value={meta.verification.otherProducts} />
+            </div>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -217,13 +255,13 @@ export default function ProductAverageRates() {
               </p>
               <div className="overflow-x-auto rounded-xl border border-slate-200/80">
                 <table className="min-w-full divide-y divide-slate-200 text-left">
-                  <thead className="bg-slate-50/90">
+                  <thead className="bg-[var(--color-surface-subtle)]">
                     {table.getHeaderGroups().map((headerGroup) => (
                       <tr key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
-                            className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                            className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]"
                             onClick={header.column.getToggleSortingHandler()}
                           >
                             <span className="inline-flex items-center gap-1">
@@ -238,7 +276,7 @@ export default function ProductAverageRates() {
                       </tr>
                     ))}
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
                     {table.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="hover:bg-emerald-50/30">
                         {row.getVisibleCells().map((cell) => (
@@ -283,6 +321,17 @@ export default function ProductAverageRates() {
           )}
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }) {
+  return (
+    <div className="rounded-xl border border-slate-200/80 bg-white px-4 py-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+        {formatNumber(value ?? 0)}
+      </p>
     </div>
   );
 }

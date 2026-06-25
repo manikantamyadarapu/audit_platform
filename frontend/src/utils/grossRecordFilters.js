@@ -2,7 +2,7 @@
 
 export const GROSS_FILTER_LABELS = {
   total: 'All rows',
-  mismatch: 'Weight mismatches',
+  mismatch: 'gross weight mismatch',
   compliance: 'Compliance (no issues)',
 };
 
@@ -17,7 +17,13 @@ export function filterGrossWeightRecords(records, filter) {
     return list;
   }
   if (filter === 'mismatch') {
-    return list.filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0);
+    return list
+      .filter((r) => (Array.isArray(r.issues) ? r.issues.length : 0) > 0)
+      .map((row) => ({
+        ...row,
+        Message: GROSS_FILTER_LABELS.mismatch,
+        messages: [GROSS_FILTER_LABELS.mismatch],
+      }));
   }
   if (filter === 'compliance') {
     return list.filter((r) => !Array.isArray(r.issues) || r.issues.length === 0);

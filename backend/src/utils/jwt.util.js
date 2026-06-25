@@ -1,43 +1,64 @@
 const jwt = require('jsonwebtoken');
+const config = require('../config');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_ALGORITHM = 'HS256';
 
 /**
- * Generate JWT token
- * @param {Object} payload - Token payload
- * @param {number} payload.id - User ID
- * @param {string} payload.email - User email
- * @param {string} payload.role - User role
- * @returns {string} JWT token
+ * Generate short-lived access JWT.
+ * @param {Object} payload
+ * @returns {string}
  */
-function generateToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+function generateAccessToken(payload) {
+  return jwt.sign(payload, config.JWT_SECRET, {
+    expiresIn: config.JWT_EXPIRES_IN,
+    algorithm: JWT_ALGORITHM,
+  });
 }
 
 /**
- * Verify JWT token
- * @param {string} token - JWT token to verify
- * @returns {Object} Decoded payload
- * @throws {Error} If token is invalid or expired
+ * Generate refresh JWT (stored in HttpOnly cookie; validated server-side via jti store).
+ * @param {Object} payload
+ * @returns {string}
  */
-function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+function generateRefreshToken(payload) {
+  return jwt.sign({ ...payload, type: 'refresh' }, config.REFRESH_TOKEN_SECRET, {
+    expiresIn: config.REFRESH_TOKEN_EXPIRES_IN,
+    algorithm: JWT_ALGORITHM,
+  });
 }
 
 /**
- * Decode JWT token without verification
- * @param {string} token - JWT token
- * @returns {Object} Decoded payload
+ * Verify access JWT.
+ * @param {string} token
+ * @returns {Object}
  */
+function verifyAccessToken(token) {
+  return jwt.verify(token, config.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
+}
+
+/**
+ * Verify refresh JWT.
+ * @param {string} token
+ * @returns {Object}
+ */
+function verifyRefreshToken(token) {
+  const decoded = jwt.verify(token, config.REFRESH_TOKEN_SECRET, { algorithms: [JWT_ALGORITHM] });
+  if (decoded.type !== 'refresh') {
+    const error = new Error('Invalid refresh token');
+    error.name = 'JsonWebTokenError';
+    throw error;
+  }
+  return decoded;
+}
+
 function decodeToken(token) {
   return jwt.decode(token);
 }
 
 module.exports = {
-  generateToken,
-  verifyToken,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
   decodeToken,
-  JWT_SECRET,
-  JWT_EXPIRES_IN,
 };

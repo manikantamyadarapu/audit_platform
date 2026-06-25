@@ -10,6 +10,11 @@ import {
 import { Search } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
+import {
+  auditCellValue,
+  columnHeaderLabel,
+  resolveAuditColumnOrder,
+} from '../../utils/auditTableColumns';
 
 function globalFilter(row, _columnId, filterValue) {
   const q = String(filterValue || '').toLowerCase().trim();
@@ -21,26 +26,44 @@ function globalFilter(row, _columnId, filterValue) {
   return blob.includes(q);
 }
 
-export function SalesReturnExceptionTable({ data = [], columnOrder = null }) {
+export function AuditUploadResultsTable({
+  data = [],
+  columnOrder = null,
+  exportColumns = null,
+  columnDisplayHeaders = null,
+  searchPlaceholder = 'Search rows…',
+}) {
   const [globalFilterState, setGlobalFilterState] = useState('');
 
+  const resolvedOrder = useMemo(
+    () =>
+      columnOrder?.length
+        ? columnOrder
+        : resolveAuditColumnOrder(data, exportColumns, columnDisplayHeaders),
+    [data, columnOrder, exportColumns, columnDisplayHeaders]
+  );
+
   const columns = useMemo(() => {
-    if (!data.length) return [];
-    const keys = columnOrder?.length
-      ? columnOrder.filter((key) => key in data[0])
-      : Object.keys(data[0]);
-    const trailing = ['Message'].filter((key) => !keys.includes(key) && key in data[0]);
-    const orderedKeys = [...keys, ...trailing];
-    return orderedKeys.map((key) => ({
+    if (!data.length || !resolvedOrder.length) return [];
+    return resolvedOrder.map((key) => ({
       accessorKey: key,
-      header: key,
+      header: columnHeaderLabel(key),
       cell: (info) => {
-        const value = info.getValue();
-        if (value == null || value === '') return <span className="text-slate-400">—</span>;
-        return <span className="text-sm text-slate-800">{String(value)}</span>;
+        const value =
+          key === 'Message' || key === 'messages'
+            ? auditCellValue(info.row.original, 'Message')
+            : auditCellValue(info.row.original, key);
+        if (value === '') {
+          return <span className="text-[var(--color-text-faint)]">—</span>;
+        }
+        return (
+          <span className="block max-w-[320px] whitespace-normal text-sm font-medium text-[var(--color-text-primary)]">
+            {value}
+          </span>
+        );
       },
     }));
-  }, [data, columnOrder]);
+  }, [data, resolvedOrder]);
 
   const table = useReactTable({
     data,
@@ -60,24 +83,24 @@ export function SalesReturnExceptionTable({ data = [], columnOrder = null }) {
   return (
     <div className="space-y-4">
       <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-faint)]" />
         <Input
           value={globalFilterState ?? ''}
           onChange={(e) => setGlobalFilterState(e.target.value)}
-          placeholder="Search exception rows…"
+          placeholder={searchPlaceholder}
           className="pl-9"
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border-soft)]">
+        <table className="min-w-max w-full divide-y divide-[var(--color-border-soft)]">
+          <thead className="bg-[var(--color-surface-subtle)]">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]"
                   >
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
@@ -85,9 +108,9 @@ export function SalesReturnExceptionTable({ data = [], columnOrder = null }) {
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="divide-y divide-[var(--color-border-soft)] bg-[var(--color-surface-elevated)]">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-slate-50/80">
+              <tr key={row.id} className="hover:bg-[var(--color-surface-subtle)]">
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -102,3 +125,6 @@ export function SalesReturnExceptionTable({ data = [], columnOrder = null }) {
     </div>
   );
 }
+
+/** @deprecated Use AuditUploadResultsTable */
+export const SalesReturnExceptionTable = AuditUploadResultsTable;

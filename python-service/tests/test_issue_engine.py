@@ -15,6 +15,7 @@ def test_registered_issue_codes_cover_current_processors() -> None:
     expected = {
         'MISSING_REQUIRED_COLUMNS',
         'MISSING_PAN_ABOVE_2L',
+        'VALID_PAN',
         'INVALID_PAN_FORMAT',
         'MISSING_ADDRESS_PROOF_ABOVE_50K',
         'NEGATIVE_WEIGHT_VALUES',

@@ -17,7 +17,7 @@ def test_export_gross_weight_invalid_rows() -> None:
                 'autoGrossWeight': 11.0,
                 'difference': 0.5,
                 'issues': ['GROSS_WEIGHT_MISMATCH'],
-                'messages': ['Manual gross weight does not match auto gross weight.'],
+                'messages': ['gross weight mismatch'],
             }
         ],
         'summary': {'mismatchCount': 1},
@@ -29,8 +29,16 @@ def test_export_gross_weight_invalid_rows() -> None:
     workbook = load_workbook(BytesIO(response.content))
     sheet = workbook['Invalid Gross Weight Rows']
     headers = [cell.value for cell in sheet[1]]
-    assert 'manualGrossWeight' in headers
-    assert 'messages' in headers
+    assert headers[:6] == [
+        'Row Number',
+        'Voucher No',
+        'Manual Gross Weight',
+        'Auto Gross Weight',
+        'Difference',
+        'Message',
+    ]
+    assert 'SNo' not in headers
+    assert 'Message' in headers
     assert 'Summary' in workbook.sheetnames
     assert 'Issue Breakdown' in workbook.sheetnames
     assert 'Issue Grouping' in workbook.sheetnames

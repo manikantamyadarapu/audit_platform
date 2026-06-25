@@ -11,8 +11,12 @@ from app.config.settings import get_settings
 from app.engines.vectorized_validation_engine import LoadedValidationSheet, VectorizedValidationEngine
 from app.sales_engine.engine.audit_workbook import write_sales_audit_workbook
 from app.sales_engine.engine.debug_trace import attach_debug_identity_columns, write_sales_audit_debug_workbook
-from app.sales_engine.engine.product_averages import product_average_records_from_txn_frame
+from app.sales_engine.engine.product_averages import (
+    build_product_average_verification_summary,
+    product_average_records_from_txn_frame,
+)
 from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+from app.sales_engine.exception_report import build_export_metadata, build_sales_exception_records
 from app.sales_engine.engine.reconciliation import log_reconciliation, reconcile_adjudicated_frame
 from app.sales_engine.parsers.product_category import (
     account_category_expr,
@@ -122,6 +126,10 @@ class SalesValidationResult:
     total_rows: int
     summary: dict[str, Any]
     records: list[dict[str, Any]]
+    exception_records: list[dict[str, Any]]
+    export_columns: list[str]
+    column_display_headers: dict[str, str]
+    source_columns: list[str]
     product_averages: list[dict[str, Any]]
     header_row_index: int
     header_detection_ms: float
@@ -154,6 +162,7 @@ class VectorizedSalesEngine:
             header_row_index=loaded.header_row_index,
             header_detection_ms=loaded.header_detection_ms,
             load_ms=loaded.load_ms,
+            column_display_headers=dict(loaded.column_display_headers or {}),
         )
 
     def validate(self, file_bytes: bytes) -> SalesValidationResult:
@@ -198,20 +207,39 @@ class VectorizedSalesEngine:
             | pl.col('__invalid_rate_deviation').fill_null(False)
         )
         records = self._records_from_invalid_frame(invalid_df)
+        source_columns = self.loader.user_columns(sales_df)
+        display_headers = dict(loaded.column_display_headers or {})
+        exception_records = build_sales_exception_records(
+            records,
+            source_columns=source_columns,
+            column_display_headers=display_headers,
+        )
+        export_column_labels, _export_header_map = build_export_metadata(
+            source_columns,
+            display_headers,
+        )
         product_averages = product_average_records_from_txn_frame(txn_df)
+        product_average_verification = build_product_average_verification_summary(
+            product_averages,
+            total_rows_processed=int(txn_df.height),
+        )
         extraction_ms = (perf_counter() - extraction_start) * 1000
 
         recon = reconciliation.to_dict()
+        invalid_uom = int(txn_df.filter(pl.col('__invalid_uom').fill_null(False)).height)
         summary = {
             'invalidSalesAccounts': 0,
             'invalidProductMappings': recon['invalidProductMappings'],
             'invalidProductPatterns': recon['invalidProductPatterns'],
+            'invalidUomRows': invalid_uom,
             'productsNotFoundInMaster': 0,
             'rateMasterNotFound': 0,
             'rateDeviationViolations': recon['rateDeviationViolations'],
             'distinctInvalidRows': recon['totalInvalidRows'],
             'errorRowsCount': recon['totalInvalidRows'],
+            'exceptionRowCount': len(exception_records),
             'productAverageCount': len(product_averages),
+            'productAverageVerification': product_average_verification,
             'reconciliation': recon,
             'auditTraceSummary': audit_counts,
         }
@@ -248,6 +276,10 @@ class VectorizedSalesEngine:
             total_rows=int(txn_df.height),
             summary=summary,
             records=records,
+            exception_records=exception_records,
+            export_columns=export_column_labels,
+            column_display_headers=display_headers,
+            source_columns=source_columns,
             product_averages=product_averages,
             header_row_index=loaded.header_row_index,
             header_detection_ms=loaded.header_detection_ms,
@@ -295,6 +327,14 @@ class VectorizedSalesEngine:
             if alias in seen_aliases or column not in dataframe.columns:
                 continue
             seen_aliases.add(alias)
+            if column == 'sales_account' and '__upload_sales_account_raw' in dataframe.columns:
+                freeze_exprs.append(
+                    pl.col('__upload_sales_account_raw')
+                    .cast(pl.Utf8, strict=False)
+                    .fill_null('')
+                    .alias('__original_sales_account')
+                )
+                continue
             freeze_exprs.append(
                 pl.col(column).cast(pl.Utf8, strict=False).fill_null('').alias(alias)
             )
@@ -593,10 +633,15 @@ class VectorizedSalesEngine:
             'rateMessage': row_messages[0] if row_messages else '',
         }
         for col, value in row.items():
-            if col not in record:
-                camel_col = self._to_camel_case(col)
+            if str(col).startswith('__original_'):
+                record[col] = '' if value is None else value
+        for col, value in row.items():
+            if col in record or str(col).startswith('__'):
+                continue
+            camel_col = self._to_camel_case(col)
+            if camel_col not in record:
                 record[camel_col] = value
-        
+
         return record
 
     @staticmethod

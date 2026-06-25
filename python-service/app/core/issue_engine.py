@@ -16,9 +16,16 @@ from app.utils.constants import (
     ADDRESS_PROOF_MISSING_MESSAGE,
     GROSS_WEIGHT_DIFFERENCE_MESSAGE,
     GROSS_WEIGHT_MISMATCH_MESSAGE,
+    INVALID_ADDRESS_MESSAGE,
+    INVALID_PAN_FORMAT_MESSAGE,
     NEGATIVE_WEIGHT_MESSAGE,
+    NO_PAN_FORM60_AVAILABLE_MESSAGE,
+    NO_PAN_INVALID_FORM60_MESSAGE,
+    NO_PAN_NO_FORM60_MESSAGE,
     PAN_MISSING_OR_INVALID_MESSAGE,
     SALES_ISSUE_MESSAGES,
+    VALID_ADDRESS_FORMAT_MESSAGE,
+    VALID_PAN_MESSAGE,
 )
 
 
@@ -85,11 +92,17 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         category=IssueCategory.COMPLIANCE,
         default_message=PAN_MISSING_OR_INVALID_MESSAGE,
     ),
+    'VALID_PAN': IssueDefinition(
+        issue_code='VALID_PAN',
+        severity=IssueSeverity.LOW,
+        category=IssueCategory.COMPLIANCE,
+        default_message=VALID_PAN_MESSAGE,
+    ),
     'INVALID_PAN_FORMAT': IssueDefinition(
         issue_code='INVALID_PAN_FORMAT',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
-        default_message=PAN_MISSING_OR_INVALID_MESSAGE,
+        default_message=INVALID_PAN_FORMAT_MESSAGE,
     ),
     'MISSING_FORM_60': IssueDefinition(
         issue_code='MISSING_FORM_60',
@@ -101,19 +114,19 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         issue_code='NO_PAN_NO_FORM60',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
-        default_message='No PAN and no Form 60 available.',
+        default_message=NO_PAN_NO_FORM60_MESSAGE,
     ),
     'NO_PAN_FORM60_AVAILABLE': IssueDefinition(
         issue_code='NO_PAN_FORM60_AVAILABLE',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
-        default_message='No PAN but Form 60 is available.',
+        default_message=NO_PAN_FORM60_AVAILABLE_MESSAGE,
     ),
     'NO_PAN_INVALID_FORM60': IssueDefinition(
         issue_code='NO_PAN_INVALID_FORM60',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
-        default_message='No PAN and Form 60 is invalid (too short).',
+        default_message=NO_PAN_INVALID_FORM60_MESSAGE,
     ),
 
     'MISSING_ADDRESS_PROOF_ABOVE_50K': IssueDefinition(
@@ -126,13 +139,13 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         issue_code='INVALID_ADDRESS',
         severity=IssueSeverity.HIGH,
         category=IssueCategory.COMPLIANCE,
-        default_message='Address is missing or too short (must be more than 15 characters)',
+        default_message=INVALID_ADDRESS_MESSAGE,
     ),
     'VALID_ADDRESS_FORMAT': IssueDefinition(
         issue_code='VALID_ADDRESS_FORMAT',
         severity=IssueSeverity.LOW,
         category=IssueCategory.COMPLIANCE,
-        default_message='Address proof present and appears valid.',
+        default_message=VALID_ADDRESS_FORMAT_MESSAGE,
     ),
     'NEGATIVE_WEIGHT_VALUES': IssueDefinition(
         issue_code='NEGATIVE_WEIGHT_VALUES',
@@ -188,6 +201,12 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         category=IssueCategory.BUSINESS_RULE,
         default_message=SALES_ISSUE_MESSAGES['INVALID_PRODUCT_MAPPING'],
     ),
+    'INVALID_LEDGER_MAPPING': IssueDefinition(
+        issue_code='INVALID_LEDGER_MAPPING',
+        severity=IssueSeverity.HIGH,
+        category=IssueCategory.BUSINESS_RULE,
+        default_message='Sales account and product category do not match.',
+    ),
     'PRODUCT_NOT_FOUND_IN_MASTER': IssueDefinition(
         issue_code='PRODUCT_NOT_FOUND_IN_MASTER',
         severity=IssueSeverity.HIGH,
@@ -228,7 +247,7 @@ _ISSUE_REGISTRY: dict[str, IssueDefinition] = {
         issue_code='HIGHER_SALES_RETURN_RATE',
         severity=IssueSeverity.MEDIUM,
         category=IssueCategory.BUSINESS_RULE,
-        default_message='Average sales return rate is higher than average sales rate.',
+        default_message='Higher sales return rate',
     ),
     'PRODUCT_NOT_FOUND_IN_SALES': IssueDefinition(
         issue_code='PRODUCT_NOT_FOUND_IN_SALES',

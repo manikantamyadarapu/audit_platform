@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import ApexCharts from 'apexcharts';
 import { ChartSkeleton } from '../ui/ChartSkeleton';
 import { useAppUi } from '../../context/AppUiContext';
@@ -146,6 +146,13 @@ function buildChartOptions(chartPayload, isDark) {
   };
 }
 
+function destroyChart(instanceRef) {
+  if (instanceRef.current) {
+    instanceRef.current.destroy();
+    instanceRef.current = null;
+  }
+}
+
 /**
  * @param {{ data: import('../../types/dashboard').DashboardAuditTrendData | null, loading?: boolean }} props
  */
@@ -167,32 +174,33 @@ export function AuditActivityTrendChart({ data, loading = false }) {
     };
   }, [data]);
 
-  useEffect(() => {
-    return () => {
-      if (instanceRef.current) {
-        instanceRef.current.destroy();
-        instanceRef.current = null;
-      }
-    };
-  }, []);
+  useEffect(() => () => destroyChart(instanceRef), []);
 
-  useEffect(() => {
-    if (!chartRef.current || loading || !chartPayload) {
-      return;
+  useLayoutEffect(() => {
+    if (!chartPayload) {
+      destroyChart(instanceRef);
+      return undefined;
+    }
+
+    const node = chartRef.current;
+    if (!node) {
+      return undefined;
     }
 
     const options = buildChartOptions(chartPayload, isDark);
 
     if (instanceRef.current) {
-      instanceRef.current.updateOptions(options, true, true);
-      return;
+      void instanceRef.current.updateOptions(options, true, true);
+      return undefined;
     }
 
-    instanceRef.current = new ApexCharts(chartRef.current, options);
-    instanceRef.current.render();
-  }, [chartPayload, loading, isDark]);
+    instanceRef.current = new ApexCharts(node, options);
+    void instanceRef.current.render();
 
-  if (loading) {
+    return () => destroyChart(instanceRef);
+  }, [chartPayload, isDark]);
+
+  if (loading && !chartPayload) {
     return <ChartSkeleton height={320} variant="area" aria-label="Loading audit activity chart" />;
   }
 
@@ -204,5 +212,5 @@ export function AuditActivityTrendChart({ data, loading = false }) {
     );
   }
 
-  return <div ref={chartRef} className="w-full" role="img" aria-label="Audit activity trend chart" />;
+  return <div ref={chartRef} className="w-full min-h-[320px]" role="img" aria-label="Audit activity trend chart" />;
 }

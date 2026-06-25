@@ -212,12 +212,30 @@ function buildMonthlyBuckets() {
   return buckets;
 }
 
+function buildMonthPeriodBuckets() {
+  const buckets = [];
+  const today = startOfDay(new Date());
+
+  for (let offset = 29; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(day.getDate() - offset);
+    buckets.push({
+      key: day.toISOString().slice(0, 10),
+      label: formatDayLabel(day),
+      start: startOfDay(day),
+      end: endOfDay(day),
+    });
+  }
+
+  return buckets;
+}
+
 /**
- * @param {'daily'|'weekly'|'monthly'} period
+ * @param {'week'|'month'|'year'} period
  */
 function getTrendBuckets(period) {
-  if (period === 'weekly') return buildWeeklyBuckets();
-  if (period === 'monthly') return buildMonthlyBuckets();
+  if (period === 'year') return buildMonthlyBuckets();
+  if (period === 'month') return buildMonthPeriodBuckets();
   return buildDailyBuckets();
 }
 
@@ -263,14 +281,7 @@ async function getAuditTrend(query, user) {
     period,
   });
 
-  let runs;
-  if (period === 'weekly') {
-    runs = await dashboardRepository.getWeeklyTrend(startDate);
-  } else if (period === 'monthly') {
-    runs = await dashboardRepository.getMonthlyTrend(startDate);
-  } else {
-    runs = await dashboardRepository.getDailyTrend(startDate);
-  }
+  const runs = await dashboardRepository.getDailyTrend(startDate);
 
   if (!runs.length) {
     return {
@@ -406,7 +417,15 @@ async function getRecentAudits(query, user) {
     search: filters.search,
   });
 
-  const { runs, total } = await dashboardRepository.getRecentAudits(filters);
+  const { runs, total } = await dashboardRepository.getRecentAudits({
+    ...filters,
+    ...(filters.period
+      ? {
+          startDate: getPeriodRanges(filters.period).current.startDate,
+          endDate: getPeriodRanges(filters.period).current.endDate,
+        }
+      : {}),
+  });
   const totalPages = total === 0 ? 0 : Math.ceil(total / filters.limit);
 
   return {
