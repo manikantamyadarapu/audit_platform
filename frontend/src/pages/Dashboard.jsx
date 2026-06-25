@@ -12,7 +12,7 @@ import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { NotificationBell } from '../components/layout/NotificationBell';
 import { Skeleton } from '../components/ui/Skeleton';
-import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
+import { SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
 import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage } from '../services/dashboardService';
@@ -262,14 +262,13 @@ export default function Dashboard() {
 
       hasLoadedRef.current = true;
     } finally {
-      if (requestId !== requestIdRef.current) {
-        return;
+      if (requestId === requestIdRef.current) {
+        setWidgetsLoading(false);
+        setTrendLoading(false);
+        setIssuesCategoryLoading(false);
+        setRecentAuditsLoading(false);
+        setRefreshing(false);
       }
-      setWidgetsLoading(false);
-      setTrendLoading(false);
-      setIssuesCategoryLoading(false);
-      setRecentAuditsLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
