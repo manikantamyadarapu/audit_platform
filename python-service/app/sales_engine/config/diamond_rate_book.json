@@ -125,6 +125,30 @@
       "max_rate": 17000.0,
       "min_only": false
     },
+    "DI. BEADS": {
+      "min_rate": 1500.0,
+      "max_rate": 1500.0,
+      "min_only": false,
+      "fixed_band": true
+    },
+    "DI. BEADS 1": {
+      "min_rate": 1000.0,
+      "max_rate": 1000.0,
+      "min_only": false,
+      "fixed_band": true
+    },
+    "DI. BEADS 2": {
+      "min_rate": 1500.0,
+      "max_rate": 1500.0,
+      "min_only": false,
+      "fixed_band": true
+    },
+    "DI. BEADS 3": {
+      "min_rate": 2700.0,
+      "max_rate": 2700.0,
+      "min_only": false,
+      "fixed_band": true
+    },
     "DI. RC 3": {
       "min_rate": 23000.0,
       "max_rate": 23000.0,

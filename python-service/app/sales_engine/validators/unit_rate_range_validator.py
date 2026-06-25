@@ -7,6 +7,7 @@ import polars as pl
 ZERO_TO_ONE_PRODUCTS: frozenset[str] = frozenset({
     'LAC',
     'NAIL',
+    'KUNDAN',
     'DORI',
     'BLACK BEADS',
     'WAX',

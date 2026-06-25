@@ -1,0 +1,153 @@
+name: Backend & Python Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'python-service/**'
+      - '.github/workflows/backend-deploy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'python-service/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-check:
+    name: Backend — validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+  python-check:
+    name: Python — smoke test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: python-service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run health smoke test
+        run: pytest tests/test_health.py -q
+
+  deploy:
+    name: Deploy to server
+    needs: [backend-check, python-check]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Rsync backend
+        run: |
+          rsync -avz --delete \
+            --exclude node_modules \
+            --exclude .env \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            backend/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_BACKEND_PATH }}/"
+
+      - name: Rsync python-service
+        run: |
+          rsync -avz --delete \
+            --exclude .venv \
+            --exclude __pycache__ \
+            --exclude .pytest_cache \
+            --exclude .env \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            python-service/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PYTHON_PATH }}/"
+
+      - name: Install & restart services on server
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -euo pipefail && \
+            cd '${{ secrets.DEPLOY_BACKEND_PATH }}' && \
+            npm ci && \
+            npx prisma generate && \
+            (pm2 restart audit-backend --update-env || pm2 start src/server.js --name audit-backend) && \
+            cd '${{ secrets.DEPLOY_PYTHON_PATH }}' && \
+            (test -d .venv || python3 -m venv .venv) && \
+            . .venv/bin/activate && \
+            pip install -r requirements.txt && \
+            (pm2 restart audit-python --update-env || pm2 start .venv/bin/uvicorn --name audit-python --cwd '${{ secrets.DEPLOY_PYTHON_PATH }}' -- app.main:app --host 127.0.0.1 --port 8000)"
+
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "curl -fsS http://127.0.0.1:4002/api/health && curl -fsS http://127.0.0.1:8000/api/health"

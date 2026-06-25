@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { AuditSearchIllustration } from '../components/auth/AuditSearchIllustration';
@@ -74,6 +74,7 @@ function getLoginErrorMessage(error, response) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(getRememberMePreference());
   const [formData, setFormData] = useState({
@@ -142,7 +143,11 @@ export default function Login() {
           rememberMe,
           email: formData.email,
         });
-        navigate('/dashboard');
+        const from =
+          location.state?.from?.pathname ||
+          new URLSearchParams(location.search).get('redirect') ||
+          '/dashboard';
+        navigate(from, { replace: true });
       } else {
         throw new Error(data.message || data.detail || 'Login failed');
       }
