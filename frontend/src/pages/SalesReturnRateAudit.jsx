@@ -527,8 +527,6 @@ export default function SalesReturnRateAudit() {
 
     try {
 
-      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-
       if (activeFilter === 'higherReturnRate') {
 
         downloadRowsXlsx(
@@ -1196,5 +1194,4 @@ export default function SalesReturnRateAudit() {
   );
 
 }
-
 

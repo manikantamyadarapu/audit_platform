@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { Card, CardBody } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
 
@@ -334,6 +334,10 @@ export default function Users() {
   // Toast state
   const [toast, setToast] = useState(null);
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
   const fetchUsers = async (page = 1, search = '') => {
     try {
       setLoading(true);
@@ -350,10 +354,6 @@ export default function Users() {
   useEffect(() => {
     fetchUsers(1, searchQuery);
   }, [searchQuery]);
-
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-  };
 
   const handleCreateUser = async (formData) => {
     try {

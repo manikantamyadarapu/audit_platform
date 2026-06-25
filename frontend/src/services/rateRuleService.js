@@ -20,6 +20,6 @@ export async function saveRateRules(payload, signal) {
     const { data } = await api.post('/api/v1/rate-rules', payload, { signal });
     return data;
   } catch (err) {
-    throw new Error(getApiErrorMessage(err));
+    throw new Error(getApiErrorMessage(err), { cause: err });
   }
 }

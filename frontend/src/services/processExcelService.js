@@ -107,7 +107,7 @@ export async function fetchSalesReturnRateComparison(signal) {
     return data;
   } catch (err) {
     const msg = getApiErrorMessage(err);
-    throw new Error(msg);
+    throw new Error(msg, { cause: err });
   }
 }
 
@@ -173,7 +173,7 @@ export async function exportSalesReturnConsolidated(
     URL.revokeObjectURL(url);
     return { blob, filename };
   } catch (err) {
-    throw new Error(getApiErrorMessage(err));
+    throw new Error(getApiErrorMessage(err), { cause: err });
   }
 }
 
