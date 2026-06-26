@@ -1,129 +1,188 @@
-# HAA audit platform
+# HAA Audit Platform
 
-Web application for **spreadsheet-driven audits**: teams upload Excel ledgers, the stack validates structure and business rules, and the UI surfaces row-level issues (with PAN-specific export of invalid rows). The product is organised around **Scrutiny** (active checks: PAN, gross weight, sales ledger; GST and other modules are scaffolded) and **Vouching** (placeholder flows), plus dashboard, reports, and settings.
+Spreadsheet-driven audit workspace for jewellery and retail ledgers. Teams upload Excel workbooks; the platform validates structure and business rules and surfaces row-level issues with exports and dashboard analytics.
 
-## Business logic (high level)
+## Project Overview
 
-1. **Upload** — User selects an `.xlsx` / `.xlsm` / `.xls` file in the browser or via API (`multipart/form-data`, field **`file`**).
-2. **Gateway** — The Node API validates request limits, optional **`x-request-id`**, and forwards to the Python service.
-3. **Processing** — Headers are normalised to **snake_case**; required columns are enforced per audit type; row-level rules run (**PAN**, **gross weight**, and **sales ledger** are implemented end-to-end in Python; **GST** and other modules are lighter / scaffolded).
-4. **Outcome** — JSON responses include **`totalRows`**, **`errorRows`**, **`summary`**, and per-row **`records`** with **`issues`** where the processor emits them (gross weight currently reports mismatches in **`summary`** only — see below).
-5. **PAN export** — Clients can POST the **`records`** payload back to generate an **invalid-rows `.xlsx`** download.
+| Layer | Role |
+|-------|------|
+| **Frontend** | React SPA — Scrutiny audits, dashboard, user management, settings |
+| **Backend** | Node.js API gateway — auth, PostgreSQL persistence, proxies to Python |
+| **Python service** | FastAPI audit engine — Excel parsing, validators, rate rules, exports |
 
-### PAN rules (implemented)
-
-Aligned with [`python-service/README.md`](python-service/README.md):
-
-- **Format:** `AAAAA9999A` on non-empty `pan` / `pan1` values.
-- **`total_value` above ₹2L:** at least one valid PAN in `pan` or `pan1`; otherwise missing-PAN / invalid-format issue codes.
-- **At or below ₹2L:** if either column holds a valid PAN, PAN checks pass; non-empty but invalid values → invalid-format.
-- **`total_value` above ₹50k:** at least one of **`add_proof`**, **`add_proof_2`** must be present → else missing address-proof code.
-
-### Gross weight rules (implemented)
-
-- **Columns:** after normalisation, **`manual_gross_weight`** and **`auto_gross_weight`** are required (aliases **`manual_gross_wt`** / **`auto_gross_wt`** are accepted and mapped).
-- **Header row:** the sheet may have preamble rows above the header; the service scans for a row that contains both manual and auto gross-weight headers.
-- **Rule:** for each data row where both cells parse as numbers, if **|manual − auto| > `GROSS_WEIGHT_TOLERANCE`** (default **0.5**, from env / `app/config/settings.py`), that row counts as a mismatch.
-- **Response:** **`summary.weightMismatch`** holds the count of mismatched rows; **`records`** is currently empty for this processor (aggregate-only).
-
-### Sales ledger rules (implemented)
-
-See [`python-service/app/processors/sales_audit_processor.py`](python-service/app/processors/sales_audit_processor.py).
-
-- **Columns:** **`voucher_no`**, **`sales_account`**, **`product`**, **`manual_gross_wt`**, **`auto_gross_wt`** (with **`manual_gross_weight`** / **`auto_gross_weight`** accepted as aliases). Preamble rows above a single header row are supported (same header-detection idea as gross weight).
-- **Sales account ↔ product:** when the sales-account text maps to an expected category, the **`product`** label is classified to a category; mismatches raise **`PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT`**; unclassified product when a rule applies → **`MISSING_PRODUCT_CATEGORY_FOR_VALIDATION`**. Rows whose sales account has no mapping are skipped for that check (**`summary.skippedNoRule`**).
-- **Dominant account per product:** if the file has a clearly dominant normalised **`sales_account`** for a given **`product`**, other rows with the same product but a different account get **`CONFLICTING_SALES_ACCOUNT_FOR_PRODUCT`**.
-- **Weights:** if both manual and auto gross weights parse as numbers and **|manual − auto| > `GROSS_WEIGHT_TOLERANCE`**, the row gets **`GROSS_WEIGHT_OUTSIDE_TOLERANCE`**.
-
-Sheet contracts and extra detail: [`python-service/README.md`](python-service/README.md).
+Active audit modules: **PAN verification**, **Gross weight**, **Sales ledger (rate & ledger)**, **Sales return rate audit**, **Product average rates**, **Gold/silver rate book**, **Diamond/gem rate book**.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  subgraph browser [Browser]
-    FE[React SPA]
+flowchart TB
+  subgraph client [Browser]
+    UI[React SPA]
   end
-  subgraph node [Node gateway]
-    API[Express /api/v1]
+  subgraph node [Node.js Gateway :4002]
+    API[Express /api]
+    Auth[JWT + Refresh Cookie]
+    DB[(PostgreSQL / Supabase)]
   end
-  subgraph py [Python service]
-    PY[FastAPI processors]
+  subgraph py [Python Service :8000]
+    ENG[FastAPI Processors]
+    VAL[Validators & Rate Engines]
   end
-  FE -->|HTTP /api| API
-  API -->|Axios proxy| PY
+  UI -->|HTTPS /api| API
+  API --> Auth
+  API --> DB
+  API -->|Axios proxy| ENG
+  ENG --> VAL
 ```
 
-- **`frontend/`** — React 19, Vite 8, Tailwind 4, React Router; calls **`/api/v1/...`** on the Node server (dev UI on port **4000**, API proxy to **4002**).
-- **`backend/`** — Express API: CORS, Helmet, Multer uploads, Swagger UI, routes under **`/api/v1/process/...`** → Python.
-- **`python-service/`** — FastAPI: Excel ingest (Pandas / OpenPyXL), validators, processors, PAN invalid-row Excel export.
+## Tech Stack
 
-## Repository layout
+| Area | Technologies |
+|------|----------------|
+| Frontend | React 19, Vite, Tailwind CSS 4, React Router, TanStack Table, Axios |
+| Backend | Node.js 18+, Express, Prisma, PostgreSQL, JWT, Multer, Helmet, Swagger |
+| Python | FastAPI, Uvicorn, Pandas, Polars, DuckDB, OpenPyXL, Pydantic, Pytest |
 
-```text
-audit_platform/
-  frontend/          # React UI (Scrutiny hub, PAN / gross weight / sales pages, etc.)
-  backend/           # Express gateway + OpenAPI spec
-  python-service/    # FastAPI Excel validation and auditing
+## Modules
+
+| Module | Route | Description |
+|--------|-------|-------------|
+| Dashboard | `/dashboard` | KPIs, audit trend, issues by category, recent uploads |
+| PAN verification | `/scrutiny/pan` | PAN format, ₹2L PAN rule, ₹50k address proof |
+| Gross weight | `/scrutiny/gross-weight` | Manual vs auto gross weight tolerance |
+| Sales ledger | `/scrutiny/sales-ledger` | Account/product mapping, UOM, rate deviation |
+| Sales return | `/scrutiny/sales-return-rate` | Return file validation + rate vs sales averages |
+| Product averages | `/sales-audit/product-average-rates` | Stored averages from last sales audit |
+| Rate rule book | `/scrutiny/rate-rule-book` | Gold & silver min/max rates |
+| Diamond/gem rates | `/scrutiny/diamond-gem-rates` | Diamond product rate bands |
+| Users | `/users` | User administration (role-based) |
+
+## Setup Instructions
+
+Each service has its own `.env` in its folder. Configure all three before starting.
+
+### 1. Python service (port 8000)
+
+```bash
+cd python-service
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Per-service setup, env vars, and curl examples: [`backend/README.md`](backend/README.md), [`python-service/README.md`](python-service/README.md).
+### 2. Backend (port 4002)
 
-## Tech stack
+```bash
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate deploy   # first-time / production
+npm run dev
+```
 
-| Layer | Technologies |
-| ----- | ------------ |
-| UI | React 19, Vite, Tailwind CSS 4, React Router 7, TanStack Table, Axios, Framer Motion |
-| API gateway | Node.js 18+, Express, Multer, Axios, Swagger UI, Helmet, CORS |
-| Processing | Python 3.10+, FastAPI, Uvicorn, Pandas, OpenPyXL, Pydantic, Loguru, Pytest |
+### 3. Frontend (port 4000)
 
-## Run locally (development)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-Each app has its own `.env` in its folder (`backend/.env`, `frontend/.env`, `python-service/.env`). Copy from `.env.example` where needed.
+Open **http://127.0.0.1:4000**. Dev proxy forwards `/api` to the backend.
 
-1. **Python service** (port **8000** by default)
+## Deployment Instructions
 
-   ```bash
-   cd python-service
-   cp .env.example .env      # optional if .env already exists
-   python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload --port 8000
-   ```
+1. **PostgreSQL** — provision database; set `DATABASE_URL` and `DIRECT_URL` in `backend/.env`.
+2. **Backend** — set `NODE_ENV=production`, strong JWT secrets, explicit `CORS_ORIGIN`. Run `npx prisma migrate deploy` and `npm start`.
+3. **Python** — run behind private network only (`APP_ENV=production`). Use Uvicorn/gunicorn with process manager.
+4. **Frontend** — build with `VITE_API_BASE_URL` pointing to the public API URL; serve `dist/` via CDN or reverse proxy.
+5. **Reverse proxy** — terminate TLS; route `/api` to Node; never expose Python port 8000 publicly.
 
-2. **Node API** (`PORT` in `backend/.env`, default **4002**; must match `VITE_BACKEND_PORT` in `frontend/.env`)
+## Environment Variables
 
-   ```bash
-   cd backend
-   cp .env.example .env
-   npm install
-   npm run dev
-   ```
+### Frontend (`frontend/.env`)
 
-3. **Frontend** (port **4000**, proxies **`/api`** → Node on **4002**)
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_BASE_URL` | Node gateway URL (empty in dev — uses Vite proxy) |
+| `VITE_API_URL` | Optional direct Python URL (legacy; rate book uses Node) |
 
-   ```bash
-   cd frontend
-   cp .env.example .env
-   npm install
-   npm run dev
-   ```
+### Backend (`backend/.env`)
 
-Open the app at **`http://127.0.0.1:4000`**. Swagger for the gateway: **`http://127.0.0.1:4002/api-docs`**. Python docs: **`http://127.0.0.1:8000/docs`**.
+| Variable | Purpose |
+|----------|---------|
+| `PORT` | HTTP listen port (default 4002) |
+| `NODE_ENV` | `development` or `production` |
+| `DATABASE_URL` | PostgreSQL connection (pooler) |
+| `DIRECT_URL` | Direct PostgreSQL URL for migrations |
+| `JWT_SECRET` | Access token signing secret |
+| `REFRESH_TOKEN_SECRET` | Refresh token signing secret |
+| `JWT_EXPIRES_IN` | Access token TTL (default `15m`) |
+| `REFRESH_TOKEN_EXPIRES_IN` | Refresh token TTL (default `7d`) |
+| `PYTHON_SERVICE_URL` | FastAPI base URL |
+| `CORS_ORIGIN` | Allowed origins (`*` dev only; required in production) |
+| `ENABLE_SWAGGER` | Swagger UI (auto-disabled when `NODE_ENV=production`) |
 
-## Gateway routes (summary)
+### Python (`python-service/.env`)
 
-| Flow | Method | Path |
-| ---- | ------ | ---- |
-| Health | `GET` | `/api/health` |
-| PAN validate | `POST` | `/api/v1/process/pan/validate` |
-| PAN export invalid rows | `POST` | `/api/v1/process/pan/export-invalid` |
-| Gross weight validate | `POST` | `/api/v1/process/gross-weight/validate` |
-| Sales validate | `POST` | `/api/v1/process/sales/validate` |
+| Variable | Purpose |
+|----------|---------|
+| `APP_ENV` | `development` or `production` |
+| `LOG_LEVEL` | Logging level (default `INFO`) |
+| `AUDIT_DEBUG_EXPORT` | Write debug workbooks when `true` |
+| `SALES_DEBUG_EXPORT` | Write sales debug exports when `true` |
 
-Direct Python equivalents live under **`/api/process/...`** on the FastAPI app.
+See [backend/README.md](backend/README.md) and [python-service/README.md](python-service/README.md) for detail.
 
----
+## User Roles
 
-For detailed column lists, response shapes, and processor extension notes, see **`python-service/README.md`**. For Node env vars and Swagger usage, see **`backend/README.md`**.
+Roles are stored in PostgreSQL (`roles` table) and linked to users via `role_id`. Typical roles include administrators and auditors. Protected routes require a valid JWT access token; admin features (user management) enforce role checks on the backend.
+
+## Audit Flow
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant FE as Frontend
+  participant API as Node API
+  participant PY as Python Engine
+  participant DB as PostgreSQL
+
+  U->>FE: Upload Excel
+  FE->>API: POST /api/v1/process/... (Bearer + cookie)
+  API->>PY: Proxy multipart upload
+  PY->>PY: Normalize headers, run validators
+  PY-->>API: JSON records + summary
+  API->>DB: Persist audit run (where applicable)
+  API-->>FE: Response
+  FE-->>U: Widgets, table, export
+```
+
+1. User authenticates (login → access token + HttpOnly refresh cookie).
+2. User uploads workbook on a Scrutiny page.
+3. Node validates upload limits and forwards to Python.
+4. Python detects header row, normalizes columns, runs processor-specific rules.
+5. Response includes `totalRows`, `errorRows`, `summary`, and `records` / `exceptionRecords`.
+6. User filters issues, exports invalid rows (Excel/CSV/PDF).
+7. Dashboard aggregates historical runs from PostgreSQL.
+
+## Production Checklist
+
+- [ ] `NODE_ENV=production` on backend
+- [ ] Strong `JWT_SECRET` and `REFRESH_TOKEN_SECRET` (32+ characters)
+- [ ] `CORS_ORIGIN` set to frontend origin (not `*`)
+- [ ] `npx prisma migrate deploy` completed
+- [ ] Python service on private network only
+- [ ] `VITE_API_BASE_URL` set at frontend build time
+- [ ] HTTPS via reverse proxy
+- [ ] Smoke test: login, each audit type, dashboard, logout
+- [ ] Confirm API 500 responses do not leak stack traces
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [backend/README.md](backend/README.md) | Node API, auth, Prisma, routes |
+| [python-service/README.md](python-service/README.md) | Audit engines, validators, processors |

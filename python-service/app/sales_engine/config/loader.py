@@ -243,6 +243,7 @@ def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, floa
             'min_rate': None if min_raw is None else float(min_raw),
             'max_rate': None if max_raw is None else float(max_raw),
             'min_only': bool(spec.get('min_only', False)),
+            'fixed_band': bool(spec.get('fixed_band', False)),
         }
     return entries
 
@@ -271,6 +272,7 @@ def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]
         base_min = spec.get('min_rate')
         base_max = spec.get('max_rate')
         min_only = bool(spec.get('min_only', False))
+        fixed_band = bool(spec.get('fixed_band', False))
         if base_min is None:
             continue
         if min_only:
@@ -283,6 +285,15 @@ def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]
             }
             continue
         if base_max is None:
+            continue
+        if fixed_band:
+            bands[norm] = {
+                'base_min': base_min,
+                'base_max': base_max,
+                'final_min': base_min,
+                'final_max': base_max,
+                'min_only': False,
+            }
             continue
         band = _diamond_band_values(
             base_min,

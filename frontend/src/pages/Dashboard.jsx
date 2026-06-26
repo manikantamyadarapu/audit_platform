@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition } from 'react';
+import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   Calendar,
@@ -6,13 +7,12 @@ import {
   Filter,
   ShieldCheck,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { NotificationBell } from '../components/layout/NotificationBell';
 import { Skeleton } from '../components/ui/Skeleton';
-import { ChartSkeleton, SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
+import { SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
 import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage } from '../services/dashboardService';
@@ -66,6 +66,74 @@ function ButtonPill({ children, className = '', onClick, ...props }) {
     >
       {children}
     </button>
+  );
+}
+
+const PERIOD_TOGGLE_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.85 };
+
+function DashboardPeriodToggle({ period, onChange }) {
+  const containerRef = useRef(null);
+  const [indicator, setIndicator] = useState(null);
+
+  const updateIndicator = useCallback(() => {
+    const container = containerRef.current;
+    const active = container?.querySelector(`[data-period="${period}"]`);
+    if (!container || !active) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    setIndicator({
+      left: activeRect.left - containerRect.left,
+      width: activeRect.width,
+    });
+  }, [period]);
+
+  useLayoutEffect(() => {
+    updateIndicator();
+  }, [updateIndicator]);
+
+  useEffect(() => {
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative inline-flex h-12 items-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-1"
+      role="group"
+      aria-label="Audit overview period"
+    >
+      {indicator ? (
+        <motion.div
+          className="pointer-events-none absolute top-1 bottom-1 rounded-full bg-emerald-600 shadow-sm"
+          initial={false}
+          animate={{ left: indicator.left, width: indicator.width }}
+          transition={PERIOD_TOGGLE_SPRING}
+          aria-hidden
+        />
+      ) : null}
+      {DASHBOARD_PERIOD_OPTIONS.map((option) => {
+        const isActive = period === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            data-period={option.id}
+            onClick={() => onChange(option.id)}
+            aria-pressed={isActive}
+            className={cn(
+              'relative z-10 h-10 rounded-full px-5 text-sm font-semibold transition-colors duration-300 ease-out',
+              isActive
+                ? 'text-white'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -194,14 +262,13 @@ export default function Dashboard() {
 
       hasLoadedRef.current = true;
     } finally {
-      if (requestId !== requestIdRef.current) {
-        return;
+      if (requestId === requestIdRef.current) {
+        setWidgetsLoading(false);
+        setTrendLoading(false);
+        setIssuesCategoryLoading(false);
+        setRecentAuditsLoading(false);
+        setRefreshing(false);
       }
-      setWidgetsLoading(false);
-      setTrendLoading(false);
-      setIssuesCategoryLoading(false);
-      setRecentAuditsLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -267,38 +334,7 @@ export default function Dashboard() {
           <ButtonPill className="w-12 justify-center px-0">
             <Filter className="h-4 w-4" />
           </ButtonPill>
-          <div
-            className="relative inline-flex h-12 items-center rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] p-1"
-            role="group"
-            aria-label="Audit overview period"
-          >
-            {DASHBOARD_PERIOD_OPTIONS.map((option) => {
-              const isActive = period === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handlePeriodChange(option.id)}
-                  aria-pressed={isActive}
-                  className={cn(
-                    'relative z-10 h-10 rounded-full px-5 text-sm font-semibold transition-colors duration-200',
-                    isActive
-                      ? 'text-white'
-                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  )}
-                >
-                  {isActive ? (
-                    <motion.span
-                      layoutId="dashboard-period-indicator"
-                      className="absolute inset-0 rounded-full bg-emerald-600 shadow-sm"
-                      transition={{ type: 'spring', stiffness: 520, damping: 38 }}
-                    />
-                  ) : null}
-                  <span className="relative z-10">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <DashboardPeriodToggle period={period} onChange={handlePeriodChange} />
           <ButtonPill>
             <Calendar className="h-4 w-4" />
             {shortDate}

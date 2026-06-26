@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
-import { SessionBootstrap } from '../components/auth/SessionBootstrap';
+import { RequireAuth } from '../components/auth/RequireAuth';
+import { GuestRoute } from '../components/auth/GuestRoute';
 import { LoginSkeleton } from '../components/layout/LoginSkeleton';
 
 const Login = lazy(() => import('../pages/Login'));
@@ -24,61 +25,51 @@ const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
 const Profile = lazy(() => import('../pages/Profile'));
 
+function lazyPage(Component) {
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <Component />
+    </Suspense>
+  );
+}
+
 export function AppRoutes() {
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={
-          <Suspense fallback={<LoginSkeleton />}>
-            <Login />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/forgot-password"
-        element={
-          <Suspense fallback={<LoginSkeleton />}>
-            <ForgotPassword />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/reset-password"
-        element={
-          <Suspense fallback={<LoginSkeleton />}>
-            <ResetPassword />
-          </Suspense>
-        }
-      />
+      <Route element={<GuestRoute />}>
+        <Route path="/login" element={lazyPage(Login)} />
+        <Route path="/forgot-password" element={lazyPage(ForgotPassword)} />
+      </Route>
 
-      <Route element={<SessionBootstrap />}>
+      <Route path="/reset-password" element={lazyPage(ResetPassword)} />
+
+      <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/scrutiny" element={<ScrutinyHub />} />
-          <Route path="/vouching" element={<VouchingHub />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/users" element={<Users />} />
+          <Route path="/dashboard" element={lazyPage(Dashboard)} />
+          <Route path="/scrutiny" element={lazyPage(ScrutinyHub)} />
+          <Route path="/vouching" element={lazyPage(VouchingHub)} />
+          <Route path="/reports" element={lazyPage(Reports)} />
+          <Route path="/settings" element={lazyPage(Settings)} />
+          <Route path="/profile" element={lazyPage(Profile)} />
+          <Route path="/users" element={lazyPage(Users)} />
 
-          <Route path="/scrutiny/pan" element={<PanVerification />} />
-          <Route path="/scrutiny/gross-weight" element={<GrossWeight />} />
-          <Route path="/scrutiny/sales-ledger" element={<SalesLedger />} />
-          <Route path="/sales-audit/product-average-rates" element={<ProductAverageRates />} />
-          <Route path="/scrutiny/making-charges" element={<ModuleSoon />} />
-          <Route path="/scrutiny/sales-return-rate" element={<SalesReturnRateAudit />} />
-          <Route path="/scrutiny/rate-rule-book" element={<RateRuleBook />} />
-          <Route path="/scrutiny/diamond-gem-rates" element={<DiamondGemRateBook />} />
-          <Route path="/scrutiny/rate-rules" element={<RateRuleBook />} />
-          <Route path="/scrutiny/rule-book" element={<RateRuleBook />} />
-          <Route path="/scrutiny/duplicate-invoice" element={<ModuleSoon />} />
-          <Route path="/scrutiny/vendor-reconciliation" element={<ModuleSoon />} />
+          <Route path="/scrutiny/pan" element={lazyPage(PanVerification)} />
+          <Route path="/scrutiny/gross-weight" element={lazyPage(GrossWeight)} />
+          <Route path="/scrutiny/sales-ledger" element={lazyPage(SalesLedger)} />
+          <Route path="/sales-audit/product-average-rates" element={lazyPage(ProductAverageRates)} />
+          <Route path="/scrutiny/making-charges" element={lazyPage(ModuleSoon)} />
+          <Route path="/scrutiny/sales-return-rate" element={lazyPage(SalesReturnRateAudit)} />
+          <Route path="/scrutiny/rate-rule-book" element={lazyPage(RateRuleBook)} />
+          <Route path="/scrutiny/diamond-gem-rates" element={lazyPage(DiamondGemRateBook)} />
+          <Route path="/scrutiny/rate-rules" element={lazyPage(RateRuleBook)} />
+          <Route path="/scrutiny/rule-book" element={lazyPage(RateRuleBook)} />
+          <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />
+          <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
 
-          <Route path="/vouching/voucher-matching" element={<VouchingHold />} />
-          <Route path="/vouching/ledger-review" element={<VouchingHold />} />
-          <Route path="/vouching/entry-verification" element={<VouchingHold />} />
+          <Route path="/vouching/voucher-matching" element={lazyPage(VouchingHold)} />
+          <Route path="/vouching/ledger-review" element={lazyPage(VouchingHold)} />
+          <Route path="/vouching/entry-verification" element={lazyPage(VouchingHold)} />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

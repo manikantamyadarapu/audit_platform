@@ -134,6 +134,68 @@ export function clearAuthSession() {
   session?.removeItem(AUTH_FLAG_KEY);
 }
 
+const PUBLIC_PATH_PREFIXES = ['/login', '/forgot-password', '/reset-password'];
+
+export function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname;
+  if (PUBLIC_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) return;
+  clearAuthSession();
+  const redirect = path && path !== '/' ? `?redirect=${encodeURIComponent(path)}` : '';
+  window.location.href = `/login${redirect}`;
+}
+
+/**
+ * Exchange HttpOnly refresh cookie for a new access token.
+ * @returns {Promise<string | null>}
+ */
+export async function tryRefreshAccessToken() {
+  const response = await fetch('/api/auth/refresh', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) return null;
+
+  const data = await response.json().catch(() => ({}));
+  const token = data?.accessToken;
+  if (!token) return null;
+
+  persistAccessToken(token);
+  return token;
+}
+
+/**
+ * Validate session on app load: access token → /me, refresh on failure.
+ * @returns {Promise<boolean>}
+ */
+export async function bootstrapAuthSession() {
+  if (!getAuthToken()) {
+    const token = await tryRefreshAccessToken();
+    if (!token) return false;
+  }
+
+  try {
+    await fetchCurrentUser();
+    return true;
+  } catch {
+    const token = await tryRefreshAccessToken();
+    if (!token) {
+      clearAuthSession();
+      return false;
+    }
+
+    try {
+      await fetchCurrentUser();
+      return true;
+    } catch {
+      clearAuthSession();
+      return false;
+    }
+  }
+}
+
 /**
  * @returns {Promise<Record<string, unknown> | null>}
  */

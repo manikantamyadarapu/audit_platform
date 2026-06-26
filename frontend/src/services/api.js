@@ -1,8 +1,8 @@
 import axios from 'axios';
 import {
-  clearAuthSession,
   getAuthToken,
-  persistAccessToken,
+  redirectToLogin,
+  tryRefreshAccessToken,
 } from '../utils/authUser';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -60,28 +60,21 @@ api.interceptors.response.use(
 
     try {
       if (!refreshPromise) {
-        refreshPromise = axios
-          .post(AUTH_REFRESH_PATH, {}, { baseURL, withCredentials: true })
-          .finally(() => {
-            refreshPromise = null;
-          });
+        refreshPromise = tryRefreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
       }
 
-      const { data } = await refreshPromise;
-      const nextToken = data?.accessToken;
+      const nextToken = await refreshPromise;
 
       if (!nextToken) {
         throw new Error('Refresh failed');
       }
 
-      persistAccessToken(nextToken);
       originalRequest.headers.Authorization = `Bearer ${nextToken}`;
       return api(originalRequest);
     } catch (refreshError) {
-      clearAuthSession();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+      redirectToLogin();
       return Promise.reject(refreshError);
     }
   }
