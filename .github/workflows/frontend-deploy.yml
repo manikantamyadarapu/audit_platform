@@ -70,12 +70,22 @@ jobs:
           name: frontend-dist
           path: dist
 
-      - name: Configure SSH
+      - name: Create SSH directory
+        run: mkdir -p ~/.ssh
+
+      - name: Write SSH Key
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          cat << 'EOF' > ~/.ssh/deploy_key
+          ${{ secrets.DEPLOY_SSH_KEY }}
+          EOF
+
+      - name: Set SSH Key Permissions
+        run: chmod 600 ~/.ssh/deploy_key
+
+      - name: Add Server to Known Hosts
+        run: |
+          ssh-keyscan -t rsa,ecdsa,ed25519 -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          cat ~/.ssh/known_hosts
 
       - name: Rsync static files
         run: |
