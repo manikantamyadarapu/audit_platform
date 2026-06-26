@@ -5,6 +5,7 @@ import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { AuditSearchIllustration } from '../components/auth/AuditSearchIllustration';
 import { cn } from '../utils/cn';
 import { getRememberedEmail, getRememberMePreference, persistAuthSession } from '../utils/authUser';
+import { API_BASE_URL } from '../config/api';
 import '../styles/fonts.css';
 
 const loginInputClass =
@@ -31,7 +32,7 @@ async function postLoginWithRetry(credentials) {
 
   for (let attempt = 1; attempt <= LOGIN_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: {

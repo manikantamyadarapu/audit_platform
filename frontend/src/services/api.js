@@ -4,15 +4,14 @@ import {
   redirectToLogin,
   tryRefreshAccessToken,
 } from '../utils/authUser';
-
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { API_BASE_URL } from '../config/api';
 
 const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
 const apiTimeout =
   Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 900_000;
 
 const api = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   timeout: apiTimeout,
   withCredentials: true,
   headers: {
