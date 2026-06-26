@@ -82,21 +82,16 @@ jobs:
       - name: Set SSH Key Permissions
         run: chmod 600 ~/.ssh/deploy_key
 
-      - name: Add Server to Known Hosts
-        run: |
-          ssh-keyscan -t rsa,ecdsa,ed25519 -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
-          cat ~/.ssh/known_hosts
-
       - name: Rsync static files
         run: |
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             dist/ \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_FRONTEND_PATH }}/"
 
       - name: Reload nginx (optional)
         continue-on-error: true
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "sudo nginx -t && sudo systemctl reload nginx"
