@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api';
+
 async function parseJsonResponse(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -7,7 +9,7 @@ async function parseJsonResponse(response) {
 }
 
 export async function loginRequest({ email, password }) {
-  const response = await fetch('/api/auth/login', {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -17,7 +19,7 @@ export async function loginRequest({ email, password }) {
 }
 
 export async function logoutRequest() {
-  const response = await fetch('/api/auth/logout', {
+  const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -26,7 +28,7 @@ export async function logoutRequest() {
 }
 
 export async function forgotPasswordRequest(email) {
-  const response = await fetch('/api/v1/auth/forgot-password', {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -36,13 +38,13 @@ export async function forgotPasswordRequest(email) {
 
 export async function validateResetTokenRequest(token) {
   const response = await fetch(
-    `/api/v1/auth/reset-password/validate?token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/api/v1/auth/reset-password/validate?token=${encodeURIComponent(token)}`
   );
   return parseJsonResponse(response);
 }
 
 export async function resetPasswordRequest({ token, newPassword }) {
-  const response = await fetch('/api/v1/auth/reset-password', {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, newPassword }),

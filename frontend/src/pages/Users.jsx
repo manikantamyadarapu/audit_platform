@@ -6,9 +6,7 @@ import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
 
 import { getAuthToken } from '../utils/authUser';
-
-// API helper function
-const API_BASE_URL = '/api/v1';
+import { API_BASE_URL } from '../config/api';
 
 function getToken() {
   return getAuthToken();
@@ -341,7 +339,7 @@ export default function Users() {
   const fetchUsers = async (page = 1, search = '') => {
     try {
       setLoading(true);
-      const data = await apiRequest(`/users?page=${page}&limit=10&search=${search}`);
+      const data = await apiRequest(`/api/v1/users?page=${page}&limit=10&search=${search}`);
       setUsers(data.users);
       setPagination(data.pagination);
     } catch (error) {
@@ -358,7 +356,7 @@ export default function Users() {
   const handleCreateUser = async (formData) => {
     try {
       setIsModalLoading(true);
-      await apiRequest('/users', {
+      await apiRequest('/api/v1/users', {
         method: 'POST',
         body: JSON.stringify(formData),
       });
@@ -383,7 +381,7 @@ export default function Users() {
       if (formData.password) {
         updateData.password = formData.password;
       }
-      await apiRequest(`/users/${editingUser.id}`, {
+      await apiRequest(`/api/v1/users/${editingUser.id}`, {
         method: 'PUT',
         body: JSON.stringify(updateData),
       });
@@ -401,7 +399,7 @@ export default function Users() {
   const handleDeleteUser = async () => {
     try {
       setIsDeleteLoading(true);
-      await apiRequest(`/users/${deletingUser.id}`, {
+      await apiRequest(`/api/v1/users/${deletingUser.id}`, {
         method: 'DELETE',
       });
       showToast('User deleted successfully');
