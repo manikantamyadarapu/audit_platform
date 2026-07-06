@@ -18,6 +18,7 @@ import {
   Scale,
   Settings,
   Undo2,
+  Wallet,
   Weight,
   LogOut,
   UserCircle,
@@ -304,6 +305,7 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
+          <NavItem to="/cash-ledger" label="Cash Ledger" icon={Wallet} collapsed={sidebarCollapsed} />
           <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
