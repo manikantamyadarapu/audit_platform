@@ -38,8 +38,8 @@ const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
+  { to: '/scrutiny/cash-ledger', label: 'Cash Ledger Audit', icon: Wallet },
   { to: '/scrutiny/sales-return-rate', label: 'Sales Return Audit', icon: Undo2 },
-  { to: '/scrutiny/making-charges', label: 'Making Charges Audit', icon: Calculator },
 ];
 
 const scrutinyItems = [
@@ -305,7 +305,6 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
-          <NavItem to="/cash-ledger" label="Cash Ledger" icon={Wallet} collapsed={sidebarCollapsed} />
           <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />

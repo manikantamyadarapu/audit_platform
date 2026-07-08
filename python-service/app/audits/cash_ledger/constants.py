@@ -41,6 +41,13 @@ REQUIRED_COLUMNS: Final = frozenset({
     'balance',
 })
 
+# Optional columns (not required for validation but preserved in output)
+OPTIONAL_COLUMNS: Final = frozenset({
+    'sno',
+    'remarks',
+    'division',
+})
+
 # Exception contra accounts for cash payments
 CASH_PAYMENT_EXCEPTIONS: Final = frozenset({
     'closing balance',

@@ -20,6 +20,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/pan',
     localStorageAlias: 'audit_session_pan',
   },
+  'cash-ledger': {
+    pageRoute: '/scrutiny/cash-ledger',
+    localStorageAlias: 'audit_session_cash_ledger',
+  },
   'rate-rule-book': {
     pageRoute: '/scrutiny/rate-rule-book',
     localStorageAlias: 'audit_session_rate',
