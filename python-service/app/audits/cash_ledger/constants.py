@@ -7,10 +7,10 @@ ISSUE_NEGATIVE_CASH_BALANCE: Final = "NEGATIVE_CASH_BALANCE"
 ISSUE_CASH_PAYMENT_GT_10000: Final = "CASH_PAYMENT_GT_10000"
 ISSUE_CASH_RECEIPT_GT_200000: Final = "CASH_RECEIPT_GT_200000"
 
-# Issue messages
-MESSAGE_NEGATIVE_CASH_BALANCE: Final = "Negative cash balance found."
-MESSAGE_CASH_PAYMENT_GT_10000: Final = "Cash payment exceeds Rs.10,000."
-MESSAGE_CASH_RECEIPT_GT_200000: Final = "Cash receipt exceeds Rs.2,00,000."
+# Issue messages (exact audit report wording)
+MESSAGE_NEGATIVE_CASH_BALANCE: Final = "Negative Cash"
+MESSAGE_CASH_PAYMENT_GT_10000: Final = "Cash Payments>=Rs. 10,000/-"
+MESSAGE_CASH_RECEIPT_GT_200000: Final = "Cash Receipts>=Rs. 2,00,000/-"
 
 # Severity levels
 SEVERITY_HIGH: Final = "High"

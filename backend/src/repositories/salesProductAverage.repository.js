@@ -1,8 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const auditRunRepository = require('./auditRun.repository');
 const { extractIssueCounts, extractMetrics } = require('../services/auditRunPersistence.service');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const SORT_FIELDS = {
   product: 'product',

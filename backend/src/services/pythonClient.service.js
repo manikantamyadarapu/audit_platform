@@ -89,6 +89,10 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
   return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
 }
 
+async function postCashLedgerValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/cash-ledger', fileBuffer, originalname, mimetype, options);
+}
+
 async function postSalesReturnValidate(
   returnBuffer,
   returnName,
@@ -227,6 +231,10 @@ async function postSalesExportInvalid(records, options = {}) {
   return postExportInvalidRows('/api/process/sales/export-invalid', records, options);
 }
 
+async function postCashLedgerExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/cash-ledger/export-invalid', records, options);
+}
+
 async function getRateRules(options = {}) {
   const headers = {};
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -300,6 +308,8 @@ module.exports = {
   postGrossWeightExportInvalid,
   postSalesValidate,
   postSalesExportInvalid,
+  postCashLedgerValidate,
+  postCashLedgerExportInvalid,
   postSalesReturnValidate,
   postSalesReturnExportRateComparison,
   postSalesReturnExportExceptions,

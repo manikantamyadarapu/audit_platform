@@ -4,7 +4,6 @@ from typing import Any
 
 from app.audits.cash_ledger.constants import (
     ISSUE_MESSAGES,
-    ISSUE_SEVERITY,
     REQUIRED_COLUMNS,
 )
 from app.audits.cash_ledger.rules import apply_all_rules
@@ -53,10 +52,9 @@ def validate_row(
     # Add issues if any
     if issue_codes:
         record['issues'] = issue_codes
-        record['issueCode'] = issue_codes[0] if issue_codes else None
-        record['message'] = ISSUE_MESSAGES.get(issue_codes[0], '')
-        record['severity'] = ISSUE_SEVERITY.get(issue_codes[0], 'Medium')
-    
+        messages = [ISSUE_MESSAGES.get(code, '') for code in issue_codes]
+        record['Message'] = '; '.join(message for message in messages if message)
+
     return record
 
 
@@ -77,8 +75,15 @@ def validate_dataframe(
     records: list[dict[str, Any]] = []
     all_issues: list[list[str]] = []
     
-    for idx, row in enumerate(dataframe_data, start=2):  # Start from row 2 (assuming row 1 is header)
-        record = validate_row(row, idx, data_columns)
+    for row in dataframe_data:
+        row_number = int(
+            row.get('source_excel_row_number')
+            or row.get('__excel_row_number__')
+            or 0
+        )
+        if row_number <= 0:
+            continue
+        record = validate_row(row, row_number, data_columns)
         
         # Only keep records with issues
         if 'issues' in record:

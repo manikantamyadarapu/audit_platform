@@ -11,6 +11,7 @@ const dashboardRoutes = require('./dashboard.routes');
 const salesAuditRoutes = require('./salesAudit.routes');
 const auditSessionRoutes = require('./auditSession.routes');
 const rateBookRoutes = require('./rateBook.routes');
+const cashLedgerRoutes = require('./cashLedger.routes');
 
 const router = express.Router();
 
@@ -18,6 +19,7 @@ router.use('/process/pan', panRoutes);
 router.use('/process/gross-weight', grossWeightRoutes);
 router.use('/process/sales', salesRoutes);
 router.use('/process/sales-return', salesReturnRoutes);
+router.use('/process/cash-ledger', cashLedgerRoutes);
 router.use('/rate-rules', rateRulesRoutes);
 router.use('/diamond-rate-rules', diamondRateRulesRoutes);
 router.use('/auth', authRoutes);

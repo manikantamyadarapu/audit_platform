@@ -1,10 +1,6 @@
 """Main audit module for Cash Ledger Audit."""
 
-from io import BytesIO
 from typing import Any
-
-import pandas as pd
-import polars as pl
 
 from app.audits.cash_ledger.constants import REQUIRED_COLUMNS
 from app.audits.cash_ledger.output import build_cash_ledger_response
@@ -12,8 +8,8 @@ from app.audits.cash_ledger.validator import (
     validate_dataframe,
     validate_required_columns,
 )
+from app.audits.cash_ledger.workbook_loader import load_cash_ledger_workbook
 from app.engines.vectorized_validation_engine import VectorizedValidationEngine
-from app.utils.header_cleaner import normalize_header
 from app.utils.logger import get_logger
 from app.utils.sheet_validation_error import SheetValidationError
 
@@ -37,6 +33,8 @@ class CashLedgerAudit:
         """
         try:
             loaded = self._load_cash_ledger_workbook(file_bytes)
+        except SheetValidationError:
+            raise
         except Exception as exc:
             raise ValueError('Invalid or unreadable Excel file') from exc
         
@@ -90,13 +88,5 @@ class CashLedgerAudit:
         return response
     
     def _load_cash_ledger_workbook(self, file_bytes: bytes) -> Any:
-        """
-        Load Cash Ledger Excel workbook using VectorizedValidationEngine.
-        
-        Args:
-            file_bytes: Excel file as bytes
-        
-        Returns:
-            LoadedValidationSheet object
-        """
-        return self.engine.load_sheet(file_bytes)
+        """Load workbook with automatic header detection (supports Tally/ERP title rows)."""
+        return load_cash_ledger_workbook(file_bytes, log=self._log)

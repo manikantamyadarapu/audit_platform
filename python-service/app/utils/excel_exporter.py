@@ -76,7 +76,6 @@ SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
 
 CASH_LEDGER_EXPORT_COLUMNS = [
     'rowNumber',
-    'sno',
     'date',
     'voucher_no',
     'branch',
@@ -84,16 +83,11 @@ CASH_LEDGER_EXPORT_COLUMNS = [
     'debit',
     'credit',
     'balance',
-    'remarks',
-    'division',
-    'issueCode',
-    'message',
-    'severity',
+    'Message',
 ]
 
 CASH_LEDGER_EXPORT_HEADER_MAP = {
-    'rowNumber': 'Row Number',
-    'sno': 'SNo',
+    'rowNumber': 'Row No',
     'date': 'Date',
     'voucher_no': 'Voucher No',
     'branch': 'Branch',
@@ -101,11 +95,7 @@ CASH_LEDGER_EXPORT_HEADER_MAP = {
     'debit': 'Debit',
     'credit': 'Credit',
     'balance': 'Balance',
-    'remarks': 'Remarks',
-    'division': 'Division',
-    'issueCode': 'Issue Code',
-    'message': 'Message',
-    'severity': 'Severity',
+    'Message': 'Message',
 }
 
 

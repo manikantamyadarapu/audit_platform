@@ -34,7 +34,6 @@ def build_cash_ledger_response(
     # Add export columns for Excel download
     response['exportColumns'] = [
         'rowNumber',
-        'sno',
         'date',
         'voucher_no',
         'branch',
@@ -42,11 +41,19 @@ def build_cash_ledger_response(
         'debit',
         'credit',
         'balance',
-        'remarks',
-        'division',
-        'issueCode',
-        'message',
-        'severity',
+        'Message',
     ]
+
+    response['columnDisplayHeaders'] = {
+        'rowNumber': 'Row No',
+        'date': 'Date',
+        'voucher_no': 'Voucher No',
+        'branch': 'Branch',
+        'contra_account': 'Contra Account',
+        'debit': 'Debit',
+        'credit': 'Credit',
+        'balance': 'Balance',
+        'Message': 'Message',
+    }
 
     return response

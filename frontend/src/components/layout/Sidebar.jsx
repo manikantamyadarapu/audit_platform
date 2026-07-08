@@ -22,6 +22,8 @@ import {
   Weight,
   LogOut,
   UserCircle,
+  ShoppingCart,
+  ClipboardList,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/authService';
 import { cn } from '../../utils/cn';
@@ -40,6 +42,10 @@ const salesItems = [
   { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
   { to: '/scrutiny/cash-ledger', label: 'Cash Ledger Audit', icon: Wallet },
   { to: '/scrutiny/sales-return-rate', label: 'Sales Return Audit', icon: Undo2 },
+];
+
+const purchaseItems = [
+  { to: '/scrutiny/purchase-audit', label: 'Purchase Audit', icon: ClipboardList },
 ];
 
 const scrutinyItems = [
@@ -180,10 +186,12 @@ export function Sidebar() {
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
+  const purchaseChildActive = ['/scrutiny/purchase-audit'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
+  const [purchaseOpen, setPurchaseOpen] = useState(purchaseChildActive);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [sessionUser, setSessionUser] = useState(() => getStoredUser());
 
@@ -212,6 +220,10 @@ export function Sidebar() {
   useEffect(() => {
     if (salesChildActive) setSalesOpen(true);
   }, [salesChildActive]);
+
+  useEffect(() => {
+    if (purchaseChildActive) setPurchaseOpen(true);
+  }, [purchaseChildActive]);
 
   return (
     <motion.aside
@@ -280,6 +292,34 @@ export function Sidebar() {
                 </div>
               ))}
             </NavGroup>
+            <NavGroup
+              label="Purchase"
+              icon={ShoppingCart}
+              collapsed={sidebarCollapsed}
+              open={purchaseOpen}
+              onToggle={() => setPurchaseOpen((v) => !v)}
+              active={false}
+              nested
+            >
+              {purchaseItems.map((item) => (
+                <div key={item.to} className="ml-3">
+                  <NavItem
+                    {...item}
+                    collapsed={sidebarCollapsed}
+                    nested
+                    onNavigate={ensureScrutiny}
+                  />
+                </div>
+              ))}
+            </NavGroup>
+            <NavItem
+              to="/scrutiny/cash-ledger"
+              label="Cash Ledger"
+              icon={Wallet}
+              collapsed={sidebarCollapsed}
+              nested
+              onNavigate={ensureScrutiny}
+            />
             {scrutinyItems.map((item) => (
               <NavItem
                 key={item.to}

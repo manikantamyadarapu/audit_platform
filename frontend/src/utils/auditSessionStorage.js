@@ -321,6 +321,7 @@ export function slimCashLedgerSnapshot(snapshot) {
     : [];
   return {
     ...snapshot,
+    activeFilter: snapshot.activeFilter ?? null,
     result: {
       success: result.success,
       fileType: result.fileType,

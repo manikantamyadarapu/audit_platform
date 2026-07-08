@@ -11,6 +11,7 @@ const AUDIT_KEYS = {
   GROSS_WEIGHT: 'GROSS_WEIGHT',
   SALES: 'SALES',
   SALES_RETURN: 'SALES_RETURN',
+  CASH_LEDGER: 'CASH_LEDGER',
 };
 
 const AUDIT_LABELS = {
@@ -18,6 +19,7 @@ const AUDIT_LABELS = {
   [AUDIT_KEYS.GROSS_WEIGHT]: 'Gross Weight',
   [AUDIT_KEYS.SALES]: 'Rate & Ledger',
   [AUDIT_KEYS.SALES_RETURN]: 'Sales Return',
+  [AUDIT_KEYS.CASH_LEDGER]: 'Cash Ledger',
 };
 
 const AUDIT_ROUTES = {
@@ -25,6 +27,7 @@ const AUDIT_ROUTES = {
   [AUDIT_KEYS.GROSS_WEIGHT]: '/scrutiny/gross-weight',
   [AUDIT_KEYS.SALES]: '/scrutiny/sales-ledger',
   [AUDIT_KEYS.SALES_RETURN]: '/scrutiny/sales-return-rate',
+  [AUDIT_KEYS.CASH_LEDGER]: '/scrutiny/cash-ledger',
 };
 
 /** Min exception rows OR percent of total rows to trigger HIGH_EXCEPTION_COUNT */
