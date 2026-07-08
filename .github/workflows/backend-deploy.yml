@@ -42,16 +42,16 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-        run: npx prisma generate
+        run: |
+          CLEAN_DATABASE_URL=$(echo "${{ secrets.DATABASE_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_DIRECT_URL=$(echo "${{ secrets.DIRECT_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          DATABASE_URL="$CLEAN_DATABASE_URL" DIRECT_URL="$CLEAN_DIRECT_URL" npx prisma generate
 
       - name: Validate Prisma schema
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-        run: npx prisma validate
+        run: |
+          CLEAN_DATABASE_URL=$(echo "${{ secrets.DATABASE_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_DIRECT_URL=$(echo "${{ secrets.DIRECT_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          DATABASE_URL="$CLEAN_DATABASE_URL" DIRECT_URL="$CLEAN_DIRECT_URL" npx prisma validate
 
   python-check:
     name: Python — smoke test
@@ -105,55 +105,72 @@ jobs:
 
       - name: Run database migrations
         working-directory: backend
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-        run: npx prisma migrate deploy
-
-      - name: Configure SSH
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          CLEAN_DATABASE_URL=$(echo "${{ secrets.DATABASE_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_DIRECT_URL=$(echo "${{ secrets.DIRECT_URL }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          DATABASE_URL="$CLEAN_DATABASE_URL" DIRECT_URL="$CLEAN_DIRECT_URL" npx prisma migrate deploy
+
+      - name: Create SSH directory
+        run: mkdir -p ~/.ssh
+
+      - name: Write SSH Key
+        run: |
+          cat << 'EOF' > ~/.ssh/deploy_key
+          ${{ secrets.DEPLOY_SSH_KEY }}
+          EOF
+
+      - name: Set SSH Key Permissions
+        run: chmod 600 ~/.ssh/deploy_key
 
       - name: Rsync backend
         run: |
+          CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_PATH=$(echo "${{ secrets.DEPLOY_BACKEND_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           rsync -avz --delete \
             --exclude node_modules \
             --exclude .env \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             backend/ \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_BACKEND_PATH }}/"
+            "${CLEAN_USER}@${CLEAN_HOST}:${CLEAN_PATH}/"
 
       - name: Rsync python-service
         run: |
+          CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_PATH=$(echo "${{ secrets.DEPLOY_PYTHON_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           rsync -avz --delete \
             --exclude .venv \
             --exclude __pycache__ \
             --exclude .pytest_cache \
             --exclude .env \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             python-service/ \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PYTHON_PATH }}/"
+            "${CLEAN_USER}@${CLEAN_HOST}:${CLEAN_PATH}/"
 
       - name: Install & restart services on server
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_BACKEND_PATH=$(echo "${{ secrets.DEPLOY_BACKEND_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_PYTHON_PATH=$(echo "${{ secrets.DEPLOY_PYTHON_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${CLEAN_USER}@${CLEAN_HOST}" \
             "set -euo pipefail && \
-            cd '${{ secrets.DEPLOY_BACKEND_PATH }}' && \
+            cd '${CLEAN_BACKEND_PATH}' && \
             npm ci && \
             npx prisma generate && \
             (pm2 restart audit-backend --update-env || pm2 start src/server.js --name audit-backend) && \
-            cd '${{ secrets.DEPLOY_PYTHON_PATH }}' && \
+            cd '${CLEAN_PYTHON_PATH}' && \
             (test -d .venv || python3 -m venv .venv) && \
             . .venv/bin/activate && \
             pip install -r requirements.txt && \
-            (pm2 restart audit-python --update-env || pm2 start .venv/bin/uvicorn --name audit-python --cwd '${{ secrets.DEPLOY_PYTHON_PATH }}' -- app.main:app --host 127.0.0.1 --port 8000)"
+            (pm2 restart audit-python --update-env || pm2 start .venv/bin/uvicorn --name audit-python --cwd '${CLEAN_PYTHON_PATH}' -- app.main:app --host 127.0.0.1 --port 8000)"
 
       - name: Health check
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${CLEAN_USER}@${CLEAN_HOST}" \
             "curl -fsS http://127.0.0.1:4002/api/health && curl -fsS http://127.0.0.1:8000/api/health"

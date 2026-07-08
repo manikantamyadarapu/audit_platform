@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.processors.sales_return_audit_processor import SalesReturnAuditProcessor
 from app.services.processing_service import ProcessingService
 from app.utils.excel_exporter import (
+    export_cash_ledger_records,
     export_invalid_gross_weight_records,
     export_invalid_pan_records,
     export_invalid_sales_records,
@@ -141,6 +142,39 @@ async def process_sales(file: UploadFile = File(...)) -> dict:
     response = await service.process('sales', file)
     log.info('Sales audit processing complete')
     return response
+
+
+@router.post('/cash-ledger')
+@gateway_router.post('/cash-ledger/validate')
+async def process_cash_ledger(file: UploadFile = File(...)) -> dict:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Cash ledger audit processing request received')
+    response = await service.process('cash_ledger', file)
+    log.info('Cash ledger audit processing complete')
+    return response
+
+
+@router.post('/cash-ledger/export-invalid')
+@gateway_router.post('/cash-ledger/export-invalid')
+async def export_cash_ledger_invalid_rows(payload: InvalidRowsExportRequest) -> StreamingResponse:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Cash ledger invalid rows export request received')
+    excel_bytes = export_cash_ledger_records(
+        payload.records,
+        summary=payload.summary,
+        processing_statistics=payload.processingStatistics,
+        execution_timing=payload.executionTiming,
+    )
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'cash-ledger-invalid-rows-{timestamp}.xlsx'
+    log.info('Cash ledger invalid rows export generated')
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 class SalesReturnRateComparisonExportRequest(BaseModel):

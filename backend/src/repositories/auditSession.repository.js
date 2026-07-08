@@ -1,6 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const RETENTION_DAYS = 7;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

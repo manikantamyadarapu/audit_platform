@@ -43,6 +43,28 @@ app.include_router(rate_book_router)
 app.include_router(gateway_rate_book_router)
 
 
+@app.on_event("startup")
+async def startup_event():
+    print("\n=== REGISTERED ROUTES ===")
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = route.methods if route.methods else set()
+            print(f"{methods} {route.path}")
+    print("========================\n")
+    
+    # Specifically check for cash-ledger routes
+    print("\n=== CASH LEDGER ROUTES ===")
+    cash_ledger_found = False
+    for route in app.routes:
+        if hasattr(route, 'path') and 'cash-ledger' in route.path:
+            methods = route.methods if route.methods else set()
+            print(f"{methods} {route.path}")
+            cash_ledger_found = True
+    if not cash_ledger_found:
+        print("⚠️  NO CASH LEDGER ROUTES FOUND!")
+    print("==========================\n")
+
+
 @app.exception_handler(ValueError)
 async def value_error_handler(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={'success': False, 'detail': str(exc)})

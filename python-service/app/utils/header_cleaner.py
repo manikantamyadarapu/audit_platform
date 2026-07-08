@@ -7,7 +7,7 @@ import pandas as pd
 def normalize_header(header: Any) -> str:
     if header is None or pd.isna(header):
         return ''
-    text = str(header).strip().lower()
+    text = str(header).replace('\n', ' ').replace('\r', ' ').strip().lower()
     if text in {'nat', 'nan'}:
         return ''
     text = re.sub(r'[^a-z0-9]+', '_', text)

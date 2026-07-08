@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api';
+
 const AUTH_TOKEN_KEY = 'accessToken';
 const LEGACY_AUTH_TOKEN_KEY = 'token';
 const AUTH_USER_KEY = 'user';
@@ -150,7 +152,7 @@ export function redirectToLogin() {
  * @returns {Promise<string | null>}
  */
 export async function tryRefreshAccessToken() {
-  const response = await fetch('/api/auth/refresh', {
+  const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -203,7 +205,7 @@ export async function fetchCurrentUser() {
   const token = getAuthToken();
   if (!token) return null;
 
-  const response = await fetch('/api/auth/me', {
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
     credentials: 'include',
     headers: {
       Authorization: `Bearer ${token}`,
