@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 import polars as pl
 
+from app.audits.cash_ledger.parser import is_auditable_transaction_row
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.utils.excel_header_detection import find_header_row_index
 from app.utils.header_cleaner import normalize_header
@@ -126,11 +127,11 @@ def load_cash_ledger_workbook(file_bytes: bytes, log: Any | None = None) -> Load
     ):
         if _is_blank_data_row(row, positions):
             continue
+        row_values = _extract_row_values(headers, positions, row)
+        if not is_auditable_transaction_row(row_values):
+            continue
         for header, position in zip(headers, positions, strict=True):
-            value = row.iloc[position] if position < len(row) else None
-            if isinstance(value, float) and pd.isna(value):
-                value = None
-            columns[header].append(value)
+            columns[header].append(row_values[header])
         source_excel_row_numbers.append(excel_row_number)
 
     if headers and source_excel_row_numbers:
@@ -161,6 +162,16 @@ def load_cash_ledger_workbook(file_bytes: bytes, log: Any | None = None) -> Load
         load_ms=load_ms,
         column_display_headers=column_display_headers,
     )
+
+
+def _extract_row_values(headers: list[str], positions: list[int], row: pd.Series) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for header, position in zip(headers, positions, strict=True):
+        value = row.iloc[position] if position < len(row) else None
+        if isinstance(value, float) and pd.isna(value):
+            value = None
+        values[header] = value
+    return values
 
 
 def _is_blank_data_row(row: pd.Series, positions: list[int]) -> bool:

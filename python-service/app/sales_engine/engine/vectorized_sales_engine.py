@@ -32,7 +32,11 @@ from app.sales_engine.parsers.metal_rate import (
 )
 from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
-from app.sales_engine.validators.mapping_validator import mapping_valid_expr, sales_account_canonical_expr
+from app.sales_engine.validators.mapping_validator import (
+    mapping_valid_expr,
+    purchase_to_sales_account_expr,
+    sales_account_canonical_expr,
+)
 from app.sales_engine.parsers.diamond_rate import (
     diamond_band_column_exprs,
     diamond_rate_applies_expr,
@@ -60,6 +64,13 @@ from app.utils.normalization_engine import (
 _EMPTY_TOKENS = frozenset({'', 'pending', 'na', 'n/a', 'none', 'null', 'nan', '-', '----'})
 _REQUIRED = frozenset({'voucher_no', 'sales_account', 'product', 'unit_rate'})
 _HEADER_CORE = frozenset({'voucher_no', 'sales_account', 'product', 'unit_rate'})
+_PURCHASE_HEADER_CORE = frozenset({'voucher_no', 'purchase_account', 'product', 'unit_rate'})
+
+
+def _ledger_header_row_matches(labels: set[str]) -> bool:
+    if _HEADER_CORE <= labels:
+        return True
+    return _PURCHASE_HEADER_CORE <= labels
 _DEBUG_DIR = Path(__file__).resolve().parents[2] / 'debug'
 _PARTY_DISPLAY_SOURCE_COLUMNS = (
     'name_of_the_party',
@@ -116,7 +127,7 @@ def _sales_business_skip_expr() -> pl.Expr:
 
 
 def _sales_header_row_matches(labels: set[str]) -> bool:
-    return _HEADER_CORE <= labels
+    return _ledger_header_row_matches(labels)
 
 
 
@@ -147,14 +158,18 @@ class VectorizedSalesEngine:
     def __init__(self) -> None:
         self.loader = VectorizedValidationEngine('sales')
         self._log = get_logger()
+        self._ledger_mode = 'sales'
         settings = get_settings()
         self._debug_export = settings.debug_exports_enabled()
 
     def load_sales_sheet(self, file_bytes: bytes) -> LoadedValidationSheet:
-        loaded = self.loader.load_sheet(file_bytes, row_matches=_sales_header_row_matches, scan_limit=100)
+        loaded = self.loader.load_sheet(file_bytes, row_matches=_ledger_header_row_matches, scan_limit=100)
         dataframe = self._canonicalize_upload_columns(loaded.dataframe)
+        display_headers = dict(loaded.column_display_headers or {})
+        if self._ledger_mode == 'purchase':
+            display_headers['sales_account'] = 'Purchase Account'
         self._log.info(
-            f"[sales] detected header row={loaded.header_row_index + 1} "
+            f"[{self._ledger_mode}] detected header row={loaded.header_row_index + 1} "
             f"columns={self.loader.user_columns(dataframe)}"
         )
         return LoadedValidationSheet(
@@ -162,7 +177,7 @@ class VectorizedSalesEngine:
             header_row_index=loaded.header_row_index,
             header_detection_ms=loaded.header_detection_ms,
             load_ms=loaded.load_ms,
-            column_display_headers=dict(loaded.column_display_headers or {}),
+            column_display_headers=display_headers,
         )
 
     def validate(self, file_bytes: bytes) -> SalesValidationResult:
@@ -297,7 +312,23 @@ class VectorizedSalesEngine:
             renames['rate'] = 'unit_rate'
         if 'qty' in dataframe.columns and 'quantity' not in dataframe.columns:
             renames['qty'] = 'quantity'
-        return dataframe.rename(renames) if renames else dataframe
+
+        if 'purchase_account' in dataframe.columns:
+            self._ledger_mode = 'purchase'
+            if 'sales_account' not in dataframe.columns:
+                renames['purchase_account'] = 'sales_account'
+        else:
+            self._ledger_mode = 'sales'
+
+        out = dataframe.rename(renames) if renames else dataframe
+        if self._ledger_mode == 'purchase' and 'sales_account' in out.columns:
+            out = out.with_columns(
+                pl.col('sales_account')
+                .cast(pl.Utf8, strict=False)
+                .fill_null('')
+                .alias('__upload_sales_account_raw')
+            )
+        return out
 
     @staticmethod
     def _freeze_upload_row_identity(dataframe: pl.DataFrame) -> pl.DataFrame:
@@ -410,6 +441,7 @@ class VectorizedSalesEngine:
         repeated_header = (
             (normalize_blankable_voucher_expr('voucher_no') == 'VOUCHER_NO')
             | (normalize_blankable_text_expr('sales_account') == 'SALES_ACCOUNT')
+            | (normalize_blankable_text_expr('sales_account') == 'PURCHASE_ACCOUNT')
             | (normalize_blankable_text_expr('product') == 'PRODUCT')
             | (normalize_blankable_text_expr('unit_rate') == 'UNIT_RATE')
         ).alias('__is_repeated_header')
@@ -457,8 +489,11 @@ class VectorizedSalesEngine:
 
     def _adjudicate(self, enriched_df: pl.DataFrame) -> pl.DataFrame:
         enriched_df = self._apply_uom_validation(enriched_df)
+        if self._ledger_mode == 'purchase':
+            enriched_df = enriched_df.with_columns([purchase_to_sales_account_expr()])
+        enriched_df = enriched_df.with_columns([sales_account_canonical_expr()])
         return (
-            enriched_df.with_columns([sales_account_canonical_expr()])
+            enriched_df
             .with_columns(
                 [
                     account_category_expr(),

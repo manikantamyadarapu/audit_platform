@@ -2,7 +2,9 @@
 const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/pan': () => import('../pages/PanVerification'),
   '/scrutiny/gross-weight': () => import('../pages/GrossWeight'),
+  '/scrutiny/purchase/gross-weight': () => import('../pages/PurchaseGrossWeight'),
   '/scrutiny/sales-ledger': () => import('../pages/SalesLedger'),
+  '/scrutiny/purchase/rate-ledger': () => import('../pages/PurchaseLedger'),
   '/scrutiny/sales-return-rate': () => import('../pages/SalesReturnRateAudit'),
   '/scrutiny/rate-rule-book': () => import('../pages/RateRuleBook'),
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),

@@ -87,6 +87,37 @@ def test_load_cash_ledger_workbook_detects_row_6_as_header() -> None:
     assert loaded.dataframe['source_excel_row_number'].to_list() == [7, 8]
 
 
+def test_load_cash_ledger_workbook_ignores_grand_total_row() -> None:
+    rows = [
+        ['Company Name Pvt Ltd'],
+        [''],
+        [''],
+        [''],
+        [''],
+        [
+            'SNo',
+            'Date',
+            'Voucher No',
+            'Branch',
+            'Contra Account',
+            'Debit',
+            'Credit',
+            'Balance',
+            'Remarks',
+            'Division',
+        ],
+        [1, '01-04-2025', 'V001', 'HQ', 'Sales', 250000, None, '2,50,000 Dr', '', 'Retail'],
+        [None, None, None, None, None, '56,25,62,210.00', '55,18,59,678.00', None, None, None],
+    ]
+    buffer = BytesIO()
+    pd.DataFrame(rows).to_excel(buffer, index=False, header=False)
+
+    loaded = load_cash_ledger_workbook(buffer.getvalue())
+
+    assert loaded.dataframe.height == 1
+    assert loaded.dataframe['source_excel_row_number'].to_list() == [7]
+
+
 def test_header_scan_limit_is_twenty() -> None:
     assert CASH_LEDGER_HEADER_SCAN_LIMIT == 20
 

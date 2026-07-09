@@ -23,7 +23,6 @@ import {
   LogOut,
   UserCircle,
   ShoppingCart,
-  ClipboardList,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/authService';
 import { cn } from '../../utils/cn';
@@ -45,7 +44,8 @@ const salesItems = [
 ];
 
 const purchaseItems = [
-  { to: '/scrutiny/purchase-audit', label: 'Purchase Audit', icon: ClipboardList },
+  { to: '/scrutiny/purchase/gross-weight', label: 'Gross Weight Audit', icon: Weight },
+  { to: '/scrutiny/purchase/rate-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
 ];
 
 const scrutinyItems = [
@@ -186,7 +186,7 @@ export function Sidebar() {
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
-  const purchaseChildActive = ['/scrutiny/purchase-audit'].some((path) => pathname.startsWith(path));
+  const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
@@ -345,7 +345,6 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
-          <NavItem to="/reports" label="Reports" icon={BellRing} collapsed={sidebarCollapsed} />
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>
