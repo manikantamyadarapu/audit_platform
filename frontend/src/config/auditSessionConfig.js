@@ -16,6 +16,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/sales-return-rate',
     localStorageAlias: 'audit_session_sales_return',
   },
+  'purchase-return-audit': {
+    pageRoute: '/scrutiny/purchase/return-rate',
+    localStorageAlias: 'audit_session_purchase_return',
+  },
   'gross-weight': {
     pageRoute: '/scrutiny/gross-weight',
     localStorageAlias: 'audit_session_gross',

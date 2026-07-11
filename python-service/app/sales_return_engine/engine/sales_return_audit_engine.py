@@ -26,6 +26,12 @@ from app.sales_return_engine.exception_report import (
     build_source_rows_by_product,
     summarize_return_validation_records,
 )
+from app.sales_return_engine.purchase_return_header_normalization import (
+    format_detection_log_label,
+    normalize_purchase_return_dataframe,
+    purchase_or_sales_return_account_present,
+)
+from app.utils.logger import get_logger
 from app.utils.sheet_validation_error import SheetValidationError
 
 _REQUIRED = frozenset({'voucher_no', 'product', 'unit_rate'})
@@ -46,7 +52,7 @@ __all__ = [
 def _sales_or_return_header_row_matches(labels: set[str]) -> bool:
     if not _HEADER_CORE <= labels:
         return False
-    return 'sales_account' in labels or 'sales_return_account' in labels
+    return purchase_or_sales_return_account_present(labels)
 
 
 class SalesReturnAuditEngine:
@@ -54,6 +60,7 @@ class SalesReturnAuditEngine:
 
     def __init__(self) -> None:
         self.sales_engine = VectorizedSalesEngine()
+        self._log = get_logger()
 
     def process(
         self,
@@ -147,7 +154,24 @@ class SalesReturnAuditEngine:
             row_matches=_sales_or_return_header_row_matches,
             scan_limit=100,
         )
-        dataframe = self._canonicalize_columns(loaded.dataframe, is_return=is_return)
+        display_headers = dict(loaded.column_display_headers or {})
+        dataframe, display_headers, purchase_format = normalize_purchase_return_dataframe(
+            loaded.dataframe,
+            display_headers=display_headers,
+        )
+        format_label = format_detection_log_label(purchase_format)
+        if format_label:
+            self._log.info(
+                f'[sales_return] detected purchase return format={format_label} '
+                f'header_row={loaded.header_row_index + 1}'
+            )
+
+        # Sales Return layout (unchanged). Purchase Return already normalized above.
+        if purchase_format is None:
+            dataframe = self._canonicalize_columns(dataframe, is_return=is_return)
+            if is_return and 'sales_return_account' in display_headers and 'sales_account' not in display_headers:
+                display_headers['sales_account'] = display_headers.pop('sales_return_account')
+
         data_columns = self.sales_engine.loader.user_columns(dataframe)
         missing = _REQUIRED - set(data_columns)
         if missing:
@@ -160,13 +184,12 @@ class SalesReturnAuditEngine:
                 headerRowExcel=header_excel,
                 expectedColumns=sorted(_REQUIRED),
                 hints=[
-                    'Provide voucher_no, sales_account (or sales_return_account), product, and unit_rate.',
+                    'Provide voucher_no, sales_account (or sales_return_account / '
+                    'purchase_return_account / purchase_returns_account), product, and unit_rate.',
                     'Sales return audit reuses the same header layout as sales audit.',
+                    'Purchase Return Excel formats are auto-detected and normalized before audit.',
                 ],
             )
-        display_headers = dict(loaded.column_display_headers or {})
-        if is_return and 'sales_return_account' in display_headers and 'sales_account' not in display_headers:
-            display_headers['sales_account'] = display_headers.pop('sales_return_account')
 
         return LoadedValidationSheet(
             dataframe=dataframe,
@@ -178,6 +201,7 @@ class SalesReturnAuditEngine:
 
     @staticmethod
     def _canonicalize_columns(dataframe: pl.DataFrame, *, is_return: bool) -> pl.DataFrame:
+        """Canonicalize Sales Return columns only (Purchase Return handled separately)."""
         renames: dict[str, str] = {}
         if 'sales_return_account' in dataframe.columns and 'sales_account' not in dataframe.columns:
             renames['sales_return_account'] = 'sales_account'

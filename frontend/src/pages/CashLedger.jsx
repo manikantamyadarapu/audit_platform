@@ -324,6 +324,15 @@ export default function CashLedger() {
                 onClick={() => setActiveFilter(null)}
               />
               <AuditSummaryWidget
+                label="Error rows"
+                value={formatNumber(errorRows)}
+                icon={AlertTriangle}
+                accent="amber"
+                interactive
+                selected={activeFilter === 'errors'}
+                onClick={() => toggleCardFilter('errors')}
+              />
+              <AuditSummaryWidget
                 label="Negative Cash"
                 value={formatNumber(negativeCashCount)}
                 icon={AlertTriangle}

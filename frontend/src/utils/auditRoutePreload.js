@@ -6,6 +6,7 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/sales-ledger': () => import('../pages/SalesLedger'),
   '/scrutiny/purchase/rate-ledger': () => import('../pages/PurchaseLedger'),
   '/scrutiny/sales-return-rate': () => import('../pages/SalesReturnRateAudit'),
+  '/scrutiny/purchase/return-rate': () => import('../pages/PurchaseReturnRateAudit'),
   '/scrutiny/rate-rule-book': () => import('../pages/RateRuleBook'),
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),
 };
