@@ -14,6 +14,7 @@ export const CASH_LEDGER_MESSAGES = {
 
 export const CASH_LEDGER_FILTER_LABELS = {
   total: 'All rows',
+  errors: 'Error rows',
   negativeCash: 'Negative Cash',
   cashPayment: 'Cash Payments >= ₹10,000',
   cashReceipt: 'Cash Receipts >= ₹2,00,000',
@@ -69,7 +70,7 @@ export function countCashLedgerRecordsByIssue(records, issueCode) {
  */
 export function filterCashLedgerRecords(records, filter) {
   const list = Array.isArray(records) ? records.map(enrichCashLedgerRecord) : [];
-  if (filter == null || filter === 'total') {
+  if (filter == null || filter === 'total' || filter === 'errors') {
     return list;
   }
 

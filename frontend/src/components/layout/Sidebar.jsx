@@ -39,13 +39,13 @@ const salesItems = [
   { to: '/scrutiny/pan', label: 'ID Proof Audit', icon: ClipboardCheck },
   { to: '/scrutiny/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/sales-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
-  { to: '/scrutiny/cash-ledger', label: 'Cash Ledger Audit', icon: Wallet },
   { to: '/scrutiny/sales-return-rate', label: 'Sales Return Audit', icon: Undo2 },
 ];
 
 const purchaseItems = [
   { to: '/scrutiny/purchase/gross-weight', label: 'Gross Weight Audit', icon: Weight },
   { to: '/scrutiny/purchase/rate-ledger', label: 'Rate and Ledger Audit', icon: BookOpen },
+  { to: '/scrutiny/purchase/return-rate', label: 'Purchase Return Audit', icon: Undo2 },
 ];
 
 const scrutinyItems = [
@@ -186,7 +186,7 @@ export function Sidebar() {
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const vouchingActive = pathname.startsWith('/vouching');
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
-  const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger'].some((path) => pathname.startsWith(path));
+  const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger', '/scrutiny/purchase/return-rate'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);

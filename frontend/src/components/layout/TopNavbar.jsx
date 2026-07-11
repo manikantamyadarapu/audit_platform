@@ -15,6 +15,7 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/purchase\/gross-weight/, title: 'Purchase Gross Weight Audit' },
   { test: /^\/scrutiny\/gross-weight/, title: 'Gross Weight Audit' },
   { test: /^\/scrutiny\/purchase\/rate-ledger/, title: 'Purchase Rate and Ledger Audit' },
+  { test: /^\/scrutiny\/purchase\/return-rate/, title: 'Purchase Return Audit' },
   { test: /^\/scrutiny\/sales-ledger/, title: 'Rate and Ledger Audit' },
   { test: /^\/sales-audit\/product-average-rates/, title: 'Product Average Rates' },
   { test: /^\/scrutiny\/making-charges/, title: 'Audit for Making Charges' },
