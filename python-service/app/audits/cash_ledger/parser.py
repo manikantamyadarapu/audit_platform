@@ -1,7 +1,48 @@
 """Parser utilities for Cash Ledger Audit."""
 
 import re
-from typing import Tuple
+from typing import Any, Tuple
+
+
+def is_empty_field(value: Any) -> bool:
+    """Return True when a ledger cell has no meaningful content."""
+    if value is None:
+        return True
+    if isinstance(value, float) and value != value:  # NaN
+        return True
+    return not str(value).strip()
+
+
+def is_auditable_transaction_row(row: dict[str, Any]) -> bool:
+    """
+    Return True when a row represents a real ledger transaction.
+
+    Grand total / summary rows (and other non-transaction rows) lack date,
+    voucher number, and contra account. They must be excluded before audit rules run.
+    """
+    return any(
+        not is_empty_field(row.get(field))
+        for field in ('date', 'voucher_no', 'contra_account')
+    )
+
+
+def is_report_total_row(row: dict[str, Any]) -> bool:
+    """
+    Detect report grand-total rows.
+
+    These rows only carry debit/credit totals while date, voucher, branch,
+    contra account, and balance are all empty.
+    """
+    summary_fields_empty = all(
+        is_empty_field(row.get(field))
+        for field in ('date', 'voucher_no', 'branch', 'contra_account', 'balance')
+    )
+    if not summary_fields_empty:
+        return False
+    return (
+        parse_amount(row.get('debit')) is not None
+        or parse_amount(row.get('credit')) is not None
+    )
 
 
 def parse_amount(amount_str: str | None) -> float | None:

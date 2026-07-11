@@ -69,6 +69,27 @@ def load_gemstone_product_catalog() -> dict:
 
 
 @lru_cache(maxsize=1)
+def load_purchase_ledger_catalog() -> dict:
+    path = _CONFIG_DIR / 'purchase_ledger_catalog.json'
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def purchase_to_sales_account_aliases() -> dict[str, str]:
+    """Normalized purchase account → sales canonical account for shared validation."""
+    raw = load_purchase_ledger_catalog().get('purchase_to_sales_account_aliases') or {}
+    normalized: dict[str, str] = {}
+    for alias, target in raw.items():
+        key = normalize_strict_text(alias)
+        value = normalize_strict_text(target)
+        if key and value:
+            normalized[key] = value
+    return normalized
+
+
+@lru_cache(maxsize=1)
 def sales_account_aliases() -> dict[str, str]:
     """Normalized alias → canonical account (matches __sales_account_norm)."""
     catalog = load_sales_ledger_catalog().get('sales_account_aliases') or {}

@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import polars as pl
 
-from app.sales_engine.config.loader import catalog_accounts_and_patterns, known_sales_accounts, sales_account_aliases
+from app.sales_engine.config.loader import (
+    catalog_accounts_and_patterns,
+    known_sales_accounts,
+    purchase_to_sales_account_aliases,
+    sales_account_aliases,
+)
 
 _ACCOUNT_ALLOWED_SLAB: dict[str, frozenset[str]] = {
     'JEWELS SALES ACCOUNT - RUBIES': frozenset({'RUBIES'}),
@@ -13,12 +18,21 @@ _ACCOUNT_ALLOWED_SLAB: dict[str, frozenset[str]] = {
 }
 
 
+def _alias_replace_expr(column: str, aliases: dict[str, str]) -> pl.Expr:
+    """Fast dict-based alias remap (avoids deep nested when/then trees)."""
+    if not aliases:
+        return pl.col(column).alias(column)
+    return pl.col(column).replace(aliases).alias(column)
+
+
+def purchase_to_sales_account_expr(column: str = '__sales_account_norm') -> pl.Expr:
+    """Map purchase ledger account labels to sales canonical accounts for validation."""
+    return _alias_replace_expr(column, purchase_to_sales_account_aliases())
+
+
 def sales_account_canonical_expr(column: str = '__sales_account_norm') -> pl.Expr:
     """Map upload spellings to canonical sales ledger account keys."""
-    canonical = pl.col(column)
-    for alias, target in sales_account_aliases().items():
-        canonical = pl.when(canonical == alias).then(pl.lit(target)).otherwise(canonical)
-    return canonical.alias(column)
+    return _alias_replace_expr(column, sales_account_aliases())
 
 
 def _account_catalog_match_expr(

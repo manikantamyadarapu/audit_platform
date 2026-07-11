@@ -8,6 +8,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/sales-ledger',
     localStorageAlias: 'audit_session_sales',
   },
+  'purchase-ledger': {
+    pageRoute: '/scrutiny/purchase/rate-ledger',
+    localStorageAlias: 'audit_session_purchase_ledger',
+  },
   'sales-return-audit': {
     pageRoute: '/scrutiny/sales-return-rate',
     localStorageAlias: 'audit_session_sales_return',
@@ -15,6 +19,10 @@ export const AUDIT_SESSION_REGISTRY = {
   'gross-weight': {
     pageRoute: '/scrutiny/gross-weight',
     localStorageAlias: 'audit_session_gross',
+  },
+  'purchase-gross-weight': {
+    pageRoute: '/scrutiny/purchase/gross-weight',
+    localStorageAlias: 'audit_session_purchase_gross',
   },
   'pan-audit': {
     pageRoute: '/scrutiny/pan',
