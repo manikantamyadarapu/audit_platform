@@ -23,13 +23,13 @@ import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
-import { downloadRowsXlsx } from '../utils/salesReturnXlsxExport';
 import {
   CASH_LEDGER_FILTER_LABELS,
   CASH_LEDGER_ISSUE_CODES,
   countCashLedgerRecordsByIssue,
   filterCashLedgerRecords,
 } from '../utils/cashLedgerRecordFilters';
+import { downloadCashLedgerTotalErrorReport } from '../utils/cashLedgerTotalErrorReport';
 import {
   buildCashLedgerExportColumnDefs,
   CASH_LEDGER_DISPLAY_HEADERS,
@@ -164,24 +164,18 @@ export default function CashLedger() {
   }, []);
 
   const runExportExcel = useCallback(() => {
-    if (!filteredRecords.length) {
+    if (!exceptionRecords.length) {
       auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
     try {
-      const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
-      downloadRowsXlsx(
-        `cash-ledger-exceptions-${tag}-${Date.now()}.xlsx`,
-        exportColumns,
-        filteredRecords,
-        'Exception report'
-      );
+      downloadCashLedgerTotalErrorReport(exceptionRecords);
       auditToastSuccess('Excel export downloaded');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter, exportColumns]);
+  }, [exceptionRecords]);
 
   const runExportCsv = useCallback(() => {
     if (!filteredRecords.length) {
@@ -382,7 +376,7 @@ export default function CashLedger() {
                     variant="primary"
                     size="md"
                     loading={exporting}
-                    disabled={exporting || filteredRecords.length === 0}
+                    disabled={exporting || exceptionRecords.length === 0}
                     onClick={runExportExcel}
                   >
                     <FileSpreadsheet className="h-4 w-4" />

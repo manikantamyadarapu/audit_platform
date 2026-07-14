@@ -118,6 +118,43 @@ def test_load_cash_ledger_workbook_ignores_grand_total_row() -> None:
     assert loaded.dataframe['source_excel_row_number'].to_list() == [7]
 
 
+def test_load_cash_ledger_workbook_stops_at_footer_rows() -> None:
+    rows = [
+        ['Company Name Pvt Ltd'],
+        [''],
+        [''],
+        [''],
+        [''],
+        [
+            'SNo',
+            'Date',
+            'Voucher No',
+            'Branch',
+            'Contra Account',
+            'Debit',
+            'Credit',
+            'Balance',
+            'Remarks',
+            'Division',
+        ],
+        [1, '01-04-2025', 'V001', 'HQ', 'Sales', 250000, None, '2,50,000 Dr', '', 'Retail'],
+        [2, '02-04-2025', 'V002', 'HQ', 'Rent', None, 15000, '2,35,000 Dr', '', 'Retail'],
+        [None, None, None, None, None, '562,562,210.00', '551,859,678.00', None, None, None],
+        [None, None, None, None, None, None, None, None, None, None],
+        ['Date : 04/07/2026 11:32 AM', None, None, None, None, None, None, None, None, None],
+        ['User Name : H A A', None, None, None, None, None, None, None, None, None],
+        [3, '03-04-2025', 'V999', 'HQ', 'ShouldNotLoad', 1, None, '1 Dr', '', 'Retail'],
+    ]
+    buffer = BytesIO()
+    pd.DataFrame(rows).to_excel(buffer, index=False, header=False)
+
+    loaded = load_cash_ledger_workbook(buffer.getvalue())
+
+    assert loaded.dataframe.height == 2
+    assert loaded.dataframe['voucher_no'].to_list() == ['V001', 'V002']
+    assert 'V999' not in loaded.dataframe['voucher_no'].to_list()
+
+
 def test_header_scan_limit_is_twenty() -> None:
     assert CASH_LEDGER_HEADER_SCAN_LIMIT == 20
 

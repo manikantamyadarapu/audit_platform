@@ -9,7 +9,11 @@ from typing import Any
 import pandas as pd
 import polars as pl
 
-from app.audits.cash_ledger.parser import is_auditable_transaction_row
+from app.audits.cash_ledger.parser import (
+    is_auditable_transaction_row,
+    is_cash_ledger_footer_row,
+    is_report_total_row,
+)
 from app.engines.vectorized_validation_engine import LoadedValidationSheet
 from app.utils.excel_header_detection import find_header_row_index
 from app.utils.header_cleaner import normalize_header
@@ -125,12 +129,36 @@ def load_cash_ledger_workbook(file_bytes: bytes, log: Any | None = None) -> Load
         raw_df.iloc[header_row_index + 1 :].iterrows(),
         start=header_row_index + 2,
     ):
+        # 1) Drop completely blank rows.
         if _is_blank_data_row(row, positions):
             continue
+
+        # 2 / 4) Footer begins → stop; ignore this row and every row after it.
+        if is_cash_ledger_footer_row(row.tolist()):
+            logger.info(
+                f'Cash Ledger footer detected at Excel row {excel_row_number}; '
+                'stopping transaction extraction.'
+            )
+            break
+
         row_values = _extract_row_values(headers, positions, row)
+
+        # Also stop if footer text landed in a mapped column (e.g. Date).
+        if is_cash_ledger_footer_row(row_values):
+            logger.info(
+                f'Cash Ledger footer detected at Excel row {excel_row_number}; '
+                'stopping transaction extraction.'
+            )
+            break
+
+        # 3) Ignore grand-total rows (debit/credit only).
+        if is_report_total_row(row_values):
+            continue
+
         if not is_auditable_transaction_row(row_values):
             continue
-        for header, position in zip(headers, positions, strict=True):
+
+        for header in headers:
             columns[header].append(row_values[header])
         source_excel_row_numbers.append(excel_row_number)
 
