@@ -15,6 +15,7 @@ from app.utils.excel_exporter import (
     export_invalid_gross_weight_records,
     export_invalid_pan_records,
     export_invalid_sales_records,
+    export_negative_bank_records,
     export_sales_return_exceptions,
     export_sales_return_rate_comparison,
 )
@@ -170,6 +171,39 @@ async def export_cash_ledger_invalid_rows(payload: InvalidRowsExportRequest) -> 
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'cash-ledger-invalid-rows-{timestamp}.xlsx'
     log.info('Cash ledger invalid rows export generated')
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post('/negative-bank')
+@gateway_router.post('/negative-bank/validate')
+async def process_negative_bank(file: UploadFile = File(...)) -> dict:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Negative Bank audit processing request received')
+    response = await service.process('negative_bank', file)
+    log.info('Negative Bank audit processing complete')
+    return response
+
+
+@router.post('/negative-bank/export-invalid')
+@gateway_router.post('/negative-bank/export-invalid')
+async def export_negative_bank_invalid_rows(payload: InvalidRowsExportRequest) -> StreamingResponse:
+    request_id = str(uuid.uuid4())
+    log = get_logger(request_id)
+    log.info('Negative Bank invalid rows export request received')
+    excel_bytes = export_negative_bank_records(
+        payload.records,
+        summary=payload.summary,
+        processing_statistics=payload.processingStatistics,
+        execution_timing=payload.executionTiming,
+    )
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'negative-bank-invalid-rows-{timestamp}.xlsx'
+    log.info('Negative Bank invalid rows export generated')
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

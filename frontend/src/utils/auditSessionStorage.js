@@ -280,6 +280,7 @@ export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
     case 'purchase-gross-weight':
       return aggressiveSlimGrossWeightSnapshot(snapshot);
     case 'cash-ledger':
+    case 'negative-bank':
       return slimCashLedgerSnapshot(snapshot);
     default:
       return aggressiveSlimAuditSnapshot(snapshot);

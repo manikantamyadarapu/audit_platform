@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Wallet,
+  Landmark,
   AlertTriangle,
   Rows3,
   Download,
   FileSpreadsheet,
   FileText,
-  IndianRupee,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
@@ -18,23 +17,25 @@ import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
-import { exportInvalidCashLedgerRows, validateCashLedgerExcel } from '../services/processExcelService';
+import {
+  exportInvalidNegativeBankRows,
+  validateNegativeBankExcel,
+} from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { exportRowsToCsv } from '../utils/csvExport';
 import { exportRowsToPdf } from '../utils/pdfExport';
-import { downloadRowsXlsx } from '../utils/salesReturnXlsxExport';
 import {
-  CASH_LEDGER_FILTER_LABELS,
-  CASH_LEDGER_ISSUE_CODES,
-  countCashLedgerRecordsByIssue,
-  filterCashLedgerRecords,
-} from '../utils/cashLedgerRecordFilters';
+  NEGATIVE_BANK_FILTER_LABELS,
+  NEGATIVE_BANK_ISSUE_CODES,
+  countNegativeBankRecordsByIssue,
+  filterNegativeBankRecords,
+} from '../utils/negativeBankRecordFilters';
 import {
-  buildCashLedgerExportColumnDefs,
-  CASH_LEDGER_DISPLAY_HEADERS,
-  resolveCashLedgerColumnOrder,
-} from '../utils/cashLedgerTableColumns';
+  buildNegativeBankExportColumnDefs,
+  NEGATIVE_BANK_DISPLAY_HEADERS,
+  resolveNegativeBankColumnOrder,
+} from '../utils/negativeBankTableColumns';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import {
@@ -42,10 +43,10 @@ import {
   slimCashLedgerSnapshot,
 } from '../utils/auditSessionStorage';
 
-const CASH_LEDGER_SESSION_KEY = 'cash-ledger';
+const NEGATIVE_BANK_SESSION_KEY = 'negative-bank';
 
-export default function CashLedger() {
-  const [initialSession] = useState(() => bootstrapAuditSessionState(CASH_LEDGER_SESSION_KEY));
+export default function NegativeBank() {
+  const [initialSession] = useState(() => bootstrapAuditSessionState(NEGATIVE_BANK_SESSION_KEY));
   const [file, setFile] = useState(null);
   const [restoredFileName, setRestoredFileName] = useState(
     () => initialSession.data?.fileName ?? null
@@ -83,7 +84,7 @@ export default function CashLedger() {
     restoreSession,
     startNewAudit,
     restoring,
-  } = useAuditSessionPersistence(CASH_LEDGER_SESSION_KEY, sessionSnapshot, {
+  } = useAuditSessionPersistence(NEGATIVE_BANK_SESSION_KEY, sessionSnapshot, {
     transform: slimCashLedgerSnapshot,
     onApplySession: applySession,
     onSaveFailed: () => {
@@ -100,7 +101,7 @@ export default function CashLedger() {
     }
     setLoading(true);
     try {
-      const data = await validateCashLedgerExcel(file);
+      const data = await validateNegativeBankExcel(file);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
@@ -121,7 +122,7 @@ export default function CashLedger() {
       if (saved === false) {
         auditToastError('Results loaded but could not be saved for later.');
       }
-      auditToastSuccess('Cash Ledger validation complete');
+      auditToastSuccess('Negative Bank validation complete');
     } catch (e) {
       const payload = e.details ?? null;
       setSheetError(payload);
@@ -137,23 +138,23 @@ export default function CashLedger() {
   }, [result]);
 
   const filteredRecords = useMemo(
-    () => filterCashLedgerRecords(exceptionRecords, activeFilter),
+    () => filterNegativeBankRecords(exceptionRecords, activeFilter),
     [exceptionRecords, activeFilter]
   );
 
   const tableColumnOrder = useMemo(
-    () => resolveCashLedgerColumnOrder(filteredRecords),
+    () => resolveNegativeBankColumnOrder(filteredRecords),
     [filteredRecords]
   );
 
   const exportColumns = useMemo(
-    () => buildCashLedgerExportColumnDefs(tableColumnOrder, filteredRecords),
+    () => buildNegativeBankExportColumnDefs(tableColumnOrder, filteredRecords),
     [tableColumnOrder, filteredRecords]
   );
 
   const columnDisplayHeaders = useMemo(
     () => ({
-      ...CASH_LEDGER_DISPLAY_HEADERS,
+      ...NEGATIVE_BANK_DISPLAY_HEADERS,
       ...(result?.columnDisplayHeaders ?? {}),
     }),
     [result?.columnDisplayHeaders]
@@ -164,81 +165,56 @@ export default function CashLedger() {
   }, []);
 
   const runExportExcel = useCallback(async () => {
-    if (!filteredRecords.length && activeFilter != null) {
-      auditToastError('No rows to export.');
-      return;
-    }
     if (!exceptionRecords.length) {
       auditToastError('No rows to export.');
       return;
     }
     setExporting(true);
     try {
-      if (activeFilter == null || activeFilter === 'errors') {
-        // Backend Total Error workbook — includes Negative Bank worksheet
-        await exportInvalidCashLedgerRows(exceptionRecords);
-      } else {
-        const tag = `filtered-${activeFilter}`;
-        downloadRowsXlsx(
-          `cash-ledger-exceptions-${tag}-${Date.now()}.xlsx`,
-          exportColumns,
-          filteredRecords,
-          'Exception report'
-        );
-      }
+      await exportInvalidNegativeBankRows(exceptionRecords);
       auditToastSuccess('Excel export downloaded');
     } catch (e) {
       auditToastError(e.message || 'Excel export failed');
     } finally {
       setExporting(false);
     }
-  }, [filteredRecords, activeFilter, exportColumns, exceptionRecords]);
+  }, [exceptionRecords]);
 
   const runExportCsv = useCallback(() => {
     if (!filteredRecords.length) {
       auditToastError('No rows to export.');
       return;
     }
-    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
     exportRowsToCsv(
-      `cash-ledger-exceptions-${tag}-${Date.now()}.csv`,
+      `negative-bank-exceptions-${Date.now()}.csv`,
       exportColumns,
       filteredRecords
     );
     auditToastSuccess('CSV export downloaded');
-  }, [filteredRecords, activeFilter, exportColumns]);
+  }, [filteredRecords, exportColumns]);
 
   const runExportPdf = useCallback(() => {
     if (!filteredRecords.length) {
       auditToastError('No rows to export.');
       return;
     }
-    const tag = activeFilter ? `filtered-${activeFilter}` : 'all';
     exportRowsToPdf(
-      `cash-ledger-exceptions-${tag}-${Date.now()}.pdf`,
-      'Cash Ledger audit — exception report',
+      `negative-bank-exceptions-${Date.now()}.pdf`,
+      'Negative Bank audit — exception report',
       exportColumns,
       filteredRecords
     );
     auditToastSuccess('PDF export downloaded');
-  }, [filteredRecords, activeFilter, exportColumns]);
+  }, [filteredRecords, exportColumns]);
 
   const totalRows = result?.totalRows ?? 0;
   const errorRows = result?.summary?.failedRows ?? result?.errorRows ?? exceptionRecords.length;
   const compliance =
     totalRows > 0 ? Math.max(0, Math.min(100, ((totalRows - errorRows) / totalRows) * 100)) : null;
 
-  const negativeCashCount = countCashLedgerRecordsByIssue(
+  const negativeBankCount = countNegativeBankRecordsByIssue(
     exceptionRecords,
-    CASH_LEDGER_ISSUE_CODES.negativeCash
-  );
-  const cashPaymentCount = countCashLedgerRecordsByIssue(
-    exceptionRecords,
-    CASH_LEDGER_ISSUE_CODES.cashPayment
-  );
-  const cashReceiptCount = countCashLedgerRecordsByIssue(
-    exceptionRecords,
-    CASH_LEDGER_ISSUE_CODES.cashReceipt
+    NEGATIVE_BANK_ISSUE_CODES.negativeBank
   );
 
   return (
@@ -251,7 +227,7 @@ export default function CashLedger() {
             <div>
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; validate</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Upload a Cash Book Excel file to validate cash transactions based on predefined audit rules.
+                Upload a Cash Book Excel file to check Opening/Closing balances for Credit (Cr).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -306,14 +282,6 @@ export default function CashLedger() {
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-4 font-mono text-xs text-[var(--color-text-primary)] shadow-inner">
               {formatProcessingErrorHuman(sheetError)}
             </pre>
-            {sheetError.error ? (
-              <details className="rounded-xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm">
-                <summary className="cursor-pointer font-medium text-slate-700">Technical: error payload</summary>
-                <pre className="mt-3 max-h-48 overflow-auto text-xs text-slate-600">
-                  {JSON.stringify(sheetError.error, null, 2)}
-                </pre>
-              </details>
-            ) : null}
           </CardBody>
         </Card>
       ) : null}
@@ -335,40 +303,13 @@ export default function CashLedger() {
                 onClick={() => setActiveFilter(null)}
               />
               <AuditSummaryWidget
-                label="Error rows"
-                value={formatNumber(errorRows)}
-                icon={AlertTriangle}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'errors'}
-                onClick={() => toggleCardFilter('errors')}
-              />
-              <AuditSummaryWidget
-                label="Negative Cash"
-                value={formatNumber(negativeCashCount)}
+                label="Negative Bank"
+                value={formatNumber(negativeBankCount)}
                 icon={AlertTriangle}
                 accent="rose"
                 interactive
-                selected={activeFilter === 'negativeCash'}
-                onClick={() => toggleCardFilter('negativeCash')}
-              />
-              <AuditSummaryWidget
-                label="Cash Payments >= ₹10,000"
-                value={formatNumber(cashPaymentCount)}
-                icon={IndianRupee}
-                accent="amber"
-                interactive
-                selected={activeFilter === 'cashPayment'}
-                onClick={() => toggleCardFilter('cashPayment')}
-              />
-              <AuditSummaryWidget
-                label="Cash Receipts >= ₹2,00,000"
-                value={formatNumber(cashReceiptCount)}
-                icon={Wallet}
-                accent="violet"
-                interactive
-                selected={activeFilter === 'cashReceipt'}
-                onClick={() => toggleCardFilter('cashReceipt')}
+                selected={activeFilter === 'negativeBank'}
+                onClick={() => toggleCardFilter('negativeBank')}
               />
               <AuditSummaryWidget
                 label="Compliance"
@@ -385,7 +326,7 @@ export default function CashLedger() {
                 <div>
                   <h3 className="text-base font-bold text-emerald-700">Audit results</h3>
                   <p className="text-sm text-slate-500">
-                    Exception rows with audit messages for the three cash ledger rules.
+                    Exception rows with Credit (Cr) opening/closing balances.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -393,7 +334,7 @@ export default function CashLedger() {
                     variant="primary"
                     size="md"
                     loading={exporting}
-                    disabled={exporting || filteredRecords.length === 0}
+                    disabled={exporting || exceptionRecords.length === 0}
                     onClick={runExportExcel}
                   >
                     <FileSpreadsheet className="h-4 w-4" />
@@ -425,7 +366,7 @@ export default function CashLedger() {
                 <div className="space-y-4">
                   <AuditFilterStrip
                     activeFilter={activeFilter}
-                    labels={CASH_LEDGER_FILTER_LABELS}
+                    labels={NEGATIVE_BANK_FILTER_LABELS}
                     count={filteredRecords.length}
                     onClear={() => setActiveFilter(null)}
                   />
@@ -439,14 +380,14 @@ export default function CashLedger() {
                   ) : (
                     <EmptyState
                       title="No rows for this filter"
-                      description="Try another summary widget or clear the filter to see all exception rows."
+                      description="Clear the filter to see all exception rows."
                     />
                   )}
                 </div>
               ) : (
                 <EmptyState
                   title="No issues detected"
-                  description="Every evaluated row passed validation for this upload."
+                  description="Every evaluated row passed Negative Bank validation for this upload."
                 />
               )}
             </CardBody>
@@ -454,9 +395,9 @@ export default function CashLedger() {
         </>
       ) : !sheetError ? (
         <EmptyState
-          icon={Wallet}
+          icon={Landmark}
           title="Awaiting validation"
-          description="Upload a Cash Book Excel file and run validation to populate summary metrics and audit results."
+          description="Upload a Cash Book Excel file and run validation to populate Negative Bank results."
         />
       ) : null}
     </div>

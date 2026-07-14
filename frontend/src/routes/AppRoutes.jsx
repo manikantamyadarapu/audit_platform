@@ -18,6 +18,7 @@ const SalesLedger = lazy(() => import('../pages/SalesLedger'));
 const PurchaseLedger = lazy(() => import('../pages/PurchaseLedger'));
 const PurchaseReturnRateAudit = lazy(() => import('../pages/PurchaseReturnRateAudit'));
 const CashLedger = lazy(() => import('../pages/CashLedger'));
+const NegativeBank = lazy(() => import('../pages/NegativeBank'));
 const RateRuleBook = lazy(() => import('../pages/RateRuleBook'));
 const DiamondGemRateBook = lazy(() => import('../pages/DiamondGemRateBook'));
 const Reports = lazy(() => import('../pages/Reports'));
@@ -65,6 +66,7 @@ export function AppRoutes() {
           <Route path="/scrutiny/purchase/rate-ledger" element={lazyPage(PurchaseLedger)} />
           <Route path="/scrutiny/purchase/return-rate" element={lazyPage(PurchaseReturnRateAudit)} />
           <Route path="/scrutiny/cash-ledger" element={lazyPage(CashLedger)} />
+          <Route path="/scrutiny/negative-bank" element={lazyPage(NegativeBank)} />
           <Route path="/sales-audit/product-average-rates" element={lazyPage(ProductAverageRates)} />
           <Route path="/scrutiny/making-charges" element={lazyPage(ModuleSoon)} />
           <Route path="/scrutiny/sales-return-rate" element={lazyPage(SalesReturnRateAudit)} />
