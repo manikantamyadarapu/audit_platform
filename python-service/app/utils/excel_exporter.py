@@ -11,7 +11,14 @@ from app.sales_return_engine.exception_report import (
     SALES_RETURN_EXCEPTION_COLUMNS,
     SALES_RETURN_EXCEPTION_HEADER_MAP,
 )
+from app.utils.audit_excel_exporter import build_multi_sheet_audit_workbook
 from app.utils.audit_reporter import build_audit_excel_report
+
+CASH_LEDGER_RULE_SHEETS = (
+    ('Negative Cash', 'NEGATIVE_CASH_BALANCE'),
+    ('Cash Payments >= ₹10,000', 'CASH_PAYMENT_GT_10000'),
+    ('Cash Receipts >= ₹2,00,000', 'CASH_RECEIPT_GT_200000'),
+)
 
 PAN_EXPORT_COLUMNS = [
     'rowNumber',
@@ -302,6 +309,38 @@ def export_sales_return_rate_comparison(records: list[dict[str, Any]]) -> bytes:
     return output.getvalue()
 
 
+def _cash_ledger_rows_for_issue(
+    records: list[dict[str, Any]], issue_code: str
+) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    for record in records:
+        issues = record.get('issues') or []
+        if isinstance(issues, list) and issue_code in issues:
+            matched.append(record)
+            continue
+        if record.get('issueCode') == issue_code:
+            matched.append(record)
+    return matched
+
+
+def export_cash_ledger_total_error_report(records: list[dict[str, Any]] | None = None) -> bytes:
+    """
+    One workbook with a worksheet per Cash Ledger audit rule (widget name).
+
+    Empty rules still get a sheet with a placeholder message.
+    """
+    source = list(records or [])
+    sheets: dict[str, list[dict[str, Any]]] = {
+        sheet_name: _cash_ledger_rows_for_issue(source, issue_code)
+        for sheet_name, issue_code in CASH_LEDGER_RULE_SHEETS
+    }
+    return build_multi_sheet_audit_workbook(
+        sheets,
+        columns=CASH_LEDGER_EXPORT_COLUMNS,
+        header_map=CASH_LEDGER_EXPORT_HEADER_MAP,
+    )
+
+
 def export_cash_ledger_records(
     records: list[dict[str, Any]],
     *,
@@ -309,14 +348,7 @@ def export_cash_ledger_records(
     processing_statistics: dict[str, Any] | None = None,
     execution_timing: dict[str, Any] | None = None,
 ) -> bytes:
-    return build_audit_excel_report(
-        report_title='Cash Ledger Audit Report',
-        invalid_sheet_name='Cash Ledger Issues',
-        source_processor='cash_ledger',
-        records=records,
-        export_columns=CASH_LEDGER_EXPORT_COLUMNS,
-        header_map=CASH_LEDGER_EXPORT_HEADER_MAP,
-        summary=summary,
-        processing_statistics=processing_statistics,
-        execution_timing=execution_timing,
-    )
+    # Total Error Report: multi-sheet workbook (one sheet per audit rule).
+    # summary / processing / timing kept for call-site compatibility; unused here.
+    _ = (summary, processing_statistics, execution_timing)
+    return export_cash_ledger_total_error_report(records)

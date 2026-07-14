@@ -314,7 +314,7 @@ export function Sidebar() {
             </NavGroup>
             <NavItem
               to="/scrutiny/cash-ledger"
-              label="Cash Ledger"
+              label="Cash"
               icon={Wallet}
               collapsed={sidebarCollapsed}
               nested
