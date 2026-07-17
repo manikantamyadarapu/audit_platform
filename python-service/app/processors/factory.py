@@ -1,6 +1,7 @@
 from app.processors.base import BaseProcessor
 from app.processors.cash_ledger_processor import CashLedgerProcessor
 from app.processors.gross_weight_processor import GrossWeightProcessor
+from app.processors.negative_bank_processor import NegativeBankProcessor
 from app.processors.pan_processor import PanProcessor
 from app.processors.sales_audit_processor import SalesAuditProcessor
 
@@ -9,6 +10,7 @@ PROCESSOR_REGISTRY = {
     'gross_weight': GrossWeightProcessor,
     'sales': SalesAuditProcessor,
     'cash_ledger': CashLedgerProcessor,
+    'negative_bank': NegativeBankProcessor,
 }
 
 

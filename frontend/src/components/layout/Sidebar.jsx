@@ -19,6 +19,7 @@ import {
   Settings,
   Undo2,
   Wallet,
+  Landmark,
   Weight,
   LogOut,
   UserCircle,
@@ -316,6 +317,14 @@ export function Sidebar() {
               to="/scrutiny/cash-ledger"
               label="Cash"
               icon={Wallet}
+              collapsed={sidebarCollapsed}
+              nested
+              onNavigate={ensureScrutiny}
+            />
+            <NavItem
+              to="/scrutiny/negative-bank"
+              label="Negative Bank"
+              icon={Landmark}
               collapsed={sidebarCollapsed}
               nested
               onNavigate={ensureScrutiny}

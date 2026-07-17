@@ -235,6 +235,14 @@ async function postCashLedgerExportInvalid(records, options = {}) {
   return postExportInvalidRows('/api/process/cash-ledger/export-invalid', records, options);
 }
 
+async function postNegativeBankValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/negative-bank', fileBuffer, originalname, mimetype, options);
+}
+
+async function postNegativeBankExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/negative-bank/export-invalid', records, options);
+}
+
 async function getRateRules(options = {}) {
   const headers = {};
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -310,6 +318,8 @@ module.exports = {
   postSalesExportInvalid,
   postCashLedgerValidate,
   postCashLedgerExportInvalid,
+  postNegativeBankValidate,
+  postNegativeBankExportInvalid,
   postSalesReturnValidate,
   postSalesReturnExportRateComparison,
   postSalesReturnExportExceptions,

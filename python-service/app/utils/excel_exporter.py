@@ -105,6 +105,34 @@ CASH_LEDGER_EXPORT_HEADER_MAP = {
     'Message': 'Message',
 }
 
+NEGATIVE_BANK_EXPORT_COLUMNS = [
+    'rowNumber',
+    'date',
+    'voucher_no',
+    'branch',
+    'contra_account',
+    'debit',
+    'credit',
+    'balance',
+    'tillDate',
+    'Message',
+]
+
+NEGATIVE_BANK_EXPORT_HEADER_MAP = {
+    'rowNumber': 'Row No',
+    'date': 'Date',
+    'voucher_no': 'Voucher No',
+    'branch': 'Branch',
+    'contra_account': 'Contra Account',
+    'debit': 'Debit',
+    'credit': 'Credit',
+    'balance': 'Balance',
+    'tillDate': 'Till Date',
+    'Message': 'Message',
+}
+
+NEGATIVE_BANK_NO_REPORT_MESSAGE = 'No report for this audit rule.'
+
 
 def export_invalid_pan_records(
     records: list[dict[str, Any]],
@@ -348,7 +376,46 @@ def export_cash_ledger_records(
     processing_statistics: dict[str, Any] | None = None,
     execution_timing: dict[str, Any] | None = None,
 ) -> bytes:
-    # Total Error Report: multi-sheet workbook (one sheet per audit rule).
-    # summary / processing / timing kept for call-site compatibility; unused here.
-    _ = (summary, processing_statistics, execution_timing)
-    return export_cash_ledger_total_error_report(records)
+    return build_audit_excel_report(
+        report_title='Cash Ledger Audit Report',
+        invalid_sheet_name='Cash Ledger Issues',
+        source_processor='cash_ledger',
+        records=records,
+        export_columns=CASH_LEDGER_EXPORT_COLUMNS,
+        header_map=CASH_LEDGER_EXPORT_HEADER_MAP,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
+
+
+def export_negative_bank_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    if not records:
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Negative Bank'
+        sheet.append([NEGATIVE_BANK_NO_REPORT_MESSAGE])
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+        return output.getvalue()
+
+    return build_audit_excel_report(
+        report_title='Negative Bank Audit Report',
+        invalid_sheet_name='Negative Bank',
+        source_processor='negative_bank',
+        records=records,
+        export_columns=NEGATIVE_BANK_EXPORT_COLUMNS,
+        header_map=NEGATIVE_BANK_EXPORT_HEADER_MAP,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
