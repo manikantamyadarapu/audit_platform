@@ -76,6 +76,7 @@ _PARTY_DISPLAY_SOURCE_COLUMNS = (
     'name_of_the_party',
     'customer_name',
     'party_name',
+    'party',
     'bill_to_party',
     'bill_party',
 )

@@ -61,7 +61,7 @@ async def startup_event():
             print(f"{methods} {route.path}")
             cash_ledger_found = True
     if not cash_ledger_found:
-        print("⚠️  NO CASH LEDGER ROUTES FOUND!")
+        print("WARNING: NO CASH LEDGER ROUTES FOUND!")
     print("==========================\n")
 
 
