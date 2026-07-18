@@ -13,6 +13,7 @@ const auditSessionRoutes = require('./auditSession.routes');
 const rateBookRoutes = require('./rateBook.routes');
 const cashLedgerRoutes = require('./cashLedger.routes');
 const negativeBankRoutes = require('./negativeBank.routes');
+const tdsRulesRoutes = require('./tdsRules.routes');
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.use('/process/cash-ledger', cashLedgerRoutes);
 router.use('/process/negative-bank', negativeBankRoutes);
 router.use('/rate-rules', rateRulesRoutes);
 router.use('/diamond-rate-rules', diamondRateRulesRoutes);
+router.use('/tds-rules', tdsRulesRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);

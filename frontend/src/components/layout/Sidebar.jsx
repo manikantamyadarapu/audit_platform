@@ -24,6 +24,9 @@ import {
   LogOut,
   UserCircle,
   ShoppingCart,
+  Receipt,
+  Percent,
+  FileText,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/authService';
 import { cn } from '../../utils/cn';
@@ -52,6 +55,12 @@ const purchaseItems = [
 const scrutinyItems = [
   { to: '/scrutiny/rate-rule-book', label: 'Gold & Silver Rates', icon: Coins },
   { to: '/scrutiny/diamond-gem-rates', label: 'Rate Master ', icon: Gem },
+];
+
+const tdsItems = [
+  { to: '/scrutiny/tds/party-wise-summary', label: 'Party Wise Summary', icon: Receipt },
+  { to: '/scrutiny/tds/rate-0.1', label: 'TDS @ 0.1%', icon: Percent },
+  { to: '/scrutiny/tds/rule-book', label: 'TDS Rule Book', icon: FileText },
 ];
 
 const vouchingItems = [
@@ -188,11 +197,13 @@ export function Sidebar() {
   const vouchingActive = pathname.startsWith('/vouching');
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
   const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger', '/scrutiny/purchase/return-rate'].some((path) => pathname.startsWith(path));
+  const tdsChildActive = ['/scrutiny/tds/party-wise-summary', '/scrutiny/tds/rate-0.1', '/scrutiny/tds/rule-book'].some((path) => pathname.startsWith(path));
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
   const [purchaseOpen, setPurchaseOpen] = useState(purchaseChildActive);
+  const [tdsOpen, setTdsOpen] = useState(tdsChildActive);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [sessionUser, setSessionUser] = useState(() => getStoredUser());
 
@@ -225,6 +236,10 @@ export function Sidebar() {
   useEffect(() => {
     if (purchaseChildActive) setPurchaseOpen(true);
   }, [purchaseChildActive]);
+
+  useEffect(() => {
+    if (tdsChildActive) setTdsOpen(true);
+  }, [tdsChildActive]);
 
   return (
     <motion.aside
@@ -303,6 +318,26 @@ export function Sidebar() {
               nested
             >
               {purchaseItems.map((item) => (
+                <div key={item.to} className="ml-3">
+                  <NavItem
+                    {...item}
+                    collapsed={sidebarCollapsed}
+                    nested
+                    onNavigate={ensureScrutiny}
+                  />
+                </div>
+              ))}
+            </NavGroup>
+            <NavGroup
+              label="TDS Audit"
+              icon={Calculator}
+              collapsed={sidebarCollapsed}
+              open={tdsOpen}
+              onToggle={() => setTdsOpen((v) => !v)}
+              active={false}
+              nested
+            >
+              {tdsItems.map((item) => (
                 <div key={item.to} className="ml-3">
                   <NavItem
                     {...item}

@@ -13,6 +13,8 @@ from app.routers.rate_book_router import gateway_router as gateway_rate_book_rou
 from app.routers.rate_book_router import router as rate_book_router
 from app.routers.rate_rules_router import gateway_router as gateway_rate_rules_router
 from app.routers.rate_rules_router import router as rate_rules_router
+from app.routers.tds_rules_router import gateway_router as gateway_tds_rules_router
+from app.routers.tds_rules_router import router as tds_rules_router
 from app.utils.sheet_validation_error import SheetValidationError
 
 settings = get_settings()
@@ -41,6 +43,8 @@ app.include_router(diamond_rate_rules_router)
 app.include_router(gateway_diamond_rate_rules_router)
 app.include_router(rate_book_router)
 app.include_router(gateway_rate_book_router)
+app.include_router(tds_rules_router)
+app.include_router(gateway_tds_rules_router)
 
 
 @app.on_event("startup")

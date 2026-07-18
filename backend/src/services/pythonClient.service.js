@@ -309,6 +309,28 @@ async function saveRateBookDiamonds(body, options = {}) {
   }
 }
 
+async function getTdsRules(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/v1/tds-rules', { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postTdsRules(body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/v1/tds-rules', body, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -329,4 +351,6 @@ module.exports = {
   postDiamondRateRules,
   getRateBookDiamonds,
   saveRateBookDiamonds,
+  getTdsRules,
+  postTdsRules,
 };
