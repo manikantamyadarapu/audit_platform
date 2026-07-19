@@ -68,6 +68,15 @@ def load_gemstone_product_catalog() -> dict:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def _sales_account_to_purchase_account(account: str) -> str:
+    """Map a Sales Account key to the corresponding Purchase Account key.
+
+    Only the account role changes (SALES ACCOUNT → PURCHASES ACCOUNT).
+    Product rules stay identical and are always read from the Sales catalog.
+    """
+    return str(account).replace('SALES ACCOUNT', 'PURCHASES ACCOUNT')
+
+
 @lru_cache(maxsize=1)
 def load_purchase_ledger_catalog() -> dict:
     path = _CONFIG_DIR / 'purchase_ledger_catalog.json'
@@ -77,16 +86,86 @@ def load_purchase_ledger_catalog() -> dict:
 
 
 @lru_cache(maxsize=1)
-def purchase_to_sales_account_aliases() -> dict[str, str]:
-    """Normalized purchase account → sales canonical account for shared validation."""
-    raw = load_purchase_ledger_catalog().get('purchase_to_sales_account_aliases') or {}
+def purchase_account_product_rules() -> dict[str, dict[str, tuple[str, ...]]]:
+    """Purchase Account → product patterns, derived 1:1 from Sales Account rules.
+
+    No separate Purchase product catalog — products are exactly the Sales master.
+    """
+    derived: dict[str, dict[str, tuple[str, ...]]] = {}
+    for sales_account, spec in account_product_rules().items():
+        purchase_account = _sales_account_to_purchase_account(sales_account)
+        derived[purchase_account] = {
+            'patterns': tuple(spec.get('patterns') or ()),
+            'exact': tuple(spec.get('exact') or ()),
+        }
+    return derived
+
+
+@lru_cache(maxsize=1)
+def known_purchase_accounts() -> frozenset[str]:
+    return frozenset(purchase_account_product_rules().keys())
+
+
+def purchase_catalog_accounts_and_patterns() -> list[tuple[str, tuple[str, ...]]]:
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for account, spec in purchase_account_product_rules().items():
+        patterns = list(spec.get('patterns') or ())
+        for exact in spec.get('exact') or ():
+            patterns.append(f'^{exact}$')
+        rows.append((account, tuple(patterns)))
+    return rows
+
+
+@lru_cache(maxsize=1)
+def purchase_account_aliases() -> dict[str, str]:
+    """Purchase upload spellings → Purchase canonical accounts.
+
+    Derived from Sales account aliases (SALES ACCOUNT → PURCHASES ACCOUNT),
+    plus optional spelling overrides in purchase_ledger_catalog.json.
+    """
     normalized: dict[str, str] = {}
+
+    # Identity for every derived purchase canonical.
+    for purchase_account in purchase_account_product_rules():
+        key = normalize_strict_text(purchase_account)
+        if key:
+            normalized[key] = key
+
+    # Mirror every Sales alias into a Purchase alias with the same target transform.
+    for alias, target in sales_account_aliases().items():
+        purchase_alias = _sales_account_to_purchase_account(alias)
+        purchase_target = _sales_account_to_purchase_account(target)
+        key = normalize_strict_text(purchase_alias)
+        value = normalize_strict_text(purchase_target)
+        if key and value:
+            normalized[key] = value
+
+    # Optional extra upload spellings only (never product lists).
+    catalog = load_purchase_ledger_catalog()
+    raw = catalog.get('purchase_account_aliases') or catalog.get(
+        'purchase_to_sales_account_aliases'
+    ) or {}
     for alias, target in raw.items():
         key = normalize_strict_text(alias)
         value = normalize_strict_text(target)
         if key and value:
-            normalized[key] = value
+            # Ensure targets land on derived Purchase canonicals when possible.
+            value = normalize_strict_text(_sales_account_to_purchase_account(value))
+            # If someone still pointed at old PURCHASE (singular) names, fix common form.
+            if value not in known_purchase_accounts():
+                value = normalize_strict_text(
+                    value.replace('PURCHASE ACCOUNT', 'PURCHASES ACCOUNT')
+                )
+            if key and value:
+                normalized[key] = value
+
     return normalized
+
+
+@lru_cache(maxsize=1)
+def purchase_to_sales_account_aliases() -> dict[str, str]:
+    """Deprecated name — returns purchase spelling aliases (Purchase → Purchase)."""
+    return purchase_account_aliases()
 
 
 @lru_cache(maxsize=1)

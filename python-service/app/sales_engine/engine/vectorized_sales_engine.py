@@ -34,7 +34,7 @@ from app.sales_engine.validators.sales_audit_messages import build_row_messages
 from app.sales_engine.validators.gemstone_rate_validator import enrich_rate_columns
 from app.sales_engine.validators.mapping_validator import (
     mapping_valid_expr,
-    purchase_to_sales_account_expr,
+    purchase_account_canonical_expr,
     sales_account_canonical_expr,
 )
 from app.sales_engine.parsers.diamond_rate import (
@@ -491,8 +491,12 @@ class VectorizedSalesEngine:
     def _adjudicate(self, enriched_df: pl.DataFrame) -> pl.DataFrame:
         enriched_df = self._apply_uom_validation(enriched_df)
         if self._ledger_mode == 'purchase':
-            enriched_df = enriched_df.with_columns([purchase_to_sales_account_expr()])
-        enriched_df = enriched_df.with_columns([sales_account_canonical_expr()])
+            # Purchase Account spelling → purchase canonical (never convert to Sales Account).
+            enriched_df = enriched_df.with_columns([purchase_account_canonical_expr()])
+            ledger_mode = 'purchase'
+        else:
+            enriched_df = enriched_df.with_columns([sales_account_canonical_expr()])
+            ledger_mode = 'sales'
         return (
             enriched_df
             .with_columns(
@@ -503,7 +507,7 @@ class VectorizedSalesEngine:
                     slab_family_expr(product_col='__product_norm'),
                 ]
             )
-            .with_columns([mapping_valid_expr()])
+            .with_columns([mapping_valid_expr(ledger_mode=ledger_mode)])
             .with_columns(audit_flag_columns(product_col='__product_norm'))
             .with_columns(metal_band_column_exprs(product_col='__product_norm'))
             .with_columns(
