@@ -94,10 +94,12 @@ function extractIssueCounts(pythonResult) {
  *   auditCode: string,
  *   fileName?: string,
  *   pythonResult: Record<string, unknown>,
+ *   fileMetadata?: object,
+ *   performanceMetrics?: object,
  * }} params
  * @returns {Promise<number | null>}
  */
-async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonResult }) {
+async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonResult, fileMetadata, performanceMetrics }) {
   if (!userId) return null;
 
   const auditTypeId = await auditRunRepository.resolveAuditTypeId(auditCode);
@@ -108,13 +110,42 @@ async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonRe
   const { totalRows, invalidRows } = extractMetrics(pythonResult);
   const issueCounts = extractIssueCounts(pythonResult);
 
+  // Build resultSummary based on audit type
+  const resultSummary = {
+    issueCounts: issueCounts,
+  };
+
+  // Add audit-type specific fields to resultSummary
+  const summary = pythonResult?.summary ?? {};
+  if (auditCode === 'GROSS' || auditCode === 'GROSS_WEIGHT') {
+    resultSummary.grossMismatchCount = summary.mismatchCount || 0;
+    resultSummary.netMismatchCount = summary.weightMismatch || 0;
+    resultSummary.stoneMismatchCount = summary.stoneMismatchCount || 0;
+    resultSummary.validRows = summary.validRows || 0;
+  } else if (auditCode === 'SALES') {
+    resultSummary.goldDeviationCount = summary.rateDeviationViolations || 0;
+    resultSummary.silverDeviationCount = summary.silverDeviationCount || 0;
+    resultSummary.diamondDeviationCount = summary.diamondDeviationCount || 0;
+    resultSummary.missingRuleCount = summary.missingRuleCount || 0;
+    resultSummary.rateOutOfRangeCount = summary.rateOutOfRangeCount || 0;
+  } else if (auditCode === 'PAN' || auditCode === 'PAN_AUDIT') {
+    resultSummary.invalidPanCount = summary.invalidPanFormatCount || 0;
+    resultSummary.invalidAadharCount = summary.invalidAadharCount || 0;
+    resultSummary.invalidGstCount = summary.invalidGstCount || 0;
+    resultSummary.duplicatePanCount = summary.duplicatePanCount || 0;
+    resultSummary.duplicateAadharCount = summary.duplicateAadharCount || 0;
+    resultSummary.missingIdCount = summary.missingIdCount || 0;
+  }
+
   const auditRun = await auditRunRepository.createAuditRun({
     auditTypeId,
     uploadedBy: userId,
     fileName,
     totalRows,
     invalidRows,
-    issueCounts,
+    resultSummary,
+    fileMetadata,
+    performanceMetrics,
   });
 
   return auditRun.id;
@@ -125,8 +156,10 @@ async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonRe
  * @param {string} auditCode
  * @param {string | undefined} fileName
  * @param {Record<string, unknown>} pythonResult
+ * @param {object} fileMetadata
+ * @param {object} performanceMetrics
  */
-async function tryPersistAuditRun(req, auditCode, fileName, pythonResult) {
+async function tryPersistAuditRun(req, auditCode, fileName, pythonResult, fileMetadata, performanceMetrics) {
   if (!req.user?.id) return null;
 
   try {
@@ -135,6 +168,8 @@ async function tryPersistAuditRun(req, auditCode, fileName, pythonResult) {
       auditCode,
       fileName,
       pythonResult,
+      fileMetadata,
+      performanceMetrics,
     });
   } catch (err) {
     logger.error('Audit run persist failed', {

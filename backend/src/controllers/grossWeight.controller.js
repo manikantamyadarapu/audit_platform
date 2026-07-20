@@ -28,11 +28,29 @@ async function validate(req, res, next) {
       { requestId: req.requestId }
     );
 
+    // Build file metadata
+    const fileMetadata = {
+      originalName: req.file.originalname,
+      storagePath: null, // Add actual storage path if files are stored
+      fileHash: null, // Add hash if computed
+      fileSize: req.file.size,
+    };
+
+    // Build performance metrics from Python result
+    const performanceMetrics = {
+      processingTimeMs: data.processingTimeMs || null,
+      memoryUsageMb: data.memoryUsageMb || null,
+      rowsPerSecond: data.rowsPerSecond || null,
+      cpuUsagePercent: data.cpuUsagePercent || null,
+    };
+
     const auditRunId = await auditRunPersistence.tryPersistAuditRun(
       req,
       AUDIT_KEYS.GROSS_WEIGHT,
       req.file.originalname,
-      data
+      data,
+      fileMetadata,
+      performanceMetrics
     );
 
     if (req.user?.id) {

@@ -30,11 +30,29 @@ async function runAudit(req, res, next) {
       { requestId: req.requestId }
     );
 
+    // Build file metadata
+    const fileMetadata = {
+      originalName: returnFile.originalname,
+      storagePath: null, // Add actual storage path if files are stored
+      fileHash: null, // Add hash if computed
+      fileSize: returnFile.size,
+    };
+
+    // Build performance metrics from Python result
+    const performanceMetrics = {
+      processingTimeMs: data.processingTimeMs || null,
+      memoryUsageMb: data.memoryUsageMb || null,
+      rowsPerSecond: data.rowsPerSecond || null,
+      cpuUsagePercent: data.cpuUsagePercent || null,
+    };
+
     const auditRunId = await auditRunPersistence.tryPersistAuditRun(
       req,
       AUDIT_KEYS.SALES_RETURN,
       returnFile.originalname,
-      data
+      data,
+      fileMetadata,
+      performanceMetrics
     );
 
     if (req.user?.id) {

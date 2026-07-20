@@ -136,29 +136,20 @@ async function createAuditRunWithProductAverages({
   const metrics = pythonResult ? extractMetrics(pythonResult) : { totalRows, invalidRows };
   const issueCounts = pythonResult ? extractIssueCounts(pythonResult) : [];
 
+  // Build resultSummary for sales audit
+  const resultSummary = {
+    issueCounts: issueCounts,
+    productRates: productAverages?.length ? dedupeProductAverages(productAverages) : [],
+  };
+
   const auditRun = await auditRunRepository.createAuditRun({
     auditTypeId,
     uploadedBy,
     fileName: fileName || 'sales-audit.xlsx',
     totalRows: metrics.totalRows ?? totalRows ?? 0,
     invalidRows: metrics.invalidRows ?? invalidRows ?? 0,
-    issueCounts,
+    resultSummary,
   });
-
-  if (productAverages?.length) {
-    const deduped = dedupeProductAverages(productAverages);
-    await prisma.salesProductAverageRate.createMany({
-      data: deduped.map((row) => ({
-        auditRunId: auditRun.id,
-        product: String(row.product || '').slice(0, 255),
-        salesAccount: String(row.salesAccount || '').slice(0, 255),
-        totalQuantity: row.totalQuantity ?? 0,
-        totalGrossAmount: row.totalGrossAmount ?? 0,
-        averageRate: row.averageRate ?? 0,
-        transactionCount: Number(row.transactionCount) || 0,
-      })),
-    });
-  }
 
   return auditRun;
 }
@@ -174,74 +165,72 @@ async function findProductAverageRates({
 }) {
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 25));
-  const skip = (safePage - 1) * safeLimit;
   const orderField = SORT_FIELDS[sortBy] || 'createdAt';
   const orderDir = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-  /** @type {import('@prisma/client').Prisma.SalesProductAverageRateWhereInput} */
-  const where = {};
   let auditRunMeta = null;
+  let productRates = [];
 
   if (auditRunId) {
-    where.auditRunId = Number(auditRunId);
     auditRunMeta = await prisma.auditRun.findUnique({
       where: { id: Number(auditRunId) },
-      select: { id: true, fileName: true, totalRows: true, createdAt: true },
+      select: { id: true, fileName: true, totalRows: true, createdAt: true, resultSummary: true },
     });
+    if (auditRunMeta?.resultSummary?.productRates) {
+      productRates = auditRunMeta.resultSummary.productRates;
+    }
   } else {
     const auditTypeId = await findSalesAuditTypeId();
     auditRunMeta = auditTypeId
       ? await prisma.auditRun.findFirst({
           where: { auditTypeId, status: 'COMPLETED' },
           orderBy: { createdAt: 'desc' },
-          select: { id: true, fileName: true, totalRows: true, createdAt: true },
+          select: { id: true, fileName: true, totalRows: true, createdAt: true, resultSummary: true },
         })
       : null;
-    if (auditRunMeta) {
-      where.auditRunId = auditRunMeta.id;
+    if (auditRunMeta?.resultSummary?.productRates) {
+      productRates = auditRunMeta.resultSummary.productRates;
     }
   }
 
+  // Filter by search and salesAccount
+  let filteredRates = productRates;
   if (salesAccount?.trim()) {
-    where.salesAccount = { contains: salesAccount.trim(), mode: 'insensitive' };
+    filteredRates = filteredRates.filter(row => 
+      row.salesAccount?.toLowerCase().includes(salesAccount.trim().toLowerCase())
+    );
   }
-
   if (search?.trim()) {
-    where.OR = [
-      { product: { contains: search.trim(), mode: 'insensitive' } },
-      { salesAccount: { contains: search.trim(), mode: 'insensitive' } },
-    ];
+    filteredRates = filteredRates.filter(row => 
+      row.product?.toLowerCase().includes(search.trim().toLowerCase()) ||
+      row.salesAccount?.toLowerCase().includes(search.trim().toLowerCase())
+    );
   }
 
-  const [rows, total, allProductsForSummary] = await Promise.all([
-    prisma.salesProductAverageRate.findMany({
-      where,
-      skip,
-      take: safeLimit,
-      orderBy: { [orderField]: orderDir },
-      include: {
-        auditRun: {
-          select: { fileName: true, createdAt: true },
-        },
-      },
-    }),
-    prisma.salesProductAverageRate.count({ where }),
-    where.auditRunId
-      ? prisma.salesProductAverageRate.findMany({
-          where: { auditRunId: where.auditRunId },
-          select: { product: true },
-          orderBy: { product: 'asc' },
-        })
-      : Promise.resolve([]),
-  ]);
+  // Sort
+  filteredRates.sort((a, b) => {
+    const aVal = a[orderField] || 0;
+    const bVal = b[orderField] || 0;
+    return orderDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+
+  // Paginate
+  const total = filteredRates.length;
+  const skip = (safePage - 1) * safeLimit;
+  const paginatedRates = filteredRates.slice(skip, skip + safeLimit);
 
   const verification = buildVerificationSummary(
-    allProductsForSummary.map((row) => ({ product: row.product })),
+    productRates.map((row) => ({ product: row.product })),
     auditRunMeta?.totalRows ?? 0
   );
 
   return {
-    rows: rows.map(mapRow),
+    rows: paginatedRates.map(row => ({
+      ...row,
+      auditRunId: auditRunMeta?.id,
+      fileName: auditRunMeta?.fileName,
+      createdAt: auditRunMeta?.createdAt,
+    })),
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -273,6 +262,7 @@ async function findLatestSalesAuditProductAverages() {
       id: true,
       fileName: true,
       createdAt: true,
+      resultSummary: true,
     },
   });
 
@@ -280,14 +270,17 @@ async function findLatestSalesAuditProductAverages() {
     return { auditRun: null, rows: [] };
   }
 
-  const rows = await prisma.salesProductAverageRate.findMany({
-    where: { auditRunId: latestRun.id },
-    orderBy: { product: 'asc' },
-  });
+  const productRates = latestRun.resultSummary?.productRates || [];
+  const rows = productRates.map(row => ({
+    ...row,
+    auditRunId: latestRun.id,
+    fileName: latestRun.fileName,
+    createdAt: latestRun.createdAt,
+  }));
 
   return {
     auditRun: latestRun,
-    rows: rows.map(mapRow),
+    rows,
   };
 }
 
@@ -296,39 +289,57 @@ async function findAllProductAverageRatesForExport(filters = {}) {
   const orderField = SORT_FIELDS[sortBy] || 'createdAt';
   const orderDir = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-  /** @type {import('@prisma/client').Prisma.SalesProductAverageRateWhereInput} */
-  const where = {};
+  let auditRunMeta = null;
+  let productRates = [];
+
   if (auditRunId) {
-    where.auditRunId = Number(auditRunId);
+    auditRunMeta = await prisma.auditRun.findUnique({
+      where: { id: Number(auditRunId) },
+      select: { id: true, fileName: true, resultSummary: true },
+    });
+    if (auditRunMeta?.resultSummary?.productRates) {
+      productRates = auditRunMeta.resultSummary.productRates;
+    }
   } else {
     const auditTypeId = await findSalesAuditTypeId();
     const latestRun = auditTypeId
       ? await prisma.auditRun.findFirst({
           where: { auditTypeId, status: 'COMPLETED' },
           orderBy: { createdAt: 'desc' },
-          select: { id: true },
+          select: { id: true, fileName: true, resultSummary: true },
         })
       : null;
-    if (latestRun) {
-      where.auditRunId = latestRun.id;
+    if (latestRun?.resultSummary?.productRates) {
+      productRates = latestRun.resultSummary.productRates;
+      auditRunMeta = latestRun;
     }
   }
+
+  // Filter by search and salesAccount
+  let filteredRates = productRates;
   if (salesAccount?.trim()) {
-    where.salesAccount = { contains: salesAccount.trim(), mode: 'insensitive' };
+    filteredRates = filteredRates.filter(row => 
+      row.salesAccount?.toLowerCase().includes(salesAccount.trim().toLowerCase())
+    );
   }
   if (search?.trim()) {
-    where.OR = [
-      { product: { contains: search.trim(), mode: 'insensitive' } },
-      { salesAccount: { contains: search.trim(), mode: 'insensitive' } },
-    ];
+    filteredRates = filteredRates.filter(row => 
+      row.product?.toLowerCase().includes(search.trim().toLowerCase()) ||
+      row.salesAccount?.toLowerCase().includes(search.trim().toLowerCase())
+    );
   }
 
-  const rows = await prisma.salesProductAverageRate.findMany({
-    where,
-    orderBy: { [orderField]: orderDir },
-    include: { auditRun: { select: { fileName: true } } },
+  // Sort
+  filteredRates.sort((a, b) => {
+    const aVal = a[orderField] || 0;
+    const bVal = b[orderField] || 0;
+    return orderDir === 'asc' ? aVal - bVal : bVal - aVal;
   });
-  return rows.map(mapRow);
+
+  return filteredRates.map(row => ({
+    ...row,
+    fileName: auditRunMeta?.fileName,
+  }));
 }
 
 module.exports = {

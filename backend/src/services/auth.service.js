@@ -33,12 +33,8 @@ function validatePasswordStrength(password) {
 }
 
 function buildUserResponse(user) {
-  const roleName = user.role?.roleName || 'VIEWER';
-  const { passwordHash, role, ...userWithoutPassword } = user;
-  return {
-    ...userWithoutPassword,
-    role: roleName,
-  };
+  const { passwordHash, ...userWithoutPassword } = user;
+  return userWithoutPassword;
 }
 
 function registerRefreshSession(userId, refreshToken) {
@@ -53,19 +49,18 @@ function registerRefreshSession(userId, refreshToken) {
 }
 
 function issueTokenPair(user) {
-  const roleName = user.role?.roleName || 'VIEWER';
   const jti = refreshTokenStore.createJti();
 
   const accessToken = generateAccessToken({
     id: user.id,
     email: user.email,
-    role: roleName,
+    role: user.role,
   });
 
   const refreshToken = generateRefreshToken({
     id: user.id,
     email: user.email,
-    role: roleName,
+    role: user.role,
     jti,
   });
 
