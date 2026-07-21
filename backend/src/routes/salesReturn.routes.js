@@ -10,8 +10,23 @@ router.use(authenticate);
 
 /**
  * Full path: POST /api/v1/process/sales-return/validate
+ * Thin proxy (no persistence) — kept for parity/back-compat.
  */
 router.post('/validate', singleSalesReturnFile, salesReturnController.validate);
+
+/**
+ * Full path: POST /api/v1/process/sales-return/run-audit
+ * Legacy compat: POST /api/sales-return/run-audit
+ * Primary sales-return audit endpoint used by the frontend — persists the
+ * audit run and fires notifications.
+ */
+router.post('/run-audit', singleSalesReturnFile, salesReturnController.runAudit);
+
+/**
+ * Full path: GET /api/v1/process/sales-return/rate-comparison
+ * Legacy compat: GET /api/sales-return/rate-comparison
+ */
+router.get('/rate-comparison', salesReturnController.getRateComparison);
 
 router.post(
   '/export-exceptions',

@@ -8,11 +8,11 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import grams_product_norms
-from app.sales_engine.validators.uom_validator import UOM_CARATS, UOM_GRAMS, expected_uom_expr
-from app.sales_engine.validators.unit_rate_range_validator import ZERO_TO_ONE_PRODUCTS
-from app.sales_return_engine.engine.sales_return_audit_engine import (
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import grams_product_norms
+from app.engines.sales_engine.validators.uom_validator import UOM_CARATS, UOM_GRAMS, expected_uom_expr
+from app.engines.sales_engine.validators.unit_rate_range_validator import ZERO_TO_ONE_PRODUCTS
+from app.engines.sales_return_engine.engine.sales_return_audit_engine import (
     HIGHER_SALES_RETURN_RATE,
     HIGHER_SALES_RETURN_RATE_MSG,
     INVALID_FREE_QUANTITY,

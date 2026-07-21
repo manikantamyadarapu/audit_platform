@@ -5,12 +5,12 @@ from io import BytesIO
 import pandas as pd
 import polars as pl
 
-from app.sales_return_engine.engine.sales_return_audit_engine import (
+from app.engines.sales_return_engine.engine.sales_return_audit_engine import (
     HIGHER_SALES_RETURN_RATE,
     SalesReturnAuditEngine,
     _sales_or_return_header_row_matches,
 )
-from app.sales_return_engine.purchase_return_header_normalization import (
+from app.engines.sales_return_engine.engine.purchase_return_header_normalization import (
     detect_purchase_return_format,
     is_purchase_return_header,
     normalize_purchase_return_dataframe,

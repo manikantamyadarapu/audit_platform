@@ -6,8 +6,8 @@ from io import BytesIO
 
 import openpyxl
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.engine.product_averages import build_product_average_verification_summary
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.engine.product_averages import build_product_average_verification_summary
 
 
 def _row(product: str, gross: float, qty: float, rate: float, account: str = 'JEWEL SALES ACCOUNT - DIAMONDS') -> list:

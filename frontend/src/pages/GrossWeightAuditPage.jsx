@@ -10,7 +10,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
-import { validateGrossWeightExcel } from '../services/processExcelService';
+import { validateGrossWeightExcel } from '../services/grossWeight.service';
 import { formatNumber, formatPercent } from '../utils/format';
 import { filterGrossWeightRecords, GROSS_FILTER_LABELS } from '../utils/grossRecordFilters';
 import { resolveGrossWeightColumnOrder } from '../utils/grossTableColumns';

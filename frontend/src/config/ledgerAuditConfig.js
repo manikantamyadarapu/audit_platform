@@ -1,4 +1,6 @@
 import { SALES_FILTER_LABELS } from '../utils/salesRecordFilters';
+import { validateSalesExcel } from '../services/sales.service';
+import { validatePurchaseLedgerExcel } from '../services/purchase.service';
 
 export const SALES_LEDGER_AUDIT_CONFIG = {
   sessionKey: 'sales-ledger',
@@ -9,6 +11,7 @@ export const SALES_LEDGER_AUDIT_CONFIG = {
   successToast: 'Sales validation complete',
   filterLabels: SALES_FILTER_LABELS,
   ledgerMismatchLabel: 'Sales ledger mismatch',
+  validate: validateSalesExcel,
 };
 
 export const PURCHASE_LEDGER_AUDIT_CONFIG = {
@@ -23,4 +26,5 @@ export const PURCHASE_LEDGER_AUDIT_CONFIG = {
     accountVsProduct: 'Purchase ledger mismatch',
   },
   ledgerMismatchLabel: 'Purchase ledger mismatch',
+  validate: validatePurchaseLedgerExcel,
 };

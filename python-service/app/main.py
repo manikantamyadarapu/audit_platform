@@ -5,16 +5,28 @@ from fastapi.responses import JSONResponse
 from app.config.settings import get_settings
 from app.utils.logger import get_logger
 from app.routers.health_router import router as health_router
-from app.routers.process_router import gateway_router as gateway_process_router
-from app.routers.process_router import router as process_router
+from app.routers.cash_ledger_router import gateway_router as gateway_cash_ledger_router
+from app.routers.cash_ledger_router import router as cash_ledger_router
+from app.routers.negative_bank_router import gateway_router as gateway_negative_bank_router
+from app.routers.negative_bank_router import router as negative_bank_router
+from app.routers.purchase_router import gateway_router as gateway_purchase_router
+from app.routers.purchase_router import router as purchase_router
+from app.routers.sales_router import gateway_router as gateway_sales_router
+from app.routers.sales_router import router as sales_router
+from app.routers.sales_return_router import gateway_router as gateway_sales_return_router
+from app.routers.sales_return_router import router as sales_return_router
+from app.routers.pan_router import gateway_router as gateway_pan_router
+from app.routers.pan_router import router as pan_router
+from app.routers.gross_weight_router import gateway_router as gateway_gross_weight_router
+from app.routers.gross_weight_router import router as gross_weight_router
 from app.routers.diamond_rate_rules_router import gateway_router as gateway_diamond_rate_rules_router
 from app.routers.diamond_rate_rules_router import router as diamond_rate_rules_router
 from app.routers.rate_book_router import gateway_router as gateway_rate_book_router
 from app.routers.rate_book_router import router as rate_book_router
 from app.routers.rate_rules_router import gateway_router as gateway_rate_rules_router
 from app.routers.rate_rules_router import router as rate_rules_router
-from app.routers.tds_rules_router import gateway_router as gateway_tds_rules_router
-from app.routers.tds_rules_router import router as tds_rules_router
+from app.routers.tds_router import gateway_router as gateway_tds_router
+from app.routers.tds_router import router as tds_router
 from app.utils.sheet_validation_error import SheetValidationError
 
 settings = get_settings()
@@ -35,16 +47,28 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
-app.include_router(process_router)
-app.include_router(gateway_process_router)
+app.include_router(cash_ledger_router)
+app.include_router(gateway_cash_ledger_router)
+app.include_router(negative_bank_router)
+app.include_router(gateway_negative_bank_router)
+app.include_router(purchase_router)
+app.include_router(gateway_purchase_router)
+app.include_router(sales_router)
+app.include_router(gateway_sales_router)
+app.include_router(sales_return_router)
+app.include_router(gateway_sales_return_router)
+app.include_router(pan_router)
+app.include_router(gateway_pan_router)
+app.include_router(gross_weight_router)
+app.include_router(gateway_gross_weight_router)
 app.include_router(rate_rules_router)
 app.include_router(gateway_rate_rules_router)
 app.include_router(diamond_rate_rules_router)
 app.include_router(gateway_diamond_rate_rules_router)
 app.include_router(rate_book_router)
 app.include_router(gateway_rate_book_router)
-app.include_router(tds_rules_router)
-app.include_router(gateway_tds_rules_router)
+app.include_router(tds_router)
+app.include_router(gateway_tds_router)
 
 
 @app.on_event("startup")

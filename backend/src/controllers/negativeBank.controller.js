@@ -1,8 +1,5 @@
-const pythonClient = require('../services/pythonClient.service');
-const auditNotification = require('../services/auditNotification.service');
-const auditRunPersistence = require('../services/auditRunPersistence.service');
-const { AUDIT_KEYS } = require('../constants/notifications');
-const { validateExportInvalidBody } = require('../validators/panExport.validator');
+const negativeBankService = require('../services/negativeBank.service');
+const { validateNegativeBankExportInvalidBody } = require('../validators/negativeBank.validator');
 const logger = require('../utils/logger');
 
 async function validateNegativeBank(req, res, next) {
@@ -21,63 +18,17 @@ async function validateNegativeBank(req, res, next) {
       size: req.file.size,
     });
 
-    const data = await pythonClient.postNegativeBankValidate(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      { requestId: req.requestId }
-    );
-
-    // Build file metadata
-    const fileMetadata = {
-      originalName: req.file.originalname,
-      storagePath: null, // Add actual storage path if files are stored
-      fileHash: null, // Add hash if computed
-      fileSize: req.file.size,
-    };
-
-    // Build performance metrics from Python result
-    const performanceMetrics = {
-      processingTimeMs: data.processingTimeMs || null,
-      memoryUsageMb: data.memoryUsageMb || null,
-      rowsPerSecond: data.rowsPerSecond || null,
-      cpuUsagePercent: data.cpuUsagePercent || null,
-    };
-
-    const auditRunId = await auditRunPersistence.tryPersistAuditRun(
-      req,
-      AUDIT_KEYS.NEGATIVE_BANK,
-      req.file.originalname,
-      data,
-      fileMetadata,
-      performanceMetrics
-    );
-
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.NEGATIVE_BANK, req.file.originalname, data)
-        .catch(() => {});
-    }
-
+    const { data, auditRunId } = await negativeBankService.validateNegativeBank(req);
     return res.json({ ...data, auditRunId });
   } catch (err) {
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditFailed(
-          req.user.id,
-          AUDIT_KEYS.NEGATIVE_BANK,
-          req.file?.originalname,
-          err.message
-        )
-        .catch(() => {});
-    }
+    negativeBankService.notifyNegativeBankFailure(req, err);
     return next(err);
   }
 }
 
 async function exportInvalidNegativeBank(req, res, next) {
   try {
-    const parsed = validateExportInvalidBody(req.body);
+    const parsed = validateNegativeBankExportInvalidBody(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
         success: false,
@@ -91,7 +42,7 @@ async function exportInvalidNegativeBank(req, res, next) {
       recordCount: parsed.records.length,
     });
 
-    const { buffer, contentDisposition, contentType } = await pythonClient.postNegativeBankExportInvalid(
+    const { buffer, contentDisposition, contentType } = await negativeBankService.exportInvalidNegativeBank(
       parsed.records,
       { requestId: req.requestId }
     );

@@ -12,6 +12,190 @@ Spreadsheet-driven audit workspace for jewellery and retail ledgers. Teams uploa
 
 Active audit modules: **PAN verification**, **Gross weight**, **Sales ledger (rate & ledger)**, **Sales return rate audit**, **Product average rates**, **Gold/silver rate book**, **Diamond/gem rate book**.
 
+## Project Structure
+
+```text
+audit_platform/
+├── frontend/
+├── backend/
+└── python-service/
+```
+
+### Frontend
+
+```text
+frontend/
+├── public/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   │   ├── audit/
+│   │   ├── auth/
+│   │   ├── cards/
+│   │   ├── charts/
+│   │   ├── layout/
+│   │   ├── tables/
+│   │   ├── ui/
+│   │   └── upload/
+│   ├── pages/
+│   │   ├── CashLedgerPage.jsx
+│   │   ├── NegativeBankPage.jsx
+│   │   ├── PurchasePage.jsx
+│   │   ├── SalesPage.jsx
+│   │   ├── SalesReturnPage.jsx
+│   │   └── TdsPage.jsx
+│   ├── services/
+│   │   ├── cashLedger.service.js
+│   │   ├── negativeBank.service.js
+│   │   ├── purchase.service.js
+│   │   ├── sales.service.js
+│   │   ├── salesReturn.service.js
+│   │   ├── tds.service.js
+│   │   └── apiClient.js
+│   ├── hooks/
+│   ├── context/
+│   ├── routes/
+│   ├── config/
+│   ├── constants/
+│   ├── styles/
+│   ├── types/
+│   ├── utils/
+│   ├── App.jsx
+│   ├── index.css
+│   └── main.jsx
+├── index.html
+├── package.json
+└── vite.config.js
+```
+
+### Backend
+
+```text
+backend/
+├── prisma/
+│   ├── migrations/
+│   └── schema.prisma
+├── src/
+│   ├── config/
+│   ├── constants/
+│   ├── routes/
+│   │   ├── cashLedger.routes.js
+│   │   ├── negativeBank.routes.js
+│   │   ├── purchase.routes.js
+│   │   ├── sales.routes.js
+│   │   ├── salesReturn.routes.js
+│   │   ├── tds.routes.js
+│   │   └── index.js
+│   ├── controllers/
+│   │   ├── cashLedger.controller.js
+│   │   ├── negativeBank.controller.js
+│   │   ├── purchase.controller.js
+│   │   ├── sales.controller.js
+│   │   ├── salesReturn.controller.js
+│   │   └── tds.controller.js
+│   ├── services/
+│   │   ├── cashLedger.service.js
+│   │   ├── negativeBank.service.js
+│   │   ├── purchase.service.js
+│   │   ├── sales.service.js
+│   │   ├── salesReturn.service.js
+│   │   └── tds.service.js
+│   ├── repositories/
+│   │   ├── cashLedger.repository.js
+│   │   ├── negativeBank.repository.js
+│   │   ├── purchase.repository.js
+│   │   ├── sales.repository.js
+│   │   ├── salesReturn.repository.js
+│   │   └── tds.repository.js
+│   ├── validators/
+│   │   ├── cashLedger.validator.js
+│   │   ├── negativeBank.validator.js
+│   │   ├── purchase.validator.js
+│   │   ├── sales.validator.js
+│   │   ├── salesReturn.validator.js
+│   │   └── tds.validator.js
+│   ├── jobs/
+│   ├── lib/
+│   ├── middleware/
+│   ├── openapi/
+│   ├── types/
+│   ├── utils/
+│   ├── app.js
+│   └── server.js
+├── package.json
+└── prisma.config.js
+```
+
+### Python service
+
+```text
+python-service/
+└── app/
+    ├── engines/
+    │   ├── cash_ledger_engine/
+    │   │   ├── config/
+    │   │   ├── engine/
+    │   │   ├── parsers/
+    │   │   └── validators/
+    │   ├── negative_bank_engine/
+    │   │   ├── config/
+    │   │   ├── engine/
+    │   │   ├── parsers/
+    │   │   └── validators/
+    │   ├── purchase_engine/
+    │   │   ├── config/
+    │   │   ├── engine/
+    │   │   ├── parsers/
+    │   │   └── validators/
+    │   ├── sales_engine/
+    │   │   ├── config/
+    │   │   ├── engine/
+    │   │   ├── parsers/
+    │   │   └── validators/
+    │   ├── sales_return_engine/
+    │   │   ├── config/
+    │   │   ├── engine/
+    │   │   ├── parsers/
+    │   │   └── validators/
+    │   └── tds_engine/
+    │       ├── config/
+    │       ├── engine/
+    │       ├── parsers/
+    │       └── validators/
+    ├── core/
+    ├── data/
+    ├── routers/
+    ├── schemas/
+    ├── services/
+    ├── utils/
+    ├── validators/
+    └── main.py
+```
+## Usage
+
+```bash
+# Python service (port 8000)
+cd python-service
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Backend (port 4002)
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run dev
+
+# Frontend (port 4000)
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://127.0.0.1:4000
+
 ## Architecture
 
 ```mermaid
@@ -56,41 +240,6 @@ flowchart TB
 | Rate rule book | `/scrutiny/rate-rule-book` | Gold & silver min/max rates |
 | Diamond/gem rates | `/scrutiny/diamond-gem-rates` | Diamond product rate bands |
 | Users | `/users` | User administration (role-based) |
-
-## Setup Instructions
-
-Each service has its own `.env` in its folder. Configure all three before starting.
-
-### 1. Python service (port 8000)
-
-```bash
-cd python-service
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-### 2. Backend (port 4002)
-
-```bash
-cd backend
-npm install
-npx prisma generate
-npx prisma migrate deploy   # first-time / production
-npm run dev
-```
-
-### 3. Frontend (port 4000)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open **http://127.0.0.1:4000**. Dev proxy forwards `/api` to the backend.
 
 ## Deployment Instructions
 

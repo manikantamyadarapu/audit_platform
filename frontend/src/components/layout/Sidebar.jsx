@@ -28,7 +28,7 @@ import {
   Percent,
   FileText,
 } from 'lucide-react';
-import { logoutRequest } from '../../services/authService';
+import { logoutRequest } from '../../services/auth.service';
 import { cn } from '../../utils/cn';
 import { preloadAuditRoute } from '../../utils/auditRoutePreload';
 import { useAppUi } from '../../context/AppUiContext';

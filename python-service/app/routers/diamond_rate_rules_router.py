@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.sales_engine.services.diamond_rate_store import api_response_from_stored, load_rule_book, save_rule_book
+from app.engines.sales_engine.services.diamond_rate_store import api_response_from_stored, load_rule_book, save_rule_book
 
 router = APIRouter(prefix='/api/diamond-rate-rules', tags=['diamond-rate-rules'])
 gateway_router = APIRouter(prefix='/api/v1/diamond-rate-rules', tags=['diamond-rate-rules'])

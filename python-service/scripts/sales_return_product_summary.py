@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.sales_return_engine.product_summary_report import generate_product_summary_from_files
+from app.engines.sales_return_engine.engine.product_summary_report import generate_product_summary_from_files
 
 
 def _build_demo_workbooks() -> tuple[bytes, bytes]:

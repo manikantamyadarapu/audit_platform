@@ -4,14 +4,14 @@ from io import BytesIO
 
 import pandas as pd
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import (
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import (
     account_product_rules,
     known_purchase_accounts,
     purchase_account_aliases,
     purchase_account_product_rules,
 )
-from app.sales_engine.engine.vectorized_sales_engine import VectorizedSalesEngine
+from app.engines.sales_engine.engine.vectorized_sales_engine import VectorizedSalesEngine
 
 
 def _build_purchase_workbook(rows: list[dict] | None = None) -> bytes:

@@ -2,7 +2,7 @@ from io import BytesIO
 
 import pandas as pd
 
-from app.processors.gross_weight_processor import GrossWeightProcessor
+from app.engines.gross_weight_engine.engine.processor import GrossWeightProcessor
 
 
 def _build_excel_bytes(rows: list[dict]) -> bytes:

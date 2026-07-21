@@ -4,7 +4,7 @@ from io import BytesIO
 
 import pandas as pd
 
-from app.sales_return_engine.product_summary_report import generate_product_summary_from_files
+from app.engines.sales_return_engine.engine.product_summary_report import generate_product_summary_from_files
 
 
 def _build(rows: list[dict]) -> bytes:

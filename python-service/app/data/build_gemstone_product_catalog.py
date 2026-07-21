@@ -9,7 +9,7 @@ import json
 import re
 from pathlib import Path
 
-_CONFIG = Path(__file__).resolve().parents[1] / 'sales_engine' / 'config' / 'gemstone_product_catalog.json'
+_CONFIG = Path(__file__).resolve().parents[1] / 'engines' / 'sales_engine' / 'config' / 'gemstone_product_catalog.json'
 
 _COLOR_BLOB = (
     'Customer Stones'

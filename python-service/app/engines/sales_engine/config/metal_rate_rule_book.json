@@ -1,0 +1,36 @@
+{
+  "Gold Ornaments 14K": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Gold Ornaments 18K": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Customer Gold Ornaments 18K": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Customer Gold Ornaments 22K": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Gold Ornaments 22K": {
+    "min_rate": 14000.0,
+    "max_rate": 15000.0
+  },
+  "Gold Ornaments Jadau": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Standard Gold 24K": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "Silver articles": {
+    "min_rate": null,
+    "max_rate": null
+  },
+  "allowed_variation_percent": 15,
+  "updated_at": "2026-07-21T04:26:08.252107+00:00"
+}

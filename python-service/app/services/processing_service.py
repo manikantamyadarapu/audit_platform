@@ -1,6 +1,6 @@
 from fastapi import UploadFile
 
-from app.processors.factory import get_processor
+from app.services.engine_factory import get_processor
 from app.validators.common_validator import validate_upload_file
 
 
