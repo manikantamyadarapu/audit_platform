@@ -22,6 +22,8 @@ const NegativeBankPage = lazy(() => import('../pages/NegativeBankPage'));
 const RateRuleBook = lazy(() => import('../pages/RateRuleBook'));
 const DiamondGemRateBook = lazy(() => import('../pages/DiamondGemRateBook'));
 const TdsPage = lazy(() => import('../pages/TdsPage'));
+const PartyWiseTdsSummaryPage = lazy(() => import('../pages/PartyWiseTdsSummaryPage'));
+const TdsRate01Page = lazy(() => import('../pages/TdsRate01Page'));
 const Reports = lazy(() => import('../pages/Reports'));
 const Settings = lazy(() => import('../pages/Settings'));
 const SalesReturnPage = lazy(() => import('../pages/SalesReturnPage'));
@@ -74,6 +76,11 @@ export function AppRoutes() {
           <Route path="/scrutiny/rate-rule-book" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/diamond-gem-rates" element={lazyPage(DiamondGemRateBook)} />
           <Route path="/scrutiny/tds/rule-book" element={lazyPage(TdsPage)} />
+          <Route
+            path="/scrutiny/tds/party-wise-summary"
+            element={lazyPage(PartyWiseTdsSummaryPage)}
+          />
+          <Route path="/scrutiny/tds/rate-0.1" element={lazyPage(TdsRate01Page)} />
           <Route path="/scrutiny/rate-rules" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/rule-book" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />

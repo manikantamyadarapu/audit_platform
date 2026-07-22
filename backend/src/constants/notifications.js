@@ -13,6 +13,8 @@ const AUDIT_KEYS = {
   SALES_RETURN: 'SALES_RETURN',
   CASH_LEDGER: 'CASH_LEDGER',
   NEGATIVE_BANK: 'NEGATIVE_BANK',
+  PARTY_WISE_TDS: 'PARTY_WISE_TDS',
+  TDS_01: 'TDS_01',
 };
 
 const AUDIT_LABELS = {
@@ -22,6 +24,8 @@ const AUDIT_LABELS = {
   [AUDIT_KEYS.SALES_RETURN]: 'Sales Return',
   [AUDIT_KEYS.CASH_LEDGER]: 'Cash Ledger',
   [AUDIT_KEYS.NEGATIVE_BANK]: 'Negative Bank',
+  [AUDIT_KEYS.PARTY_WISE_TDS]: 'Party Wise TDS Summary',
+  [AUDIT_KEYS.TDS_01]: 'TDS @ 0.1%',
 };
 
 const AUDIT_ROUTES = {
@@ -31,6 +35,8 @@ const AUDIT_ROUTES = {
   [AUDIT_KEYS.SALES_RETURN]: '/scrutiny/sales-return-rate',
   [AUDIT_KEYS.CASH_LEDGER]: '/scrutiny/cash-ledger',
   [AUDIT_KEYS.NEGATIVE_BANK]: '/scrutiny/negative-bank',
+  [AUDIT_KEYS.PARTY_WISE_TDS]: '/scrutiny/tds/party-wise-summary',
+  [AUDIT_KEYS.TDS_01]: '/scrutiny/tds/rate-0.1',
 };
 
 /** Min exception rows OR percent of total rows to trigger HIGH_EXCEPTION_COUNT */

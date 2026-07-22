@@ -13,6 +13,8 @@ const auditSessionRoutes = require('./auditSession.routes');
 const rateBookRoutes = require('./rateBook.routes');
 const cashLedgerRoutes = require('./cashLedger.routes');
 const negativeBankRoutes = require('./negativeBank.routes');
+const partyWiseTdsRoutes = require('./partyWiseTds.routes');
+const tds01Routes = require('./tds01.routes');
 const tdsRoutes = require('./tds.routes');
 const notificationRoutes = require('./notification.routes');
 
@@ -29,6 +31,8 @@ router.use('/process/sales-return', salesReturnRoutes);
 router.use('/process/purchase', purchaseRoutes);
 router.use('/process/cash-ledger', cashLedgerRoutes);
 router.use('/process/negative-bank', negativeBankRoutes);
+router.use('/process/party-wise-tds', partyWiseTdsRoutes);
+router.use('/process/tds-rate-0.1', tds01Routes);
 router.use('/rate-rules', rateRulesRoutes);
 router.use('/diamond-rate-rules', diamondRateRulesRoutes);
 router.use('/tds-rules', tdsRoutes);

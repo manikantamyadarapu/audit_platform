@@ -34,9 +34,23 @@ const singleSalesReturnFile = upload.single('file');
 
 const singleCashLedgerFile = upload.single('file');
 
+const singleTds01File = upload.single('file');
+
 const dualSalesReturnFiles = upload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'salesReturnFile', maxCount: 1 },
 ]);
 
-module.exports = { singlePanFile, singleSalesReturnFile, singleCashLedgerFile, dualSalesReturnFiles };
+const dualPartyWiseTdsFiles = upload.fields([
+  { name: 'purchaseGoodsFile', maxCount: 1 },
+  { name: 'tdsPayableFile', maxCount: 1 },
+]);
+
+module.exports = {
+  singlePanFile,
+  singleSalesReturnFile,
+  singleCashLedgerFile,
+  singleTds01File,
+  dualSalesReturnFiles,
+  dualPartyWiseTdsFiles,
+};

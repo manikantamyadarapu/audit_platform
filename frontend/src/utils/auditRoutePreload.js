@@ -10,6 +10,8 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/rate-rule-book': () => import('../pages/RateRuleBook'),
   '/scrutiny/cash-ledger': () => import('../pages/CashLedgerPage'),
   '/scrutiny/negative-bank': () => import('../pages/NegativeBankPage'),
+  '/scrutiny/tds/party-wise-summary': () => import('../pages/PartyWiseTdsSummaryPage'),
+  '/scrutiny/tds/rate-0.1': () => import('../pages/TdsRate01Page'),
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),
 };
 

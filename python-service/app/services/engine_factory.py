@@ -5,6 +5,7 @@ from app.engines.negative_bank_engine.engine.processor import NegativeBankProces
 from app.engines.pan_engine.engine.processor import PanProcessor
 from app.engines.sales_engine.engine.processor import SalesAuditProcessor
 from app.engines.purchase_engine.engine.processor import PurchaseAuditProcessor
+from app.engines.tds_01_engine.engine.processor import Tds01Processor
 
 PROCESSOR_REGISTRY = {
     'pan': PanProcessor,
@@ -13,6 +14,7 @@ PROCESSOR_REGISTRY = {
     'purchase': PurchaseAuditProcessor,
     'cash_ledger': CashLedgerProcessor,
     'negative_bank': NegativeBankProcessor,
+    'tds_rate_01': Tds01Processor,
 }
 
 

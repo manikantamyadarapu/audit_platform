@@ -389,6 +389,46 @@ def export_cash_ledger_records(
     )
 
 
+def export_party_wise_tds_summary(
+    *,
+    purchase_summary: list[dict[str, Any]] | None = None,
+    payable_summary: list[dict[str, Any]] | None = None,
+) -> bytes:
+    """Two-sheet Party Wise TDS Summary workbook."""
+    from app.engines.party_wise_tds_engine.config.constants import (
+        EMPTY_SHEET_MESSAGE,
+        SHEET_PAYABLE,
+        SHEET_PURCHASE,
+        SUMMARY_EXPORT_COLUMNS,
+        SUMMARY_EXPORT_HEADER_MAP,
+    )
+
+    purchase_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (purchase_summary or [])
+    ]
+    payable_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (payable_summary or [])
+    ]
+
+    return build_multi_sheet_audit_workbook(
+        {
+            SHEET_PURCHASE: purchase_rows,
+            SHEET_PAYABLE: payable_rows,
+        },
+        columns=list(SUMMARY_EXPORT_COLUMNS),
+        header_map=dict(SUMMARY_EXPORT_HEADER_MAP),
+        empty_message=EMPTY_SHEET_MESSAGE,
+    )
+
+
 def export_negative_bank_records(
     records: list[dict[str, Any]],
     *,

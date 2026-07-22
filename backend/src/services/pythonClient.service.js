@@ -243,6 +243,133 @@ async function postNegativeBankExportInvalid(records, options = {}) {
   return postExportInvalidRows('/api/process/negative-bank/export-invalid', records, options);
 }
 
+/**
+ * Dual-file Party Wise TDS Summary validate.
+ */
+async function postPartyWiseTdsValidate(
+  purchaseBuffer,
+  purchaseName,
+  purchaseMime,
+  payableBuffer,
+  payableName,
+  payableMime,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('purchase_goods_file', purchaseBuffer, {
+    filename: purchaseName || 'tds-purchase-goods.xlsx',
+    contentType: purchaseMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('tds_payable_file', payableBuffer, {
+    filename: payableName || 'tds-payable.xlsx',
+    contentType: payableMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/party-wise-tds', form, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postPartyWiseTdsExport(payload, options = {}) {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/party-wise-tds/export', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const text = Buffer.from(response.data).toString('utf8');
+        const parsed = JSON.parse(text);
+        if (parsed?.detail) detail = parsed.detail;
+      } catch {
+        /* ignore */
+      }
+      const err = new Error(detail);
+      err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        contentType ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition:
+        contentDisposition || 'attachment; filename="Party_Wise_TDS_Summary.xlsx"',
+    };
+  } catch (err) {
+    if (err.status) throw err;
+    throw mapAxiosError(err);
+  }
+}
+
+async function postTds01Validate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/tds-rate-0.1', fileBuffer, originalname, mimetype, options);
+}
+
+async function postTds01Export(payload, options = {}) {
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/tds-rate-0.1/export', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const text = Buffer.from(response.data).toString('utf8');
+        const parsed = JSON.parse(text);
+        if (parsed?.detail) detail = parsed.detail;
+      } catch {
+        /* ignore */
+      }
+      const err = new Error(detail);
+      err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        contentType ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition:
+        contentDisposition || 'attachment; filename="TDS_0_1_Report.xlsx"',
+    };
+  } catch (err) {
+    if (err.status) throw err;
+    throw mapAxiosError(err);
+  }
+}
+
 async function getRateRules(options = {}) {
   const headers = {};
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -342,6 +469,10 @@ module.exports = {
   postCashLedgerExportInvalid,
   postNegativeBankValidate,
   postNegativeBankExportInvalid,
+  postPartyWiseTdsValidate,
+  postPartyWiseTdsExport,
+  postTds01Validate,
+  postTds01Export,
   postSalesReturnValidate,
   postSalesReturnExportRateComparison,
   postSalesReturnExportExceptions,

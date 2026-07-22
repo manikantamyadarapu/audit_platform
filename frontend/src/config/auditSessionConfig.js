@@ -40,6 +40,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/negative-bank',
     localStorageAlias: 'audit_session_negative_bank',
   },
+  'tds-rate-0.1': {
+    pageRoute: '/scrutiny/tds/rate-0.1',
+    localStorageAlias: 'audit_session_tds_rate_01',
+  },
   'rate-rule-book': {
     pageRoute: '/scrutiny/rate-rule-book',
     localStorageAlias: 'audit_session_rate',
