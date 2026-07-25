@@ -63,6 +63,10 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
   const sessionKey = config.sessionKey;
   const filterLabels = config.filterLabels;
   const exportPrefix = config.exportFilePrefix;
+  const validateAudit = config.api?.validate ?? validateSalesReturnAudit;
+  const exportRateComparisonApi =
+    config.api?.exportRateComparison ?? exportSalesReturnRateComparison;
+  const exportConsolidatedApi = config.api?.exportConsolidated ?? exportSalesReturnConsolidated;
 
   const [initialSession] = useState(() => bootstrapAuditSessionState(sessionKey));
   const [returnFile, setReturnFile] = useState(null);
@@ -134,7 +138,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
     }
     setLoading(true);
     try {
-      const data = await validateSalesReturnAudit(returnFile);
+      const data = await validateAudit(returnFile);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
@@ -169,7 +173,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
     } finally {
       setLoading(false);
     }
-  }, [returnFile, persist, config.missingFileToast, config.successToast]);
+  }, [returnFile, persist, config.missingFileToast, config.successToast, validateAudit]);
   const productComparisonRecords = useMemo(() => {
     const rows =
       result?.productAverageComparisonRecords ??
@@ -244,8 +248,12 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
   const productComparisonColumnMode =
     activeFilter === 'higherReturnRate' ? 'higherReturnRate' : 'full';
   const productExportColumns = useMemo(
-    () => salesReturnComparisonExportCols(productComparisonColumnMode),
-    [productComparisonColumnMode]
+    () =>
+      salesReturnComparisonExportCols(productComparisonColumnMode, {
+        avgReturnHeader: config.avgReturnHeader,
+        avgBaselineHeader: config.avgBaselineHeader,
+      }),
+    [productComparisonColumnMode, config.avgReturnHeader, config.avgBaselineHeader]
   );
   const exceptionExportColumns = useMemo(() => {
     const order = exceptionColumnOrder?.length
@@ -270,7 +278,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
           config.higherRateSheetName
         );
       } else {
-        await exportSalesReturnRateComparison(filteredProductComparison);
+        await exportRateComparisonApi(filteredProductComparison);
       }
       auditToastSuccess('Excel export downloaded');
     } catch (e) {
@@ -302,7 +310,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
     try {
       const tag = effectiveActiveFilter ? `filtered-${effectiveActiveFilter}` : 'all';
       if (result?.exportColumns?.length) {
-        await exportSalesReturnConsolidated({
+        await exportConsolidatedApi({
           records: exportExceptionRows,
           exportColumns: result.exportColumns,
           columnDisplayHeaders: result.columnDisplayHeaders,
@@ -330,6 +338,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
     result?.exportColumns,
     result?.columnDisplayHeaders,
     exportPrefix,
+    exportConsolidatedApi,
   ]);
   const exportExceptionPdf = useCallback(() => {
     if (!exportExceptionRows.length) {
@@ -595,6 +604,10 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
                       onExportXlsx={exportProductComparisonExcel}
                       onExportPdf={exportProductComparisonPdf}
                       columnMode={productComparisonColumnMode}
+                      columnLabels={{
+                        avgReturnHeader: config.avgReturnHeader,
+                        avgBaselineHeader: config.avgBaselineHeader,
+                      }}
                     />
                   ) : (
                     <EmptyState

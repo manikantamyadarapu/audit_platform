@@ -12,20 +12,14 @@ async function validate(req, res, next) {
       });
     }
 
-    logger.info('Purchase ledger: forwarding to Python (sales endpoint)', {
+    logger.info('Purchase ledger: forwarding to Python', {
       requestId: req.requestId,
       filename: req.file.originalname,
       size: req.file.size,
     });
 
-    const data = await purchaseService.validatePurchase(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      { requestId: req.requestId }
-    );
-
-    return res.json(data);
+    const { data, auditRunId } = await purchaseService.validatePurchase(req);
+    return res.json({ ...data, auditRunId });
   } catch (err) {
     return next(err);
   }
@@ -42,7 +36,7 @@ async function exportInvalid(req, res, next) {
       });
     }
 
-    logger.info('Purchase export-invalid: forwarding to Python (sales endpoint)', {
+    logger.info('Purchase export-invalid: forwarding to Python', {
       requestId: req.requestId,
       recordCount: parsed.records.length,
     });

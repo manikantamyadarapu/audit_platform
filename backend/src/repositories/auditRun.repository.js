@@ -5,9 +5,17 @@ const DEFAULT_AUDIT_TYPES = {
     auditName: 'Rate & Ledger Audit',
     description: 'Sales rate and ledger validation',
   },
+  PURCHASE: {
+    auditName: 'Purchase Rate & Ledger Audit',
+    description: 'Purchase rate and ledger validation',
+  },
   SALES_RETURN: {
     auditName: 'Sales Return Audit',
     description: 'Sales return validation and rate comparison',
+  },
+  PURCHASE_RETURN: {
+    auditName: 'Purchase Return Audit',
+    description: 'Purchase return validation and rate comparison',
   },
   PAN: {
     auditName: 'ID Proof Audit',

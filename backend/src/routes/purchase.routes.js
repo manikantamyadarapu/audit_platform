@@ -13,8 +13,8 @@ router.use(authenticate);
  * POST /api/v1/process/purchase/validate
  * POST /api/v1/process/purchase/export-invalid
  *
- * Purchase ledgers reuse the sales Python endpoints today (same workbook
- * schema/engine) — see purchase.service.js.
+ * Purchase ledgers use the dedicated purchase Python endpoint and persist
+ * product averages under PURCHASE for Purchase Return baseline.
  */
 router.post('/validate', singlePanFile, purchaseController.validate);
 router.post(

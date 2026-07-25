@@ -15,6 +15,7 @@ const cashLedgerRoutes = require('./cashLedger.routes');
 const negativeBankRoutes = require('./negativeBank.routes');
 const partyWiseTdsRoutes = require('./partyWiseTds.routes');
 const tds01Routes = require('./tds01.routes');
+const purchaseReturnRoutes = require('./purchaseReturn.routes');
 const tdsRoutes = require('./tds.routes');
 const notificationRoutes = require('./notification.routes');
 
@@ -28,6 +29,7 @@ router.use('/process/pan', panRoutes);
 router.use('/process/gross-weight', grossWeightRoutes);
 router.use('/process/sales', salesRoutes);
 router.use('/process/sales-return', salesReturnRoutes);
+router.use('/process/purchase-return', purchaseReturnRoutes);
 router.use('/process/purchase', purchaseRoutes);
 router.use('/process/cash-ledger', cashLedgerRoutes);
 router.use('/process/negative-bank', negativeBankRoutes);

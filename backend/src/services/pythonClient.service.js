@@ -89,6 +89,14 @@ async function postSalesValidate(fileBuffer, originalname, mimetype, options = {
   return postExcelProcess('/api/process/sales', fileBuffer, originalname, mimetype, options);
 }
 
+async function postPurchaseValidate(fileBuffer, originalname, mimetype, options = {}) {
+  return postExcelProcess('/api/process/purchase', fileBuffer, originalname, mimetype, options);
+}
+
+async function postPurchaseExportInvalid(records, options = {}) {
+  return postExportInvalidRows('/api/process/purchase/export-invalid', records, options);
+}
+
 async function postCashLedgerValidate(fileBuffer, originalname, mimetype, options = {}) {
   return postExcelProcess('/api/process/cash-ledger', fileBuffer, originalname, mimetype, options);
 }
@@ -162,6 +170,84 @@ async function postSalesReturnExportExceptions(payload, options = {}) {
       contentType,
     };
   } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postPurchaseReturnValidate(
+  returnBuffer,
+  returnName,
+  returnMime,
+  purchaseAverages,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('purchase_return_file', returnBuffer, {
+    filename: returnName || 'purchase-return-audit.xlsx',
+    contentType: returnMime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('purchase_averages', JSON.stringify(purchaseAverages ?? []));
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/purchase-return/validate', form, { headers });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+async function postPurchaseReturnExportRateComparison(records, options = {}) {
+  return postExportInvalidRows(
+    '/api/process/purchase-return/export-rate-comparison',
+    records,
+    options
+  );
+}
+
+async function postPurchaseReturnExportExceptions(payload, options = {}) {
+  try {
+    const headers = {};
+    if (options.requestId) {
+      headers['x-request-id'] = options.requestId;
+    }
+
+    const response = await client.post('/api/process/purchase-return/export-exceptions', payload, {
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      headers,
+    });
+
+    const contentType = response.headers['content-type'];
+    const contentDisposition = response.headers['content-disposition'];
+
+    if (response.status >= 400) {
+      let detail = `Python service returned ${response.status}`;
+      try {
+        const json = JSON.parse(Buffer.from(response.data).toString('utf8'));
+        if (json && json.detail) detail = json.detail;
+      } catch {
+        // ignore
+      }
+      const err = new Error(detail);
+      if (response.status === 422) err.status = 422;
+      else if (response.status === 400) err.status = 400;
+      else if (response.status >= 500) err.status = 502;
+      else err.status = response.status;
+      throw err;
+    }
+
+    return {
+      buffer: Buffer.from(response.data),
+      contentDisposition,
+      contentType,
+    };
+  } catch (err) {
+    if (err.status) throw err;
     throw mapAxiosError(err);
   }
 }
@@ -465,6 +551,8 @@ module.exports = {
   postGrossWeightExportInvalid,
   postSalesValidate,
   postSalesExportInvalid,
+  postPurchaseValidate,
+  postPurchaseExportInvalid,
   postCashLedgerValidate,
   postCashLedgerExportInvalid,
   postNegativeBankValidate,
@@ -476,6 +564,9 @@ module.exports = {
   postSalesReturnValidate,
   postSalesReturnExportRateComparison,
   postSalesReturnExportExceptions,
+  postPurchaseReturnValidate,
+  postPurchaseReturnExportRateComparison,
+  postPurchaseReturnExportExceptions,
   getRateRules,
   postRateRules,
   getDiamondRateRules,

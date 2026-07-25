@@ -15,6 +15,8 @@ from app.routers.sales_router import gateway_router as gateway_sales_router
 from app.routers.sales_router import router as sales_router
 from app.routers.sales_return_router import gateway_router as gateway_sales_return_router
 from app.routers.sales_return_router import router as sales_return_router
+from app.routers.purchase_return_router import gateway_router as gateway_purchase_return_router
+from app.routers.purchase_return_router import router as purchase_return_router
 from app.routers.pan_router import gateway_router as gateway_pan_router
 from app.routers.pan_router import router as pan_router
 from app.routers.gross_weight_router import gateway_router as gateway_gross_weight_router
@@ -61,6 +63,8 @@ app.include_router(sales_router)
 app.include_router(gateway_sales_router)
 app.include_router(sales_return_router)
 app.include_router(gateway_sales_return_router)
+app.include_router(purchase_return_router)
+app.include_router(gateway_purchase_return_router)
 app.include_router(pan_router)
 app.include_router(gateway_pan_router)
 app.include_router(gross_weight_router)

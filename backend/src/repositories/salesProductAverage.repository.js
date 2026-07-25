@@ -127,16 +127,17 @@ async function createAuditRunWithProductAverages({
   invalidRows,
   productAverages,
   pythonResult,
+  auditCode = 'SALES',
 }) {
-  const auditTypeId = await auditRunRepository.resolveAuditTypeId('SALES');
+  const auditTypeId = await auditRunRepository.resolveAuditTypeId(auditCode);
   if (!auditTypeId) {
-    throw new Error('SALES audit type is not configured');
+    throw new Error(`${auditCode} audit type is not configured`);
   }
 
   const metrics = pythonResult ? extractMetrics(pythonResult) : { totalRows, invalidRows };
   const issueCounts = pythonResult ? extractIssueCounts(pythonResult) : [];
 
-  // Build resultSummary for sales audit
+  // Build resultSummary for sales/purchase audit
   const resultSummary = {
     issueCounts: issueCounts,
     productRates: productAverages?.length ? dedupeProductAverages(productAverages) : [],
@@ -145,7 +146,7 @@ async function createAuditRunWithProductAverages({
   const auditRun = await auditRunRepository.createAuditRun({
     auditTypeId,
     uploadedBy,
-    fileName: fileName || 'sales-audit.xlsx',
+    fileName: fileName || `${String(auditCode).toLowerCase()}-audit.xlsx`,
     totalRows: metrics.totalRows ?? totalRows ?? 0,
     invalidRows: metrics.invalidRows ?? invalidRows ?? 0,
     resultSummary,
@@ -247,7 +248,15 @@ async function findProductAverageRates({
 }
 
 async function findLatestSalesAuditProductAverages() {
-  const auditTypeId = await findSalesAuditTypeId();
+  return findLatestAuditProductAveragesByCode('SALES');
+}
+
+async function findLatestPurchaseAuditProductAverages() {
+  return findLatestAuditProductAveragesByCode('PURCHASE');
+}
+
+async function findLatestAuditProductAveragesByCode(auditCode) {
+  const auditTypeId = await auditRunRepository.resolveAuditTypeId(auditCode);
   if (!auditTypeId) {
     return { auditRun: null, rows: [] };
   }
@@ -271,7 +280,7 @@ async function findLatestSalesAuditProductAverages() {
   }
 
   const productRates = latestRun.resultSummary?.productRates || [];
-  const rows = productRates.map(row => ({
+  const rows = productRates.map((row) => ({
     ...row,
     auditRunId: latestRun.id,
     fileName: latestRun.fileName,
@@ -346,5 +355,6 @@ module.exports = {
   createAuditRunWithProductAverages,
   findProductAverageRates,
   findLatestSalesAuditProductAverages,
+  findLatestPurchaseAuditProductAverages,
   findAllProductAverageRatesForExport,
 };

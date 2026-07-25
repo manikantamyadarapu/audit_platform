@@ -75,6 +75,7 @@ app.use('/api/dashboard', require('./routes/dashboard.routes')); // dashboardSer
 app.use('/api/audit-sessions', require('./routes/auditSession.routes')); // auditSessionService.js
 app.use('/api/sales-audit', require('./routes/sales.routes')); // salesAuditService.js (product-average-rates)
 app.use('/api/sales-return', require('./routes/salesReturn.routes')); // processExcelService.js (run-audit/rate-comparison/export-*)
+app.use('/api/purchase-return', require('./routes/purchaseReturn.routes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
