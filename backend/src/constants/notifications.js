@@ -17,6 +17,7 @@ const AUDIT_KEYS = {
   NEGATIVE_BANK: 'NEGATIVE_BANK',
   PARTY_WISE_TDS: 'PARTY_WISE_TDS',
   TDS_01: 'TDS_01',
+  SECTION44AB: 'SECTION44AB',
 };
 
 const AUDIT_LABELS = {
@@ -30,6 +31,7 @@ const AUDIT_LABELS = {
   [AUDIT_KEYS.NEGATIVE_BANK]: 'Negative Bank',
   [AUDIT_KEYS.PARTY_WISE_TDS]: 'Party Wise TDS Summary',
   [AUDIT_KEYS.TDS_01]: 'TDS @ 0.1%',
+  [AUDIT_KEYS.SECTION44AB]: 'Section 44AB',
 };
 
 const AUDIT_ROUTES = {
@@ -43,6 +45,7 @@ const AUDIT_ROUTES = {
   [AUDIT_KEYS.NEGATIVE_BANK]: '/scrutiny/negative-bank',
   [AUDIT_KEYS.PARTY_WISE_TDS]: '/scrutiny/tds/party-wise-summary',
   [AUDIT_KEYS.TDS_01]: '/scrutiny/tds/rate-0.1',
+  [AUDIT_KEYS.SECTION44AB]: '/scrutiny/section44ab',
 };
 
 /** Min exception rows OR percent of total rows to trigger HIGH_EXCEPTION_COUNT */

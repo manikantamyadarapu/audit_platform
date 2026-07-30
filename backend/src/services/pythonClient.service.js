@@ -544,6 +544,46 @@ async function postTdsRules(body, options = {}) {
   }
 }
 
+/**
+ * Section 44AB Cash & Bank Audit - multiple file upload
+ * @param {Array} cashFiles - Array of file objects with buffer, originalname, mimetype
+ * @param {Array} bankFiles - Array of file objects with buffer, originalname, mimetype
+ * @param {{ requestId?: string }} [options]
+ */
+async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
+  const form = new FormData();
+
+  // Append cash files
+  cashFiles.forEach((file, index) => {
+    form.append('cash_files', file.buffer, {
+      filename: file.originalname || `cash_${index}.xlsx`,
+      contentType: file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  });
+
+  // Append bank files
+  bankFiles.forEach((file, index) => {
+    form.append('bank_files', file.buffer, {
+      filename: file.originalname || `bank_${index}.xlsx`,
+      contentType: file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/v1/process/section44ab', form, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -575,4 +615,5 @@ module.exports = {
   saveRateBookDiamonds,
   getTdsRules,
   postTdsRules,
+  postSection44ABValidate,
 };

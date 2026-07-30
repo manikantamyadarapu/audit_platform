@@ -32,6 +32,7 @@ const ModuleSoon = lazy(() => import('../pages/ModuleSoon'));
 const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
 const Profile = lazy(() => import('../pages/Profile'));
+const Section44ABPage = lazy(() => import('../pages/Section44ABPage'));
 
 function lazyPage(Component) {
   return (
@@ -83,6 +84,7 @@ export function AppRoutes() {
           <Route path="/scrutiny/tds/rate-0.1" element={lazyPage(TdsRate01Page)} />
           <Route path="/scrutiny/rate-rules" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/rule-book" element={lazyPage(RateRuleBook)} />
+          <Route path="/scrutiny/section44ab" element={lazyPage(Section44ABPage)} />
           <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />
           <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
 

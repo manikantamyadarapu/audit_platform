@@ -364,6 +364,14 @@ export function Sidebar() {
               nested
               onNavigate={ensureScrutiny}
             />
+            <NavItem
+              to="/scrutiny/section44ab"
+              label="Section 44AB"
+              icon={Calculator}
+              collapsed={sidebarCollapsed}
+              nested
+              onNavigate={ensureScrutiny}
+            />
             {scrutinyItems.map((item) => (
               <NavItem
                 key={item.to}
