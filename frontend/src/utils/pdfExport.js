@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+export const EMPTY_EXPORT_MESSAGE = 'No eligible suppliers found.';
+
 function cellText(value) {
   if (value == null || value === '') return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -26,7 +28,9 @@ export function exportRowsToPdf(filename, title, columnDefs, rows) {
   doc.text(title, 40, 36);
 
   const head = [columnDefs.map((c) => c.header)];
-  const body = rows.map((row) => columnDefs.map((c) => cellText(c.accessor(row))));
+  const body = rows.length
+    ? rows.map((row) => columnDefs.map((c) => cellText(c.accessor(row))))
+    : [[EMPTY_EXPORT_MESSAGE]];
 
   autoTable(doc, {
     head,

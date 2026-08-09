@@ -150,13 +150,9 @@ export default function TdsRate01Page() {
     return Array.isArray(rows) ? rows : [];
   }, [result]);
 
-  const filteredRecords = useMemo(() => summaryRecords, [summaryRecords]);
+const filteredRecords = useMemo(() => summaryRecords, [summaryRecords]);
 
   const runExportExcel = useCallback(async () => {
-    if (!summaryRecords.length && !detailedRecords.length) {
-      auditToastError('No rows to export.');
-      return;
-    }
     setExporting(true);
     try {
       await exportTds01Report({
@@ -172,19 +168,11 @@ export default function TdsRate01Page() {
   }, [detailedRecords, summaryRecords]);
 
   const runExportCsv = useCallback(() => {
-    if (!filteredRecords.length) {
-      auditToastError('No rows to export.');
-      return;
-    }
     exportRowsToCsv(`tds-0.1-summary-${Date.now()}.csv`, EXPORT_COLUMN_DEFS, filteredRecords);
     auditToastSuccess('CSV export downloaded');
   }, [filteredRecords]);
 
   const runExportPdf = useCallback(() => {
-    if (!filteredRecords.length) {
-      auditToastError('No rows to export.');
-      return;
-    }
     exportRowsToPdf(
       `tds-0.1-summary-${Date.now()}.pdf`,
       'TDS @ 0.1% — eligible supplier summary',
@@ -336,7 +324,7 @@ export default function TdsRate01Page() {
                     variant="secondary"
                     size="sm"
                     loading={exporting}
-                    disabled={exporting || (!summaryRecords.length && !detailedRecords.length)}
+                    disabled={exporting}
                     onClick={runExportExcel}
                   >
                     <Download className="h-4 w-4" />
@@ -345,7 +333,6 @@ export default function TdsRate01Page() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={!filteredRecords.length}
                     onClick={runExportCsv}
                   >
                     <FileText className="h-4 w-4" />
@@ -354,7 +341,6 @@ export default function TdsRate01Page() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={!filteredRecords.length}
                     onClick={runExportPdf}
                   >
                     <FileSpreadsheet className="h-4 w-4" />

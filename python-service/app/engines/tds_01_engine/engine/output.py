@@ -25,6 +25,8 @@ def build_tds_01_response(
         'totalPurchaseAmount': metrics.get('totalPurchaseAmount', 0),
         'eligiblePurchaseAmount': metrics.get('eligiblePurchaseAmount', 0),
         'totalTdsDeductible': metrics.get('totalTdsDeductible', 0),
+        'mixedParties': metrics.get('mixedParties', 0),
+        'mixedPartyNames': metrics.get('mixedPartyNames', []),
         'compliancePercent': metrics.get('compliancePercent', 0),
     }
 
