@@ -7,6 +7,27 @@ FILE_TYPE: Final = 'tds_rate_01'
 # Eligible when Purchases During Year > 50,00,000
 PURCHASE_THRESHOLD: Final = 5_000_000.0
 TDS_RATE: Final = 0.001  # 0.1%
+TDS_RATE_WITH_PAN: Final = 0.001  # 0.1%
+TDS_RATE_WITHOUT_PAN: Final = 0.05  # 5%
+
+TRANSACTION_TYPE_B2B: Final = 'B2B'
+TRANSACTION_TYPE_B2C: Final = 'B2C'
+TRANSACTION_TYPE_MIXED: Final = 'MIXED'
+
+BRANCH_VOUCHER_TRANSACTION_TYPES: Final = {
+    'BB': {
+        'CP': TRANSACTION_TYPE_B2C,
+        'PV': TRANSACTION_TYPE_B2B,
+    },
+    'KT': {
+        'PV': TRANSACTION_TYPE_B2C,
+        'CP': TRANSACTION_TYPE_B2B,
+    },
+    'HO': {
+        'CP': TRANSACTION_TYPE_B2C,
+        'PV': TRANSACTION_TYPE_B2B,
+    },
+}
 
 EXPORT_FILENAME: Final = 'TDS_0_1_Report.xlsx'
 SHEET_DETAILED: Final = 'Detailed'
@@ -48,8 +69,8 @@ HEADER_ALIASES: Final = {
 }
 
 DETAILED_COLUMNS: Final = (
-    'voucher_no',
     'date',
+    'voucher_no',
     'party',
     'gross_amount',
     'branch',
@@ -57,8 +78,8 @@ DETAILED_COLUMNS: Final = (
 )
 
 DETAILED_HEADER_MAP: Final = {
-    'voucher_no': 'Voucher No',
     'date': 'Date',
+    'voucher_no': 'Voucher Id',
     'party': 'Party',
     'gross_amount': 'Gross Amount',
     'branch': 'Branch',
@@ -67,14 +88,14 @@ DETAILED_HEADER_MAP: Final = {
 
 SUMMARY_COLUMNS: Final = (
     'party',
-    'purchases_during_year',
-    'tds_deductible',
+    'purchase_during_year',
+    'tds',
 )
 
 SUMMARY_HEADER_MAP: Final = {
     'party': 'Party',
-    'purchases_during_year': 'Purchases During Year',
-    'tds_deductible': 'TDS Deductible',
+    'purchase_during_year': 'Purchase During the Year',
+    'tds': 'TDS',
 }
 
 TABLE_EXPORT_COLUMNS: Final = SUMMARY_COLUMNS
