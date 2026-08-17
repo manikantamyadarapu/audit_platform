@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Coins,
   FileSpreadsheet,
+  Folder,
   Gem,
   GitBranch,
   LayoutDashboard,
@@ -73,7 +74,7 @@ const navActive =
 const navIdle =
   'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]';
 
-function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) {
+function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested, badge }) {
   return (
     <NavLink
       to={to}
@@ -91,7 +92,16 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested }) 
       }
     >
       <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
-      {!collapsed ? <span className="truncate">{label}</span> : null}
+      {!collapsed ? (
+        <>
+          <span className={cn('truncate', badge && 'flex-1')}>{label}</span>
+          {badge ? (
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+              {badge}
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </NavLink>
   );
 }
@@ -198,11 +208,13 @@ export function Sidebar() {
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
   const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger', '/scrutiny/purchase/return-rate'].some((path) => pathname.startsWith(path));
   const tdsChildActive = ['/scrutiny/tds/party-wise-summary', '/scrutiny/tds/rate-0.1', '/scrutiny/tds/rule-book'].some((path) => pathname.startsWith(path));
+  const otherFeaturesChildActive = pathname.startsWith('/scrutiny/section44ab');
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
   const [purchaseOpen, setPurchaseOpen] = useState(purchaseChildActive);
+  const [otherFeaturesOpen, setOtherFeaturesOpen] = useState(otherFeaturesChildActive);
   const [tdsOpen, setTdsOpen] = useState(tdsChildActive);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [sessionUser, setSessionUser] = useState(() => getStoredUser());
@@ -220,6 +232,7 @@ export function Sidebar() {
   const displayName = sessionUser?.name || 'User';
   const displayEmail = sessionUser?.email || '';
   const initials = getUserInitials(displayName);
+  const pendingBadge = String(sessionUser?.role || '').toUpperCase() === 'ADMIN' ? 'PENDING' : undefined;
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -236,6 +249,10 @@ export function Sidebar() {
   useEffect(() => {
     if (purchaseChildActive) setPurchaseOpen(true);
   }, [purchaseChildActive]);
+
+  useEffect(() => {
+    if (otherFeaturesChildActive) setOtherFeaturesOpen(true);
+  }, [otherFeaturesChildActive]);
 
   useEffect(() => {
     if (tdsChildActive) setTdsOpen(true);
@@ -328,6 +345,34 @@ export function Sidebar() {
                 </div>
               ))}
             </NavGroup>
+            <NavItem
+              to="/scrutiny/cash-ledger"
+              label="Cash"
+              icon={Wallet}
+              collapsed={sidebarCollapsed}
+              nested
+              onNavigate={ensureScrutiny}
+            />
+            <NavGroup
+              label="Other Features"
+              icon={Folder}
+              collapsed={sidebarCollapsed}
+              open={otherFeaturesOpen}
+              onToggle={() => setOtherFeaturesOpen((v) => !v)}
+              active={false}
+              nested
+            >
+              <div className="ml-3">
+                <NavItem
+                  to="/scrutiny/section44ab"
+                  label="Section 44AB"
+                  icon={Calculator}
+                  collapsed={sidebarCollapsed}
+                  nested
+                  onNavigate={ensureScrutiny}
+                />
+              </div>
+            </NavGroup>
             <NavGroup
               label="TDS Audit"
               icon={Calculator}
@@ -336,6 +381,7 @@ export function Sidebar() {
               onToggle={() => setTdsOpen((v) => !v)}
               active={false}
               nested
+              badge={pendingBadge}
             >
               {tdsItems.map((item) => (
                 <div key={item.to} className="ml-3">
@@ -349,28 +395,13 @@ export function Sidebar() {
               ))}
             </NavGroup>
             <NavItem
-              to="/scrutiny/cash-ledger"
-              label="Cash"
-              icon={Wallet}
-              collapsed={sidebarCollapsed}
-              nested
-              onNavigate={ensureScrutiny}
-            />
-            <NavItem
               to="/scrutiny/negative-bank"
               label="Negative Bank"
               icon={Landmark}
               collapsed={sidebarCollapsed}
               nested
               onNavigate={ensureScrutiny}
-            />
-            <NavItem
-              to="/scrutiny/section44ab"
-              label="Section 44AB"
-              icon={Calculator}
-              collapsed={sidebarCollapsed}
-              nested
-              onNavigate={ensureScrutiny}
+              badge={pendingBadge}
             />
             {scrutinyItems.map((item) => (
               <NavItem

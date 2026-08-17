@@ -9,19 +9,19 @@ datasource db {
 }
 
 model User {
-  id            Int         @id @default(autoincrement())
-  name          String      @db.VarChar(100)
-  email         String      @unique @db.VarChar(255)
-  passwordHash  String      @map("password_hash") @db.VarChar(255)
-  role          UserRole    @default(VIEWER)
-  isActive      Boolean     @default(true) @map("is_active")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            Int            @id @default(autoincrement())
+  name          String         @db.VarChar(100)
+  email         String         @unique @db.VarChar(255)
+  passwordHash  String         @map("password_hash") @db.VarChar(255)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  role          UserRole       @default(VIEWER)
   auditRuns     AuditRun[]
   auditSessions AuditSession[]
+  authTokens    AuthToken[]
   ruleUpdates   MasterRule[]
   notifications Notification[]
-  authTokens    AuthToken[]
 
   @@index([email])
   @@index([role])
@@ -46,13 +46,13 @@ model AuthToken {
 }
 
 model AuditType {
-  id            Int           @id @default(autoincrement())
-  auditCode     String        @unique @map("audit_code") @db.VarChar(50)
-  auditName     String        @map("audit_name") @db.VarChar(100)
+  id            Int            @id @default(autoincrement())
+  auditCode     String         @unique @map("audit_code") @db.VarChar(50)
+  auditName     String         @map("audit_name") @db.VarChar(100)
   description   String?
-  isActive      Boolean       @default(true) @map("is_active")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
   auditRuns     AuditRun[]
   auditSessions AuditSession[]
   masterRules   MasterRule[]
@@ -85,30 +85,30 @@ model MasterRule {
 }
 
 model AuditRun {
-  id                  Int         @id @default(autoincrement())
-  fileName            String      @map("file_name") @db.VarChar(255)
-  originalName        String?     @map("original_name") @db.VarChar(255)
-  storagePath         String?     @map("storage_path") @db.VarChar(500)
-  fileHash            String?     @map("file_hash") @db.VarChar(64)
-  fileSize            BigInt?     @map("file_size")
-  uploadedBy          Int         @map("uploaded_by")
-  totalRows           Int         @default(0) @map("total_rows")
-  invalidRows         Int         @default(0) @map("invalid_rows")
-  status              AuditStatus @default(PENDING)
-  errorMessage        String?     @map("error_message")
-  startedAt           DateTime?   @map("started_at")
-  completedAt         DateTime?   @map("completed_at")
-  processingTimeMs    Int?        @map("processing_time_ms")
-  memoryUsageMb       Decimal?    @map("memory_usage_mb") @db.Decimal(10, 2)
-  rowsPerSecond       Decimal?    @map("rows_per_second") @db.Decimal(10, 2)
-  cpuUsagePercent     Decimal?    @map("cpu_usage_percent") @db.Decimal(5, 2)
-  resultSummary       Json?       @map("result_summary")
-  createdAt           DateTime    @default(now()) @map("created_at")
-  auditTypeId         Int         @map("audit_type_id")
-  updatedAt           DateTime    @updatedAt @map("updated_at")
-  auditType           AuditType   @relation(fields: [auditTypeId], references: [id])
-  uploader            User        @relation(fields: [uploadedBy], references: [id])
-  auditSessions       AuditSession[]
+  id               Int            @id @default(autoincrement())
+  fileName         String         @map("file_name") @db.VarChar(255)
+  uploadedBy       Int            @map("uploaded_by")
+  totalRows        Int            @default(0) @map("total_rows")
+  invalidRows      Int            @default(0) @map("invalid_rows")
+  status           AuditStatus    @default(PENDING)
+  errorMessage     String?        @map("error_message")
+  startedAt        DateTime?      @map("started_at")
+  completedAt      DateTime?      @map("completed_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  auditTypeId      Int            @map("audit_type_id")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  cpuUsagePercent  Decimal?       @map("cpu_usage_percent") @db.Decimal(5, 2)
+  fileHash         String?        @map("file_hash") @db.VarChar(64)
+  fileSize         BigInt?        @map("file_size")
+  memoryUsageMb    Decimal?       @map("memory_usage_mb") @db.Decimal(10, 2)
+  originalName     String?        @map("original_name") @db.VarChar(255)
+  processingTimeMs Int?           @map("processing_time_ms")
+  resultSummary    Json?          @map("result_summary")
+  rowsPerSecond    Decimal?       @map("rows_per_second") @db.Decimal(10, 2)
+  storagePath      String?        @map("storage_path") @db.VarChar(500)
+  auditType        AuditType      @relation(fields: [auditTypeId], references: [id])
+  uploader         User           @relation(fields: [uploadedBy], references: [id])
+  auditSessions    AuditSession[]
 
   @@index([auditTypeId, createdAt])
   @@index([status])
