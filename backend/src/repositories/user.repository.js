@@ -8,13 +8,6 @@ const prisma = require('../lib/prisma');
 async function findById(id) {
   return prisma.user.findUnique({
     where: { id, isActive: true },
-    include: {
-      role: {
-        select: {
-          roleName: true,
-        },
-      },
-    },
   });
 }
 
@@ -26,14 +19,6 @@ async function findById(id) {
 async function findByEmail(email) {
   return prisma.user.findUnique({
     where: { email },
-    include: {
-      role: {
-        select: {
-          id: true,
-          roleName: true,
-        },
-      },
-    },
   });
 }
 
@@ -45,14 +30,6 @@ async function findByEmail(email) {
 async function findActiveByEmail(email) {
   return prisma.user.findFirst({
     where: { email, isActive: true },
-    include: {
-      role: {
-        select: {
-          id: true,
-          roleName: true,
-        },
-      },
-    },
   });
 }
 
@@ -64,13 +41,6 @@ async function findActiveByEmail(email) {
 async function create(data) {
   const user = await prisma.user.create({
     data,
-    include: {
-      role: {
-        select: {
-          roleName: true,
-        },
-      },
-    },
   });
   return user;
 }
@@ -102,24 +72,11 @@ async function findAll({ search = '', page = 1, limit = 10 }) {
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
-      include: {
-        role: {
-          select: {
-            roleName: true,
-          },
-        },
-      },
     }),
     prisma.user.count({ where }),
   ]);
 
-  // Transform users to include role as string
-  const transformedUsers = users.map(user => ({
-    ...user,
-    role: user.role?.roleName || null,
-  }));
-
-  return { users: transformedUsers, total };
+  return { users, total };
 }
 
 /**
@@ -132,18 +89,8 @@ async function update(id, data) {
   const user = await prisma.user.update({
     where: { id },
     data,
-    include: {
-      role: {
-        select: {
-          roleName: true,
-        },
-      },
-    },
   });
-  return {
-    ...user,
-    role: user.role?.roleName || null,
-  };
+  return user;
 }
 
 /**
@@ -156,18 +103,8 @@ async function updatePassword(id, passwordHash) {
   const user = await prisma.user.update({
     where: { id },
     data: { passwordHash },
-    include: {
-      role: {
-        select: {
-          roleName: true,
-        },
-      },
-    },
   });
-  return {
-    ...user,
-    role: user.role?.roleName || null,
-  };
+  return user;
 }
 
 /**
@@ -179,18 +116,8 @@ async function softDelete(id) {
   const user = await prisma.user.update({
     where: { id },
     data: { isActive: false },
-    include: {
-      role: {
-        select: {
-          roleName: true,
-        },
-      },
-    },
   });
-  return {
-    ...user,
-    role: user.role?.roleName || null,
-  };
+  return user;
 }
 
 /**
@@ -208,17 +135,6 @@ async function emailExists(email, excludeId = null) {
   return count > 0;
 }
 
-/**
- * Get role by name
- * @param {string} roleName
- * @returns {Promise<Object|null>}
- */
-async function getRoleByName(roleName) {
-  return prisma.role.findUnique({
-    where: { roleName },
-  });
-}
-
 module.exports = {
   findById,
   findByEmail,
@@ -229,5 +145,4 @@ module.exports = {
   updatePassword,
   softDelete,
   emailExists,
-  getRoleByName,
 };

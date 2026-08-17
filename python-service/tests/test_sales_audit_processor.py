@@ -4,8 +4,8 @@ from openpyxl import Workbook
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import grams_product_norms
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import grams_product_norms
 from app.utils.normalization_engine import normalize_strict_text
 from app.utils.sheet_validation_error import SheetValidationError
 
@@ -343,7 +343,7 @@ def test_sales_24k_account_normalization_allows_missing_space_after_hyphen():
 
 def test_sales_gold_misc_rows_skip_market_rate_check():
     """Black beads / misc gold SKUs are mapping-only even when market rates are configured."""
-    from app.sales_engine.services.metal_rate_store import save_rule_book
+    from app.engines.sales_engine.services.metal_rate_store import save_rule_book
 
     save_rule_book({'rates': {'Gold Ornaments 22K': 9000}})
     proc = SalesAuditProcessor()
@@ -661,7 +661,7 @@ def test_sales_enterprise_rate_examples_from_spec():
 
 
 def test_sales_dedupe_merges_duplicate_row_numbers_in_api_output():
-    from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+    from app.engines.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
 
     records = [
         {
@@ -687,7 +687,7 @@ def test_sales_invalid_records_one_per_excel_row_when_pipeline_duplicates():
     """Duplicate adjudicated rows for the same Excel line must merge to one API record."""
     import polars as pl
 
-    from app.sales_engine.engine.vectorized_sales_engine import VectorizedSalesEngine
+    from app.engines.sales_engine.engine.vectorized_sales_engine import VectorizedSalesEngine
 
     engine = VectorizedSalesEngine()
     duplicate = pl.DataFrame(
@@ -723,7 +723,7 @@ def test_sales_invalid_records_one_per_excel_row_when_pipeline_duplicates():
 
 
 def test_sales_same_voucher_different_rows_are_not_merged():
-    from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+    from app.engines.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
 
     records = [
         {

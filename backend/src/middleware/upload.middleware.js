@@ -34,9 +34,46 @@ const singleSalesReturnFile = upload.single('file');
 
 const singleCashLedgerFile = upload.single('file');
 
+const singleTds01File = upload.single('file');
+
 const dualSalesReturnFiles = upload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'salesReturnFile', maxCount: 1 },
 ]);
 
-module.exports = { singlePanFile, singleSalesReturnFile, singleCashLedgerFile, dualSalesReturnFiles };
+const dualPartyWiseTdsFiles = upload.fields([
+  { name: 'purchaseGoodsFile', maxCount: 1 },
+  { name: 'tdsPayableFile', maxCount: 1 },
+]);
+
+const section44abFiles = upload.fields([
+  { name: 'cashFiles', maxCount: 10 },
+  { name: 'bankFiles', maxCount: 50 },
+]);
+
+function handleMulterError(err, req, res, next) {
+  if (!err) {
+    return next();
+  }
+
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err.status) {
+    return res.status(err.status).json({ error: err.message });
+  }
+
+  return next(err);
+}
+
+module.exports = {
+  singlePanFile,
+  singleSalesReturnFile,
+  singleCashLedgerFile,
+  singleTds01File,
+  dualSalesReturnFiles,
+  dualPartyWiseTdsFiles,
+  section44abFiles,
+  handleMulterError,
+};

@@ -4,8 +4,8 @@ from io import BytesIO
 
 import pandas as pd
 
-from app.sales_engine.exception_report import MESSAGE_COLUMN, build_sales_exception_records
-from app.sales_return_engine.exception_report import build_export_metadata
+from app.engines.sales_engine.engine.exception_report import MESSAGE_COLUMN, build_sales_exception_records
+from app.engines.sales_return_engine.engine.exception_report import build_export_metadata
 from app.utils.excel_exporter import export_invalid_sales_records
 
 
@@ -36,7 +36,7 @@ def test_sales_exception_preserves_upload_columns_and_message() -> None:
 
 def test_sales_processor_returns_exception_records_with_display_headers() -> None:
     from tests.test_sales_audit_processor import _row, _wb_bytes
-    from app.processors.sales_audit_processor import SalesAuditProcessor
+    from app.engines.sales_engine.engine.processor import SalesAuditProcessor
 
     proc = SalesAuditProcessor()
     workbook = _wb_bytes(

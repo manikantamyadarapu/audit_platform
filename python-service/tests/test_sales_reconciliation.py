@@ -1,6 +1,6 @@
 import polars as pl
 
-from app.sales_engine.engine.reconciliation import reconcile_adjudicated_frame
+from app.engines.sales_engine.engine.reconciliation import reconcile_adjudicated_frame
 
 
 def test_reconciliation_assertion_passes_for_partitioned_rows() -> None:

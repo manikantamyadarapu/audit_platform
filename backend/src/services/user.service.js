@@ -16,9 +16,9 @@ async function createUser(userData) {
     throw error;
   }
 
-  // Get role ID from role name
-  const role = await userRepository.getRoleByName(userData.role);
-  if (!role) {
+  // Validate role
+  const validRoles = ['ADMIN', 'AUDITOR', 'VIEWER'];
+  if (!validRoles.includes(userData.role)) {
     const error = new Error('Invalid role');
     error.statusCode = 400;
     throw error;
@@ -27,20 +27,16 @@ async function createUser(userData) {
   // Hash password
   const passwordHash = await hashPassword(userData.password);
 
-  // Create user with roleId
+  // Create user with role enum
   const user = await userRepository.create({
     name: userData.name,
     email: userData.email,
     passwordHash,
-    roleId: role.id,
+    role: userData.role,
     isActive: true,
   });
 
-  // Transform role for response
-  return {
-    ...user,
-    role: user.role?.roleName || userData.role,
-  };
+  return user;
 }
 
 /**
@@ -80,14 +76,10 @@ async function getUserById(id) {
     throw error;
   }
 
-  // Transform role
-  const roleName = user.role?.roleName || 'VIEWER';
-  const { role, passwordHash, ...userWithoutSensitive } = user;
+  // Remove sensitive data
+  const { passwordHash, ...userWithoutSensitive } = user;
 
-  return {
-    ...userWithoutSensitive,
-    role: roleName,
-  };
+  return userWithoutSensitive;
 }
 
 /**
@@ -116,17 +108,15 @@ async function updateUser(id, updateData) {
     }
   }
 
-  // Convert role name to roleId if role is being updated
+  // Validate role if being updated
   const dataToUpdate = { ...updateData };
   if (updateData.role) {
-    const role = await userRepository.getRoleByName(updateData.role);
-    if (!role) {
+    const validRoles = ['ADMIN', 'AUDITOR', 'VIEWER'];
+    if (!validRoles.includes(updateData.role)) {
       const error = new Error('Invalid role');
       error.statusCode = 400;
       throw error;
     }
-    dataToUpdate.roleId = role.id;
-    delete dataToUpdate.role; // Remove role name, use roleId instead
   }
 
   // Hash password if provided

@@ -13,7 +13,7 @@ import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-} from '../../services/notificationService';
+} from '../../services/notification.service';
 import { getAuthToken } from '../../utils/authUser';
 import { cn } from '../../utils/cn';
 

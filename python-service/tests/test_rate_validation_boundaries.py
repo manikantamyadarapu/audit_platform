@@ -2,13 +2,13 @@
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import (
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import (
     clear_metal_rate_caches,
     diamond_final_bands_by_product,
     metal_final_bands_by_product,
 )
-from app.sales_engine.services.metal_rate_store import save_rule_book
+from app.engines.sales_engine.services.metal_rate_store import save_rule_book
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 _GOLD_18K_ACCOUNT = 'Gold Sales Account - 18k'

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import load_metal_rate_rule_book_config
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import load_metal_rate_rule_book_config
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 

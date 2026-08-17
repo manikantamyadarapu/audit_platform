@@ -14,21 +14,25 @@ const VouchingHub = lazy(() => import('../pages/VouchingHub'));
 const PanVerification = lazy(() => import('../pages/PanVerification'));
 const GrossWeight = lazy(() => import('../pages/GrossWeight'));
 const PurchaseGrossWeight = lazy(() => import('../pages/PurchaseGrossWeight'));
-const SalesLedger = lazy(() => import('../pages/SalesLedger'));
-const PurchaseLedger = lazy(() => import('../pages/PurchaseLedger'));
-const PurchaseReturnRateAudit = lazy(() => import('../pages/PurchaseReturnRateAudit'));
-const CashLedger = lazy(() => import('../pages/CashLedger'));
-const NegativeBank = lazy(() => import('../pages/NegativeBank'));
+const SalesPage = lazy(() => import('../pages/SalesPage'));
+const PurchasePage = lazy(() => import('../pages/PurchasePage'));
+const PurchaseReturnPage = lazy(() => import('../pages/PurchaseReturnPage'));
+const CashLedgerPage = lazy(() => import('../pages/CashLedgerPage'));
+const NegativeBankPage = lazy(() => import('../pages/NegativeBankPage'));
 const RateRuleBook = lazy(() => import('../pages/RateRuleBook'));
 const DiamondGemRateBook = lazy(() => import('../pages/DiamondGemRateBook'));
+const TdsPage = lazy(() => import('../pages/TdsPage'));
+const PartyWiseTdsSummaryPage = lazy(() => import('../pages/PartyWiseTdsSummaryPage'));
+const TdsRate01Page = lazy(() => import('../pages/TdsRate01Page'));
 const Reports = lazy(() => import('../pages/Reports'));
 const Settings = lazy(() => import('../pages/Settings'));
-const SalesReturnRateAudit = lazy(() => import('../pages/SalesReturnRateAudit'));
+const SalesReturnPage = lazy(() => import('../pages/SalesReturnPage'));
 const ProductAverageRates = lazy(() => import('../pages/ProductAverageRates'));
 const ModuleSoon = lazy(() => import('../pages/ModuleSoon'));
 const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
 const Profile = lazy(() => import('../pages/Profile'));
+const Section44ABPage = lazy(() => import('../pages/Section44ABPage'));
 
 function lazyPage(Component) {
   return (
@@ -62,18 +66,25 @@ export function AppRoutes() {
           <Route path="/scrutiny/pan" element={lazyPage(PanVerification)} />
           <Route path="/scrutiny/gross-weight" element={lazyPage(GrossWeight)} />
           <Route path="/scrutiny/purchase/gross-weight" element={lazyPage(PurchaseGrossWeight)} />
-          <Route path="/scrutiny/sales-ledger" element={lazyPage(SalesLedger)} />
-          <Route path="/scrutiny/purchase/rate-ledger" element={lazyPage(PurchaseLedger)} />
-          <Route path="/scrutiny/purchase/return-rate" element={lazyPage(PurchaseReturnRateAudit)} />
-          <Route path="/scrutiny/cash-ledger" element={lazyPage(CashLedger)} />
-          <Route path="/scrutiny/negative-bank" element={lazyPage(NegativeBank)} />
+          <Route path="/scrutiny/sales-ledger" element={lazyPage(SalesPage)} />
+          <Route path="/scrutiny/purchase/rate-ledger" element={lazyPage(PurchasePage)} />
+          <Route path="/scrutiny/purchase/return-rate" element={lazyPage(PurchaseReturnPage)} />
+          <Route path="/scrutiny/cash-ledger" element={lazyPage(CashLedgerPage)} />
+          <Route path="/scrutiny/negative-bank" element={lazyPage(NegativeBankPage)} />
           <Route path="/sales-audit/product-average-rates" element={lazyPage(ProductAverageRates)} />
           <Route path="/scrutiny/making-charges" element={lazyPage(ModuleSoon)} />
-          <Route path="/scrutiny/sales-return-rate" element={lazyPage(SalesReturnRateAudit)} />
+          <Route path="/scrutiny/sales-return-rate" element={lazyPage(SalesReturnPage)} />
           <Route path="/scrutiny/rate-rule-book" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/diamond-gem-rates" element={lazyPage(DiamondGemRateBook)} />
+          <Route path="/scrutiny/tds/rule-book" element={lazyPage(TdsPage)} />
+          <Route
+            path="/scrutiny/tds/party-wise-summary"
+            element={lazyPage(PartyWiseTdsSummaryPage)}
+          />
+          <Route path="/scrutiny/tds/rate-0.1" element={lazyPage(TdsRate01Page)} />
           <Route path="/scrutiny/rate-rules" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/rule-book" element={lazyPage(RateRuleBook)} />
+          <Route path="/scrutiny/section44ab" element={lazyPage(Section44ABPage)} />
           <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />
           <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
 

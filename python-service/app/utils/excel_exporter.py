@@ -3,11 +3,11 @@ from typing import Any
 import pandas as pd
 from io import BytesIO
 
-from app.sales_engine.engine.sales_audit_output import (
+from app.engines.sales_engine.engine.sales_audit_output import (
     SALES_AUDIT_OUTPUT_COLUMNS,
     sales_records_for_export,
 )
-from app.sales_return_engine.exception_report import (
+from app.engines.sales_return_engine.engine.exception_report import (
     SALES_RETURN_EXCEPTION_COLUMNS,
     SALES_RETURN_EXCEPTION_HEADER_MAP,
 )
@@ -386,6 +386,46 @@ def export_cash_ledger_records(
         summary=summary,
         processing_statistics=processing_statistics,
         execution_timing=execution_timing,
+    )
+
+
+def export_party_wise_tds_summary(
+    *,
+    purchase_summary: list[dict[str, Any]] | None = None,
+    payable_summary: list[dict[str, Any]] | None = None,
+) -> bytes:
+    """Two-sheet Party Wise TDS Summary workbook."""
+    from app.engines.party_wise_tds_engine.config.constants import (
+        EMPTY_SHEET_MESSAGE,
+        SHEET_PAYABLE,
+        SHEET_PURCHASE,
+        SUMMARY_EXPORT_COLUMNS,
+        SUMMARY_EXPORT_HEADER_MAP,
+    )
+
+    purchase_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (purchase_summary or [])
+    ]
+    payable_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (payable_summary or [])
+    ]
+
+    return build_multi_sheet_audit_workbook(
+        {
+            SHEET_PURCHASE: purchase_rows,
+            SHEET_PAYABLE: payable_rows,
+        },
+        columns=list(SUMMARY_EXPORT_COLUMNS),
+        header_map=dict(SUMMARY_EXPORT_HEADER_MAP),
+        empty_message=EMPTY_SHEET_MESSAGE,
     )
 
 

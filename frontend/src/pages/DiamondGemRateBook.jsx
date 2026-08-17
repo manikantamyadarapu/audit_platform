@@ -3,7 +3,7 @@ import { Save, RefreshCw, Diamond } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { EmptyState } from '../components/ui/EmptyState';
-import { fetchDiamondRates, saveDiamondRates } from '../services/rateBookService';
+import { fetchDiamondRates, saveDiamondRates } from '../services/rateBook.service';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 
 export default function DiamondGemRateBook() {

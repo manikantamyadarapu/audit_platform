@@ -1,4 +1,4 @@
-from app.audits.cash_ledger.parser import (
+from app.engines.cash_ledger_engine.parsers.parser import (
     is_auditable_transaction_row,
     is_cash_ledger_footer_row,
     is_report_total_row,

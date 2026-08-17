@@ -317,14 +317,14 @@ function calculateCategoryPercentage(count, totalIssues) {
 
 /**
  * Build donut-chart categories from grouped issue rows (dynamic — any issue type from DB).
- * @param {Array<{ issueCode: string, issueName: string, _sum: { issueCount: number | null } }>} groupedIssues
+ * @param {Array<{ code: string, name: string, count: number }>} groupedIssues
  */
 function buildDynamicIssueCategories(groupedIssues) {
   const categories = groupedIssues
     .map((row) => ({
-      name: row.issueName || row.issueCode,
-      code: row.issueCode,
-      count: row._sum.issueCount ?? 0,
+      name: row.name || row.code,
+      code: row.code,
+      count: row.count,
     }))
     .filter((item) => item.count > 0)
     .sort((a, b) => b.count - a.count);

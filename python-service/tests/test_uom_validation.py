@@ -1,7 +1,7 @@
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.validators.uom_validator import normalize_uom_value
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.validators.uom_validator import normalize_uom_value
 from app.utils.normalization_engine import normalize_strict_text
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
@@ -68,7 +68,7 @@ def test_di_ra_20_carats_uom_valid():
     """UOM expectation for diamonds is Carats (isolated from rate-book deviation checks)."""
     import polars as pl
 
-    from app.sales_engine.validators.uom_validator import UOM_CARATS, expected_uom_expr
+    from app.engines.sales_engine.validators.uom_validator import UOM_CARATS, expected_uom_expr
 
     frame = pl.DataFrame({'__product_norm': [normalize_strict_text('Di. RA 20')]})
     assert frame.with_columns(expected_uom_expr()).to_dicts()[0]['__expected_uom'] == UOM_CARATS

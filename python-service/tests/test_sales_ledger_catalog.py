@@ -2,13 +2,13 @@ import re
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 
 def _catalog_unit_rate(product: str) -> float:
     """Use slab from product suffix when rate validation applies; else any positive rate."""
-    from app.sales_engine.config.loader import diamond_final_bands_by_product
+    from app.engines.sales_engine.config.loader import diamond_final_bands_by_product
     from app.utils.normalization_engine import normalize_strict_text
 
     norm = normalize_strict_text(product)

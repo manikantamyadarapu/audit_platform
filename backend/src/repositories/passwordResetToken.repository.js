@@ -1,26 +1,28 @@
 const prisma = require('../lib/prisma');
 
 async function invalidateUserTokens(userId) {
-  await prisma.passwordResetToken.updateMany({
-    where: { userId, usedAt: null },
+  await prisma.authToken.updateMany({
+    where: { userId, type: 'PASSWORD_RESET', usedAt: null },
     data: { usedAt: new Date() },
   });
 }
 
 async function createToken({ userId, tokenHash, expiresAt }) {
-  return prisma.passwordResetToken.create({
+  return prisma.authToken.create({
     data: {
       userId,
       tokenHash,
+      type: 'PASSWORD_RESET',
       expiresAt,
     },
   });
 }
 
 async function findValidByTokenHash(tokenHash) {
-  return prisma.passwordResetToken.findFirst({
+  return prisma.authToken.findFirst({
     where: {
       tokenHash,
+      type: 'PASSWORD_RESET',
       usedAt: null,
       expiresAt: { gt: new Date() },
     },
@@ -37,7 +39,7 @@ async function findValidByTokenHash(tokenHash) {
 }
 
 async function markUsed(id) {
-  return prisma.passwordResetToken.update({
+  return prisma.authToken.update({
     where: { id },
     data: { usedAt: new Date() },
   });

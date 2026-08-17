@@ -1,7 +1,7 @@
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.config.loader import diamond_final_bands_by_product
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.config.loader import diamond_final_bands_by_product
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 _DIAMOND_ACCOUNT = 'Jewel sales account - Diamonds'

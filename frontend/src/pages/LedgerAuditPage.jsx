@@ -21,7 +21,6 @@ import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
-import { validateSalesExcel } from '../services/processExcelService';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { filterSalesRecords, normalizeSalesFilter } from '../utils/salesRecordFilters';
@@ -41,7 +40,7 @@ import {
   bootstrapAuditSessionState,
   slimSalesLedgerSnapshot,
 } from '../utils/auditSessionStorage';
-import { fetchRateRules } from '../services/rateRuleService';
+import { fetchRateRules } from '../services/rateRule.service';
 import { hasConfiguredRateRules } from '../utils/metalRateRules';
 
 /**
@@ -60,6 +59,7 @@ export default function LedgerAuditPage({ config }) {
     successToast,
     filterLabels,
     ledgerMismatchLabel,
+    validate,
   } = config;
 
   const navigate = useNavigate();
@@ -143,7 +143,7 @@ export default function LedgerAuditPage({ config }) {
     }
     setLoading(true);
     try {
-      const data = await validateSalesExcel(file);
+      const data = await validate(file);
       if (data && data.success === false) {
         auditToastError(data.detail || 'Validation failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
@@ -172,7 +172,7 @@ export default function LedgerAuditPage({ config }) {
     } finally {
       setLoading(false);
     }
-  }, [file, persist, rateRulesReady, successToast]);
+  }, [file, persist, rateRulesReady, successToast, validate]);
 
   const exceptionRecords = useMemo(() => {
     const rows = result?.exceptionRecords ?? result?.records ?? [];

@@ -14,7 +14,7 @@ import { AuditUploadResultsTable } from '../components/tables/AuditUploadResults
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGroup } from '../components/audit/AuditSummaryGrid';
-import { validatePanExcel } from '../services/panService';
+import { validatePanExcel } from '../services/pan.service';
 import { formatNumber } from '../utils/format';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';

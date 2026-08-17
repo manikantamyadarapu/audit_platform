@@ -15,7 +15,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import {
   exportProductAverageRates,
   fetchProductAverageRates,
-} from '../services/salesAuditService';
+} from '../services/sales.service';
 import { formatNumber } from '../utils/format';
 import { loadAuditSession, saveAuditSession } from '../utils/auditSessionStorage';
 

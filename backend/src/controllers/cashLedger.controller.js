@@ -1,8 +1,5 @@
-const pythonClient = require('../services/pythonClient.service');
-const auditNotification = require('../services/auditNotification.service');
-const auditRunPersistence = require('../services/auditRunPersistence.service');
-const { AUDIT_KEYS } = require('../constants/notifications');
-const { validateExportInvalidBody } = require('../validators/panExport.validator');
+const cashLedgerService = require('../services/cashLedger.service');
+const { validateCashLedgerExportInvalidBody } = require('../validators/cashLedger.validator');
 const logger = require('../utils/logger');
 
 async function validateCashLedger(req, res, next) {
@@ -21,45 +18,17 @@ async function validateCashLedger(req, res, next) {
       size: req.file.size,
     });
 
-    const data = await pythonClient.postCashLedgerValidate(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      { requestId: req.requestId }
-    );
-
-    const auditRunId = await auditRunPersistence.tryPersistAuditRun(
-      req,
-      AUDIT_KEYS.CASH_LEDGER,
-      req.file.originalname,
-      data
-    );
-
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.CASH_LEDGER, req.file.originalname, data)
-        .catch(() => {});
-    }
-
+    const { data, auditRunId } = await cashLedgerService.validateCashLedger(req);
     return res.json({ ...data, auditRunId });
   } catch (err) {
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditFailed(
-          req.user.id,
-          AUDIT_KEYS.CASH_LEDGER,
-          req.file?.originalname,
-          err.message
-        )
-        .catch(() => {});
-    }
+    cashLedgerService.notifyCashLedgerFailure(req, err);
     return next(err);
   }
 }
 
 async function exportInvalidCashLedger(req, res, next) {
   try {
-    const parsed = validateExportInvalidBody(req.body);
+    const parsed = validateCashLedgerExportInvalidBody(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
         success: false,
@@ -73,7 +42,7 @@ async function exportInvalidCashLedger(req, res, next) {
       recordCount: parsed.records.length,
     });
 
-    const { buffer, contentDisposition, contentType } = await pythonClient.postCashLedgerExportInvalid(
+    const { buffer, contentDisposition, contentType } = await cashLedgerService.exportInvalidCashLedger(
       parsed.records,
       { requestId: req.requestId }
     );

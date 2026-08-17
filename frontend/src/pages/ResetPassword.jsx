@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { cn } from '../utils/cn';
-import { resetPasswordRequest, validateResetTokenRequest } from '../services/authService';
+import { resetPasswordRequest, validateResetTokenRequest } from '../services/auth.service';
 import '../styles/fonts.css';
 
 const authInputClass =

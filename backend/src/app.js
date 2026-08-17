@@ -61,13 +61,21 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'audit-platform-node-backend' });
 });
 
-app.use('/api/auth', authRoutes);
+// Single mount point for all versioned routes — see routes/index.js.
 app.use('/api/v1', apiV1);
-app.use('/api/dashboard', require('./routes/dashboard.routes'));
-app.use('/api/sales-audit', require('./routes/salesAudit.routes'));
-app.use('/api/sales-return', require('./routes/salesReturnAudit.routes'));
-app.use('/api/audit-sessions', require('./routes/auditSession.routes'));
-app.use('/api/notifications', require('./routes/notification.routes'));
+
+// Legacy unversioned compatibility mounts.
+// These paths are called directly (without /v1) by the frontend today —
+// verified against frontend/src/services/*.js — so they are kept as thin
+// re-mounts of the same routers registered above under /api/v1, rather than
+// separate/duplicated route files.
+app.use('/api/auth', authRoutes); // frontend/src/services/authService.js (login/logout)
+app.use('/api/notifications', require('./routes/notification.routes')); // notificationService.js
+app.use('/api/dashboard', require('./routes/dashboard.routes')); // dashboardService.js
+app.use('/api/audit-sessions', require('./routes/auditSession.routes')); // auditSessionService.js
+app.use('/api/sales-audit', require('./routes/sales.routes')); // salesAuditService.js (product-average-rates)
+app.use('/api/sales-return', require('./routes/salesReturn.routes')); // processExcelService.js (run-audit/rate-comparison/export-*)
+app.use('/api/purchase-return', require('./routes/purchaseReturn.routes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

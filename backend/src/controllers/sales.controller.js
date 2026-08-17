@@ -1,8 +1,8 @@
-const pythonClient = require('../services/pythonClient.service');
-const auditNotification = require('../services/auditNotification.service');
-const { AUDIT_KEYS } = require('../constants/notifications');
-const { validateExportInvalidBody } = require('../validators/panExport.validator');
-const salesAuditService = require('../services/salesAudit.service');
+const salesService = require('../services/sales.service');
+const { validateSalesExportInvalidBody } = require('../validators/sales.validator');
+const SuccessResponse = require('../utils/successResponse');
+const PaginatedSuccessResponse = SuccessResponse.PaginatedSuccessResponse;
+const ErrorResponse = require('../utils/errorResponse');
 const logger = require('../utils/logger');
 
 async function validate(req, res, next) {
@@ -21,53 +21,21 @@ async function validate(req, res, next) {
       size: req.file.size,
     });
 
-    const data = await pythonClient.postSalesValidate(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      { requestId: req.requestId }
-    );
-
-    let auditRunId = null;
-    if (req.user?.id) {
-      try {
-        auditRunId = await salesAuditService.persistSalesAuditProductAverages({
-          userId: req.user.id,
-          fileName: req.file.originalname,
-          pythonResult: data,
-        });
-      } catch (persistError) {
-        logger.error('Sales audit product averages persist failed', {
-          requestId: req.requestId,
-          userId: req.user.id,
-          message: persistError.message,
-        });
-      }
-    }
-
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.SALES, req.file.originalname, data)
-        .catch(() => {});
-    }
+    const { data, auditRunId } = await salesService.validateSales(req);
 
     return res.json({
       ...data,
       auditRunId,
     });
   } catch (err) {
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditFailed(req.user.id, AUDIT_KEYS.SALES, req.file?.originalname, err.message)
-        .catch(() => {});
-    }
+    salesService.notifySalesFailure(req, err);
     return next(err);
   }
 }
 
 async function exportInvalid(req, res, next) {
   try {
-    const parsed = validateExportInvalidBody(req.body);
+    const parsed = validateSalesExportInvalidBody(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
         success: false,
@@ -81,7 +49,7 @@ async function exportInvalid(req, res, next) {
       recordCount: parsed.records.length,
     });
 
-    const { buffer, contentDisposition, contentType } = await pythonClient.postSalesExportInvalid(
+    const { buffer, contentDisposition, contentType } = await salesService.exportInvalidSales(
       parsed.records,
       { requestId: req.requestId }
     );
@@ -99,4 +67,92 @@ async function exportInvalid(req, res, next) {
   }
 }
 
-module.exports = { validate, exportInvalid };
+/**
+ * GET /api/v1/process/sales/product-average-rates
+ * GET /api/sales-audit/product-average-rates (legacy compat)
+ */
+async function getProductAverageRates(req, res, next) {
+  try {
+    if (!req.user?.id) {
+      return ErrorResponse(res, 401, 'Access token required');
+    }
+
+    const { rows, pagination, meta } = await salesService.getProductAverageRates(req.query);
+    return PaginatedSuccessResponse(
+      res,
+      'Product average rates fetched successfully',
+      rows,
+      pagination,
+      200,
+      meta
+    );
+  } catch (error) {
+    logger.error('Product average rates fetch failed', {
+      userId: req.user?.id,
+      message: error.message,
+    });
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/v1/process/sales/product-average-rates/export
+ * GET /api/sales-audit/product-average-rates/export (legacy compat)
+ */
+async function exportProductAverageRates(req, res, next) {
+  try {
+    if (!req.user?.id) {
+      return ErrorResponse(res, 401, 'Access token required');
+    }
+
+    const rows = await salesService.getProductAverageRatesForExport(req.query);
+    const header = [
+      'Product',
+      'Sales Account',
+      'Total Quantity',
+      'Total Gross Amount',
+      'Average Unit Rate',
+      'Transaction Count',
+      'Created Date',
+      'Source File',
+    ];
+    const csvLines = [
+      header.join(','),
+      ...rows.map((row) =>
+        [
+          row.product,
+          row.salesAccount,
+          row.totalQuantity,
+          row.totalGrossAmount,
+          row.averageRate,
+          row.transactionCount,
+          row.createdAt ? new Date(row.createdAt).toISOString() : '',
+          row.fileName || '',
+        ]
+          .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+          .join(',')
+      ),
+    ];
+
+    const buffer = Buffer.from(csvLines.join('\n'), 'utf8');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="product-average-rates-${Date.now()}.csv"`
+    );
+    return res.send(buffer);
+  } catch (error) {
+    logger.error('Product average rates export failed', {
+      userId: req.user?.id,
+      message: error.message,
+    });
+    return next(error);
+  }
+}
+
+module.exports = {
+  validate,
+  exportInvalid,
+  getProductAverageRates,
+  exportProductAverageRates,
+};

@@ -5,7 +5,7 @@ from io import BytesIO
 import pandas as pd
 import pytest
 
-from app.audits.cash_ledger.workbook_loader import (
+from app.engines.cash_ledger_engine.parsers.workbook_loader import (
     CASH_LEDGER_HEADER_SCAN_LIMIT,
     cash_ledger_header_row_matches,
     load_cash_ledger_workbook,

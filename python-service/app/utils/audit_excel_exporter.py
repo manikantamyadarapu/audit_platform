@@ -123,6 +123,7 @@ def build_multi_sheet_audit_workbook(
     *,
     columns: Sequence[str] | None = None,
     header_map: Mapping[str, str] | None = None,
+    per_sheet: Mapping[str, Mapping[str, Any]] | None = None,
     empty_message: str = EMPTY_SHEET_MESSAGE,
 ) -> bytes:
     """
@@ -131,8 +132,10 @@ def build_multi_sheet_audit_workbook(
     Args:
         sheets: Ordered mapping of sheet display name → list of row dicts.
                 Every key becomes a worksheet, even when the list is empty.
-        columns: Optional internal column keys to keep / order.
-        header_map: Optional rename map for display headers.
+        columns: Optional internal column keys to keep / order (default for all sheets).
+        header_map: Optional rename map for display headers (default for all sheets).
+        per_sheet: Optional per-sheet overrides keyed by sheet display name.
+                   Each value may include ``columns`` and/or ``header_map``.
         empty_message: Placeholder text for sheets with zero rows.
 
     Returns:
@@ -143,12 +146,16 @@ def build_multi_sheet_audit_workbook(
 
     output = BytesIO()
     used_names: set[str] = set()
+    sheet_overrides = per_sheet or {}
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
         for raw_name, rows in sheets.items():
             sheet_name = sanitize_sheet_name(raw_name, used=used_names)
             row_list = list(rows or [])
+            overrides = sheet_overrides.get(raw_name) or {}
+            sheet_columns = overrides.get('columns', columns)
+            sheet_header_map = overrides.get('header_map', header_map)
 
             if not row_list:
                 # Create an empty sheet, then write the placeholder message.
@@ -159,7 +166,11 @@ def build_multi_sheet_audit_workbook(
                 _write_empty_sheet(workbook, worksheet, empty_message)
                 continue
 
-            dataframe = _rows_to_dataframe(row_list, columns=columns, header_map=header_map)
+            dataframe = _rows_to_dataframe(
+                row_list,
+                columns=sheet_columns,
+                header_map=sheet_header_map,
+            )
             dataframe.to_excel(writer, index=False, sheet_name=sheet_name)
             _style_populated_sheet(workbook, writer.sheets[sheet_name], dataframe)
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 _CATALOG_PATH = (
