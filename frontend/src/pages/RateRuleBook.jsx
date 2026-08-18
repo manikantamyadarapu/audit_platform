@@ -5,7 +5,7 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { fetchRateRules, saveRateRules } from '../services/rateRuleService';
+import { fetchRateRules, saveRateRules } from '../services/rateRule.service';
 import { RULE_BOOK_PRODUCTS, RULE_BOOK_VARIATION_PCT } from '../constants/metalRateRuleBook';
 import { formatSavedDateTime } from '../utils/dateTime';
 import { hasConfiguredRateRules } from '../utils/metalRateRules';

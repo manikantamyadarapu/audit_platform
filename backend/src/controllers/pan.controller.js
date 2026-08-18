@@ -1,8 +1,5 @@
-const pythonClient = require('../services/pythonClient.service');
-const auditNotification = require('../services/auditNotification.service');
-const auditRunPersistence = require('../services/auditRunPersistence.service');
-const { AUDIT_KEYS } = require('../constants/notifications');
-const { validateExportInvalidBody } = require('../validators/panExport.validator');
+const panService = require('../services/pan.service');
+const { validatePanExportInvalidBody } = require('../validators/pan.validator');
 const logger = require('../utils/logger');
 
 async function validatePan(req, res, next) {
@@ -21,40 +18,17 @@ async function validatePan(req, res, next) {
       size: req.file.size,
     });
 
-    const data = await pythonClient.postPanValidate(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      { requestId: req.requestId }
-    );
-
-    const auditRunId = await auditRunPersistence.tryPersistAuditRun(
-      req,
-      AUDIT_KEYS.PAN,
-      req.file.originalname,
-      data
-    );
-
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditCompleted(req.user.id, AUDIT_KEYS.PAN, req.file.originalname, data)
-        .catch(() => {});
-    }
-
+    const { data, auditRunId } = await panService.validatePan(req);
     return res.json({ ...data, auditRunId });
   } catch (err) {
-    if (req.user?.id) {
-      auditNotification
-        .notifyAuditFailed(req.user.id, AUDIT_KEYS.PAN, req.file?.originalname, err.message)
-        .catch(() => {});
-    }
+    panService.notifyPanFailure(req, err);
     return next(err);
   }
 }
 
 async function exportInvalidPan(req, res, next) {
   try {
-    const parsed = validateExportInvalidBody(req.body);
+    const parsed = validatePanExportInvalidBody(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
         success: false,
@@ -68,7 +42,7 @@ async function exportInvalidPan(req, res, next) {
       recordCount: parsed.records.length,
     });
 
-    const { buffer, contentDisposition, contentType } = await pythonClient.postPanExportInvalid(
+    const { buffer, contentDisposition, contentType } = await panService.exportInvalidPan(
       parsed.records,
       { requestId: req.requestId }
     );

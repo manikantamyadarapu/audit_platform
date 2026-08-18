@@ -15,7 +15,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { SummaryStripSkeleton, TableRowSkeleton } from '../components/ui/ChartSkeleton';
 import { useCurrentDateTime } from '../utils/dateTime';
 import { getStoredUser } from '../utils/authUser';
-import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage } from '../services/dashboardService';
+import { fetchDashboardWidgets, fetchDashboardAuditTrend, fetchDashboardIssuesCategory, fetchDashboardRecentAudits, getDashboardWidgetsErrorMessage } from '../services/dashboard.service';
 import { AuditActivityTrendChart } from '../components/charts/AuditActivityTrendChart';
 import { IssuesByCategoryPanel } from '../components/charts/IssuesByCategoryPanel';
 import {

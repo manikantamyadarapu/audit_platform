@@ -2,7 +2,7 @@ from io import BytesIO
 
 import pandas as pd
 
-from app.sales_return_engine.engine.sales_return_audit_engine import (
+from app.engines.sales_return_engine.engine.sales_return_audit_engine import (
     HIGHER_SALES_RETURN_RATE,
     SalesReturnAuditEngine,
 )
@@ -66,7 +66,7 @@ def test_equal_return_rate_not_flagged() -> None:
 
 
 def test_equal_display_rates_not_flagged_despite_float_noise() -> None:
-    from app.sales_return_engine.engine.sales_return_average_engine import (
+    from app.engines.sales_return_engine.engine.sales_return_average_engine import (
         ProductAverage,
         return_average_exceeds_sales,
         _comparison_record_from_averages,

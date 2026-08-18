@@ -3,15 +3,22 @@ from typing import Any
 import pandas as pd
 from io import BytesIO
 
-from app.sales_engine.engine.sales_audit_output import (
+from app.engines.sales_engine.engine.sales_audit_output import (
     SALES_AUDIT_OUTPUT_COLUMNS,
     sales_records_for_export,
 )
-from app.sales_return_engine.exception_report import (
+from app.engines.sales_return_engine.engine.exception_report import (
     SALES_RETURN_EXCEPTION_COLUMNS,
     SALES_RETURN_EXCEPTION_HEADER_MAP,
 )
+from app.utils.audit_excel_exporter import build_multi_sheet_audit_workbook
 from app.utils.audit_reporter import build_audit_excel_report
+
+CASH_LEDGER_RULE_SHEETS = (
+    ('Negative Cash', 'NEGATIVE_CASH_BALANCE'),
+    ('Cash Payments >= ₹10,000', 'CASH_PAYMENT_GT_10000'),
+    ('Cash Receipts >= ₹2,00,000', 'CASH_RECEIPT_GT_200000'),
+)
 
 PAN_EXPORT_COLUMNS = [
     'rowNumber',
@@ -73,6 +80,58 @@ SALES_RETURN_RATE_COMPARISON_HEADER_MAP = {
     'difference': 'Difference',
     'Message': 'Message',
 }
+
+CASH_LEDGER_EXPORT_COLUMNS = [
+    'rowNumber',
+    'date',
+    'voucher_no',
+    'branch',
+    'contra_account',
+    'debit',
+    'credit',
+    'balance',
+    'Message',
+]
+
+CASH_LEDGER_EXPORT_HEADER_MAP = {
+    'rowNumber': 'Row No',
+    'date': 'Date',
+    'voucher_no': 'Voucher No',
+    'branch': 'Branch',
+    'contra_account': 'Contra Account',
+    'debit': 'Debit',
+    'credit': 'Credit',
+    'balance': 'Balance',
+    'Message': 'Message',
+}
+
+NEGATIVE_BANK_EXPORT_COLUMNS = [
+    'rowNumber',
+    'date',
+    'voucher_no',
+    'branch',
+    'contra_account',
+    'debit',
+    'credit',
+    'balance',
+    'tillDate',
+    'Message',
+]
+
+NEGATIVE_BANK_EXPORT_HEADER_MAP = {
+    'rowNumber': 'Row No',
+    'date': 'Date',
+    'voucher_no': 'Voucher No',
+    'branch': 'Branch',
+    'contra_account': 'Contra Account',
+    'debit': 'Debit',
+    'credit': 'Credit',
+    'balance': 'Balance',
+    'tillDate': 'Till Date',
+    'Message': 'Message',
+}
+
+NEGATIVE_BANK_NO_REPORT_MESSAGE = 'No report for this audit rule.'
 
 
 def export_invalid_pan_records(
@@ -276,3 +335,127 @@ def export_sales_return_rate_comparison(records: list[dict[str, Any]]) -> bytes:
 
     output.seek(0)
     return output.getvalue()
+
+
+def _cash_ledger_rows_for_issue(
+    records: list[dict[str, Any]], issue_code: str
+) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    for record in records:
+        issues = record.get('issues') or []
+        if isinstance(issues, list) and issue_code in issues:
+            matched.append(record)
+            continue
+        if record.get('issueCode') == issue_code:
+            matched.append(record)
+    return matched
+
+
+def export_cash_ledger_total_error_report(records: list[dict[str, Any]] | None = None) -> bytes:
+    """
+    One workbook with a worksheet per Cash Ledger audit rule (widget name).
+
+    Empty rules still get a sheet with a placeholder message.
+    """
+    source = list(records or [])
+    sheets: dict[str, list[dict[str, Any]]] = {
+        sheet_name: _cash_ledger_rows_for_issue(source, issue_code)
+        for sheet_name, issue_code in CASH_LEDGER_RULE_SHEETS
+    }
+    return build_multi_sheet_audit_workbook(
+        sheets,
+        columns=CASH_LEDGER_EXPORT_COLUMNS,
+        header_map=CASH_LEDGER_EXPORT_HEADER_MAP,
+    )
+
+
+def export_cash_ledger_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    return build_audit_excel_report(
+        report_title='Cash Ledger Audit Report',
+        invalid_sheet_name='Cash Ledger Issues',
+        source_processor='cash_ledger',
+        records=records,
+        export_columns=CASH_LEDGER_EXPORT_COLUMNS,
+        header_map=CASH_LEDGER_EXPORT_HEADER_MAP,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )
+
+
+def export_party_wise_tds_summary(
+    *,
+    purchase_summary: list[dict[str, Any]] | None = None,
+    payable_summary: list[dict[str, Any]] | None = None,
+) -> bytes:
+    """Two-sheet Party Wise TDS Summary workbook."""
+    from app.engines.party_wise_tds_engine.config.constants import (
+        EMPTY_SHEET_MESSAGE,
+        SHEET_PAYABLE,
+        SHEET_PURCHASE,
+        SUMMARY_EXPORT_COLUMNS,
+        SUMMARY_EXPORT_HEADER_MAP,
+    )
+
+    purchase_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (purchase_summary or [])
+    ]
+    payable_rows = [
+        {
+            'contra_account': row.get('contra_account'),
+            'total_tds_amount': row.get('total_tds_amount'),
+        }
+        for row in (payable_summary or [])
+    ]
+
+    return build_multi_sheet_audit_workbook(
+        {
+            SHEET_PURCHASE: purchase_rows,
+            SHEET_PAYABLE: payable_rows,
+        },
+        columns=list(SUMMARY_EXPORT_COLUMNS),
+        header_map=dict(SUMMARY_EXPORT_HEADER_MAP),
+        empty_message=EMPTY_SHEET_MESSAGE,
+    )
+
+
+def export_negative_bank_records(
+    records: list[dict[str, Any]],
+    *,
+    summary: dict[str, Any] | None = None,
+    processing_statistics: dict[str, Any] | None = None,
+    execution_timing: dict[str, Any] | None = None,
+) -> bytes:
+    if not records:
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Negative Bank'
+        sheet.append([NEGATIVE_BANK_NO_REPORT_MESSAGE])
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+        return output.getvalue()
+
+    return build_audit_excel_report(
+        report_title='Negative Bank Audit Report',
+        invalid_sheet_name='Negative Bank',
+        source_processor='negative_bank',
+        records=records,
+        export_columns=NEGATIVE_BANK_EXPORT_COLUMNS,
+        header_map=NEGATIVE_BANK_EXPORT_HEADER_MAP,
+        summary=summary,
+        processing_statistics=processing_statistics,
+        execution_timing=execution_timing,
+    )

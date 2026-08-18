@@ -1,7 +1,7 @@
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.services.metal_rate_store import save_rule_book
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.services.metal_rate_store import save_rule_book
 from tests.test_sales_audit_processor import _row, _wb_bytes
 
 

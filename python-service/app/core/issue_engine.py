@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from app.sales_engine.validators.sales_audit_messages import (
+from app.engines.sales_engine.validators.sales_audit_messages import (
     MSG_INVALID_UOM,
     MSG_INVALID_UNIT_RATE_RANGE,
 )

@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 
 _WORKBOOK = Path(__file__).resolve().parent / 'master_sales_rules.xlsx'
 
-from app.sales_engine.config.loader import load_gemstone_product_catalog
+from app.engines.sales_engine.config.loader import load_gemstone_product_catalog
 
 _em = (load_gemstone_product_catalog().get('accounts') or {}).get('JEWELS SALES ACCOUNT - EMERALDS') or {}
 _JEM_NUMBERS: list[int] = list(_em.get('emeralds_jem') or [])

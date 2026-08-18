@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { cn } from '../utils/cn';
-import { forgotPasswordRequest } from '../services/authService';
+import { forgotPasswordRequest } from '../services/auth.service';
 import '../styles/fonts.css';
 
 const authInputClass =

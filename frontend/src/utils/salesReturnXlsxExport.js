@@ -83,6 +83,40 @@ export function downloadRowsXlsx(filename, columnDefs, rows, sheetName = 'Report
   XLSX.writeFile(wb, filename);
 }
 
+/**
+ * Multi-sheet workbook helper used by Cash Ledger Total Error export.
+ * Reuses the same XLSX pipeline as downloadRowsXlsx.
+ *
+ * @param {string} filename
+ * @param {{ name: string, columnDefs: { header: string, accessor: (row: object) => unknown }[], rows: object[], emptyMessage?: string }[]} sheets
+ */
+export function downloadMultiSheetRowsXlsx(filename, sheets) {
+  if (!Array.isArray(sheets) || sheets.length === 0) return;
+
+  const wb = XLSX.utils.book_new();
+  for (const sheet of sheets) {
+    const name = String(sheet.name || 'Sheet').slice(0, 31);
+    if (Array.isArray(sheet.rows) && sheet.rows.length && Array.isArray(sheet.columnDefs)) {
+      const columns = sheet.columnDefs.map((col) => col.header);
+      const exportRows = sheet.rows.map((row) => {
+        const out = {};
+        for (const col of sheet.columnDefs) {
+          out[col.header] = col.accessor(row) ?? '';
+        }
+        return out;
+      });
+      const ws = XLSX.utils.json_to_sheet(exportRows, { header: columns });
+      XLSX.utils.sheet_add_aoa(ws, [columns], { origin: 'A1' });
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    } else {
+      const message = sheet.emptyMessage || 'No report for this audit rule.';
+      const ws = XLSX.utils.aoa_to_sheet([[message]]);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    }
+  }
+  XLSX.writeFile(wb, filename);
+}
+
 /** Generic aliases used by Rate & Ledger and Sales Return audits. */
 export const resolveAuditExportColumns = resolveSalesReturnExportColumns;
 export const downloadAuditExceptionXlsx = downloadSalesReturnExceptionXlsx;

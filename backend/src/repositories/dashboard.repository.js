@@ -1,6 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * Build Prisma createdAt filter.
@@ -52,8 +50,8 @@ async function getTotalRecords(startDate, endDate, exclusiveEnd = false) {
 }
 
 /**
- * Primary: SUM(issue_count) from audit_issue_counts for runs in range.
- * Fallback: SUM(invalid_rows) from audit_runs when no issue count rows exist.
+ * Primary: Extract total issues from resultSummary JSON field.
+ * Fallback: SUM(invalid_rows) from audit_runs when resultSummary is null.
  * @param {Date} startDate
  * @param {Date} endDate
  * @param {boolean} [exclusiveEnd=false]
@@ -62,58 +60,61 @@ async function getTotalRecords(startDate, endDate, exclusiveEnd = false) {
 async function getTotalIssues(startDate, endDate, exclusiveEnd = false) {
   const dateFilter = createdAtRange(startDate, endDate, exclusiveEnd);
 
-  const [issueCountRows, issueAggregate, invalidAggregate] = await Promise.all([
-    prisma.auditIssueCount.count({
-      where: {
-        auditRun: {
-          createdAt: dateFilter,
-        },
-      },
-    }),
-    prisma.auditIssueCount.aggregate({
-      where: {
-        auditRun: {
-          createdAt: dateFilter,
-        },
-      },
-      _sum: {
-        issueCount: true,
-      },
-    }),
-    prisma.auditRun.aggregate({
-      where: {
-        createdAt: dateFilter,
-      },
-      _sum: {
-        invalidRows: true,
-      },
-    }),
-  ]);
+  const auditRuns = await prisma.auditRun.findMany({
+    where: {
+      createdAt: dateFilter,
+    },
+    select: {
+      resultSummary: true,
+      invalidRows: true,
+    },
+  });
 
-  if (issueCountRows > 0) {
-    return issueAggregate._sum.issueCount ?? 0;
+  let totalIssues = 0;
+  for (const run of auditRuns) {
+    if (run.resultSummary && typeof run.resultSummary === 'object') {
+      // Extract issue counts from resultSummary JSON
+      const summary = run.resultSummary;
+      if (summary.issueCounts && Array.isArray(summary.issueCounts)) {
+        totalIssues += summary.issueCounts.reduce((sum, issue) => sum + (issue.count || 0), 0);
+      } else if (summary.grossMismatchCount) {
+        totalIssues += summary.grossMismatchCount;
+      } else if (summary.goldDeviationCount) {
+        totalIssues += summary.goldDeviationCount;
+      }
+    } else {
+      // Fallback to invalidRows
+      totalIssues += run.invalidRows || 0;
+    }
   }
 
-  return invalidAggregate._sum.invalidRows ?? 0;
+  return totalIssues;
 }
 
 /**
- * Issue total for a single run (issue_counts primary, invalid_rows fallback).
- * @param {{ invalidRows?: number, issueCounts?: Array<{ issueCount: number }> }} run
+ * Issue total for a single run (resultSummary primary, invalidRows fallback).
+ * @param {{ invalidRows?: number, resultSummary?: object }} run
  * @returns {number}
  */
 function resolveRunIssueTotal(run) {
-  if (run.issueCounts && run.issueCounts.length > 0) {
-    return run.issueCounts.reduce((sum, row) => sum + (row.issueCount ?? 0), 0);
+  if (run.resultSummary && typeof run.resultSummary === 'object') {
+    const summary = run.resultSummary;
+    if (summary.issueCounts && Array.isArray(summary.issueCounts)) {
+      return summary.issueCounts.reduce((sum, issue) => sum + (issue.count || 0), 0);
+    } else if (summary.grossMismatchCount) {
+      return summary.grossMismatchCount;
+    } else if (summary.goldDeviationCount) {
+      return summary.goldDeviationCount;
+    }
   }
   return run.invalidRows ?? 0;
 }
 
 /**
- * Fetch audit runs with issue counts in a date range (single query, no N+1).
+ * Fetch audit runs with resultSummary in a date range (single query, no N+1).
  * @param {Date} startDate
  * @param {Date} [endDate]
- * @returns {Promise<Array<{ id: number, createdAt: Date, invalidRows: number, issueCounts: Array<{ issueCount: number }> }>>}
+ * @returns {Promise<Array<{ id: number, createdAt: Date, invalidRows: number, resultSummary: object }>>}
  */
 async function fetchAuditRunsWithIssues(startDate, endDate = new Date()) {
   return prisma.auditRun.findMany({
@@ -124,11 +125,7 @@ async function fetchAuditRunsWithIssues(startDate, endDate = new Date()) {
       id: true,
       createdAt: true,
       invalidRows: true,
-      issueCounts: {
-        select: {
-          issueCount: true,
-        },
-      },
+      resultSummary: true,
     },
     orderBy: {
       createdAt: 'asc',
@@ -162,27 +159,38 @@ async function getMonthlyTrend(startDate) {
 
 /**
  * Aggregate issue counts by issue code and name for audit runs in date range.
+ * Extracts from resultSummary JSON field.
  * @param {Date} startDate
  * @param {Date} endDate
- * @returns {Promise<Array<{ issueCode: string, issueName: string, _sum: { issueCount: number | null } }>>}
+ * @returns {Promise<Array<{ issueCode: string, issueName: string, count: number }>>}
  */
 async function getIssuesByCategory(startDate, endDate) {
-  return prisma.auditIssueCount.groupBy({
-    by: ['issueCode', 'issueName'],
+  const auditRuns = await prisma.auditRun.findMany({
     where: {
-      auditRun: {
-        createdAt: createdAtRange(startDate, endDate),
-      },
+      createdAt: createdAtRange(startDate, endDate),
     },
-    _sum: {
-      issueCount: true,
-    },
-    orderBy: {
-      _sum: {
-        issueCount: 'desc',
-      },
+    select: {
+      resultSummary: true,
     },
   });
+
+  const issueMap = new Map();
+  
+  for (const run of auditRuns) {
+    if (run.resultSummary && typeof run.resultSummary === 'object') {
+      const summary = run.resultSummary;
+      if (summary.issueCounts && Array.isArray(summary.issueCounts)) {
+        for (const issue of summary.issueCounts) {
+          const key = `${issue.code}_${issue.name}`;
+          const existing = issueMap.get(key) || { code: issue.code, name: issue.name, count: 0 };
+          existing.count += issue.count || 0;
+          issueMap.set(key, existing);
+        }
+      }
+    }
+  }
+
+  return Array.from(issueMap.values()).sort((a, b) => b.count - a.count);
 }
 
 /**

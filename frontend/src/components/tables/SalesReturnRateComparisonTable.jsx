@@ -37,8 +37,18 @@ const HIGHER_RETURN_RATE_EXPORT_COLS = [
 export const SALES_RETURN_COMPARISON_EXPORT_COLS = EXPORT_COLS;
 export const SALES_RETURN_HIGHER_RETURN_EXPORT_COLS = HIGHER_RETURN_RATE_EXPORT_COLS;
 
-export function salesReturnComparisonExportCols(columnMode) {
-  return columnMode === 'higherReturnRate' ? HIGHER_RETURN_RATE_EXPORT_COLS : EXPORT_COLS;
+export function salesReturnComparisonExportCols(columnMode, labels = {}) {
+  const avgReturn = labels.avgReturnHeader || 'Avg_sales_return';
+  const avgBaseline = labels.avgBaselineHeader || 'Avg_sales';
+  if (columnMode === 'higherReturnRate') {
+    return [
+      { header: 'Product', accessor: (r) => r.product ?? '' },
+      { header: avgReturn, accessor: (r) => r.returnAverageRate ?? '' },
+      { header: avgBaseline, accessor: (r) => r.salesAverageRate ?? '' },
+      { header: 'Message', accessor: (r) => r.Message ?? '' },
+    ];
+  }
+  return EXPORT_COLS;
 }
 
 function messageCell(info) {
@@ -47,7 +57,9 @@ function messageCell(info) {
   return <span className="text-sm text-slate-600">{String(value)}</span>;
 }
 
-function buildColumns(columnMode) {
+function buildColumns(columnMode, labels = {}) {
+  const avgReturn = labels.avgReturnHeader || 'Avg_sales_return';
+  const avgBaseline = labels.avgBaselineHeader || 'Avg_sales';
   if (columnMode === 'higherReturnRate') {
     return [
       {
@@ -57,14 +69,14 @@ function buildColumns(columnMode) {
       },
       {
         accessorKey: 'returnAverageRate',
-        header: 'Avg_sales_return',
+        header: avgReturn,
         cell: (info) => (
           <span className="text-sm tabular-nums text-rose-700">{formatNumber(info.getValue(), 2)}</span>
         ),
       },
       {
         accessorKey: 'salesAverageRate',
-        header: 'Avg_sales',
+        header: avgBaseline,
         cell: (info) => (
           <span className="text-sm tabular-nums text-slate-800">{formatNumber(info.getValue(), 2)}</span>
         ),
@@ -166,11 +178,18 @@ export function SalesReturnRateComparisonTable({
   exporting,
   showExport = true,
   columnMode = 'full',
+  columnLabels = {},
 }) {
   const [globalFilterState, setGlobalFilterState] = useState('');
 
-  const columns = useMemo(() => buildColumns(columnMode), [columnMode]);
-  const exportCols = columnMode === 'higherReturnRate' ? HIGHER_RETURN_RATE_EXPORT_COLS : EXPORT_COLS;
+  const columns = useMemo(
+    () => buildColumns(columnMode, columnLabels),
+    [columnMode, columnLabels]
+  );
+  const exportCols = useMemo(
+    () => salesReturnComparisonExportCols(columnMode, columnLabels),
+    [columnMode, columnLabels]
+  );
 
   const table = useReactTable({
     data,

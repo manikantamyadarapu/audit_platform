@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from openpyxl import Workbook
 
-from app.processors.pan_processor import PanProcessor
+from app.engines.pan_engine.engine.processor import PanProcessor
 
 
 def _build_excel_bytes(rows: list[dict]) -> bytes:

@@ -8,17 +8,41 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/sales-ledger',
     localStorageAlias: 'audit_session_sales',
   },
+  'purchase-ledger': {
+    pageRoute: '/scrutiny/purchase/rate-ledger',
+    localStorageAlias: 'audit_session_purchase_ledger',
+  },
   'sales-return-audit': {
     pageRoute: '/scrutiny/sales-return-rate',
     localStorageAlias: 'audit_session_sales_return',
+  },
+  'purchase-return-audit': {
+    pageRoute: '/scrutiny/purchase/return-rate',
+    localStorageAlias: 'audit_session_purchase_return',
   },
   'gross-weight': {
     pageRoute: '/scrutiny/gross-weight',
     localStorageAlias: 'audit_session_gross',
   },
+  'purchase-gross-weight': {
+    pageRoute: '/scrutiny/purchase/gross-weight',
+    localStorageAlias: 'audit_session_purchase_gross',
+  },
   'pan-audit': {
     pageRoute: '/scrutiny/pan',
     localStorageAlias: 'audit_session_pan',
+  },
+  'cash-ledger': {
+    pageRoute: '/scrutiny/cash-ledger',
+    localStorageAlias: 'audit_session_cash_ledger',
+  },
+  'negative-bank': {
+    pageRoute: '/scrutiny/negative-bank',
+    localStorageAlias: 'audit_session_negative_bank',
+  },
+  'tds-rate-0.1': {
+    pageRoute: '/scrutiny/tds/rate-0.1',
+    localStorageAlias: 'audit_session_tds_rate_01',
   },
   'rate-rule-book': {
     pageRoute: '/scrutiny/rate-rule-book',

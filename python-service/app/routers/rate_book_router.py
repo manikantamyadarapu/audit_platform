@@ -22,8 +22,8 @@ gateway_router = APIRouter(prefix='/api/v1/rate-book', tags=['rate-book'])
 
 # Config paths
 # router is at app/routers/rate_book_router.py
-# config is at app/sales_engine/config/
-_CONFIG_DIR = Path(__file__).resolve().parents[1] / 'sales_engine' / 'config'
+# config is at app/engines/sales_engine/config/
+_CONFIG_DIR = Path(__file__).resolve().parents[1] / 'engines' / 'sales_engine' / 'config'
 _DIAMOND_BOOK_PATH = _CONFIG_DIR / 'diamond_rate_book.json'
 _GEMSTONE_BOOK_PATH = _CONFIG_DIR / 'gemstone_rate_book.json'
 
@@ -161,7 +161,7 @@ async def save_diamond_rates(payload: DiamondRateBookPayload) -> dict[str, Any]:
     _save_json(_DIAMOND_BOOK_PATH, data)
     
     # Clear any caches to ensure immediate effect
-    from app.sales_engine.config.loader import clear_metal_rate_caches
+    from app.engines.sales_engine.config.loader import clear_metal_rate_caches
     clear_metal_rate_caches()
     
     return _success({
@@ -280,7 +280,7 @@ async def save_gemstone_rates(payload: GemstoneRateBookPayload) -> dict[str, Any
     _save_json(_GEMSTONE_BOOK_PATH, data)
     
     # Clear caches
-    from app.sales_engine.config.loader import clear_metal_rate_caches
+    from app.engines.sales_engine.config.loader import clear_metal_rate_caches
     clear_metal_rate_caches()
     
     return _success({

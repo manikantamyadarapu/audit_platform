@@ -47,7 +47,7 @@ export function AuditUploadResultsTable({
     if (!data.length || !resolvedOrder.length) return [];
     return resolvedOrder.map((key) => ({
       accessorKey: key,
-      header: columnHeaderLabel(key),
+      header: columnDisplayHeaders?.[key] ?? columnHeaderLabel(key),
       cell: (info) => {
         const value =
           key === 'Message' || key === 'messages'
@@ -63,7 +63,7 @@ export function AuditUploadResultsTable({
         );
       },
     }));
-  }, [data, resolvedOrder]);
+  }, [data, resolvedOrder, columnDisplayHeaders]);
 
   const table = useReactTable({
     data,

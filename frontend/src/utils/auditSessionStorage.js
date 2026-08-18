@@ -277,7 +277,11 @@ export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
     case 'pan-audit':
       return aggressiveSlimPanSnapshot(snapshot);
     case 'gross-weight':
+    case 'purchase-gross-weight':
       return aggressiveSlimGrossWeightSnapshot(snapshot);
+    case 'cash-ledger':
+    case 'negative-bank':
+      return slimCashLedgerSnapshot(snapshot);
     default:
       return aggressiveSlimAuditSnapshot(snapshot);
   }
@@ -301,6 +305,33 @@ export function slimGrossWeightSnapshot(snapshot) {
       totalRows: result.totalRows,
       errorRows: result.errorRows,
       summary: result.summary ?? {},
+      records,
+    },
+  };
+}
+
+/** Shrink cash ledger audit payloads for localStorage and DB session saves. */
+export function slimCashLedgerSnapshot(snapshot) {
+  if (!snapshot?.result) return snapshot;
+  const result = snapshot.result;
+  const records = Array.isArray(result.records)
+    ? result.records.map((row) => {
+        if (!row || typeof row !== 'object') return row;
+        const { messages, ...rest } = row;
+        return rest;
+      })
+    : [];
+  return {
+    ...snapshot,
+    activeFilter: snapshot.activeFilter ?? null,
+    result: {
+      success: result.success,
+      fileType: result.fileType,
+      totalRows: result.totalRows,
+      errorRows: result.errorRows,
+      summary: result.summary ?? {},
+      exportColumns: result.exportColumns,
+      columnDisplayHeaders: result.columnDisplayHeaders,
       records,
     },
   };

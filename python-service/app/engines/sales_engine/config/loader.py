@@ -1,0 +1,509 @@
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+from app.utils.normalization_engine import normalize_strict_text
+
+_CONFIG_DIR = Path(__file__).resolve().parent
+
+
+def round_rate_band(value: float) -> float:
+    """Round computed band edges so inclusive limits stay stable (e.g. 12000 × 1.15 → 13800)."""
+    return round(float(value), 2)
+
+
+@lru_cache(maxsize=1)
+def load_mappings_config() -> dict:
+    return json.loads((_CONFIG_DIR / 'mappings.json').read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def load_sales_ledger_catalog() -> dict:
+    return json.loads((_CONFIG_DIR / 'sales_ledger_catalog.json').read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def load_gemstone_config() -> dict:
+    return json.loads((_CONFIG_DIR / 'gemstone_rules.json').read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def load_gemstone_product_catalog() -> dict:
+    """
+    Load gemstone catalog. First checks rate book (auditor-editable rates),
+    falls back to hardcoded defaults if not edited yet.
+    """
+    # First check if rate book exists (auditor edits)
+    if _GEMSTONE_BOOK_PATH.exists():
+        book = json.loads(_GEMSTONE_BOOK_PATH.read_text(encoding='utf-8'))
+        accounts = book.get('accounts', {})
+        deviation = book.get('deviation_percent', 15)
+        # Only use rate book if it has actual data
+        if accounts:
+            # Transform rate book format to catalog format
+            catalog_accounts = {}
+            for account_name, account_data in accounts.items():
+                slabs = account_data.get('slabs', {})
+                # Extract slab values from the rate book
+                slab_values = []
+                for slab_str in sorted(slabs.keys(), key=lambda x: float(x) if x.replace('.', '').isdigit() else 0):
+                    try:
+                        slab_values.append(float(slab_str))
+                    except ValueError:
+                        pass
+                catalog_accounts[account_name] = {'precious_stones_jos': slab_values}
+            
+            return {
+                'accounts': catalog_accounts,
+                'deviation_percent': deviation,
+                'version': 1,
+                'rate_model': 'slab_in_product_name',
+            }
+    
+    # Fall back to hardcoded defaults
+    path = _CONFIG_DIR / 'gemstone_product_catalog.json'
+    if not path.exists():
+        return {'accounts': {}, 'deviation_percent': 15, 'version': 1, 'rate_model': 'slab_in_product_name'}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _sales_account_to_purchase_account(account: str) -> str:
+    """Map a Sales Account key to the corresponding Purchase Account key.
+
+    Only the account role changes (SALES ACCOUNT → PURCHASES ACCOUNT).
+    Product rules stay identical and are always read from the Sales catalog.
+    """
+    return str(account).replace('SALES ACCOUNT', 'PURCHASES ACCOUNT')
+
+
+@lru_cache(maxsize=1)
+def load_purchase_ledger_catalog() -> dict:
+    path = _CONFIG_DIR / 'purchase_ledger_catalog.json'
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def purchase_account_product_rules() -> dict[str, dict[str, tuple[str, ...]]]:
+    """Purchase Account → product patterns, derived 1:1 from Sales Account rules.
+
+    No separate Purchase product catalog — products are exactly the Sales master.
+    """
+    derived: dict[str, dict[str, tuple[str, ...]]] = {}
+    for sales_account, spec in account_product_rules().items():
+        purchase_account = _sales_account_to_purchase_account(sales_account)
+        derived[purchase_account] = {
+            'patterns': tuple(spec.get('patterns') or ()),
+            'exact': tuple(spec.get('exact') or ()),
+        }
+    return derived
+
+
+@lru_cache(maxsize=1)
+def known_purchase_accounts() -> frozenset[str]:
+    return frozenset(purchase_account_product_rules().keys())
+
+
+def purchase_catalog_accounts_and_patterns() -> list[tuple[str, tuple[str, ...]]]:
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for account, spec in purchase_account_product_rules().items():
+        patterns = list(spec.get('patterns') or ())
+        for exact in spec.get('exact') or ():
+            patterns.append(f'^{exact}$')
+        rows.append((account, tuple(patterns)))
+    return rows
+
+
+@lru_cache(maxsize=1)
+def purchase_account_aliases() -> dict[str, str]:
+    """Purchase upload spellings → Purchase canonical accounts.
+
+    Derived from Sales account aliases (SALES ACCOUNT → PURCHASES ACCOUNT),
+    plus optional spelling overrides in purchase_ledger_catalog.json.
+    """
+    normalized: dict[str, str] = {}
+
+    # Identity for every derived purchase canonical.
+    for purchase_account in purchase_account_product_rules():
+        key = normalize_strict_text(purchase_account)
+        if key:
+            normalized[key] = key
+
+    # Mirror every Sales alias into a Purchase alias with the same target transform.
+    for alias, target in sales_account_aliases().items():
+        purchase_alias = _sales_account_to_purchase_account(alias)
+        purchase_target = _sales_account_to_purchase_account(target)
+        key = normalize_strict_text(purchase_alias)
+        value = normalize_strict_text(purchase_target)
+        if key and value:
+            normalized[key] = value
+
+    # Optional extra upload spellings only (never product lists).
+    catalog = load_purchase_ledger_catalog()
+    raw = catalog.get('purchase_account_aliases') or catalog.get(
+        'purchase_to_sales_account_aliases'
+    ) or {}
+    for alias, target in raw.items():
+        key = normalize_strict_text(alias)
+        value = normalize_strict_text(target)
+        if key and value:
+            # Ensure targets land on derived Purchase canonicals when possible.
+            value = normalize_strict_text(_sales_account_to_purchase_account(value))
+            # If someone still pointed at old PURCHASE (singular) names, fix common form.
+            if value not in known_purchase_accounts():
+                value = normalize_strict_text(
+                    value.replace('PURCHASE ACCOUNT', 'PURCHASES ACCOUNT')
+                )
+            if key and value:
+                normalized[key] = value
+
+    return normalized
+
+
+@lru_cache(maxsize=1)
+def purchase_to_sales_account_aliases() -> dict[str, str]:
+    """Deprecated name — returns purchase spelling aliases (Purchase → Purchase)."""
+    return purchase_account_aliases()
+
+
+@lru_cache(maxsize=1)
+def sales_account_aliases() -> dict[str, str]:
+    """Normalized alias → canonical account (matches __sales_account_norm)."""
+    catalog = load_sales_ledger_catalog().get('sales_account_aliases') or {}
+    legacy = load_mappings_config().get('sales_account_aliases') or {}
+    merged = {str(k): str(v) for k, v in legacy.items()}
+    merged.update({str(k): str(v) for k, v in catalog.items()})
+    normalized: dict[str, str] = {}
+    for alias, target in merged.items():
+        key = normalize_strict_text(alias)
+        value = normalize_strict_text(target)
+        if key and value:
+            normalized[key] = value
+    return normalized
+
+
+@lru_cache(maxsize=1)
+def account_product_rules() -> dict[str, dict[str, tuple[str, ...]]]:
+    raw = load_sales_ledger_catalog().get('account_product_rules') or {}
+    rules: dict[str, dict[str, tuple[str, ...]]] = {}
+    for account, spec in raw.items():
+        rules[str(account)] = {
+            'patterns': tuple(spec.get('patterns') or []),
+            'exact': tuple(spec.get('exact') or []),
+        }
+    return rules
+
+
+@lru_cache(maxsize=1)
+def account_product_prefixes() -> dict[str, tuple[str, ...]]:
+    """Legacy prefixes kept for backwards-compatible imports."""
+    raw = load_mappings_config().get('account_product_prefixes') or {}
+    return {account: tuple(prefixes) for account, prefixes in raw.items()}
+
+
+@lru_cache(maxsize=1)
+def known_sales_accounts() -> frozenset[str]:
+    return frozenset(account_product_rules().keys())
+
+
+@lru_cache(maxsize=1)
+def slab_route_order() -> tuple[str, ...]:
+    return tuple(load_mappings_config().get('slab_route_order') or ())
+
+
+@lru_cache(maxsize=1)
+def slab_route_patterns() -> dict[str, str]:
+    return dict(load_mappings_config().get('slab_route_patterns') or {})
+
+
+@lru_cache(maxsize=1)
+def misc_product_patterns() -> tuple[str, ...]:
+    return tuple(load_mappings_config().get('misc_product_patterns') or ())
+
+
+@lru_cache(maxsize=1)
+def rate_validation_families() -> frozenset[str]:
+    return frozenset(load_gemstone_config().get('rate_validation_families') or ())
+
+
+@lru_cache(maxsize=1)
+def deviation_fraction() -> float:
+    pct = float(load_gemstone_config().get('deviation_percent', 15))
+    return pct / 100.0
+
+
+METAL_RATE_RULE_BOOK_PRODUCTS: tuple[str, ...] = (
+    'Gold Ornaments 14K',
+    'Gold Ornaments 18K',
+    'Customer Gold Ornaments 18K',
+    'Customer Gold Ornaments 22K',
+    'Gold Ornaments 22K',
+    'Gold Ornaments Jadau',
+    'Standard Gold 24K',
+    'Silver articles',
+)
+
+
+@lru_cache(maxsize=1)
+def load_uom_rules_config() -> dict:
+    path = _CONFIG_DIR / 'uom_rules.json'
+    if not path.exists():
+        return {'grams_products': list(METAL_RATE_RULE_BOOK_PRODUCTS) + ['Black beads', 'Dori', 'Lac', 'Wax, Dori Etc', 'Pearls']}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def grams_product_norms() -> frozenset[str]:
+    raw = load_uom_rules_config().get('grams_products') or []
+    return frozenset(normalize_strict_text(name) for name in raw if normalize_strict_text(name))
+
+
+@lru_cache(maxsize=1)
+def load_metal_rate_rule_book_config() -> dict:
+    path = _CONFIG_DIR / 'metal_rate_rule_book.json'
+    if not path.exists():
+        return {'allowed_variation_percent': 15}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _diamond_band_values(
+    base_min: float,
+    base_max: float,
+    *,
+    uplift_percent: float,
+    deviation_percent: float,
+) -> dict[str, float]:
+    uplift = uplift_percent / 100.0
+    deviation = deviation_percent / 100.0
+    adjusted_min = base_min + (base_min * uplift)
+    adjusted_max = base_max + (base_max * uplift)
+    final_min = adjusted_min - (adjusted_min * deviation)
+    final_max = adjusted_max + (adjusted_max * deviation)
+    return {
+        'base_min': base_min,
+        'base_max': base_max,
+        'adjusted_min': adjusted_min,
+        'adjusted_max': adjusted_max,
+        'final_min': round_rate_band(final_min),
+        'final_max': round_rate_band(final_max),
+    }
+
+
+# Rate book paths (auditor-editable)
+_DIAMOND_BOOK_PATH = _CONFIG_DIR / 'diamond_rate_book.json'
+_GEMSTONE_BOOK_PATH = _CONFIG_DIR / 'gemstone_rate_book.json'
+
+
+@lru_cache(maxsize=1)
+def load_diamond_rate_rule_book() -> dict:
+    """Load diamond rates from rate book if exists, else return empty for fallback to hardcoded."""
+    if not _DIAMOND_BOOK_PATH.exists():
+        return {'uplift_percent': 25, 'deviation_percent': 15, 'products': {}}
+    return json.loads(_DIAMOND_BOOK_PATH.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def load_diamond_hardcoded_rates() -> dict:
+    """
+    Load diamond rates. First checks rate book (auditor-editable),
+    falls back to hardcoded defaults if not edited yet.
+    """
+    # First check if rate book exists (auditor edits)
+    if _DIAMOND_BOOK_PATH.exists():
+        book = json.loads(_DIAMOND_BOOK_PATH.read_text(encoding='utf-8'))
+        products = book.get('products', {})
+        # Only use rate book if it has actual data
+        if products:
+            return {'products': products}
+    
+    # Fall back to hardcoded defaults
+    path = _CONFIG_DIR / 'diamond_hardcoded_rates.json'
+    if not path.exists():
+        return {'products': {}}
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+@lru_cache(maxsize=1)
+def diamond_editable_product_keys() -> frozenset[str]:
+    """DEPRECATED: Returns empty set. All diamonds are hardcoded."""
+    return frozenset()
+
+
+def _parse_diamond_product_specs(raw_products: dict) -> dict[str, dict[str, float | bool | None]]:
+    entries: dict[str, dict[str, float | bool | None]] = {}
+    for product_key, spec in raw_products.items():
+        norm = normalize_strict_text(product_key)
+        if not norm or not isinstance(spec, dict):
+            continue
+        min_raw = spec.get('min_rate')
+        max_raw = spec.get('max_rate')
+        entries[norm] = {
+            'min_rate': None if min_raw is None else float(min_raw),
+            'max_rate': None if max_raw is None else float(max_raw),
+            'min_only': bool(spec.get('min_only', False)),
+            'fixed_band': bool(spec.get('fixed_band', False)),
+        }
+    return entries
+
+
+@lru_cache(maxsize=1)
+def diamond_rule_book_entries() -> dict[str, dict[str, float | bool | None]]:
+    """
+    All diamond rates are hardcoded. Returns hardcoded product specs only.
+    Rule Book and editable products are deprecated.
+    """
+    return _parse_diamond_product_specs(load_diamond_hardcoded_rates().get('products') or {})
+
+
+@lru_cache(maxsize=1)
+def diamond_final_bands_by_product() -> dict[str, dict[str, float | bool | None]]:
+    """
+    Normalized product name -> precomputed bands (configured SKUs only).
+    Uses rate book settings if available, else defaults to +25% uplift and ±15% deviation.
+    """
+    # Load settings from rate book if available
+    book = load_diamond_rate_rule_book()
+    uplift = float(book.get('uplift_percent', 25))  # Default 25%
+    deviation = float(book.get('deviation_percent', 15))  # Default ±15%
+    bands: dict[str, dict[str, float | bool | None]] = {}
+    for norm, spec in diamond_rule_book_entries().items():
+        base_min = spec.get('min_rate')
+        base_max = spec.get('max_rate')
+        min_only = bool(spec.get('min_only', False))
+        fixed_band = bool(spec.get('fixed_band', False))
+        if base_min is None:
+            continue
+        if min_only:
+            bands[norm] = {
+                'base_min': base_min,
+                'base_max': None,
+                'final_min': base_min,
+                'final_max': None,
+                'min_only': True,
+            }
+            continue
+        if base_max is None:
+            continue
+        if fixed_band:
+            bands[norm] = {
+                'base_min': base_min,
+                'base_max': base_max,
+                'final_min': base_min,
+                'final_max': base_max,
+                'min_only': False,
+            }
+            continue
+        band = _diamond_band_values(
+            base_min,
+            base_max,
+            uplift_percent=uplift,
+            deviation_percent=deviation,
+        )
+        band['min_only'] = False
+        bands[norm] = band
+    return bands
+
+
+def _parse_metal_rate_entry(raw: object) -> dict[str, float | None]:
+    """Single legacy rate or {min_rate, max_rate} object."""
+    if isinstance(raw, dict):
+        min_raw = raw.get('min_rate')
+        max_raw = raw.get('max_rate')
+        min_rate = None if min_raw is None else float(min_raw)
+        max_rate = None if max_raw is None else float(max_raw)
+        return {'min_rate': min_rate, 'max_rate': max_rate}
+    if raw is None or raw == '':
+        return {'min_rate': None, 'max_rate': None}
+    try:
+        rate = float(raw)
+    except (TypeError, ValueError):
+        return {'min_rate': None, 'max_rate': None}
+    if rate <= 0:
+        return {'min_rate': None, 'max_rate': None}
+    return {'min_rate': rate, 'max_rate': rate}
+
+
+def _metal_band_values(base_min: float, base_max: float, *, deviation_fraction: float) -> dict[str, float]:
+    return {
+        'base_min': base_min,
+        'base_max': base_max,
+        'final_min': round_rate_band(base_min * (1.0 - deviation_fraction)),
+        'final_max': round_rate_band(base_max * (1.0 + deviation_fraction)),
+    }
+
+
+@lru_cache(maxsize=1)
+def product_rule_book_specs() -> dict[str, dict[str, float | None]]:
+    """Normalized product name → configured min/max rates (null when unset)."""
+    cfg = load_metal_rate_rule_book_config()
+    specs: dict[str, dict[str, float | None]] = {}
+    for product in METAL_RATE_RULE_BOOK_PRODUCTS:
+        norm = normalize_strict_text(product)
+        if not norm:
+            continue
+        raw = cfg.get(product, cfg.get(norm))
+        specs[norm] = _parse_metal_rate_entry(raw)
+    return specs
+
+
+@lru_cache(maxsize=1)
+def metal_final_bands_by_product() -> dict[str, dict[str, float]]:
+    """Normalized product → bands after -15% on min and +15% on max."""
+    fraction = metal_deviation_fraction()
+    bands: dict[str, dict[str, float]] = {}
+    for norm, spec in product_rule_book_specs().items():
+        base_min = spec.get('min_rate')
+        base_max = spec.get('max_rate')
+        if base_min is None or base_max is None:
+            continue
+        bands[norm] = _metal_band_values(base_min, base_max, deviation_fraction=fraction)
+    return bands
+
+
+def clear_metal_rate_caches() -> None:
+    load_metal_rate_rule_book_config.cache_clear()
+    product_rule_book_specs.cache_clear()
+    product_rule_book_rates.cache_clear()
+    metal_final_bands_by_product.cache_clear()
+    metal_deviation_fraction.cache_clear()
+    load_diamond_rate_rule_book.cache_clear()
+    load_diamond_hardcoded_rates.cache_clear()
+    diamond_editable_product_keys.cache_clear()
+    diamond_rule_book_entries.cache_clear()
+    diamond_final_bands_by_product.cache_clear()
+    load_gemstone_product_catalog.cache_clear()
+    load_uom_rules_config.cache_clear()
+    grams_product_norms.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def metal_deviation_fraction() -> float:
+    pct = float(load_metal_rate_rule_book_config().get('allowed_variation_percent', 15))
+    return pct / 100.0
+
+
+@lru_cache(maxsize=1)
+def product_rule_book_rates() -> dict[str, float | None]:
+    """Midpoint of configured min/max — for backwards-compatible callers."""
+    rates: dict[str, float | None] = {}
+    for norm, spec in product_rule_book_specs().items():
+        base_min = spec.get('min_rate')
+        base_max = spec.get('max_rate')
+        if base_min is None or base_max is None:
+            rates[norm] = None
+        else:
+            rates[norm] = (base_min + base_max) / 2.0
+    return rates
+
+
+def catalog_accounts_and_patterns() -> list[tuple[str, tuple[str, ...]]]:
+    """Account keys with all regex patterns (exact entries compiled as anchored patterns)."""
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for account, spec in account_product_rules().items():
+        patterns = list(spec.get('patterns') or ())
+        for exact in spec.get('exact') or ():
+            patterns.append(f'^{exact}$')
+        rows.append((account, tuple(patterns)))
+    return rows

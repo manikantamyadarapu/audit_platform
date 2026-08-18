@@ -1,15 +1,21 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const DEFAULT_AUDIT_TYPES = {
   SALES: {
     auditName: 'Rate & Ledger Audit',
     description: 'Sales rate and ledger validation',
   },
+  PURCHASE: {
+    auditName: 'Purchase Rate & Ledger Audit',
+    description: 'Purchase rate and ledger validation',
+  },
   SALES_RETURN: {
     auditName: 'Sales Return Audit',
     description: 'Sales return validation and rate comparison',
+  },
+  PURCHASE_RETURN: {
+    auditName: 'Purchase Return Audit',
+    description: 'Purchase return validation and rate comparison',
   },
   PAN: {
     auditName: 'ID Proof Audit',
@@ -73,7 +79,9 @@ async function resolveAuditTypeId(auditCode) {
  *   fileName?: string,
  *   totalRows?: number,
  *   invalidRows?: number,
- *   issueCounts?: Array<{ code: string, name: string, count: number }>,
+ *   resultSummary?: object,
+ *   performanceMetrics?: object,
+ *   fileMetadata?: object,
  * }} params
  */
 async function createAuditRun({
@@ -82,37 +90,46 @@ async function createAuditRun({
   fileName,
   totalRows,
   invalidRows,
-  issueCounts,
+  resultSummary,
+  performanceMetrics,
+  fileMetadata,
 }) {
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
-    const auditRun = await tx.auditRun.create({
-      data: {
-        auditTypeId,
-        fileName: String(fileName || 'audit.xlsx').slice(0, 255),
-        uploadedBy,
-        status: 'COMPLETED',
-        totalRows: Number(totalRows) || 0,
-        invalidRows: Number(invalidRows) || 0,
-        startedAt: now,
-        completedAt: now,
-      },
-    });
+  const data = {
+    auditTypeId,
+    fileName: String(fileName || 'audit.xlsx').slice(0, 255),
+    uploadedBy,
+    status: 'COMPLETED',
+    totalRows: Number(totalRows) || 0,
+    invalidRows: Number(invalidRows) || 0,
+    startedAt: now,
+    completedAt: now,
+  };
 
-    const issueRows = (issueCounts || []).filter((row) => Number(row.count) > 0);
-    if (issueRows.length) {
-      await tx.auditIssueCount.createMany({
-        data: issueRows.map((row) => ({
-          auditRunId: auditRun.id,
-          issueCode: String(row.code).slice(0, 50),
-          issueName: String(row.name).slice(0, 100),
-          issueCount: Number(row.count) || 0,
-        })),
-      });
-    }
+  // Add resultSummary if provided
+  if (resultSummary) {
+    data.resultSummary = resultSummary;
+  }
 
-    return auditRun;
+  // Add performance metrics if provided
+  if (performanceMetrics) {
+    data.processingTimeMs = performanceMetrics.processingTimeMs;
+    data.memoryUsageMb = performanceMetrics.memoryUsageMb;
+    data.rowsPerSecond = performanceMetrics.rowsPerSecond;
+    data.cpuUsagePercent = performanceMetrics.cpuUsagePercent;
+  }
+
+  // Add file metadata if provided
+  if (fileMetadata) {
+    data.originalName = fileMetadata.originalName;
+    data.storagePath = fileMetadata.storagePath;
+    data.fileHash = fileMetadata.fileHash;
+    data.fileSize = fileMetadata.fileSize;
+  }
+
+  return prisma.auditRun.create({
+    data,
   });
 }
 

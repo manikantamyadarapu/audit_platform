@@ -1,4 +1,4 @@
-import api, { getApiErrorMessage } from './api';
+import apiClient, { getApiErrorMessage } from './apiClient';
 
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -19,7 +19,7 @@ function triggerBlobDownload(blob, filename) {
  */
 export async function exportInvalidRecordsXlsx(path, records, signal) {
   try {
-    const res = await api.post(path, { records }, {
+    const res = await apiClient.post(path, { records }, {
       responseType: 'blob',
       signal,
     });

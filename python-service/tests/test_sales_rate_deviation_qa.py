@@ -2,10 +2,10 @@
 
 import pytest
 
-from app.processors.sales_audit_processor import SalesAuditProcessor
-from app.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
-from app.sales_engine.services.metal_rate_store import save_rule_book
-from app.sales_engine.validators.sales_audit_messages import (
+from app.engines.sales_engine.engine.processor import SalesAuditProcessor
+from app.engines.sales_engine.engine.record_dedup import dedupe_invalid_records_by_row_number
+from app.engines.sales_engine.services.metal_rate_store import save_rule_book
+from app.engines.sales_engine.validators.sales_audit_messages import (
     MSG_PRODUCT_MAPPING,
     MSG_RATE_ABOVE,
     MSG_RATE_BELOW,

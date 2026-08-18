@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Scale, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Landmark, Scale, Users, Wallet } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -26,6 +26,22 @@ const modules = [
     path: '/scrutiny/sales-ledger',
     icon: BookOpen,
     tone: 'violet',
+  },
+  {
+    title: 'Cash Ledger Audit',
+    description:
+      'Audit Cash Book for Negative Cash, cash payments ≥ ₹10,000 and cash receipts ≥ ₹2,00,000.',
+    path: '/scrutiny/cash-ledger',
+    icon: Wallet,
+    tone: 'amber',
+  },
+  {
+    title: 'Negative Bank Audit',
+    description:
+      'Flag Opening/Closing balance rows where the Balance is Credit (Cr), with Till Date ageing.',
+    path: '/scrutiny/negative-bank',
+    icon: Landmark,
+    tone: 'rose',
   },
   {
     title: 'Gold & Silver Rates',

@@ -19,4 +19,16 @@ router.post(
   salesController.exportInvalid
 );
 
+/**
+ * Full path: GET /api/v1/process/sales/product-average-rates
+ * Legacy compat: GET /api/sales-audit/product-average-rates
+ */
+router.get('/product-average-rates', salesController.getProductAverageRates);
+
+/**
+ * Full path: GET /api/v1/process/sales/product-average-rates/export
+ * Legacy compat: GET /api/sales-audit/product-average-rates/export
+ */
+router.get('/product-average-rates/export', salesController.exportProductAverageRates);
+
 module.exports = router;
