@@ -29,7 +29,7 @@ import {
   countCashLedgerRecordsByIssue,
   filterCashLedgerRecords,
 } from '../utils/cashLedgerRecordFilters';
-import { downloadCashLedgerTotalErrorReport } from '../utils/cashLedgerTotalErrorReport';
+import { downloadRowsXlsx } from '../utils/salesReturnXlsxExport';
 import {
   buildCashLedgerExportColumnDefs,
   CASH_LEDGER_DISPLAY_HEADERS,
