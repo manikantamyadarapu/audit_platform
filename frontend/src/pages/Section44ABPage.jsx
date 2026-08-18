@@ -2,10 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   Wallet,
   FileSpreadsheet,
-  Download,
-  FileText,
   IndianRupee,
-  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
