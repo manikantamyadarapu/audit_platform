@@ -73,7 +73,24 @@ const navActive =
 const navIdle =
   'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]';
 
-function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested, badge }) {
+function isAdminRole(role) {
+  return String(role || '').toUpperCase() === 'ADMIN';
+}
+
+function resolveSidebarBadge(badge, role) {
+  if (!badge) return undefined;
+  if (String(badge).toUpperCase() === 'PENDING') {
+    return isAdminRole(role) ? badge : undefined;
+  }
+  return badge;
+}
+
+function canShowPendingFeature(role) {
+  return isAdminRole(role);
+}
+
+function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested, badge, userRole }) {
+  const displayBadge = resolveSidebarBadge(badge, userRole);
   return (
     <NavLink
       to={to}
@@ -93,10 +110,10 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onNavigate, nested, ba
       <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
       {!collapsed ? (
         <>
-          <span className={cn('truncate', badge && 'flex-1')}>{label}</span>
-          {badge ? (
+          <span className={cn('truncate', displayBadge && 'flex-1')}>{label}</span>
+          {displayBadge ? (
             <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-              {badge}
+              {displayBadge}
             </span>
           ) : null}
         </>
@@ -125,7 +142,8 @@ function DisabledItem({ label, icon: Icon, collapsed, nested }) {
   );
 }
 
-function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, children, to, nested }) {
+function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge, userRole, children, to, nested }) {
+  const displayBadge = resolveSidebarBadge(badge, userRole);
   if (collapsed) {
     if (nested) {
       return (
@@ -172,9 +190,9 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
       >
         <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
         <span className="flex-1 truncate text-left">{label}</span>
-        {badge ? (
+        {displayBadge ? (
           <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-            {badge}
+            {displayBadge}
           </span>
         ) : null}
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')} />
@@ -231,7 +249,8 @@ export function Sidebar() {
   const displayName = sessionUser?.name || 'User';
   const displayEmail = sessionUser?.email || '';
   const initials = getUserInitials(displayName);
-  const pendingBadge = String(sessionUser?.role || '').toUpperCase() === 'ADMIN' ? 'PENDING' : undefined;
+  const userRole = sessionUser?.role;
+  const isAdmin = canShowPendingFeature(userRole);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -372,36 +391,42 @@ export function Sidebar() {
                 />
               </div>
             </NavGroup>
-            <NavGroup
-              label="TDS Audit"
-              icon={Calculator}
-              collapsed={sidebarCollapsed}
-              open={tdsOpen}
-              onToggle={() => setTdsOpen((v) => !v)}
-              active={false}
-              nested
-              badge={pendingBadge}
-            >
-              {tdsItems.map((item) => (
-                <div key={item.to} className="ml-3">
-                  <NavItem
-                    {...item}
-                    collapsed={sidebarCollapsed}
-                    nested
-                    onNavigate={ensureScrutiny}
-                  />
-                </div>
-              ))}
-            </NavGroup>
-            <NavItem
-              to="/scrutiny/negative-bank"
-              label="Negative Bank"
-              icon={Landmark}
-              collapsed={sidebarCollapsed}
-              nested
-              onNavigate={ensureScrutiny}
-              badge={pendingBadge}
-            />
+            {isAdmin ? (
+              <NavGroup
+                label="TDS Audit"
+                icon={Calculator}
+                collapsed={sidebarCollapsed}
+                open={tdsOpen}
+                onToggle={() => setTdsOpen((v) => !v)}
+                active={false}
+                nested
+                badge="PENDING"
+                userRole={userRole}
+              >
+                {tdsItems.map((item) => (
+                  <div key={item.to} className="ml-3">
+                    <NavItem
+                      {...item}
+                      collapsed={sidebarCollapsed}
+                      nested
+                      onNavigate={ensureScrutiny}
+                    />
+                  </div>
+                ))}
+              </NavGroup>
+            ) : null}
+            {isAdmin ? (
+              <NavItem
+                to="/scrutiny/negative-bank"
+                label="Negative Bank"
+                icon={Landmark}
+                collapsed={sidebarCollapsed}
+                nested
+                onNavigate={ensureScrutiny}
+                badge="PENDING"
+                userRole={userRole}
+              />
+            ) : null}
             {scrutinyItems.map((item) => (
               <NavItem
                 key={item.to}

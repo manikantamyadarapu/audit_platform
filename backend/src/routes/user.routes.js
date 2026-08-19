@@ -109,6 +109,7 @@ router.get('/:id', userController.getUserById);
  *       409: { description: Email exists }
  */
 router.put('/:id', userController.updateUser);
+router.patch('/:id', userController.updateUser);
 
 /**
  * @swagger
