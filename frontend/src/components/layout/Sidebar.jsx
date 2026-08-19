@@ -77,15 +77,20 @@ function isAdminRole(role) {
   return String(role || '').toUpperCase() === 'ADMIN';
 }
 
+function isAdminOnlyBadge(badge) {
+  const normalized = String(badge || '').toUpperCase();
+  return normalized === 'PENDING' || normalized === 'HOLD';
+}
+
 function resolveSidebarBadge(badge, role) {
   if (!badge) return undefined;
-  if (String(badge).toUpperCase() === 'PENDING') {
+  if (isAdminOnlyBadge(badge)) {
     return isAdminRole(role) ? badge : undefined;
   }
   return badge;
 }
 
-function canShowPendingFeature(role) {
+function canShowAdminOnlyFeature(role) {
   return isAdminRole(role);
 }
 
@@ -250,7 +255,7 @@ export function Sidebar() {
   const displayEmail = sessionUser?.email || '';
   const initials = getUserInitials(displayName);
   const userRole = sessionUser?.role;
-  const isAdmin = canShowPendingFeature(userRole);
+  const isAdmin = canShowAdminOnlyFeature(userRole);
 
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
@@ -438,19 +443,22 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
-          <NavGroup
-            label="Vouching"
-            icon={GitBranch}
-            collapsed={sidebarCollapsed}
-            open={vouchingOpen}
-            onToggle={() => setVouchingOpen((v) => !v)}
-            active={vouchingActive}
-            badge="Hold"
-          >
-            {vouchingItems.map((item) => (
-              <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} nested />
-            ))}
-          </NavGroup>
+          {isAdmin ? (
+            <NavGroup
+              label="Vouching"
+              icon={GitBranch}
+              collapsed={sidebarCollapsed}
+              open={vouchingOpen}
+              onToggle={() => setVouchingOpen((v) => !v)}
+              active={vouchingActive}
+              badge="Hold"
+              userRole={userRole}
+            >
+              {vouchingItems.map((item) => (
+                <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} nested />
+              ))}
+            </NavGroup>
+          ) : null}
 
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
