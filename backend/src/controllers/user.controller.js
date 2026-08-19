@@ -85,7 +85,7 @@ async function getUserById(req, res, next) {
 async function updateUser(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, role } = req.body;
+    const { name, email, role, password } = req.body;
 
     // Validate role if provided
     if (role) {
@@ -98,7 +98,20 @@ async function updateUser(req, res, next) {
       }
     }
 
-    const user = await userService.updateUser(parseInt(id, 10), { name, role });
+    if (password && password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (role !== undefined) updateData.role = role;
+    if (password) updateData.password = password;
+
+    const user = await userService.updateUser(parseInt(id, 10), updateData);
 
     res.json({
       success: true,

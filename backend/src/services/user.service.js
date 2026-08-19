@@ -126,7 +126,8 @@ async function updateUser(id, updateData) {
   }
 
   const user = await userRepository.update(id, dataToUpdate);
-  return user;
+  const { passwordHash, ...userWithoutSensitive } = user;
+  return userWithoutSensitive;
 }
 
 /**
