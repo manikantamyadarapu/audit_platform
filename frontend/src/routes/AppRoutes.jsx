@@ -33,6 +33,7 @@ const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Section44ABPage = lazy(() => import('../pages/Section44ABPage'));
+const DemoVideosPage = lazy(() => import('../pages/DemoVideosPage'));
 
 function lazyPage(Component) {
   return (
@@ -62,6 +63,7 @@ export function AppRoutes() {
           <Route path="/settings" element={lazyPage(Settings)} />
           <Route path="/profile" element={lazyPage(Profile)} />
           <Route path="/users" element={lazyPage(Users)} />
+          <Route path="/demo-videos" element={lazyPage(DemoVideosPage)} />
 
           <Route path="/scrutiny/pan" element={lazyPage(PanVerification)} />
           <Route path="/scrutiny/gross-weight" element={lazyPage(GrossWeight)} />

@@ -35,6 +35,7 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { cn } from '../utils/cn';
 import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import {
   bootstrapAuditSessionState,
@@ -309,6 +310,9 @@ export default function LedgerAuditPage({ config }) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {config.demoModuleKey ? (
+                <WatchDemoButton moduleKey={config.demoModuleKey} />
+              ) : null}
               <Link
                 to="/scrutiny/rate-rule-book"
                 state={{ returnTo: rateRulesReturnTo }}

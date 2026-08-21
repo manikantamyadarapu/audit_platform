@@ -10,6 +10,7 @@ const TITLE_MAP = [
   { test: /^\/settings/, title: 'Settings' },
   { test: /^\/profile/, title: 'My Profile' },
   { test: /^\/users/, title: 'Users' },
+  { test: /^\/demo-videos/, title: 'Demo Videos' },
   { test: /^\/scrutiny$/, title: 'Scrutiny' },
   { test: /^\/scrutiny\/pan/, title: 'ID Proof Audit' },
   { test: /^\/scrutiny\/purchase\/gross-weight/, title: 'Purchase Gross Weight Audit' },

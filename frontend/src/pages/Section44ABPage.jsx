@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FileUploadZone } from '../components/upload/FileUploadZone';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { validateSection44AB } from '../services/section44ab.service';
 import { formatNumber, formatPercent } from '../utils/format';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
@@ -97,6 +98,7 @@ export default function Section44ABPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <WatchDemoButton moduleKey="section44ab" />
               <Button
                 variant="primary"
                 size="md"

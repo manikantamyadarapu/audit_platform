@@ -46,5 +46,6 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/audit-sessions', auditSessionRoutes);
 router.use('/rate-book', rateBookRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/demo-videos', require('./demoVideo.routes'));
 
 module.exports = router;

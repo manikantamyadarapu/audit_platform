@@ -5,6 +5,7 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { fetchRateRules, saveRateRules } from '../services/rateRule.service';
 import { RULE_BOOK_PRODUCTS, RULE_BOOK_VARIATION_PCT } from '../constants/metalRateRuleBook';
 import { formatSavedDateTime } from '../utils/dateTime';
@@ -118,7 +119,10 @@ export default function RateRuleBook() {
             {RULE_BOOK_VARIATION_PCT}% on max.
           </p>
         </div>
-        {updatedAt ? <p className="text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <WatchDemoButton moduleKey="gold-silver-rates" />
+          {updatedAt ? <p className="text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p> : null}
+        </div>
       </div>
 
       {ratesSaved ? (
