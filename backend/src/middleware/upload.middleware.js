@@ -51,6 +51,28 @@ const section44abFiles = upload.fields([
   { name: 'bankFiles', maxCount: 50 },
 ]);
 
+function form269FileFilter(_req, file, cb) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  if (ext && ALLOWED_PAN_EXTENSIONS.has(ext)) {
+    return cb(null, true);
+  }
+  if (mime && ALLOWED_PAN_MIME_TYPES.has(mime)) {
+    return cb(null, true);
+  }
+  return cb(null, false);
+}
+
+const form269Upload = multer({
+  storage,
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 200 },
+  fileFilter: form269FileFilter,
+});
+
+const form269Files = form269Upload.fields([
+  { name: 'inputFiles', maxCount: 50 },
+]);
+
 function handleMulterError(err, req, res, next) {
   if (!err) {
     return next();
@@ -75,5 +97,6 @@ module.exports = {
   dualSalesReturnFiles,
   dualPartyWiseTdsFiles,
   section44abFiles,
+  form269Files,
   handleMulterError,
 };

@@ -19,6 +19,7 @@ const purchaseReturnRoutes = require('./purchaseReturn.routes');
 const tdsRoutes = require('./tds.routes');
 const notificationRoutes = require('./notification.routes');
 const section44abRoutes = require('./section44ab.routes');
+const form269Routes = require('./form269.routes');
 
 const router = express.Router();
 
@@ -37,6 +38,7 @@ router.use('/process/negative-bank', negativeBankRoutes);
 router.use('/process/party-wise-tds', partyWiseTdsRoutes);
 router.use('/process/tds-rate-0.1', tds01Routes);
 router.use('/process/section44ab', section44abRoutes);
+router.use('/process/form-269', form269Routes);
 router.use('/rate-rules', rateRulesRoutes);
 router.use('/diamond-rate-rules', diamondRateRulesRoutes);
 router.use('/tds-rules', tdsRoutes);

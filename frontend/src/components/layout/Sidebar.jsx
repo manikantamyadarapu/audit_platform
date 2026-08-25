@@ -27,6 +27,7 @@ import {
   Receipt,
   Percent,
   FileText,
+  FileArchive,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/auth.service';
 import { cn } from '../../utils/cn';
@@ -368,6 +369,14 @@ export function Sidebar() {
               to="/scrutiny/section44ab"
               label="Section 44AB"
               icon={Calculator}
+              collapsed={sidebarCollapsed}
+              nested
+              onNavigate={ensureScrutiny}
+            />
+            <NavItem
+              to="/scrutiny/form-269"
+              label="Form 269SS / 269ST"
+              icon={FileArchive}
               collapsed={sidebarCollapsed}
               nested
               onNavigate={ensureScrutiny}

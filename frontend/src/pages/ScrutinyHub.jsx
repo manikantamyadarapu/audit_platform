@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Coins, Copy, FileCheck2, Landmark, Scale, Users, Wallet } from 'lucide-react';
+import { ArrowRight, BookOpen, Coins, Copy, FileArchive, FileCheck2, Landmark, Scale, Users, Wallet } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -42,6 +42,14 @@ const modules = [
     path: '/scrutiny/negative-bank',
     icon: Landmark,
     tone: 'rose',
+  },
+  {
+    title: 'Form 269SS / 269ST',
+    description:
+      'Select a folder of ledger files to generate 269SS and 269ST reports. Master data is applied automatically.',
+    path: '/scrutiny/form-269',
+    icon: FileArchive,
+    tone: 'violet',
   },
   {
     title: 'Gold & Silver Rates',

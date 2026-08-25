@@ -33,6 +33,7 @@ const VouchingHold = lazy(() => import('../pages/VouchingHold'));
 const Users = lazy(() => import('../pages/Users'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Section44ABPage = lazy(() => import('../pages/Section44ABPage'));
+const Form269Page = lazy(() => import('../pages/Form269Page'));
 
 function lazyPage(Component) {
   return (
@@ -85,6 +86,7 @@ export function AppRoutes() {
           <Route path="/scrutiny/rate-rules" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/rule-book" element={lazyPage(RateRuleBook)} />
           <Route path="/scrutiny/section44ab" element={lazyPage(Section44ABPage)} />
+          <Route path="/scrutiny/form-269" element={lazyPage(Form269Page)} />
           <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />
           <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
 

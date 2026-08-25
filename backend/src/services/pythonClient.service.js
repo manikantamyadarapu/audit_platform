@@ -544,12 +544,6 @@ async function postTdsRules(body, options = {}) {
   }
 }
 
-/**
- * Section 44AB Cash & Bank Audit - multiple file upload
- * @param {Array} cashFiles - Array of file objects with buffer, originalname, mimetype
- * @param {Array} bankFiles - Array of file objects with buffer, originalname, mimetype
- * @param {{ requestId?: string }} [options]
- */
 async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
   const form = new FormData();
 
@@ -578,6 +572,34 @@ async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
     const { data } = await client.post('/api/v1/process/section44ab', form, {
       headers,
     });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * Form 269 combined processing — ledger files from a folder → JSON records.
+ * @param {Array} inputFiles
+ * @param {{ requestId?: string }} [options]
+ */
+async function postForm269Process(inputFiles, options = {}) {
+  const form = new FormData();
+
+  inputFiles.forEach((file, index) => {
+    form.append('input_files', file.buffer, {
+      filename: file.originalname || `input_${index}.xlsx`,
+      contentType: file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/v1/process/form-269', form, { headers });
     return data;
   } catch (err) {
     throw mapAxiosError(err);
@@ -616,4 +638,5 @@ module.exports = {
   getTdsRules,
   postTdsRules,
   postSection44ABValidate,
+  postForm269Process,
 };

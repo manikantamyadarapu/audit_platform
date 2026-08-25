@@ -8,16 +8,31 @@ const ACCEPT = '.xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.s
 const DROPZONE_RADIUS = 18;
 const DROPZONE_STROKE = 1.5;
 
+const EXCEL_NAME = /\.(xlsx|xls|xlsm)$/i;
+
 export function FileUploadZone({
   file,
   onFileChange,
+  files,
+  onFilesChange,
+  multiple = false,
+  directory = false,
   disabled,
   accept = ACCEPT,
+  dropzoneLabel = 'Drag & drop Excel file',
+  dropzoneHint = 'Spreadsheet formats: .xlsx, .xls, .xlsm',
 }) {
   const inputRef = useRef(null);
   const shellRef = useRef(null);
   const [dims, setDims] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const isMulti = Boolean((multiple || directory) && onFilesChange);
+  const selectedFiles = isMulti ? files ?? [] : file ? [file] : [];
+  const folderLabel = selectedFiles[0]?.webkitRelativePath?.split('/')[0] || null;
+
+  const filterExcelFiles = useCallback((fileList) => {
+    return Array.from(fileList || []).filter((item) => EXCEL_NAME.test(item.name || ''));
+  }, []);
 
   useEffect(() => {
     const node = shellRef.current;
@@ -36,15 +51,27 @@ export function FileUploadZone({
     return () => ro.disconnect();
   }, []);
 
+  const emitFiles = useCallback(
+    (fileList) => {
+      const next = directory ? filterExcelFiles(fileList) : Array.from(fileList || []);
+      if (!next.length) return;
+      if (isMulti) {
+        onFilesChange(next);
+        return;
+      }
+      if (onFileChange) onFileChange(next[0]);
+    },
+    [directory, filterExcelFiles, isMulti, onFileChange, onFilesChange]
+  );
+
   const handleDrop = useCallback(
     (e) => {
       e.preventDefault();
       setDragOver(false);
       if (disabled) return;
-      const f = e.dataTransfer.files?.[0];
-      if (f) onFileChange(f);
+      emitFiles(e.dataTransfer.files);
     },
-    [disabled, onFileChange]
+    [disabled, emitFiles]
   );
 
   const inset = DROPZONE_STROKE / 2;
@@ -94,24 +121,50 @@ export function FileUploadZone({
         <input
           ref={inputRef}
           type="file"
-          accept={accept}
+          {...(directory
+            ? { webkitdirectory: '', directory: '' }
+            : { accept })}
+          multiple={isMulti}
           className="hidden"
           disabled={disabled}
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onFileChange(f);
+            emitFiles(e.target.files);
+            e.target.value = '';
           }}
         />
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-teal-400 to-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]">
           <CloudUpload className="h-7 w-7" strokeWidth={1.5} />
         </div>
-        <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">Drag &amp; drop Excel file</p>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
+        <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">{dropzoneLabel}</p>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">{dropzoneHint}</p>
 
-        {file ? (
-          <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]">
-            <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">{file.name}</span>
+        {selectedFiles.length ? (
+          <div className="mx-auto mt-6 flex w-full max-w-xl flex-col gap-2">
+            {directory ? (
+              <div className="flex items-center justify-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]">
+                <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                  {folderLabel || 'Selected folder'}
+                </span>
+              </div>
+            ) : (
+              selectedFiles.map((selected) => (
+                <div
+                  key={`${selected.name}-${selected.lastModified}`}
+                  className="flex items-center justify-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]"
+                >
+                  <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">
+                    {selected.name}
+                  </span>
+                </div>
+              ))
+            )}
+            {isMulti ? (
+              <p className="text-center text-xs text-[var(--color-text-faint)]">
+                {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="mt-6 text-xs text-[var(--color-text-faint)]">No file selected</p>
@@ -124,7 +177,7 @@ export function FileUploadZone({
             disabled={disabled}
             onClick={() => inputRef.current?.click()}
           >
-            Browse files
+            {directory ? 'Browse folder' : 'Browse files'}
           </Button>
         </div>
       </div>

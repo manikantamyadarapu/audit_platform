@@ -35,6 +35,8 @@ from app.routers.tds_01_router import gateway_router as gateway_tds_01_router
 from app.routers.tds_01_router import router as tds_01_router
 from app.routers.section44ab_router import gateway_router as gateway_section44ab_router
 from app.routers.section44ab_router import router as section44ab_router
+from app.routers.form269_router import gateway_router as gateway_form269_router
+from app.routers.form269_router import router as form269_router
 from app.utils.sheet_validation_error import SheetValidationError
 
 settings = get_settings()
@@ -85,6 +87,8 @@ app.include_router(tds_01_router)
 app.include_router(gateway_tds_01_router)
 app.include_router(section44ab_router)
 app.include_router(gateway_section44ab_router)
+app.include_router(form269_router)
+app.include_router(gateway_form269_router)
 
 
 @app.on_event("startup")

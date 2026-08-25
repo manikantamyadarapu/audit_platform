@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 pandas
 openpyxl
+xlrd
 xlsxwriter
 polars
 duckdb
@@ -13,3 +14,4 @@ loguru
 pytest
 httpx
 rapidfuzz
+fpdf2
