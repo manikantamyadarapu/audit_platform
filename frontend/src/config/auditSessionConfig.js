@@ -48,6 +48,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/scrutiny/rate-rule-book',
     localStorageAlias: 'audit_session_rate',
   },
+  'financials-sales-purchases': {
+    pageRoute: '/financials/closing-stock',
+    localStorageAlias: 'audit_session_financials_sales_purchases',
+  },
 };
 
 /** @param {string} registryKey */

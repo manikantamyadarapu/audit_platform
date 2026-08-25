@@ -584,6 +584,91 @@ async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
   }
 }
 
+/**
+ * Financials first audit — Sales and Purchases product pivots.
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} salesFile
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} purchasesFile
+ * @param {{ requestId?: string }} [options]
+ */
+async function postFinancialsPivot(salesFile, purchasesFile, options = {}) {
+  const form = new FormData();
+  form.append('sales_file', salesFile.buffer, {
+    filename: salesFile.originalname || 'sales.xlsx',
+    contentType:
+      salesFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('purchases_file', purchasesFile.buffer, {
+    filename: purchasesFile.originalname || 'purchases.xlsx',
+    contentType:
+      purchasesFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/v1/process/financials/validate', form, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * @param {object} payload
+ * @param {{ requestId?: string }} [options]
+ * @returns {Promise<{ buffer: Buffer, contentType: string, contentDisposition: string }>}
+ */
+async function postFinancialsExportPivots(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const response = await client.post('/api/v1/process/financials/export-pivots', payload, {
+      headers,
+      responseType: 'arraybuffer',
+    });
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        response.headers['content-type'] ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition: response.headers['content-disposition'] || '',
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * @param {object} payload
+ * @param {{ requestId?: string }} [options]
+ * @returns {Promise<{ buffer: Buffer, contentType: string, contentDisposition: string }>}
+ */
+async function postFinancialsExportClosingStock(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const response = await client.post('/api/v1/process/financials/export-closing-stock', payload, {
+      headers,
+      responseType: 'arraybuffer',
+    });
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        response.headers['content-type'] ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition: response.headers['content-disposition'] || '',
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -616,4 +701,7 @@ module.exports = {
   getTdsRules,
   postTdsRules,
   postSection44ABValidate,
+  postFinancialsPivot,
+  postFinancialsExportPivots,
+  postFinancialsExportClosingStock,
 };
