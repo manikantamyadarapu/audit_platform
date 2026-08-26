@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 
 const links = [
   { label: 'Voucher Matching', to: '/vouching/voucher-matching', icon: GitBranch },
@@ -21,6 +22,7 @@ export default function VouchingHub() {
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Vouching</h2>
           <Badge tone="neutral">On hold</Badge>
+          <WatchDemoButton moduleKey="vouching" />
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
           Division navigation stays visible for continuity. Sub-modules open placeholder screens until business resumes

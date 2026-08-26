@@ -19,6 +19,7 @@ import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import {
   exportPartyWiseTdsSummary,
   validatePartyWiseTdsSummary,
@@ -299,6 +300,7 @@ export default function PartyWiseTdsSummaryPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <WatchDemoButton moduleKey="tds-audit" />
               <Button
                 variant="primary"
                 size="md"

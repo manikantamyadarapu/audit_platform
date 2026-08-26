@@ -4,6 +4,7 @@ import { validatePurchaseLedgerExcel } from '../services/purchase.service';
 
 export const SALES_LEDGER_AUDIT_CONFIG = {
   sessionKey: 'sales-ledger',
+  demoModuleKey: 'sales-audit',
   rateRulesReturnTo: '/scrutiny/sales-ledger',
   productAveragesPath: '/sales-audit/product-average-rates',
   exportFilePrefix: 'sales-ledger-exceptions',
@@ -16,6 +17,7 @@ export const SALES_LEDGER_AUDIT_CONFIG = {
 
 export const PURCHASE_LEDGER_AUDIT_CONFIG = {
   sessionKey: 'purchase-ledger',
+  demoModuleKey: 'purchase-audit',
   rateRulesReturnTo: '/scrutiny/purchase/rate-ledger',
   productAveragesPath: '/sales-audit/product-average-rates',
   exportFilePrefix: 'purchase-ledger-exceptions',

@@ -27,6 +27,7 @@ import {
   Receipt,
   Percent,
   FileText,
+  Video,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/auth.service';
 import { cn } from '../../utils/cn';
@@ -460,6 +461,7 @@ export function Sidebar() {
             </NavGroup>
           ) : null}
 
+          <NavItem to="/demo-videos" label="Demo Videos" icon={Video} collapsed={sidebarCollapsed} />
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>

@@ -18,8 +18,8 @@ audit = Section44ABAudit()
 
 @gateway_router.post('/section44ab')
 async def process_section44ab(
-    cash_files: list[UploadFile] = File(...),
-    bank_files: list[UploadFile] = File(...),
+    cash_files: list[UploadFile] | None = File(None),
+    bank_files: list[UploadFile] | None = File(None),
 ) -> dict[str, Any]:
     """
     Process Section 44AB Cash & Bank Audit.
@@ -29,6 +29,8 @@ async def process_section44ab(
     """
     request_id = str(uuid.uuid4())
     log = get_logger(request_id)
+    cash_files = cash_files or []
+    bank_files = bank_files or []
     log.info('Section 44AB audit processing request received')
     log.info(f'Cash files: {[f.filename for f in cash_files]}')
     log.info(f'Bank files: {[f.filename for f in bank_files]}')

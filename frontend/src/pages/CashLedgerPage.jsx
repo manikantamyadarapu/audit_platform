@@ -18,6 +18,7 @@ import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { exportInvalidCashLedgerRows, validateCashLedgerExcel } from '../services/cashLedger.service';
 import { formatNumber, formatPercent } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
@@ -255,6 +256,7 @@ export default function CashLedgerPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <WatchDemoButton moduleKey="cash-ledger" />
               <Button
                 variant="primary"
                 size="md"

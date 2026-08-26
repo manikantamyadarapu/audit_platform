@@ -28,6 +28,13 @@ const upload = multer({
   fileFilter: panFileFilter,
 });
 
+/** Section 44AB allows many cash/bank ledgers in one request. */
+const section44abUpload = multer({
+  storage,
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 60 },
+  fileFilter: panFileFilter,
+});
+
 const singlePanFile = upload.single('file');
 
 const singleSalesReturnFile = upload.single('file');
@@ -46,7 +53,7 @@ const dualPartyWiseTdsFiles = upload.fields([
   { name: 'tdsPayableFile', maxCount: 1 },
 ]);
 
-const section44abFiles = upload.fields([
+const section44abFiles = section44abUpload.fields([
   { name: 'cashFiles', maxCount: 10 },
   { name: 'bankFiles', maxCount: 50 },
 ]);
