@@ -38,7 +38,11 @@ export default function Section44ABPage() {
       setResult(data);
       auditToastSuccess('Section 44AB validation complete');
     } catch (e) {
-      const errorMessage = e.response?.data?.detail || e.message || 'Validation failed';
+      const errorMessage =
+        e.details?.detail ||
+        e.response?.data?.detail ||
+        e.message ||
+        'Validation failed';
       auditToastError(errorMessage);
       setError({ detail: errorMessage });
     } finally {

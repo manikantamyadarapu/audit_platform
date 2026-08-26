@@ -1,4 +1,6 @@
-import axios from 'axios';
+import apiClient, { getApiErrorMessage } from './apiClient';
+import { getAuthToken } from '../utils/authUser';
+import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 
 const API_BASE = '/api/v1/process/section44ab';
 
@@ -8,22 +10,31 @@ const API_BASE = '/api/v1/process/section44ab';
  * @param {File[]} bankFiles - Array of Bank ledger files
  * @returns {Promise<Object>} Section 44AB report results
  */
-export async function validateSection44AB(cashFiles, bankFiles) {
+export async function validateSection44AB(cashFiles = [], bankFiles = []) {
   const formData = new FormData();
 
-  cashFiles.forEach((file) => {
-    formData.append('cash_files', file);
+  (cashFiles || []).forEach((file) => {
+    formData.append('cashFiles', file);
   });
 
-  bankFiles.forEach((file) => {
-    formData.append('bank_files', file);
+  (bankFiles || []).forEach((file) => {
+    formData.append('bankFiles', file);
   });
 
-  const response = await axios.post(API_BASE, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-
-  return response.data;
+  const token = getAuthToken();
+  try {
+    const { data } = await apiClient.post(`${API_BASE}/validate`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    return data;
+  } catch (err) {
+    const msg = getApiErrorMessage(err);
+    const e = new Error(msg);
+    const payload = getProcessingErrorPayload(err);
+    if (payload) e.details = payload;
+    throw e;
+  }
 }

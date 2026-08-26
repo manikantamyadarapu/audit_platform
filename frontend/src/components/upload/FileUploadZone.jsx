@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CloudUpload, FileSpreadsheet } from 'lucide-react';
+import { CloudUpload, FileSpreadsheet, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from '../ui/Button';
 
@@ -11,6 +11,9 @@ const DROPZONE_STROKE = 1.5;
 export function FileUploadZone({
   file,
   onFileChange,
+  files,
+  onFilesChange,
+  multiple = false,
   disabled,
   accept = ACCEPT,
 }) {
@@ -18,6 +21,15 @@ export function FileUploadZone({
   const shellRef = useRef(null);
   const [dims, setDims] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+
+  const isMulti = Boolean(multiple && onFilesChange);
+  const selectedFiles = isMulti
+    ? Array.isArray(files)
+      ? files
+      : []
+    : file
+      ? [file]
+      : [];
 
   useEffect(() => {
     const node = shellRef.current;
@@ -36,15 +48,38 @@ export function FileUploadZone({
     return () => ro.disconnect();
   }, []);
 
+  const applyFiles = useCallback(
+    (incoming) => {
+      const list = Array.from(incoming || []).filter(Boolean);
+      if (!list.length) return;
+      if (isMulti) {
+        onFilesChange([...selectedFiles, ...list]);
+        return;
+      }
+      if (onFileChange) onFileChange(list[0]);
+    },
+    [isMulti, onFileChange, onFilesChange, selectedFiles]
+  );
+
   const handleDrop = useCallback(
     (e) => {
       e.preventDefault();
       setDragOver(false);
       if (disabled) return;
-      const f = e.dataTransfer.files?.[0];
-      if (f) onFileChange(f);
+      applyFiles(e.dataTransfer.files);
     },
-    [disabled, onFileChange]
+    [disabled, applyFiles]
+  );
+
+  const removeAt = useCallback(
+    (index) => {
+      if (!isMulti) {
+        onFileChange?.(null);
+        return;
+      }
+      onFilesChange(selectedFiles.filter((_, i) => i !== index));
+    },
+    [isMulti, onFileChange, onFilesChange, selectedFiles]
   );
 
   const inset = DROPZONE_STROKE / 2;
@@ -95,23 +130,45 @@ export function FileUploadZone({
           ref={inputRef}
           type="file"
           accept={accept}
+          multiple={isMulti}
           className="hidden"
           disabled={disabled}
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onFileChange(f);
+            applyFiles(e.target.files);
+            e.target.value = '';
           }}
         />
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-teal-400 to-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]">
           <CloudUpload className="h-7 w-7" strokeWidth={1.5} />
         </div>
-        <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">Drag &amp; drop Excel file</p>
+        <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">
+          {isMulti ? 'Drag & drop Excel file(s)' : 'Drag & drop Excel file'}
+        </p>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
 
-        {file ? (
-          <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]">
-            <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">{file.name}</span>
+        {selectedFiles.length ? (
+          <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">
+            {selectedFiles.map((f, index) => (
+              <div
+                key={`${f.name}-${f.size}-${index}`}
+                className="flex items-center gap-3 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] px-5 py-3 shadow-[var(--shadow-glass)]"
+              >
+                <FileSpreadsheet className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="min-w-0 flex-1 truncate text-left text-sm font-medium text-[var(--color-text-primary)]">
+                  {f.name}
+                </span>
+                {!disabled ? (
+                  <button
+                    type="button"
+                    onClick={() => removeAt(index)}
+                    className="rounded-full p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+            ))}
           </div>
         ) : (
           <p className="mt-6 text-xs text-[var(--color-text-faint)]">No file selected</p>
