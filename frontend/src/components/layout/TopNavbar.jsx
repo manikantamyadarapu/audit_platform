@@ -27,6 +27,10 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/diamond-gem-rates/, title: 'Diamond & Gemstone Rate Book' },
   { test: /^\/scrutiny\/duplicate-invoice/, title: 'Duplicate Invoice Check' },
   { test: /^\/scrutiny\/vendor-reconciliation/, title: 'Vendor Reconciliation' },
+  { test: /^\/financials$/, title: 'Financials' },
+  { test: /^\/financials\/closing-stock/, title: 'Closing Stock' },
+  { test: /^\/financials\/first-audit/, title: 'Closing Stock' },
+  { test: /^\/financials\//, title: 'Financials' },
   { test: /^\/vouching$/, title: 'Vouching' },
   { test: /^\/vouching\//, title: 'Vouching' },
 ];

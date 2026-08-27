@@ -58,6 +58,11 @@ const section44abFiles = section44abUpload.fields([
   { name: 'bankFiles', maxCount: 50 },
 ]);
 
+const financialsPivotFiles = upload.fields([
+  { name: 'salesFile', maxCount: 1 },
+  { name: 'purchasesFile', maxCount: 1 },
+]);
+
 function handleMulterError(err, req, res, next) {
   if (!err) {
     return next();
@@ -82,5 +87,6 @@ module.exports = {
   dualSalesReturnFiles,
   dualPartyWiseTdsFiles,
   section44abFiles,
+  financialsPivotFiles,
   handleMulterError,
 };

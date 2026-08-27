@@ -18,6 +18,9 @@ const AUDIT_KEYS = {
   PARTY_WISE_TDS: 'PARTY_WISE_TDS',
   TDS_01: 'TDS_01',
   SECTION44AB: 'SECTION44AB',
+  FINANCIALS_PIVOT: 'FINANCIALS_PIVOT',
+  /** Alias — Closing Stock is the live Financials module */
+  CLOSING_STOCK: 'FINANCIALS_PIVOT',
 };
 
 const AUDIT_LABELS = {
@@ -32,6 +35,7 @@ const AUDIT_LABELS = {
   [AUDIT_KEYS.PARTY_WISE_TDS]: 'Party Wise TDS Summary',
   [AUDIT_KEYS.TDS_01]: 'TDS @ 0.1%',
   [AUDIT_KEYS.SECTION44AB]: 'Section 44AB',
+  [AUDIT_KEYS.FINANCIALS_PIVOT]: 'Closing Stock',
 };
 
 const AUDIT_ROUTES = {
@@ -46,6 +50,7 @@ const AUDIT_ROUTES = {
   [AUDIT_KEYS.PARTY_WISE_TDS]: '/scrutiny/tds/party-wise-summary',
   [AUDIT_KEYS.TDS_01]: '/scrutiny/tds/rate-0.1',
   [AUDIT_KEYS.SECTION44AB]: '/scrutiny/section44ab',
+  [AUDIT_KEYS.FINANCIALS_PIVOT]: '/financials/closing-stock',
 };
 
 /** Min exception rows OR percent of total rows to trigger HIGH_EXCEPTION_COUNT */
