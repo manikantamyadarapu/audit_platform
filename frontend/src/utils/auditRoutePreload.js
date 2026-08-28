@@ -13,6 +13,9 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/tds/party-wise-summary': () => import('../pages/PartyWiseTdsSummaryPage'),
   '/scrutiny/tds/rate-0.1': () => import('../pages/TdsRate01Page'),
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),
+  '/financials': () => import('../pages/FinancialsHub'),
+  '/financials/closing-stock': () => import('../pages/FinancialsPivotPage'),
+  '/financials/first-audit': () => import('../pages/FinancialsPivotPage'),
 };
 
 const preloaded = new Set();

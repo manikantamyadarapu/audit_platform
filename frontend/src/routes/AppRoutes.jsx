@@ -11,6 +11,8 @@ const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const ScrutinyHub = lazy(() => import('../pages/ScrutinyHub'));
 const VouchingHub = lazy(() => import('../pages/VouchingHub'));
+const FinancialsHub = lazy(() => import('../pages/FinancialsHub'));
+const FinancialsPivotPage = lazy(() => import('../pages/FinancialsPivotPage'));
 const PanVerification = lazy(() => import('../pages/PanVerification'));
 const GrossWeight = lazy(() => import('../pages/GrossWeight'));
 const PurchaseGrossWeight = lazy(() => import('../pages/PurchaseGrossWeight'));
@@ -58,6 +60,7 @@ export function AppRoutes() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={lazyPage(Dashboard)} />
           <Route path="/scrutiny" element={lazyPage(ScrutinyHub)} />
+          <Route path="/financials" element={lazyPage(FinancialsHub)} />
           <Route path="/vouching" element={lazyPage(VouchingHub)} />
           <Route path="/reports" element={lazyPage(Reports)} />
           <Route path="/settings" element={lazyPage(Settings)} />
@@ -89,6 +92,9 @@ export function AppRoutes() {
           <Route path="/scrutiny/section44ab" element={lazyPage(Section44ABPage)} />
           <Route path="/scrutiny/duplicate-invoice" element={lazyPage(ModuleSoon)} />
           <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
+
+          <Route path="/financials/closing-stock" element={lazyPage(FinancialsPivotPage)} />
+          <Route path="/financials/first-audit" element={<Navigate to="/financials/closing-stock" replace />} />
 
           <Route path="/vouching/voucher-matching" element={lazyPage(VouchingHold)} />
           <Route path="/vouching/ledger-review" element={lazyPage(VouchingHold)} />
