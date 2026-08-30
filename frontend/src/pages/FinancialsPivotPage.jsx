@@ -26,8 +26,8 @@ import { formatNumber } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
+import { useClosingStockMapping } from '../hooks/useClosingStockMapping';
 import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
-import { ensureClosingStockMapping } from '../utils/closingStockProductMapping';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
@@ -39,6 +39,8 @@ function slimSnapshot(data) {
     sheetError: data.sheetError ?? null,
     salesFileName: data.salesFileName ?? null,
     purchasesFileName: data.purchasesFileName ?? null,
+    openingQtyFileName: data.openingQtyFileName ?? null,
+    previousYearFileName: data.previousYearFileName ?? null,
     companyName: data.companyName ?? '',
     address: data.address ?? '',
     financialYear: data.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
@@ -49,18 +51,24 @@ export default function FinancialsPivotPage() {
   const [initialSession] = useState(() => bootstrapAuditSessionState(SESSION_KEY));
   const [salesFile, setSalesFile] = useState(null);
   const [purchasesFile, setPurchasesFile] = useState(null);
+  const [openingQtyFile, setOpeningQtyFile] = useState(null);
+  const [previousYearFile, setPreviousYearFile] = useState(null);
   const [restoredSalesName, setRestoredSalesName] = useState(
     () => initialSession.data?.salesFileName ?? null
   );
   const [restoredPurchasesName, setRestoredPurchasesName] = useState(
     () => initialSession.data?.purchasesFileName ?? null
   );
+  const [restoredOpeningQtyName, setRestoredOpeningQtyName] = useState(
+    () => initialSession.data?.openingQtyFileName ?? null
+  );
+  const [restoredPreviousYearName, setRestoredPreviousYearName] = useState(
+    () => initialSession.data?.previousYearFileName ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [exportingPivots, setExportingPivots] = useState(false);
   const [exportingClosing, setExportingClosing] = useState(false);
-  const [result, setResult] = useState(() =>
-    ensureClosingStockMapping(initialSession.data?.result ?? null)
-  );
+  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
   const [activeCategory, setActiveCategory] = useState(CLOSING_STOCK_CATEGORIES[0]);
   const [companyName, setCompanyName] = useState(() => initialSession.data?.companyName ?? '');
@@ -70,15 +78,19 @@ export default function FinancialsPivotPage() {
   );
 
   const applySession = useCallback((data) => {
-    setResult(ensureClosingStockMapping(data?.result ?? null));
+    setResult(data?.result ?? null);
     setSheetError(data?.sheetError ?? null);
     setRestoredSalesName(data?.salesFileName ?? null);
     setRestoredPurchasesName(data?.purchasesFileName ?? null);
+    setRestoredOpeningQtyName(data?.openingQtyFileName ?? null);
+    setRestoredPreviousYearName(data?.previousYearFileName ?? null);
     setCompanyName(data?.companyName ?? '');
     setAddress(data?.address ?? '');
     setFinancialYear(data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
     setSalesFile(null);
     setPurchasesFile(null);
+    setOpeningQtyFile(null);
+    setPreviousYearFile(null);
   }, []);
 
   const sessionSnapshot = useMemo(
@@ -87,6 +99,8 @@ export default function FinancialsPivotPage() {
       sheetError,
       salesFileName: salesFile?.name ?? restoredSalesName ?? null,
       purchasesFileName: purchasesFile?.name ?? restoredPurchasesName ?? null,
+      openingQtyFileName: openingQtyFile?.name ?? restoredOpeningQtyName ?? null,
+      previousYearFileName: previousYearFile?.name ?? restoredPreviousYearName ?? null,
       companyName,
       address,
       financialYear,
@@ -96,8 +110,12 @@ export default function FinancialsPivotPage() {
       sheetError,
       salesFile?.name,
       purchasesFile?.name,
+      openingQtyFile?.name,
+      previousYearFile?.name,
       restoredSalesName,
       restoredPurchasesName,
+      restoredOpeningQtyName,
+      restoredPreviousYearName,
       companyName,
       address,
       financialYear,
@@ -116,7 +134,11 @@ export default function FinancialsPivotPage() {
   const displaySales = salesFile ?? (restoredSalesName ? { name: restoredSalesName } : null);
   const displayPurchases =
     purchasesFile ?? (restoredPurchasesName ? { name: restoredPurchasesName } : null);
-  const bothReady = Boolean(salesFile && purchasesFile);
+  const displayOpeningQty =
+    openingQtyFile ?? (restoredOpeningQtyName ? { name: restoredOpeningQtyName } : null);
+  const displayPreviousYear =
+    previousYearFile ?? (restoredPreviousYearName ? { name: restoredPreviousYearName } : null);
+  const allReady = Boolean(salesFile && purchasesFile && openingQtyFile && previousYearFile);
 
   const resetResults = useCallback(() => {
     setSheetError(null);
@@ -124,29 +146,37 @@ export default function FinancialsPivotPage() {
   }, []);
 
   const runProcess = useCallback(async () => {
-    if (!salesFile || !purchasesFile) {
-      auditToastError('Upload both the Sales file and the Purchases file before processing.');
+    if (!salesFile || !purchasesFile || !openingQtyFile || !previousYearFile) {
+      auditToastError(
+        'Upload Sales, Purchases, Opening Quantity, and Previous Year Closing files before processing.'
+      );
       return;
     }
     setLoading(true);
     try {
-      const data = await CLOSING_STOCK_AUDIT_CONFIG.process(salesFile, purchasesFile);
+      const data = await CLOSING_STOCK_AUDIT_CONFIG.process(
+        salesFile,
+        purchasesFile,
+        openingQtyFile,
+        previousYearFile
+      );
       if (data && data.success === false) {
         auditToastError(data.detail || 'Processing failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
         setResult(null);
         return;
       }
-      setResult(ensureClosingStockMapping(data));
+      setResult(data);
       setSheetError(null);
       setActiveCategory(CLOSING_STOCK_CATEGORIES[0]);
-      const enriched = ensureClosingStockMapping(data);
       const saved = persist(
         {
-          result: enriched,
+          result: data,
           sheetError: null,
           salesFileName: salesFile.name,
           purchasesFileName: purchasesFile.name,
+          openingQtyFileName: openingQtyFile.name,
+          previousYearFileName: previousYearFile.name,
           companyName,
           address,
           financialYear,
@@ -156,11 +186,15 @@ export default function FinancialsPivotPage() {
       if (saved === false) {
         auditToastError('Results loaded but could not be saved for later.');
       }
-      const mapped = enriched?.summary?.mappedProductCount ?? 0;
-      const unmapped = enriched?.summary?.unmappedProductCount ?? 0;
+      const mapped = data?.summary?.mappedProductCount ?? data?.summary?.productsDisplayed ?? 0;
+      const unmapped = data?.summary?.unmappedProductCount ?? 0;
+      const openingMatched = data?.openingStockReport?.matchedCount
+        ?? data?.openingStockReport?.quantityMatchedCount
+        ?? 0;
       if (mapped > 0) {
         auditToastSuccess(
           `Closing Stock ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
+            (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
             (unmapped ? ` (${unmapped} unmapped)` : '')
         );
       } else {
@@ -177,7 +211,16 @@ export default function FinancialsPivotPage() {
     } finally {
       setLoading(false);
     }
-  }, [salesFile, purchasesFile, persist, companyName, address, financialYear]);
+  }, [
+    salesFile,
+    purchasesFile,
+    openingQtyFile,
+    previousYearFile,
+    persist,
+    companyName,
+    address,
+    financialYear,
+  ]);
 
   const salesPivot = useMemo(
     () => (Array.isArray(result?.salesPivot) ? result.salesPivot : []),
@@ -187,7 +230,34 @@ export default function FinancialsPivotPage() {
     () => (Array.isArray(result?.purchasesPivot) ? result.purchasesPivot : []),
     [result]
   );
-  const mappedResult = useMemo(() => ensureClosingStockMapping(result), [result]);
+  const openingPivot = useMemo(
+    () => (Array.isArray(result?.openingPivot) ? result.openingPivot : []),
+    [result]
+  );
+  const handleRuleBookSynced = useCallback((updated) => {
+    setResult(updated);
+  }, []);
+
+  const { mappedResult, refreshing: remappingRuleBook } = useClosingStockMapping(
+    result,
+    handleRuleBookSynced
+  );
+  const openingStockReport = useMemo(() => {
+    const base =
+      mappedResult?.openingStockReport ||
+      result?.openingStockReport ||
+      mappedResult?.summary?.openingStockReport ||
+      result?.summary?.openingStockReport ||
+      {};
+    const mappedCount =
+      mappedResult?.summary?.productsWithOpeningData ??
+      base.mappedToClosingStockCount ??
+      (Array.isArray(mappedResult?.mappedOpeningProducts)
+        ? mappedResult.mappedOpeningProducts.length
+        : undefined);
+    if (mappedCount == null) return base;
+    return { ...base, mappedToClosingStockCount: mappedCount };
+  }, [mappedResult, result]);
   const summary = mappedResult?.summary ?? {};
   const productsByCategory = useMemo(() => {
     const mapped = mappedResult?.productsByCategory;
@@ -252,7 +322,7 @@ export default function FinancialsPivotPage() {
 
   const handleDownloadClosingStock = useCallback(async () => {
     if (!result) {
-      auditToastError('Process Sales and Purchases first.');
+      auditToastError('Process all four input files first.');
       return;
     }
     setExportingClosing(true);
@@ -260,6 +330,7 @@ export default function FinancialsPivotPage() {
       await CLOSING_STOCK_AUDIT_CONFIG.downloadClosingStock({
         salesPivot,
         purchasesPivot,
+        openingPivot,
         companyName: companyName.trim(),
         address: address.trim(),
         financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
@@ -270,14 +341,18 @@ export default function FinancialsPivotPage() {
     } finally {
       setExportingClosing(false);
     }
-  }, [result, salesPivot, purchasesPivot, companyName, address, financialYear]);
+  }, [result, salesPivot, purchasesPivot, openingPivot, companyName, address, financialYear]);
 
   const handleStartNew = useCallback(() => {
     startNewAudit();
     setSalesFile(null);
     setPurchasesFile(null);
+    setOpeningQtyFile(null);
+    setPreviousYearFile(null);
     setRestoredSalesName(null);
     setRestoredPurchasesName(null);
+    setRestoredOpeningQtyName(null);
+    setRestoredPreviousYearName(null);
     setCompanyName('');
     setAddress('');
     setFinancialYear(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
@@ -299,9 +374,7 @@ export default function FinancialsPivotPage() {
             <Badge tone="amber">{CLOSING_STOCK_AUDIT_CONFIG.badgeLabel}</Badge>
           </div>
           <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-            Upload Sales and Purchases files. Product pivots are mapped to Diamond, Emerald, Pearls,
-            Rubie, and Precious and Semi Precious sheets using the Closing Stock product Rule Book.
-            Qty/Amt values stay blank until calculations are implemented.
+            {CLOSING_STOCK_AUDIT_CONFIG.pageSubtitle}
           </p>
         </div>
       </div>
@@ -323,8 +396,8 @@ export default function FinancialsPivotPage() {
             <div>
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; process</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Both files are required. Sales and Purchases are pivoted independently — they are
-                never combined.
+                Four files are required. Opening Qty from Opening Balance; Opening Amount from each
+                product’s previous-year sheet Closing Balance — then Rule Book layout.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -333,7 +406,7 @@ export default function FinancialsPivotPage() {
                 variant="primary"
                 size="md"
                 loading={loading}
-                disabled={loading || !bothReady}
+                disabled={loading || !allReady}
                 onClick={runProcess}
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -376,6 +449,43 @@ export default function FinancialsPivotPage() {
                 disabled={loading}
               />
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <Package className="h-4 w-4 text-amber-600" />
+                Current Year Opening Quantity
+              </div>
+              <p className="text-xs text-slate-500">
+                Required · Product, SKU, Opening Balance, Receipts, Issues, Closing Balance
+              </p>
+              <FileUploadZone
+                file={displayOpeningQty}
+                onFileChange={(file) => {
+                  resetResults();
+                  setRestoredOpeningQtyName(null);
+                  setOpeningQtyFile(file);
+                }}
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <Table2 className="h-4 w-4 text-sky-600" />
+                Previous Year Closing Stock
+              </div>
+              <p className="text-xs text-slate-500">
+                Required · Closing Stock sheets (Dia / Eme / Prls / Rubi / Prec) with product
+                Closing stock Amt
+              </p>
+              <FileUploadZone
+                file={displayPreviousYear}
+                onFileChange={(file) => {
+                  resetResults();
+                  setRestoredPreviousYearName(null);
+                  setPreviousYearFile(file);
+                }}
+                disabled={loading}
+              />
+            </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <label className="block space-y-1.5 text-sm">
@@ -406,9 +516,9 @@ export default function FinancialsPivotPage() {
               />
             </label>
           </div>
-          {!bothReady ? (
+          {!allReady ? (
             <p className="mt-4 text-sm text-slate-500">
-              Select both Excel files to enable Process.
+              Select all four Excel files to enable Process.
             </p>
           ) : null}
         </CardBody>
@@ -474,8 +584,140 @@ export default function FinancialsPivotPage() {
                 icon={FileSpreadsheet}
                 accent="rose"
               />
+              <AuditSummaryWidget
+                label="Opening matched"
+                value={formatNumber(
+                  openingStockReport.matchedCount ?? openingStockReport.quantityMatchedCount ?? 0
+                )}
+                icon={Package}
+                accent="emerald"
+              />
+              <AuditSummaryWidget
+                label="Opening unmatched"
+                value={formatNumber(
+                  openingStockReport.unmatchedCount
+                    ?? openingStockReport.missingFromPreviousYearFileCount
+                    ?? 0
+                )}
+                icon={Package}
+                accent="rose"
+              />
+              <AuditSummaryWidget
+                label="Opening qty total"
+                value={formatNumber(
+                  openingStockReport.totalOpeningQty ?? summary.openingTotalQuantity ?? 0,
+                  2
+                )}
+                icon={Table2}
+                accent="amber"
+              />
+              <AuditSummaryWidget
+                label="Opening amount total"
+                value={formatNumber(
+                  openingStockReport.totalOpeningAmount ?? summary.openingTotalAmount ?? 0,
+                  2
+                )}
+                icon={FileSpreadsheet}
+                accent="violet"
+              />
             </AuditSummaryGrid>
           </section>
+
+          <Card className="border-sky-200/80 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20">
+            <CardHeader>
+              <h3 className="text-base font-semibold text-sky-950 dark:text-sky-100">
+                Opening Stock mapping
+              </h3>
+              <p className="mt-1 text-sm text-sky-900/80 dark:text-sky-200/80">
+                Qty from the Quantity file Opening Balance. Amount from that product&apos;s
+                Closing stock Amt on the previous-year Closing Stock sheets (not TOTAL rows).
+              </p>
+            </CardHeader>
+            <CardBody className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  [
+                    'Matched (sheet + amount)',
+                    openingStockReport.matchedCount ?? openingStockReport.quantityMatchedCount ?? 0,
+                  ],
+                  [
+                    'Unmatched',
+                    openingStockReport.unmatchedCount
+                      ?? openingStockReport.missingFromPreviousYearFileCount
+                      ?? 0,
+                  ],
+                  [
+                    'Mapped to Closing Stock',
+                    openingStockReport.mappedToClosingStockCount
+                      ?? summary.productsWithOpeningData
+                      ?? 0,
+                  ],
+                  [
+                    'Previous-year product sheets',
+                    openingStockReport.previousYearProductSheetCount ?? 0,
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-sky-200/70 bg-white/80 px-3 py-2.5 dark:border-sky-900/50 dark:bg-slate-900/40"
+                  >
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+                    <p className="mt-1 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">
+                      {formatNumber(value)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-4 text-sm text-slate-700 dark:text-slate-300">
+                <span>
+                  Total Opening Qty:{' '}
+                  <strong className="tabular-nums">
+                    {formatNumber(
+                      openingStockReport.totalOpeningQty ?? summary.openingTotalQuantity ?? 0,
+                      2
+                    )}
+                  </strong>
+                </span>
+                <span>
+                  Total Opening Amount:{' '}
+                  <strong className="tabular-nums">
+                    {formatNumber(
+                      openingStockReport.totalOpeningAmount ?? summary.openingTotalAmount ?? 0,
+                      2
+                    )}
+                  </strong>
+                </span>
+              </div>
+              {(openingStockReport.unmatched || openingStockReport.missingFromPreviousYearFile || [])
+                .length ? (
+                <details className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-amber-950 dark:text-amber-100">
+                    Unmatched products (
+                    {formatNumber(
+                      openingStockReport.unmatchedCount
+                        ?? openingStockReport.missingFromPreviousYearFileCount
+                        ?? 0
+                    )}
+                    )
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-slate-800 dark:text-slate-200">
+                    {(
+                      openingStockReport.unmatched
+                      || openingStockReport.missingFromPreviousYearFile
+                      || []
+                    )
+                      .map(
+                        (row) =>
+                          `${row.product}: ${row.reason || 'unmatched'}${
+                            row.sheetName ? ` (sheet: ${row.sheetName})` : ''
+                          }`
+                      )
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
+            </CardBody>
+          </Card>
 
           {unmappedProducts.length ? (
             <Card className="border-amber-200/80 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
@@ -571,9 +813,19 @@ export default function FinancialsPivotPage() {
                 <div>
                   <h3 className="text-base font-bold text-emerald-700">Closing Stock preview</h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet. Only products listed under
-                    that group in the Rule Book appear here.
+                    Select a category to inspect its Closing Stock sheet. Every Rule Book product
+                    is listed even when Opening/Sales/Purchases measures are blank.
+                    {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
+                  {summary.ruleBookProductTotal ? (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Rule Book: {formatNumber(summary.ruleBookProductTotal)} products · With
+                      Opening: {formatNumber(summary.productsWithOpeningData ?? 0)} · With Sales:{' '}
+                      {formatNumber(summary.productsWithSalesData ?? 0)} · With Purchases:{' '}
+                      {formatNumber(summary.productsWithPurchaseData ?? 0)} · Displayed:{' '}
+                      {formatNumber(summary.productsDisplayed ?? mappedProductCount)}
+                    </p>
+                  ) : null}
                 </div>
                 <div
                   className="flex flex-wrap gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 dark:border-slate-700 dark:bg-slate-900/30"
@@ -623,7 +875,7 @@ export default function FinancialsPivotPage() {
         <EmptyState
           icon={Gem}
           title="Awaiting process"
-          description="Upload Sales and Purchases files, then Process to map products onto Closing Stock category sheets via the Rule Book."
+          description="Upload Sales, Purchases, Opening Quantity, and Previous Year Closing files, then Process."
         />
       ) : null}
     </div>

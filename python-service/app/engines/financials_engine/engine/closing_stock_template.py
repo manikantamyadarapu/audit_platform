@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from io import BytesIO
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+
+from app.utils.indian_number_format import apply_indian_number_format
 
 # Category sheets in workbook order — reused later for per-category calculations.
 CLOSING_STOCK_CATEGORIES: tuple[str, ...] = (
@@ -40,9 +42,16 @@ def subcategory_total_label(category: str, subcategory: str) -> str:
     return 'TOTAL'
 
 
-# Column groups after Particulars (Excel columns start at 2 for first measure).
-# Each leaf is (header_path_tuple, numbering_label).
-# header_path: (level1, level2_or_None, leaf Qty/Amt/%)
+# Semantic measure keys — resolved from LEAF_COLUMNS after definition (never hardcode indices).
+CLOSING_STOCK_MEASURE_PATHS: dict[str, tuple[str | None, str | None, str]] = {
+    'openingQty': ('Opening Stock', None, 'Qty'),
+    'openingAmt': ('Opening Stock', None, 'Amt.'),
+    'purchasesQty': ('Purchases', None, 'Qty'),
+    'purchasesAmt': ('Purchases', None, 'Amt.'),
+    'salesQty': ('Sales', None, 'Qty'),
+    'salesAmt': ('Sales', None, 'Amt.'),
+}
+
 LEAF_COLUMNS: tuple[tuple[tuple[str | None, str | None, str], str], ...] = (
     (('Opening Stock', None, 'Qty'), '1'),
     (('Opening Stock', None, 'Amt.'), '2'),
@@ -76,6 +85,24 @@ LEAF_COLUMNS: tuple[tuple[tuple[str | None, str | None, str], str], ...] = (
     (('Deviation', None, 'Amt.'), '30'),
     (('Deviation', None, '%'), '31'),
 )
+
+
+def _leaf_index_for_path(path: tuple[str | None, str | None, str]) -> int:
+    for idx, (leaf_path, _num) in enumerate(LEAF_COLUMNS):
+        if leaf_path == path:
+            return idx
+    raise KeyError(f'Closing Stock column not found for path {path!r}')
+
+
+def leaf_index_for_measure(measure_key: str) -> int:
+    """Return 0-based LEAF_COLUMNS index for a semantic measure key."""
+    return _leaf_index_for_path(CLOSING_STOCK_MEASURE_PATHS[measure_key])
+
+
+PURCHASES_QTY_LEAF_IDX = leaf_index_for_measure('purchasesQty')
+PURCHASES_AMT_LEAF_IDX = leaf_index_for_measure('purchasesAmt')
+SALES_QTY_LEAF_IDX = leaf_index_for_measure('salesQty')
+SALES_AMT_LEAF_IDX = leaf_index_for_measure('salesAmt')
 
 # Back-compat aliases (tests / callers may still reference these names).
 REPORT_TITLE = closing_stock_report_title('Diamond')
@@ -163,6 +190,26 @@ def _is_summable_leaf(path: tuple[str | None, str | None, str]) -> bool:
     return True
 
 
+def _leaf_excel_column(leaf_idx: int) -> int:
+    return 2 + leaf_idx
+
+
+def _write_product_sales_purchases(
+    ws: Worksheet,
+    row: int,
+    entry: Mapping[str, Any],
+) -> None:
+    """Write Purchases/Sales Qty/Amt for one product row; other columns stay blank."""
+    for measure_key in CLOSING_STOCK_MEASURE_PATHS:
+        value = entry.get(measure_key)
+        if value is None:
+            continue
+        leaf_idx = leaf_index_for_measure(measure_key)
+        cell = ws.cell(row=row, column=_leaf_excel_column(leaf_idx), value=value)
+        apply_indian_number_format(cell)
+        cell.alignment = CENTER
+
+
 def _write_sum_formulas(
     ws: Worksheet,
     row: int,
@@ -170,9 +217,20 @@ def _write_sum_formulas(
     sum_rows: Sequence[int],
     last_col: int,
     fill,
+    entry: Mapping[str, Any] | None = None,
 ) -> None:
-    """Write SUM formulas across summable measure columns for the given product rows."""
-    if not sum_rows:
+    """
+    Write TOTAL / GRAND TOTAL cells.
+
+    Sales/Purchases Qty/Amt use precomputed ROUND(SUM(unrounded)) from ``entry``
+    when present — never Excel SUM of already-rounded product cells.
+    Other summable columns keep SUM formulas for future measures.
+    """
+    measure_leaf_indexes = {
+        leaf_index_for_measure(key): key for key in CLOSING_STOCK_MEASURE_PATHS
+    }
+
+    if not sum_rows and not entry:
         for col in range(2, last_col + 1):
             cell = ws.cell(row=row, column=col, value=None)
             cell.border = THIN
@@ -180,18 +238,27 @@ def _write_sum_formulas(
             cell.alignment = CENTER
         return
 
-    first = min(sum_rows)
-    last = max(sum_rows)
+    first = min(sum_rows) if sum_rows else None
+    last = max(sum_rows) if sum_rows else None
     for idx, (path, _num) in enumerate(LEAF_COLUMNS):
         col = 2 + idx
         cell = ws.cell(row=row, column=col)
         cell.border = THIN
         cell.fill = fill
         cell.alignment = CENTER
-        if _is_summable_leaf(path) and first <= last:
+
+        measure_key = measure_leaf_indexes.get(idx)
+        if measure_key and entry is not None and entry.get(measure_key) is not None:
+            cell.value = entry.get(measure_key)
+            cell.font = TOTAL_FONT
+            apply_indian_number_format(cell)
+            continue
+
+        if _is_summable_leaf(path) and first is not None and last is not None and first <= last:
             letter = get_column_letter(col)
             cell.value = f'=SUM({letter}{first}:{letter}{last})'
             cell.font = TOTAL_FONT
+            apply_indian_number_format(cell)
         else:
             cell.value = None
 
@@ -335,6 +402,7 @@ def _write_closing_stock_sheet(
             continue
 
         if kind == 'product':
+            # Always keep the product row (blank cells when measures are None).
             name_cell = ws.cell(row=row, column=1, value=label)
             name_cell.font = BODY_FONT
             name_cell.alignment = LEFT
@@ -343,6 +411,7 @@ def _write_closing_stock_sheet(
                 cell = ws.cell(row=row, column=col, value=None)
                 cell.border = THIN
                 cell.alignment = CENTER
+            _write_product_sales_purchases(ws, row, entry)
             if label.strip():
                 product_rows_all.append(row)
                 current_subcategory_product_rows.append(row)
@@ -361,6 +430,7 @@ def _write_closing_stock_sheet(
                 sum_rows=current_subcategory_product_rows,
                 last_col=last_col,
                 fill=TOTAL_FILL,
+                entry=entry,
             )
             current_subcategory_product_rows = []
             row += 1
@@ -378,6 +448,7 @@ def _write_closing_stock_sheet(
                 sum_rows=product_rows_all,
                 last_col=last_col,
                 fill=GRAND_TOTAL_FILL,
+                entry=entry,
             )
             row += 1
             continue
@@ -478,10 +549,10 @@ def build_pivots_workbook_bytes(
             ws.cell(row=r_idx, column=1, value=row.get('product')).border = THIN
             qty = ws.cell(row=r_idx, column=2, value=row.get('sumOfQuantity'))
             qty.border = THIN
-            qty.number_format = '#,##0.####'
+            apply_indian_number_format(qty)
             gross = ws.cell(row=r_idx, column=3, value=row.get('sumOfGross'))
             gross.border = THIN
-            gross.number_format = '#,##0.####'
+            apply_indian_number_format(gross)
         ws.column_dimensions['A'].width = 32
         ws.column_dimensions['B'].width = 16
         ws.column_dimensions['C'].width = 16

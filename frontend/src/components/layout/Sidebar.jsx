@@ -27,9 +27,7 @@ import {
   Receipt,
   Percent,
   FileText,
-  Video,
-  PieChart,
-  Table2,
+  FileArchive,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/auth.service';
 import { cn } from '../../utils/cn';
@@ -67,7 +65,7 @@ const tdsItems = [
 ];
 
 const financialsItems = [
-  { to: '/financials/closing-stock', label: 'Closing Stock', icon: Table2 },
+  { to: '/financials/closing-stock', label: 'Closing Stock', icon: Gem },
 ];
 
 const vouchingItems = [
@@ -175,7 +173,7 @@ function NavGroup({ label, icon: Icon, collapsed, open, onToggle, active, badge,
 
     return (
       <NavLink
-        to={to ?? (label === 'Scrutiny' ? '/scrutiny' : label === 'Financials' ? '/financials' : '/vouching')}
+        to={to ?? (label === 'Scrutiny' ? '/scrutiny' : '/vouching')}
         title={label}
         className={({ isActive }) =>
           cn(
@@ -231,7 +229,6 @@ export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, setDivision } = useAppUi();
   const { pathname } = useLocation();
   const ensureScrutiny = () => setDivision('scrutiny');
-  const ensureFinancials = () => setDivision('financials');
 
   const scrutinyActive = pathname.startsWith('/scrutiny');
   const financialsActive = pathname.startsWith('/financials');
@@ -341,7 +338,6 @@ export function Sidebar() {
             open={scrutinyOpen}
             onToggle={() => setScrutinyOpen((v) => !v)}
             active={scrutinyActive}
-            to="/scrutiny"
           >
             <NavGroup
               label="Sales"
@@ -458,25 +454,24 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
-            <NavGroup
-              label="Financials"
-              icon={PieChart}
-              collapsed={sidebarCollapsed}
-              open={financialsOpen}
-              onToggle={() => setFinancialsOpen((v) => !v)}
-              active={financialsActive}
-              to="/financials"
-            >
-              {financialsItems.map((item) => (
-                <NavItem
-                  key={item.to}
-                  {...item}
-                  collapsed={sidebarCollapsed}
-                  nested
-                  onNavigate={ensureFinancials}
-                />
-              ))}
-            </NavGroup>
+          <NavGroup
+            label="Financials"
+            icon={FileArchive}
+            collapsed={sidebarCollapsed}
+            open={financialsOpen}
+            onToggle={() => setFinancialsOpen((v) => !v)}
+            active={financialsActive}
+            to="/financials"
+          >
+            {financialsItems.map((item) => (
+              <NavItem
+                key={item.to}
+                {...item}
+                collapsed={sidebarCollapsed}
+                nested
+              />
+            ))}
+          </NavGroup>
 
           {isAdmin ? (
             <NavGroup
@@ -496,7 +491,6 @@ export function Sidebar() {
             </NavGroup>
           ) : null}
 
-          <NavItem to="/demo-videos" label="Demo Videos" icon={Video} collapsed={sidebarCollapsed} />
           <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>

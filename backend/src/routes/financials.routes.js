@@ -25,5 +25,11 @@ router.post(
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   financialsController.exportClosingStockTemplate
 );
+router.get('/closing-stock-rule-book', financialsController.getClosingStockRuleBook);
+router.post(
+  '/remap-closing-stock',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.remapClosingStock
+);
 
 module.exports = router;

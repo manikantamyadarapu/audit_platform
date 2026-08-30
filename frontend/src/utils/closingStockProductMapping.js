@@ -1,22 +1,71 @@
 /**
- * Client-side Closing Stock Rule Book mapper (mirrors python product_rule_book.py).
- * Used when API/session result lacks productsByCategory, and as a display fallback.
+ * Closing Stock mapping helpers — Rule Book always loaded from the Python service API.
+ * Do not bundle a static Rule Book JSON in the frontend.
  */
 
 import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
-import ruleBookRaw from '../config/closingStockProductRuleBook.json';
 
 const SHEET_KEY_ALIASES = {
   Precious: 'Precious and Semi Precious',
 };
 
+const UNICODE_WS = /[\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000\ufeff]+/g;
+
 function normProduct(name) {
-  return String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
+  let text = String(name || '');
+  text = text.normalize('NFKC');
+  text = text.replace(UNICODE_WS, ' ').trim().toLowerCase();
+  return text.split(/\s+/).filter(Boolean).join(' ');
+}
+
+function matchKey(name) {
+  return normProduct(name).replace(/[^a-z0-9]+/g, '');
+}
+
+function coreSkuKey(name) {
+  const tokens = normProduct(name)
+    .replace(/\./g, ' ')
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z0-9]+/g, ''))
+    .filter(Boolean);
+  if (!tokens.length) return '';
+  let digitIdx = -1;
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    if (/\d/.test(tokens[i])) {
+      digitIdx = i;
+      break;
+    }
+  }
+  if (digitIdx < 0) return tokens.join('');
+  let start = digitIdx;
+  if (start > 0 && /^[a-z]+$/.test(tokens[start - 1])) {
+    start -= 1;
+  }
+  return tokens.slice(start).join('');
+}
+
+function coerceMeasure(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+/** Round Closing Stock Amount values only (half up). Quantity is never rounded. */
+function roundClosingStockAmount(value) {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Math.round(num);
+}
+
+function normalizeRuleBookRaw(ruleBookRaw) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(ruleBookRaw || {})) {
+    const sheet = SHEET_KEY_ALIASES[key] || key;
+    if (normalized[sheet] && key !== sheet) continue;
+    normalized[sheet] = value;
+  }
+  return normalized;
 }
 
 function cleanProductList(entries) {
@@ -33,14 +82,9 @@ function cleanProductList(entries) {
   return cleaned;
 }
 
-function loadRuleBook() {
-  const normalized = {};
-  for (const [key, value] of Object.entries(ruleBookRaw || {})) {
-    const sheet = SHEET_KEY_ALIASES[key] || key;
-    if (normalized[sheet] && key !== sheet) continue;
-    normalized[sheet] = value;
-  }
-
+/** Build normalized book keyed by sheet name from API Rule Book payload. */
+export function normalizeRuleBookFromApi(ruleBookRaw) {
+  const normalized = normalizeRuleBookRaw(ruleBookRaw);
   const book = {};
   for (const category of CLOSING_STOCK_CATEGORIES) {
     const entries = normalized[category];
@@ -61,48 +105,6 @@ function loadRuleBook() {
   return book;
 }
 
-function buildLocationIndex(book) {
-  const index = {};
-  for (const category of CLOSING_STOCK_CATEGORIES) {
-    const section = book[category];
-    if (Array.isArray(section)) {
-      for (const product of section) {
-        const key = normProduct(product);
-        if (key && !index[key]) index[key] = { category, subcategory: null };
-      }
-    } else if (section && typeof section === 'object') {
-      for (const [subcategory, products] of Object.entries(section)) {
-        for (const product of products) {
-          const key = normProduct(product);
-          if (key && !index[key]) index[key] = { category, subcategory };
-        }
-      }
-    }
-  }
-  return index;
-}
-
-function resolveLocation(product, index) {
-  const key = normProduct(product);
-  if (!key) return null;
-  if (index[key]) return index[key];
-
-  const tokens = key.split(' ').filter(Boolean);
-  let best = null;
-  let bestLen = 0;
-  for (const [ruleKey, loc] of Object.entries(index)) {
-    const ruleTokens = ruleKey.split(' ').filter(Boolean);
-    const n = ruleTokens.length;
-    if (!n || n > tokens.length) continue;
-    const suffix = tokens.slice(-n);
-    if (suffix.every((t, i) => t === ruleTokens[i]) && n > bestLen) {
-      best = loc;
-      bestLen = n;
-    }
-  }
-  return best;
-}
-
 function subcategoryTotalLabel(category, subcategory) {
   if (category === 'Precious and Semi Precious') {
     return `TOTAL - ${String(subcategory || '').trim().toUpperCase()}`;
@@ -110,160 +112,411 @@ function subcategoryTotalLabel(category, subcategory) {
   return 'TOTAL';
 }
 
-function matchedInOrder(ruleProducts, matchedDisplayByNorm) {
-  const ordered = [];
-  const claimed = new Set();
-  for (const ruleName of ruleProducts) {
-    const ruleKey = normProduct(ruleName);
-    if (matchedDisplayByNorm[ruleKey]) {
-      ordered.push(matchedDisplayByNorm[ruleKey]);
-      claimed.add(ruleKey);
-      continue;
-    }
-    const ruleTokens = ruleKey.split(' ').filter(Boolean);
-    for (const [matchedKey, matchedName] of Object.entries(matchedDisplayByNorm)) {
-      if (claimed.has(matchedKey)) continue;
-      const matchedTokens = matchedKey.split(' ').filter(Boolean);
-      const n = ruleTokens.length;
-      if (!n || n > matchedTokens.length) continue;
-      const suffix = matchedTokens.slice(-n);
-      if (suffix.every((t, i) => t === ruleTokens[i])) {
-        ordered.push(matchedName);
-        claimed.add(matchedKey);
-        break;
+function buildLocationIndex(book) {
+  const entries = [];
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const section = book[category];
+    if (Array.isArray(section)) {
+      for (const product of section) {
+        entries.push({ product, category, subcategory: null });
+      }
+    } else if (section && typeof section === 'object') {
+      for (const [subcategory, products] of Object.entries(section)) {
+        for (const product of products) {
+          entries.push({ product, category, subcategory });
+        }
       }
     }
   }
-  return ordered;
+
+  const coreOwners = {};
+  for (const entry of entries) {
+    const core = coreSkuKey(entry.product);
+    if (!core) continue;
+    if (!coreOwners[core]) coreOwners[core] = [];
+    coreOwners[core].push(entry);
+  }
+
+  const index = {};
+  for (const entry of entries) {
+    const loc = { category: entry.category, subcategory: entry.subcategory };
+    for (const key of [normProduct(entry.product), matchKey(entry.product)]) {
+      if (key && !index[key]) index[key] = loc;
+    }
+    const core = coreSkuKey(entry.product);
+    if (core && coreOwners[core]?.length === 1 && !index[core]) {
+      index[core] = loc;
+    }
+  }
+  return index;
 }
 
-function buildLayout(category, ruleSection, matchedDisplayByNorm) {
+function resolveLocation(product, index) {
+  for (const key of [normProduct(product), matchKey(product), coreSkuKey(product)]) {
+    if (key && index[key]) return index[key];
+  }
+  return null;
+}
+
+function emptyMeasures() {
+  return { sumOfQuantity: null, sumOfGross: null };
+}
+
+function accumulateMeasures(entry, { qty, gross }) {
+  if (qty !== null) entry.sumOfQuantity = (entry.sumOfQuantity ?? 0) + qty;
+  if (gross !== null) entry.sumOfGross = (entry.sumOfGross ?? 0) + gross;
+}
+
+function iterRuleBookProducts(book) {
+  const rows = [];
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const section = book[category];
+    if (Array.isArray(section)) {
+      for (const product of section) rows.push({ category, subcategory: null, product });
+    } else if (section && typeof section === 'object') {
+      for (const [subcategory, products] of Object.entries(section)) {
+        for (const product of products) {
+          rows.push({ category, subcategory, product });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+/** Map normalized pivot keys → Rule Book display name (one claim per pivot row). */
+function buildRuleBookMatchLookup(book) {
+  const products = iterRuleBookProducts(book);
+  const coreOwners = {};
+  for (const { product: displayName } of products) {
+    const core = coreSkuKey(displayName);
+    if (!core) continue;
+    if (!coreOwners[core]) coreOwners[core] = [];
+    coreOwners[core].push(displayName);
+  }
+
+  const lookup = {};
+  for (const { product: displayName } of products) {
+    for (const key of [normProduct(displayName), matchKey(displayName)]) {
+      if (key && !lookup[key]) lookup[key] = displayName;
+    }
+    const core = coreSkuKey(displayName);
+    if (core && coreOwners[core]?.length === 1 && !lookup[core]) {
+      lookup[core] = displayName;
+    }
+  }
+  return lookup;
+}
+
+function resolveRuleBookDisplayName(pivotProduct, lookup) {
+  for (const key of [
+    normProduct(pivotProduct),
+    matchKey(pivotProduct),
+    coreSkuKey(pivotProduct),
+  ]) {
+    if (key && lookup[key]) return lookup[key];
+  }
+  return null;
+}
+
+/** Claim each pivot row once and SUM onto the matching Rule Book display name. */
+function aggregatePivotByRuleBook(rows, lookup) {
+  const byDisplay = {};
+  const unmappedRows = [];
+
+  for (const row of rows || []) {
+    const productName = String(row?.product || '').trim();
+    if (!productName) continue;
+    const qty = coerceMeasure(row?.sumOfQuantity);
+    const gross = coerceMeasure(row?.sumOfGross);
+    const displayName = resolveRuleBookDisplayName(productName, lookup);
+    if (!displayName) {
+      unmappedRows.push({ product: productName, sumOfQuantity: qty, sumOfGross: gross });
+      continue;
+    }
+    const entry = byDisplay[displayName] || emptyMeasures();
+    accumulateMeasures(entry, { qty, gross });
+    byDisplay[displayName] = entry;
+  }
+
+  return { byDisplay, unmappedRows };
+}
+
+function rawProductMeasures(ruleBookProduct, salesByDisplay, purchasesByDisplay, openingByDisplay = {}) {
+  const sales = salesByDisplay[ruleBookProduct] || {};
+  const purchases = purchasesByDisplay[ruleBookProduct] || {};
+  const opening = openingByDisplay[ruleBookProduct] || {};
+  return {
+    openingQty: opening.sumOfQuantity ?? null,
+    openingAmt: opening.sumOfGross ?? null,
+    purchasesQty: purchases.sumOfQuantity ?? null,
+    purchasesAmt: purchases.sumOfGross ?? null,
+    salesQty: sales.sumOfQuantity ?? null,
+    salesAmt: sales.sumOfGross ?? null,
+  };
+}
+
+function displayProductMeasures(raw) {
+  return {
+    openingQty: raw.openingQty ?? null,
+    openingAmt: roundClosingStockAmount(raw.openingAmt),
+    purchasesQty: raw.purchasesQty ?? null,
+    purchasesAmt: roundClosingStockAmount(raw.purchasesAmt),
+    salesQty: raw.salesQty ?? null,
+    salesAmt: roundClosingStockAmount(raw.salesAmt),
+  };
+}
+
+/** TOTAL from unrounded originals: Amt = ROUND(SUM); Qty = SUM with no rounding. */
+function totalMeasuresFromRaw(rawRows) {
+  const totals = {};
+  const present = new Set();
+  for (const raw of rawRows || []) {
+    for (const key of [
+      'openingQty',
+      'openingAmt',
+      'purchasesQty',
+      'purchasesAmt',
+      'salesQty',
+      'salesAmt',
+    ]) {
+      const value = coerceMeasure(raw?.[key]);
+      if (value === null) continue;
+      totals[key] = (totals[key] ?? 0) + value;
+      present.add(key);
+    }
+  }
+  return {
+    openingQty: present.has('openingQty') ? totals.openingQty : null,
+    openingAmt: present.has('openingAmt') ? roundClosingStockAmount(totals.openingAmt) : null,
+    purchasesQty: present.has('purchasesQty') ? totals.purchasesQty : null,
+    purchasesAmt: present.has('purchasesAmt') ? roundClosingStockAmount(totals.purchasesAmt) : null,
+    salesQty: present.has('salesQty') ? totals.salesQty : null,
+    salesAmt: present.has('salesAmt') ? roundClosingStockAmount(totals.salesAmt) : null,
+  };
+}
+
+function buildLayoutFromRuleBook(
+  category,
+  ruleSection,
+  salesByDisplay,
+  purchasesByDisplay,
+  openingByDisplay = {}
+) {
   const layout = [];
   const flatProducts = [];
+  const sheetRaw = [];
 
   if (ruleSection && typeof ruleSection === 'object' && !Array.isArray(ruleSection)) {
     for (const [subcategory, ruleProducts] of Object.entries(ruleSection)) {
-      const matched = matchedInOrder(ruleProducts, matchedDisplayByNorm);
-      if (!matched.length) continue;
+      const products = Array.isArray(ruleProducts) ? ruleProducts : [];
+      if (!products.length) continue;
       layout.push({ kind: 'subcategory', label: subcategory, subcategory });
-      for (const product of matched) {
-        layout.push({ kind: 'product', label: product, subcategory });
+      const subcategoryRaw = [];
+      for (const product of products) {
+        const raw = rawProductMeasures(
+          product,
+          salesByDisplay,
+          purchasesByDisplay,
+          openingByDisplay
+        );
+        const display = displayProductMeasures(raw);
+        layout.push({
+          kind: 'product',
+          label: product,
+          subcategory,
+          ...display,
+        });
         flatProducts.push(product);
+        subcategoryRaw.push(raw);
+        sheetRaw.push(raw);
       }
       layout.push({
         kind: 'subcategory_total',
         label: subcategoryTotalLabel(category, subcategory),
         subcategory,
+        ...totalMeasuresFromRaw(subcategoryRaw),
       });
     }
   } else if (Array.isArray(ruleSection)) {
-    for (const product of matchedInOrder(ruleSection, matchedDisplayByNorm)) {
-      layout.push({ kind: 'product', label: product, subcategory: null });
+    for (const product of ruleSection) {
+      const raw = rawProductMeasures(
+        product,
+        salesByDisplay,
+        purchasesByDisplay,
+        openingByDisplay
+      );
+      const display = displayProductMeasures(raw);
+      layout.push({
+        kind: 'product',
+        label: product,
+        subcategory: null,
+        ...display,
+      });
       flatProducts.push(product);
+      sheetRaw.push(raw);
     }
   }
 
-  if (flatProducts.length || layout.length) {
-    layout.push({ kind: 'grand_total', label: 'GRAND TOTAL', subcategory: null });
+  if (flatProducts.length) {
+    layout.push({
+      kind: 'grand_total',
+      label: 'GRAND TOTAL',
+      subcategory: null,
+      ...totalMeasuresFromRaw(sheetRaw),
+    });
   }
   return { layout, flatProducts };
 }
 
 /**
- * Map Sales + Purchases pivots through the Rule Book.
- * @param {{ salesPivot?: object[], purchasesPivot?: object[] }} pivots
+ * Map pivots using a Rule Book object from the API (never a bundled static copy).
  */
-export function mapPivotsToClosingStockCategories({
+export function mapPivotsWithRuleBook({
   salesPivot = [],
   purchasesPivot = [],
-} = {}) {
-  const book = loadRuleBook();
-  const index = buildLocationIndex(book);
-  const productsByCategory = Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  const layoutByCategory = Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  const matchedDisplay = Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, {}]));
+  openingPivot = [],
+  ruleBook,
+  ruleBookMeta = {},
+}) {
+  const book = normalizeRuleBookFromApi(ruleBook);
+  const matchLookup = buildRuleBookMatchLookup(book);
+  const { byDisplay: salesByDisplay, unmappedRows: unmappedSalesRows } = aggregatePivotByRuleBook(
+    salesPivot,
+    matchLookup
+  );
+  const { byDisplay: purchasesByDisplay, unmappedRows: unmappedPurchasesRows } =
+    aggregatePivotByRuleBook(purchasesPivot, matchLookup);
+  const { byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
+    aggregatePivotByRuleBook(openingPivot, matchLookup);
+
   const unmappedProducts = [];
   const unmappedProductDetails = [];
   const unmappedSeen = new Set();
 
-  function route(rows, source) {
+  for (const [rows, source] of [
+    [unmappedSalesRows, 'Sales'],
+    [unmappedPurchasesRows, 'Purchases'],
+    [unmappedOpeningRows, 'Opening'],
+  ]) {
     for (const row of rows || []) {
       const productName = String(row?.product || '').trim();
       if (!productName) continue;
-      const loc = resolveLocation(productName, index);
-      if (!loc) {
-        const key = normProduct(productName);
-        if (!unmappedSeen.has(key)) {
-          unmappedSeen.add(key);
-          unmappedProducts.push(productName);
-          unmappedProductDetails.push({ product: productName, source });
-          // eslint-disable-next-line no-console
-          console.warn(`Unmapped product: ${productName} Source: ${source}`);
-        }
-        continue;
-      }
       const key = normProduct(productName);
-      if (!matchedDisplay[loc.category][key]) {
-        matchedDisplay[loc.category][key] = productName;
-      }
+      if (unmappedSeen.has(key)) continue;
+      unmappedSeen.add(key);
+      unmappedProducts.push(productName);
+      unmappedProductDetails.push({ product: productName, source });
     }
   }
 
-  route(salesPivot, 'Sales');
-  route(purchasesPivot, 'Purchases');
-
+  const productsByCategory = {};
+  const layoutByCategory = {};
   for (const category of CLOSING_STOCK_CATEGORIES) {
-    const { layout, flatProducts } = buildLayout(
+    const { layout, flatProducts } = buildLayoutFromRuleBook(
       category,
       book[category],
-      matchedDisplay[category]
+      salesByDisplay,
+      purchasesByDisplay,
+      openingByDisplay
     );
     layoutByCategory[category] = layout;
     productsByCategory[category] = flatProducts;
   }
+
+  const productsDisplayed = CLOSING_STOCK_CATEGORIES.reduce(
+    (total, category) => total + (productsByCategory[category]?.length || 0),
+    0
+  );
+
+  const mappedOpeningProducts = Object.entries(openingByDisplay).map(([name, measures]) => ({
+    product: name,
+    openingQty: measures?.sumOfQuantity ?? null,
+    openingAmt: measures?.sumOfGross ?? null,
+  }));
+  const productsWithOpeningData = mappedOpeningProducts.filter(
+    (row) => row.openingQty != null || row.openingAmt != null
+  ).length;
+  const productsWithSalesData = Object.keys(salesByDisplay).length;
+  const productsWithPurchaseData = Object.keys(purchasesByDisplay).length;
 
   return {
     productsByCategory,
     layoutByCategory,
     unmappedProducts,
     unmappedProductDetails,
-    categories: [...CLOSING_STOCK_CATEGORIES],
+    mappedOpeningProducts,
+    unmappedOpeningProducts: unmappedOpeningRows.map((row) => String(row?.product || '').trim()).filter(Boolean),
+    ruleBookFingerprint: ruleBookMeta.ruleBookFingerprint ?? null,
+    ruleBookProductCounts: ruleBookMeta.ruleBookProductCounts ?? {},
+    ruleBookProductTotal: ruleBookMeta.ruleBookProductTotal ?? productsDisplayed,
+    productsDisplayed,
+    productsWithOpeningData,
+    productsWithSalesData,
+    productsWithPurchaseData,
+    closingStockCategories: [...CLOSING_STOCK_CATEGORIES],
   };
 }
 
 /** @param {object|null|undefined} result */
-export function ensureClosingStockMapping(result) {
-  if (!result || typeof result !== 'object') return result;
-  const salesPivot = Array.isArray(result.salesPivot) ? result.salesPivot : [];
-  const purchasesPivot = Array.isArray(result.purchasesPivot) ? result.purchasesPivot : [];
-  const existing = result.productsByCategory;
-  const mappedCount = CLOSING_STOCK_CATEGORIES.reduce((total, category) => {
-    const rows = existing?.[category];
-    return total + (Array.isArray(rows) ? rows.length : 0);
-  }, 0);
+export function resultRuleBookFingerprint(result) {
+  if (!result) return null;
+  return result.ruleBookFingerprint ?? result.summary?.ruleBookFingerprint ?? null;
+}
 
-  if (mappedCount > 0 && result.layoutByCategory) {
-    return result;
-  }
-  if (!salesPivot.length && !purchasesPivot.length) {
-    return result;
-  }
-
-  const mapped = mapPivotsToClosingStockCategories({ salesPivot, purchasesPivot });
+/** Merge server remap payload into an existing process result (keeps pivots). */
+export function mergeRemapIntoResult(result, remapPayload) {
+  if (!result || !remapPayload) return result;
+  const mappedOpening =
+    remapPayload.mappedOpeningProducts ?? result.mappedOpeningProducts ?? [];
+  const openingReport = {
+    ...(result.openingStockReport || result.summary?.openingStockReport || {}),
+    mappedToClosingStock: mappedOpening,
+    mappedToClosingStockCount: Array.isArray(mappedOpening) ? mappedOpening.length : 0,
+  };
   return {
     ...result,
-    productsByCategory: mapped.productsByCategory,
-    layoutByCategory: mapped.layoutByCategory,
-    unmappedProducts: mapped.unmappedProducts,
-    unmappedProductDetails: mapped.unmappedProductDetails,
-    closingStockCategories: mapped.categories,
+    // Replace mapping fields entirely — never keep stale product/layout lists.
+    productsByCategory: remapPayload.productsByCategory,
+    layoutByCategory: remapPayload.layoutByCategory,
+    salesByCategory: remapPayload.salesByCategory ?? result.salesByCategory,
+    purchasesByCategory: remapPayload.purchasesByCategory ?? result.purchasesByCategory,
+    unmappedProducts: remapPayload.unmappedProducts,
+    unmappedProductDetails: remapPayload.unmappedProductDetails,
+    mappedOpeningProducts: mappedOpening,
+    unmappedOpeningProducts:
+      remapPayload.unmappedOpeningProducts ?? result.unmappedOpeningProducts,
+    openingStockReport: openingReport,
+    ruleBookFingerprint: remapPayload.ruleBookFingerprint,
+    ruleBookProductCounts: remapPayload.ruleBookProductCounts,
+    ruleBookProductTotal: remapPayload.ruleBookProductTotal,
+    productsDisplayed:
+      remapPayload.productsDisplayed ?? remapPayload.summary?.productsDisplayed,
+    closingStockCategories: remapPayload.closingStockCategories,
     summary: {
       ...(result.summary || {}),
-      mappedProductCount: CLOSING_STOCK_CATEGORIES.reduce(
-        (total, category) => total + (mapped.productsByCategory[category]?.length || 0),
-        0
-      ),
-      unmappedProductCount: mapped.unmappedProducts.length,
+      ...(remapPayload.summary || {}),
+      openingStockReport: {
+        ...(result.summary?.openingStockReport || {}),
+        ...openingReport,
+      },
+      productsWithOpeningData:
+        remapPayload.summary?.productsWithOpeningData ??
+        result.summary?.productsWithOpeningData,
+      mappedProductCount:
+        remapPayload.summary?.productsDisplayed ??
+        remapPayload.productsDisplayed ??
+        result.summary?.mappedProductCount,
+      productsDisplayed:
+        remapPayload.summary?.productsDisplayed ??
+        remapPayload.productsDisplayed ??
+        result.summary?.productsDisplayed,
+      ruleBookFingerprint: remapPayload.ruleBookFingerprint,
+      ruleBookProductCounts: remapPayload.ruleBookProductCounts,
+      ruleBookProductTotal: remapPayload.ruleBookProductTotal,
+      unmappedProductCount: Array.isArray(remapPayload.unmappedProducts)
+        ? remapPayload.unmappedProducts.length
+        : remapPayload.summary?.unmappedProductCount,
     },
   };
 }

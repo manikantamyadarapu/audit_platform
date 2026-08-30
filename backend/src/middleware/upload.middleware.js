@@ -24,7 +24,7 @@ function panFileFilter(_req, file, cb) {
 
 const upload = multer({
   storage,
-  limits: { fileSize: UPLOAD_MAX_BYTES, files: 2 },
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 4 },
   fileFilter: panFileFilter,
 });
 
@@ -61,6 +61,8 @@ const section44abFiles = section44abUpload.fields([
 const financialsPivotFiles = upload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'purchasesFile', maxCount: 1 },
+  { name: 'openingQtyFile', maxCount: 1 },
+  { name: 'previousYearFile', maxCount: 1 },
 ]);
 
 function handleMulterError(err, req, res, next) {

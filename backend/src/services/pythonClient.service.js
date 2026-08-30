@@ -590,7 +590,13 @@ async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
  * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} purchasesFile
  * @param {{ requestId?: string }} [options]
  */
-async function postFinancialsPivot(salesFile, purchasesFile, options = {}) {
+async function postFinancialsPivot(
+  salesFile,
+  purchasesFile,
+  openingQtyFile,
+  previousYearFile,
+  options = {}
+) {
   const form = new FormData();
   form.append('sales_file', salesFile.buffer, {
     filename: salesFile.originalname || 'sales.xlsx',
@@ -601,6 +607,18 @@ async function postFinancialsPivot(salesFile, purchasesFile, options = {}) {
     filename: purchasesFile.originalname || 'purchases.xlsx',
     contentType:
       purchasesFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('opening_qty_file', openingQtyFile.buffer, {
+    filename: openingQtyFile.originalname || 'opening-quantity.xlsx',
+    contentType:
+      openingQtyFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('previous_year_file', previousYearFile.buffer, {
+    filename: previousYearFile.originalname || 'previous-year-closing.xlsx',
+    contentType:
+      previousYearFile.mimetype ||
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 
@@ -701,6 +719,41 @@ async function postFinancialsExportClosingStock(payload, options = {}) {
   }
 }
 
+/**
+ * @param {{ requestId?: string }} [options]
+ * @returns {Promise<object>}
+ */
+async function getClosingStockRuleBook(options = {}) {
+  const headers = {};
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.get('/api/process/financials/closing-stock-rule-book', {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+/**
+ * @param {object} payload
+ * @param {{ requestId?: string }} [options]
+ * @returns {Promise<object>}
+ */
+async function postFinancialsRemapClosingStock(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/process/financials/remap-closing-stock', payload, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -736,4 +789,6 @@ module.exports = {
   postFinancialsPivot,
   postFinancialsExportPivots,
   postFinancialsExportClosingStock,
+  getClosingStockRuleBook,
+  postFinancialsRemapClosingStock,
 };

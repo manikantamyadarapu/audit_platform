@@ -1,5 +1,7 @@
 /** Shared Closing Stock layout — mirrors python closing_stock_template. */
 
+import { formatIndianNumber } from '../utils/format';
+
 export const CLOSING_STOCK_CATEGORIES = Object.freeze([
   'Diamond',
   'Emerald',
@@ -19,10 +21,6 @@ export function closingStockReportTitle(category) {
 /** @deprecated Prefer closingStockReportTitle(category) */
 export const CLOSING_STOCK_REPORT_TITLE = closingStockReportTitle('Diamond');
 
-/**
- * header_path: [level1, level2|null, leaf Qty/Amt/%]
- * @type {ReadonlyArray<readonly [readonly [string | null, string | null, string], string]>}
- */
 export const CLOSING_STOCK_LEAF_COLUMNS = Object.freeze([
   [['Opening Stock', null, 'Qty'], '1'],
   [['Opening Stock', null, 'Amt.'], '2'],
@@ -56,6 +54,180 @@ export const CLOSING_STOCK_LEAF_COLUMNS = Object.freeze([
   [['Deviation', null, 'Amt.'], '30'],
   [['Deviation', null, '%'], '31'],
 ]);
+
+/** Semantic measure keys → header path [level1, level2, leaf]. */
+export const CLOSING_STOCK_MEASURE_PATHS = Object.freeze({
+  openingQty: ['Opening Stock', null, 'Qty'],
+  openingAmt: ['Opening Stock', null, 'Amt.'],
+  purchasesQty: ['Purchases', null, 'Qty'],
+  purchasesAmt: ['Purchases', null, 'Amt.'],
+  salesQty: ['Sales', null, 'Qty'],
+  salesAmt: ['Sales', null, 'Amt.'],
+});
+
+function pathsEqual(a, b) {
+  return a[0] === b[0] && (a[1] ?? null) === (b[1] ?? null) && a[2] === b[2];
+}
+
+/** @param {keyof typeof CLOSING_STOCK_MEASURE_PATHS} measureKey */
+export function leafIndexForMeasure(measureKey) {
+  const target = CLOSING_STOCK_MEASURE_PATHS[measureKey];
+  const idx = CLOSING_STOCK_LEAF_COLUMNS.findIndex(([path]) => pathsEqual(path, target));
+  if (idx < 0) {
+    throw new Error(`Closing Stock column not found for measure ${measureKey}`);
+  }
+  return idx;
+}
+
+/** @type {Readonly<Record<number, keyof typeof CLOSING_STOCK_MEASURE_PATHS>>} */
+export const MEASURE_FIELD_BY_LEAF = Object.freeze(
+  Object.fromEntries(
+    Object.keys(CLOSING_STOCK_MEASURE_PATHS).map((measureKey) => [
+      leafIndexForMeasure(measureKey),
+      measureKey,
+    ])
+  )
+);
+
+/** @deprecated Use leafIndexForMeasure — kept for callers that referenced numeric indices. */
+export const CLOSING_STOCK_FILLED_LEAF_INDICES = Object.freeze({
+  openingQty: leafIndexForMeasure('openingQty'),
+  openingAmt: leafIndexForMeasure('openingAmt'),
+  purchasesQty: leafIndexForMeasure('purchasesQty'),
+  purchasesAmt: leafIndexForMeasure('purchasesAmt'),
+  salesQty: leafIndexForMeasure('salesQty'),
+  salesAmt: leafIndexForMeasure('salesAmt'),
+});
+
+const MEASURE_FIELD_BY_LEAF_LOCAL = MEASURE_FIELD_BY_LEAF;
+
+function sumMeasureField(rows, field) {
+  let total = 0;
+  let any = false;
+  for (const row of rows) {
+    const value = row?.[field];
+    if (value !== null && value !== undefined && value !== '') {
+      total += Number(value);
+      any = true;
+    }
+  }
+  return any ? total : null;
+}
+
+function sumProductMeasures(productRows) {
+  return {
+    openingQty: sumMeasureField(productRows, 'openingQty'),
+    openingAmt: sumMeasureField(productRows, 'openingAmt'),
+    purchasesQty: sumMeasureField(productRows, 'purchasesQty'),
+    purchasesAmt: sumMeasureField(productRows, 'purchasesAmt'),
+    salesQty: sumMeasureField(productRows, 'salesQty'),
+    salesAmt: sumMeasureField(productRows, 'salesAmt'),
+  };
+}
+
+/**
+ * @param {number|null|undefined} value
+ * @returns {string}
+ */
+export function formatClosingStockMeasure(value) {
+  if (value === null || value === undefined || value === '') {
+    return '\u00a0';
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '\u00a0';
+  // Indian grouping — Qty may keep decimals; Amounts are whole numbers.
+  return formatIndianNumber(num, { minDecimals: 0, maxDecimals: 4, fallback: '\u00a0' });
+}
+
+/**
+ * @param {Array<{ kind?: string, label?: string }>|null|undefined} layoutRows
+ * @param {string[]} products
+ * @returns {Array<{ kind: string, label: string, purchasesQty?: number|null, purchasesAmt?: number|null, salesQty?: number|null, salesAmt?: number|null }>}
+ */
+export function buildClosingStockPreviewRows(layoutRows, products = []) {
+  if (Array.isArray(layoutRows) && layoutRows.length) {
+    const enriched = [];
+    const sheetProducts = [];
+    let subcategoryProducts = [];
+
+    for (const row of layoutRows) {
+      const kind = row?.kind || 'product';
+      if (kind === 'product') {
+        const productRow = {
+          kind: 'product',
+          label: String(row?.label || ''),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+        };
+        enriched.push(productRow);
+        if (productRow.label.trim()) {
+          sheetProducts.push(productRow);
+          subcategoryProducts.push(productRow);
+        }
+        continue;
+      }
+      if (kind === 'subcategory_total') {
+        // Prefer server TOTAL = ROUND(SUM(unrounded)); never re-sum rounded product cells.
+        enriched.push({
+          kind: 'subcategory_total',
+          label: String(row?.label || 'TOTAL'),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+        });
+        subcategoryProducts = [];
+        continue;
+      }
+      if (kind === 'grand_total') {
+        enriched.push({
+          kind: 'grand_total',
+          label: String(row?.label || 'GRAND TOTAL'),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+        });
+        continue;
+      }
+      enriched.push({
+        kind,
+        label: String(row?.label || ''),
+      });
+      if (kind === 'subcategory') {
+        subcategoryProducts = [];
+      }
+    }
+    return enriched;
+  }
+  const productRows = (products || [])
+    .map((p) => String(p || '').trim())
+    .filter(Boolean)
+    .map((label) => ({ kind: 'product', label }));
+  if (!productRows.length) {
+    return [{ kind: 'product', label: '' }];
+  }
+  return [...productRows, { kind: 'grand_total', label: 'GRAND TOTAL' }];
+}
+
+/**
+ * @param {object|null|undefined} row
+ * @param {number} leafIndex
+ * @returns {string}
+ */
+export function closingStockCellValue(row, leafIndex) {
+  const field = MEASURE_FIELD_BY_LEAF_LOCAL[leafIndex];
+  if (!field || !row) return '\u00a0';
+  return formatClosingStockMeasure(row[field]);
+}
 
 /**
  * Merge consecutive equal non-empty labels (matches Excel template grouping).
@@ -91,25 +263,7 @@ export function getClosingStockHeaderRows() {
   return { level1, level2, leaves, numbers };
 }
 
-/**
- * Build preview Particulars rows from API layout (or flat products fallback).
- * @param {Array<{ kind?: string, label?: string }>|null|undefined} layoutRows
- * @param {string[]} products
- * @returns {Array<{ kind: string, label: string }>}
- */
-export function buildClosingStockPreviewRows(layoutRows, products = []) {
-  if (Array.isArray(layoutRows) && layoutRows.length) {
-    return layoutRows.map((row) => ({
-      kind: row?.kind || 'product',
-      label: String(row?.label || ''),
-    }));
-  }
-  const productRows = (products || [])
-    .map((p) => String(p || '').trim())
-    .filter(Boolean)
-    .map((label) => ({ kind: 'product', label }));
-  if (!productRows.length) {
-    return [{ kind: 'product', label: '' }];
-  }
-  return [...productRows, { kind: 'grand_total', label: 'GRAND TOTAL' }];
+/** @deprecated Use buildClosingStockPreviewRows — kept for backwards compatibility */
+export function buildClosingStockPreviewRowsLegacy(layoutRows, products = []) {
+  return buildClosingStockPreviewRows(layoutRows, products);
 }

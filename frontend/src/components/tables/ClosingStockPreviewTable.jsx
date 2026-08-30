@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import {
   CLOSING_STOCK_CATEGORIES,
   buildClosingStockPreviewRows,
   buildGroupedHeaderCells,
+  closingStockCellValue,
   closingStockReportTitle,
   getClosingStockHeaderRows,
 } from '../../config/closingStockLayout';
@@ -86,6 +88,38 @@ export function ClosingStockPreviewTable({
   const rows = buildClosingStockPreviewRows(layoutRows, products);
   const reportTitle = closingStockReportTitle(category);
 
+  // TEMP debug: confirm Opening/Sales/Purchases values reach product rows.
+  useEffect(() => {
+    const previewRows = buildClosingStockPreviewRows(layoutRows, products);
+    const sample = previewRows.find(
+      (row) =>
+        row.kind === 'product' &&
+        (row.openingQty != null ||
+          row.openingAmt != null ||
+          row.salesQty != null ||
+          row.salesAmt != null ||
+          row.purchasesQty != null ||
+          row.purchasesAmt != null)
+    );
+    // eslint-disable-next-line no-console
+    console.debug('[ClosingStockPreview]', {
+      category,
+      sample: sample
+        ? {
+            label: sample.label,
+            openingQty: sample.openingQty,
+            openingAmt: sample.openingAmt,
+            col3: closingStockCellValue(sample, 2),
+            col4: closingStockCellValue(sample, 3),
+            col22: closingStockCellValue(sample, 21),
+            col23: closingStockCellValue(sample, 22),
+            openingQtyCell: closingStockCellValue(sample, 0),
+            openingAmtCell: closingStockCellValue(sample, 1),
+          }
+        : null,
+    });
+  }, [category, layoutRows, products]);
+
   return (
     <div className="space-y-3">
       <div className="text-center">
@@ -136,9 +170,9 @@ export function ClosingStockPreviewTable({
               return (
                 <tr key={`${row.kind}-${row.label}-${rowIdx}`} className={styles.tr}>
                   <td className={styles.label}>{row.label}</td>
-                  {numbers.map((num) => (
+                  {numbers.map((num, leafIdx) => (
                     <td key={`${rowIdx}-${num}`} className={styles.cell}>
-                      {'\u00a0'}
+                      {closingStockCellValue(row, leafIdx)}
                     </td>
                   ))}
                 </tr>
@@ -148,8 +182,9 @@ export function ClosingStockPreviewTable({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        Qty/Amt columns stay blank until calculations are filled. TOTAL / GRAND TOTAL rows sum
-        numeric columns (not Average Rate or Deviation %).
+        Every Rule Book product stays in the sheet even when all columns are blank. Purchases
+        (cols 3–4) and Sales (cols 22–23) fill from pivots when matched; other columns stay blank
+        until calculations are added. TOTAL / GRAND TOTAL rows sum filled measures.
       </p>
     </div>
   );
