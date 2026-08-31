@@ -18,6 +18,7 @@
     { "name": "PAN" },
     { "name": "Gross weight" },
     { "name": "Sales" },
+    { "name": "Financials" },
     { "name": "Rate rules" },
     { "name": "Diamond rate rules" },
     { "name": "Sales return" },
@@ -1119,6 +1120,212 @@
         }
       }
     },
+    "/api/v1/process/financials/validate": {
+      "post": {
+        "operationId": "financialsValidate",
+        "tags": ["Financials"],
+        "summary": "Process Financials Closing Stock inputs",
+        "description": "Upload the four Financials workbooks. Sales and Purchases require Product, Quantity, and Gross Amount headers. Opening Quantity and Previous Year Closing Stock are used for Opening Stock matching. Financials workbooks must be .xlsx or .xlsm.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id; returned in the JSON response."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["salesFile", "purchasesFile", "openingQtyFile", "previousYearFile"],
+                "properties": {
+                  "salesFile": { "type": "string", "format": "binary" },
+                  "purchasesFile": { "type": "string", "format": "binary" },
+                  "openingQtyFile": { "type": "string", "format": "binary" },
+                  "previousYearFile": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Financials pivots and Opening Stock mapping",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FinancialsPivotResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, empty workbook, or unsupported workbook type",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+          },
+          "401": { "description": "Access token required" },
+          "422": {
+            "description": "Workbook header or sheet validation error",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+          },
+          "502": {
+            "description": "Python service unavailable",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/process/financials/export-pivots": {
+      "post": {
+        "operationId": "financialsExportPivots",
+        "tags": ["Financials"],
+        "summary": "Export Financials Sales and Purchases pivots",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excel workbook containing Sales Pivot and Purchases Pivot sheets",
+            "headers": {
+              "Content-Disposition": {
+                "schema": { "type": "string", "example": "attachment; filename=\"Financials-Sales-Purchases-Pivots-20260831112500.xlsx\"" }
+              },
+              "x-request-id": { "schema": { "type": "string", "format": "uuid" } }
+            },
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "401": { "description": "Access token required" },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/process/financials/export-closing-stock": {
+      "post": {
+        "operationId": "financialsExportClosingStock",
+        "tags": ["Financials"],
+        "summary": "Export the Financials Closing Stock workbook",
+        "description": "Builds the five-sheet Closing Stock working paper from the current Rule Book and the supplied pivot rows. Only currently available Opening, Purchases, and Sales measures are represented.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FinancialsClosingStockExportRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Five-sheet Closing Stock Excel workbook",
+            "headers": {
+              "Content-Disposition": {
+                "schema": { "type": "string", "example": "attachment; filename=\"Closing-Stock-Jewels-20260831112500.xlsx\"" }
+              },
+              "x-request-id": { "schema": { "type": "string", "format": "uuid" } }
+            },
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "401": { "description": "Access token required" },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/process/financials/closing-stock-rule-book": {
+      "get": {
+        "operationId": "financialsGetClosingStockRuleBook",
+        "tags": ["Financials"],
+        "summary": "Get the current Closing Stock Rule Book",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id; returned in the JSON response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule Book and fingerprint",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialsRuleBookResponse" } } }
+          },
+          "401": { "description": "Access token required" },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
+    "/api/v1/process/financials/remap-closing-stock": {
+      "post": {
+        "operationId": "financialsRemapClosingStock",
+        "tags": ["Financials"],
+        "summary": "Remap Financials pivots using the current Rule Book",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional correlation id; returned in the JSON response."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated Closing Stock mapping",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialsMappingResponse" } } }
+          },
+          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
+          "401": { "description": "Access token required" },
+          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "authLogin",
@@ -1255,6 +1462,98 @@
       }
     },
     "schemas": {
+      "FinancialsPivotRow": {
+        "type": "object",
+        "properties": {
+          "product": { "type": "string" },
+          "sumOfQuantity": { "type": "number", "nullable": true },
+          "sumOfGross": { "type": "number", "nullable": true }
+        }
+      },
+      "FinancialsExportPivotsRequest": {
+        "type": "object",
+        "properties": {
+          "salesPivot": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "default": []
+          },
+          "purchasesPivot": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "default": []
+          },
+          "openingPivot": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "default": []
+          }
+        }
+      },
+      "FinancialsClosingStockExportRequest": {
+        "allOf": [
+          { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" },
+          {
+            "type": "object",
+            "properties": {
+              "products": { "type": "array", "items": { "type": "string" }, "default": [] },
+              "companyName": { "type": "string", "default": "" },
+              "address": { "type": "string", "default": "" },
+              "financialYear": { "type": "string", "default": "AY 2025-26" }
+            }
+          }
+        ]
+      },
+      "FinancialsPivotResponse": {
+        "type": "object",
+        "required": ["success", "fileType", "auditKey", "salesPivot", "purchasesPivot", "openingPivot", "requestId"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "fileType": { "type": "string", "example": "closing_stock" },
+          "auditKey": { "type": "string", "example": "FINANCIALS_PIVOT" },
+          "requestId": { "type": "string", "format": "uuid" },
+          "auditRunId": { "type": "integer", "nullable": true },
+          "salesPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
+          "purchasesPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
+          "openingPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
+          "validatedOpening": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "openingStockReport": { "type": "object", "additionalProperties": true },
+          "productsByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+          "layoutByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
+          "unmappedProducts": { "type": "array", "items": { "type": "string" } },
+          "summary": { "type": "object", "additionalProperties": true },
+          "executionTiming": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "FinancialsMappingResponse": {
+        "type": "object",
+        "required": ["success", "productsByCategory", "layoutByCategory", "requestId"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "requestId": { "type": "string", "format": "uuid" },
+          "productsByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+          "layoutByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
+          "salesByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
+          "purchasesByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
+          "unmappedProducts": { "type": "array", "items": { "type": "string" } },
+          "unmappedOpeningProducts": { "type": "array", "items": { "type": "string" } },
+          "mappedOpeningProducts": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "summary": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "FinancialsRuleBookResponse": {
+        "type": "object",
+        "required": ["ruleBook", "ruleBookFingerprint", "ruleBookProductCounts", "categories", "requestId"],
+        "properties": {
+          "ruleBook": { "type": "object", "additionalProperties": true },
+          "ruleBookFingerprint": { "type": "string" },
+          "ruleBookProductCounts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "ruleBookProductTotal": { "type": "integer" },
+          "ruleBookMtime": { "type": "number", "nullable": true },
+          "categories": { "type": "array", "items": { "type": "string" } },
+          "requestId": { "type": "string", "format": "uuid" }
+        }
+      },
       "DashboardErrorBody": {
         "type": "object",
         "properties": {

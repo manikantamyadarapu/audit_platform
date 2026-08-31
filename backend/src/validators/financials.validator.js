@@ -23,6 +23,7 @@ function validatePivotArray(value, field) {
  *   ok: true,
  *   salesPivot: object[],
  *   purchasesPivot: object[],
+ *   openingPivot: object[],
  * } | { ok: false, detail: string }}
  */
 function validateFinancialsExportPivotsBody(body) {
@@ -34,11 +35,14 @@ function validateFinancialsExportPivotsBody(body) {
   if (!sales.ok) return sales;
   const purchases = validatePivotArray(body.purchasesPivot, 'purchasesPivot');
   if (!purchases.ok) return purchases;
+  const opening = validatePivotArray(body.openingPivot, 'openingPivot');
+  if (!opening.ok) return opening;
 
   return {
     ok: true,
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
+    openingPivot: opening.rows,
   };
 }
 
@@ -49,6 +53,7 @@ function validateFinancialsExportPivotsBody(body) {
  *   products: string[],
  *   salesPivot: object[],
  *   purchasesPivot: object[],
+ *   openingPivot: object[],
  *   companyName: string,
  *   address: string,
  *   financialYear: string,
@@ -67,6 +72,8 @@ function validateClosingStockExportBody(body) {
   if (!sales.ok) return sales;
   const purchases = validatePivotArray(body.purchasesPivot, 'purchasesPivot');
   if (!purchases.ok) return purchases;
+  const opening = validatePivotArray(body.openingPivot, 'openingPivot');
+  if (!opening.ok) return opening;
 
   const companyName = body.companyName == null ? '' : String(body.companyName);
   const address = body.address == null ? '' : String(body.address);
@@ -80,6 +87,7 @@ function validateClosingStockExportBody(body) {
     products: Array.isArray(body.products) ? body.products.map(String) : [],
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
+    openingPivot: opening.rows,
     companyName,
     address,
     financialYear,

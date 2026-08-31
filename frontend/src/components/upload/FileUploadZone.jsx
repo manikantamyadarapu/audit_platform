@@ -16,6 +16,7 @@ export function FileUploadZone({
   multiple = false,
   disabled,
   accept = ACCEPT,
+  formatHint = 'Spreadsheet formats: .xlsx, .xls, .xlsm',
 }) {
   const inputRef = useRef(null);
   const shellRef = useRef(null);
@@ -144,7 +145,7 @@ export function FileUploadZone({
         <p className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">
           {isMulti ? 'Drag & drop Excel file(s)' : 'Drag & drop Excel file'}
         </p>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">Spreadsheet formats: .xlsx, .xls, .xlsm</p>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">{formatHint}</p>
 
         {selectedFiles.length ? (
           <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">

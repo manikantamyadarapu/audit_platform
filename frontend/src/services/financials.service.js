@@ -2,15 +2,25 @@ import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 
 /**
- * Closing Stock audit — Sales & Purchases product pivots.
+ * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing.
  * @param {File} salesFile
  * @param {File} purchasesFile
+ * @param {File} openingQtyFile
+ * @param {File} previousYearFile
  * @param {AbortSignal} [signal]
  */
-export async function processFinancialsPivot(salesFile, purchasesFile, signal) {
+export async function processFinancialsPivot(
+  salesFile,
+  purchasesFile,
+  openingQtyFile,
+  previousYearFile,
+  signal
+) {
   const form = new FormData();
   form.append('salesFile', salesFile);
   form.append('purchasesFile', purchasesFile);
+  form.append('openingQtyFile', openingQtyFile);
+  form.append('previousYearFile', previousYearFile);
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -71,13 +81,12 @@ export async function downloadFinancialsPivots(payload, signal) {
 }
 
 /**
- * Download blank Closing Stock working-paper template (five category sheets).
- * Products are mapped to sheets on the server via the Closing Stock Rule Book.
- * Prefer sending sales/purchases pivots so qty/gross can be routed by category.
+ * Download Closing Stock working-paper template (five category sheets).
  * @param {{
  *   products?: string[],
  *   salesPivot?: object[],
  *   purchasesPivot?: object[],
+ *   openingPivot?: object[],
  *   companyName?: string,
  *   address?: string,
  *   financialYear?: string,
@@ -95,6 +104,30 @@ export async function downloadClosingStockTemplate(payload, signal) {
       }
     );
     return downloadBlobResponse(res, 'Closing-Stock-Jewels.xlsx');
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
+/** Live Rule Book JSON + fingerprint from Python service (single source of truth). */
+export async function fetchClosingStockRuleBook(signal) {
+  try {
+    const { data } = await apiClient.get('/api/v1/process/financials/closing-stock-rule-book', {
+      signal,
+    });
+    return data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
+/** Rebuild Closing Stock mapping from current Rule Book + stored pivots. */
+export async function remapClosingStockFromPivots(payload, signal) {
+  try {
+    const { data } = await apiClient.post('/api/v1/process/financials/remap-closing-stock', payload, {
+      signal,
+    });
+    return data;
   } catch (err) {
     throw new Error(getApiErrorMessage(err), { cause: err });
   }

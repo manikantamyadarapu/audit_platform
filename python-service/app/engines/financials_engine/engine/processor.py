@@ -1,4 +1,4 @@
-"""Financials Closing Stock processor (dual-file orchestration wrapper)."""
+"""Financials Closing Stock processor (four-file orchestration wrapper)."""
 
 from __future__ import annotations
 
@@ -12,9 +12,8 @@ class FinancialsClosingStockProcessor:
     """
     Thin processor wrapper matching other HASS audit engines.
 
-    Closing Stock is dual-file (Sales + Purchases), so it is invoked from the
-    financials router rather than the single-file engine factory. Calculation
-    rules remain stubbed in ``rules.py`` until the Rule Book logic is plugged in.
+    Closing Stock is multi-file (Sales + Purchases + Opening Quantity +
+    Previous Year Closing), invoked from the financials router.
     """
 
     def __init__(self) -> None:
@@ -31,6 +30,10 @@ class FinancialsClosingStockProcessor:
         sales_bytes: bytes,
         purchases_file_name: str,
         purchases_bytes: bytes,
+        opening_qty_file_name: str = '',
+        opening_qty_bytes: bytes | None = None,
+        previous_year_file_name: str = '',
+        previous_year_bytes: bytes | None = None,
     ) -> dict[str, Any]:
         try:
             return self.audit.process(
@@ -38,6 +41,10 @@ class FinancialsClosingStockProcessor:
                 sales_bytes,
                 purchases_file_name,
                 purchases_bytes,
+                opening_qty_file_name=opening_qty_file_name,
+                opening_qty_bytes=opening_qty_bytes,
+                previous_year_file_name=previous_year_file_name,
+                previous_year_bytes=previous_year_bytes,
             )
         except Exception as exc:
             self._log.error('Closing Stock processing failed: {}', exc)

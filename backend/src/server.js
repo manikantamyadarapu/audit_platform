@@ -5,12 +5,23 @@ const logger = require('./utils/logger');
 config.validateConfigOrThrow();
 
 const app = require('./app');
+const prisma = require('./lib/prisma');
 const { startAuditSessionCleanupJob } = require('./jobs/auditSessionCleanup.job');
 
 const server = http.createServer(app);
 
+async function warmDatabaseConnection() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info('Database connection ready');
+  } catch (err) {
+    logger.error('Database connection failed on startup', { message: err.message });
+  }
+}
+
 server.listen(config.PORT, () => {
   logger.info('Node backend listening', { port: config.PORT, env: config.NODE_ENV });
+  warmDatabaseConnection();
   startAuditSessionCleanupJob();
 });
 

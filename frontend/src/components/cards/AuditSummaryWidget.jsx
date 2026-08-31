@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
+import { formatIndianNumber } from '../../utils/format';
 import {
   isPercentMetric,
   parseMetricNumber,
@@ -55,8 +56,11 @@ function formatAnimatedValue(rawValue, animated, isPercent) {
   if (rawValue == null || rawValue === '—' || rawValue === 'View') return rawValue;
   if (animated == null) return rawValue;
   if (isPercent) return `${animated.toFixed(1)}%`;
-  if (String(rawValue).includes('.')) return animated.toLocaleString(undefined, { maximumFractionDigits: 1 });
-  return Math.round(animated).toLocaleString();
+  const hasFraction = String(rawValue).includes('.');
+  return formatIndianNumber(animated, {
+    minDecimals: hasFraction ? 1 : 0,
+    maxDecimals: hasFraction ? 4 : 0,
+  });
 }
 
 /**
