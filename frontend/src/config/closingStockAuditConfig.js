@@ -17,6 +17,9 @@ export const CLOSING_STOCK_AUDIT_CONFIG = {
   processOverlayLabel: 'Building pivots and mapping Opening Stock…',
   badgeLabel: 'Opening Stock + Pivots',
   defaultFinancialYear: 'AY 2025-26',
+  fileAccept:
+    '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12',
+  fileFormatHint: 'Spreadsheet formats: .xlsx, .xlsm',
   process: processFinancialsPivot,
   downloadPivots: downloadFinancialsPivots,
   downloadClosingStock: downloadClosingStockTemplate,

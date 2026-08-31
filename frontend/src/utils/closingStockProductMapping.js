@@ -112,52 +112,6 @@ function subcategoryTotalLabel(category, subcategory) {
   return 'TOTAL';
 }
 
-function buildLocationIndex(book) {
-  const entries = [];
-  for (const category of CLOSING_STOCK_CATEGORIES) {
-    const section = book[category];
-    if (Array.isArray(section)) {
-      for (const product of section) {
-        entries.push({ product, category, subcategory: null });
-      }
-    } else if (section && typeof section === 'object') {
-      for (const [subcategory, products] of Object.entries(section)) {
-        for (const product of products) {
-          entries.push({ product, category, subcategory });
-        }
-      }
-    }
-  }
-
-  const coreOwners = {};
-  for (const entry of entries) {
-    const core = coreSkuKey(entry.product);
-    if (!core) continue;
-    if (!coreOwners[core]) coreOwners[core] = [];
-    coreOwners[core].push(entry);
-  }
-
-  const index = {};
-  for (const entry of entries) {
-    const loc = { category: entry.category, subcategory: entry.subcategory };
-    for (const key of [normProduct(entry.product), matchKey(entry.product)]) {
-      if (key && !index[key]) index[key] = loc;
-    }
-    const core = coreSkuKey(entry.product);
-    if (core && coreOwners[core]?.length === 1 && !index[core]) {
-      index[core] = loc;
-    }
-  }
-  return index;
-}
-
-function resolveLocation(product, index) {
-  for (const key of [normProduct(product), matchKey(product), coreSkuKey(product)]) {
-    if (key && index[key]) return index[key];
-  }
-  return null;
-}
-
 function emptyMeasures() {
   return { sumOfQuantity: null, sumOfGross: null };
 }

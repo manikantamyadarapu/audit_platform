@@ -75,6 +75,8 @@ function notifyFinancialsPivotFailure(req, err) {
   const fileNames = [
     req.files?.salesFile?.[0]?.originalname,
     req.files?.purchasesFile?.[0]?.originalname,
+    req.files?.openingQtyFile?.[0]?.originalname,
+    req.files?.previousYearFile?.[0]?.originalname,
   ]
     .filter(Boolean)
     .join(', ');
