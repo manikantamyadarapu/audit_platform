@@ -5,7 +5,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -25,6 +25,11 @@ from app.utils.sheet_validation_error import SheetValidationError
 router = APIRouter(prefix='/api/process', tags=['financials'])
 gateway_router = APIRouter(prefix='/api/v1/process', tags=['financials'])
 processor = FinancialsClosingStockProcessor()
+
+
+def _request_id(request: Request) -> str:
+    incoming = request.headers.get('x-request-id')
+    return incoming.strip() if incoming and incoming.strip() else str(uuid.uuid4())
 
 
 class PivotRow(BaseModel):
@@ -54,8 +59,8 @@ async def _process_financials_pivot(
     purchases_file: UploadFile,
     opening_qty_file: UploadFile,
     previous_year_file: UploadFile,
+    request_id: str,
 ) -> dict[str, Any]:
-    request_id = str(uuid.uuid4())
     log = get_logger(request_id)
     log.info(
         'Financials pivot request: sales={} purchases={} opening_qty={} previous_year={}',
@@ -99,8 +104,10 @@ async def _process_financials_pivot(
         )
         response['requestId'] = request_id
         return response
-    except SheetValidationError:
-        raise
+    except SheetValidationError as exc:
+        content = exc.to_response()
+        content['requestId'] = request_id
+        return JSONResponse(status_code=422, content=content)
     except Exception as exc:
         log.error('Financials pivot failed: {}', exc)
         return JSONResponse(
@@ -112,6 +119,7 @@ async def _process_financials_pivot(
 @router.post('/financials')
 @gateway_router.post('/financials/validate')
 async def process_financials_pivot(
+    request: Request,
     sales_file: UploadFile = File(...),
     purchases_file: UploadFile = File(...),
     opening_qty_file: UploadFile = File(...),
@@ -122,13 +130,17 @@ async def process_financials_pivot(
         purchases_file,
         opening_qty_file,
         previous_year_file,
+        _request_id(request),
     )
 
 
 @router.post('/financials/export-pivots')
 @gateway_router.post('/financials/export-pivots')
-async def export_financials_pivots(payload: ExportPivotsRequest) -> StreamingResponse:
-    request_id = str(uuid.uuid4())
+async def export_financials_pivots(
+    request: Request,
+    payload: ExportPivotsRequest,
+) -> StreamingResponse:
+    request_id = _request_id(request)
     log = get_logger(request_id)
     log.info(
         'Financials pivots export: sales={} purchases={}',
@@ -144,22 +156,31 @@ async def export_financials_pivots(payload: ExportPivotsRequest) -> StreamingRes
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
     )
 
 
 @router.get('/financials/closing-stock-rule-book')
 @gateway_router.get('/financials/closing-stock-rule-book')
-async def get_closing_stock_rule_book() -> dict[str, Any]:
+async def get_closing_stock_rule_book(request: Request) -> dict[str, Any]:
     """Current Rule Book JSON (single source of truth) plus content fingerprint."""
-    return get_closing_stock_rule_book_payload()
+    return {
+        **get_closing_stock_rule_book_payload(),
+        'requestId': _request_id(request),
+    }
 
 
 @router.post('/financials/remap-closing-stock')
 @gateway_router.post('/financials/remap-closing-stock')
-async def remap_closing_stock(payload: ExportPivotsRequest) -> dict[str, Any]:
+async def remap_closing_stock(
+    request: Request,
+    payload: ExportPivotsRequest,
+) -> dict[str, Any]:
     """Rebuild Closing Stock mapping from current Rule Book + pivot rows."""
-    request_id = str(uuid.uuid4())
+    request_id = _request_id(request)
     log = get_logger(request_id)
     mapped = map_pivots_to_closing_stock_categories(
         sales_pivot=[row.model_dump() for row in payload.salesPivot],
@@ -194,8 +215,11 @@ async def remap_closing_stock(payload: ExportPivotsRequest) -> dict[str, Any]:
 
 @router.post('/financials/export-closing-stock')
 @gateway_router.post('/financials/export-closing-stock')
-async def export_closing_stock_template(payload: ExportClosingStockRequest) -> StreamingResponse:
-    request_id = str(uuid.uuid4())
+async def export_closing_stock_template(
+    request: Request,
+    payload: ExportClosingStockRequest,
+) -> StreamingResponse:
+    request_id = _request_id(request)
     log = get_logger(request_id)
 
     mapped = map_pivots_to_closing_stock_categories(
@@ -224,5 +248,8 @@ async def export_closing_stock_template(payload: ExportClosingStockRequest) -> S
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
     )

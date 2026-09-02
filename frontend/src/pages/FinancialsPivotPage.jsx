@@ -425,6 +425,8 @@ export default function FinancialsPivotPage() {
               <p className="text-xs text-slate-500">Required · Product, Quantity, Gross Amount</p>
               <FileUploadZone
                 file={displaySales}
+                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
                 onFileChange={(file) => {
                   resetResults();
                   setRestoredSalesName(null);
@@ -441,6 +443,8 @@ export default function FinancialsPivotPage() {
               <p className="text-xs text-slate-500">Required · Product, Quantity, Gross Amount</p>
               <FileUploadZone
                 file={displayPurchases}
+                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
                 onFileChange={(file) => {
                   resetResults();
                   setRestoredPurchasesName(null);
@@ -459,6 +463,8 @@ export default function FinancialsPivotPage() {
               </p>
               <FileUploadZone
                 file={displayOpeningQty}
+                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
                 onFileChange={(file) => {
                   resetResults();
                   setRestoredOpeningQtyName(null);
@@ -478,6 +484,8 @@ export default function FinancialsPivotPage() {
               </p>
               <FileUploadZone
                 file={displayPreviousYear}
+                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
                 onFileChange={(file) => {
                   resetResults();
                   setRestoredPreviousYearName(null);

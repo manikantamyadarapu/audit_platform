@@ -22,10 +22,37 @@ function panFileFilter(_req, file, cb) {
   return cb(err);
 }
 
+function financialsFileFilter(_req, file, cb) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  const allowedExtensions = new Set(['.xlsx', '.xlsm']);
+  const allowedMimeTypes = new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel.sheet.macroenabled.12',
+  ]);
+
+  // Financials is parsed with openpyxl, which cannot read legacy .xls files.
+  if ((ext && allowedExtensions.has(ext)) || (!ext && allowedMimeTypes.has(mime))) {
+    return cb(null, true);
+  }
+
+  const err = new Error(
+    'Unsupported Financials workbook type. Allowed extensions: .xlsx, .xlsm'
+  );
+  err.status = 400;
+  return cb(err);
+}
+
 const upload = multer({
   storage,
   limits: { fileSize: UPLOAD_MAX_BYTES, files: 4 },
   fileFilter: panFileFilter,
+});
+
+const financialsUpload = multer({
+  storage,
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 4 },
+  fileFilter: financialsFileFilter,
 });
 
 /** Section 44AB allows many cash/bank ledgers in one request. */
@@ -58,7 +85,7 @@ const section44abFiles = section44abUpload.fields([
   { name: 'bankFiles', maxCount: 50 },
 ]);
 
-const financialsPivotFiles = upload.fields([
+const financialsPivotFiles = financialsUpload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'purchasesFile', maxCount: 1 },
   { name: 'openingQtyFile', maxCount: 1 },
@@ -89,6 +116,7 @@ module.exports = {
   dualSalesReturnFiles,
   dualPartyWiseTdsFiles,
   section44abFiles,
+  financialsFileFilter,
   financialsPivotFiles,
   handleMulterError,
 };

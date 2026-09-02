@@ -101,30 +101,6 @@ export const CLOSING_STOCK_FILLED_LEAF_INDICES = Object.freeze({
 
 const MEASURE_FIELD_BY_LEAF_LOCAL = MEASURE_FIELD_BY_LEAF;
 
-function sumMeasureField(rows, field) {
-  let total = 0;
-  let any = false;
-  for (const row of rows) {
-    const value = row?.[field];
-    if (value !== null && value !== undefined && value !== '') {
-      total += Number(value);
-      any = true;
-    }
-  }
-  return any ? total : null;
-}
-
-function sumProductMeasures(productRows) {
-  return {
-    openingQty: sumMeasureField(productRows, 'openingQty'),
-    openingAmt: sumMeasureField(productRows, 'openingAmt'),
-    purchasesQty: sumMeasureField(productRows, 'purchasesQty'),
-    purchasesAmt: sumMeasureField(productRows, 'purchasesAmt'),
-    salesQty: sumMeasureField(productRows, 'salesQty'),
-    salesAmt: sumMeasureField(productRows, 'salesAmt'),
-  };
-}
-
 /**
  * @param {number|null|undefined} value
  * @returns {string}

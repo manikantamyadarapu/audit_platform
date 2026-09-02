@@ -5,11 +5,14 @@ const {
 } = require('../validators/financials.validator');
 const logger = require('../utils/logger');
 
-function sendExcelDownload(res, file) {
+function sendExcelDownload(res, file, requestId) {
   if (file.contentDisposition) {
     res.setHeader('Content-Disposition', file.contentDisposition);
   }
   res.setHeader('Content-Type', file.contentType);
+  if (requestId) {
+    res.setHeader('x-request-id', requestId);
+  }
   return res.send(file.buffer);
 }
 
@@ -92,7 +95,7 @@ async function exportFinancialsPivots(req, res, next) {
       salesPivot: parsed.salesPivot,
       purchasesPivot: parsed.purchasesPivot,
     });
-    return sendExcelDownload(res, file);
+    return sendExcelDownload(res, file, req.requestId);
   } catch (err) {
     return next(err);
   }
@@ -126,7 +129,7 @@ async function exportClosingStockTemplate(req, res, next) {
       address: parsed.address,
       financialYear: parsed.financialYear,
     });
-    return sendExcelDownload(res, file);
+    return sendExcelDownload(res, file, req.requestId);
   } catch (err) {
     return next(err);
   }
