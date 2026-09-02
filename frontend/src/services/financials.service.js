@@ -2,11 +2,13 @@ import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 
 /**
- * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing.
+ * Closing Stock audit — Sales, Purchases, Opening, Previous Year, optional MR + DC.
  * @param {File} salesFile
  * @param {File} purchasesFile
  * @param {File} openingQtyFile
  * @param {File} previousYearFile
+ * @param {File} [mrFile]
+ * @param {File} [dcFile]
  * @param {AbortSignal} [signal]
  */
 export async function processFinancialsPivot(
@@ -14,13 +16,24 @@ export async function processFinancialsPivot(
   purchasesFile,
   openingQtyFile,
   previousYearFile,
+  mrFile,
+  dcFile,
   signal
 ) {
+  // Backward-compatible: older callers may pass signal as 5th arg.
+  if (mrFile && typeof mrFile === 'object' && !(mrFile instanceof File) && mrFile.aborted != null) {
+    signal = mrFile;
+    mrFile = undefined;
+    dcFile = undefined;
+  }
+
   const form = new FormData();
   form.append('salesFile', salesFile);
   form.append('purchasesFile', purchasesFile);
   form.append('openingQtyFile', openingQtyFile);
   form.append('previousYearFile', previousYearFile);
+  if (mrFile) form.append('mrFile', mrFile);
+  if (dcFile) form.append('dcFile', dcFile);
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -87,6 +100,8 @@ export async function downloadFinancialsPivots(payload, signal) {
  *   salesPivot?: object[],
  *   purchasesPivot?: object[],
  *   openingPivot?: object[],
+ *   receiptsPivot?: object[],
+ *   issuesPivot?: object[],
  *   companyName?: string,
  *   address?: string,
  *   financialYear?: string,

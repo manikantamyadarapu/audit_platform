@@ -585,9 +585,13 @@ async function postSection44ABValidate(cashFiles, bankFiles, options = {}) {
 }
 
 /**
- * Financials first audit — Sales and Purchases product pivots.
+ * Financials Closing Stock — Sales/Purchases/Opening + optional MR/DC.
  * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} salesFile
  * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} purchasesFile
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} openingQtyFile
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }} previousYearFile
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }|null|undefined} mrFile
+ * @param {{ buffer: Buffer, originalname?: string, mimetype?: string }|null|undefined} dcFile
  * @param {{ requestId?: string }} [options]
  */
 async function postFinancialsPivot(
@@ -595,8 +599,23 @@ async function postFinancialsPivot(
   purchasesFile,
   openingQtyFile,
   previousYearFile,
+  mrFile,
+  dcFile,
   options = {}
 ) {
+  // Support older call sites that passed options as the 5th argument.
+  if (
+    mrFile &&
+    typeof mrFile === 'object' &&
+    !Buffer.isBuffer(mrFile.buffer) &&
+    mrFile.requestId != null &&
+    dcFile == null
+  ) {
+    options = mrFile;
+    mrFile = null;
+    dcFile = null;
+  }
+
   const form = new FormData();
   form.append('sales_file', salesFile.buffer, {
     filename: salesFile.originalname || 'sales.xlsx',
@@ -621,6 +640,20 @@ async function postFinancialsPivot(
       previousYearFile.mimetype ||
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  if (mrFile?.buffer) {
+    form.append('mr_file', mrFile.buffer, {
+      filename: mrFile.originalname || 'MR.xlsx',
+      contentType:
+        mrFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  }
+  if (dcFile?.buffer) {
+    form.append('dc_file', dcFile.buffer, {
+      filename: dcFile.originalname || 'DC.xlsx',
+      contentType:
+        dcFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  }
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {

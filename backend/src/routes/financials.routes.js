@@ -10,9 +10,11 @@ router.use(authenticate);
 
 /**
  * Full paths (mounted under /api/v1):
- * POST /api/v1/process/financials/validate
+ * POST /api/v1/process/financials/validate  (sales/purchases/opening/previousYear + optional mr/dc)
  * POST /api/v1/process/financials/export-pivots
  * POST /api/v1/process/financials/export-closing-stock
+ * GET  /api/v1/process/financials/closing-stock-rule-book
+ * POST /api/v1/process/financials/remap-closing-stock
  */
 router.post('/validate', financialsPivotFiles, financialsController.processFinancialsPivot);
 router.post(

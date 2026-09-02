@@ -12,10 +12,10 @@ export const CLOSING_STOCK_AUDIT_CONFIG = {
   demoModuleKey: 'closing-stock',
   pageTitle: 'Closing Stock',
   pageSubtitle:
-    'Upload Sales, Purchases, Current Year Opening Quantity, and Previous Year Closing Stock (Dia/Eme/…). Opening Qty from Opening Balance; Opening Amount from each product’s Closing stock Amt — then Rule Book places them on Closing Stock.',
+    'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, plus Material Receipts (MR) and Delivery Challans (DC). Opening, Purchases, Receipts, Issues, and Sales map onto the Closing Stock Rule Book layout.',
   processLabel: 'Process',
-  processOverlayLabel: 'Building pivots and mapping Opening Stock…',
-  badgeLabel: 'Opening Stock + Pivots',
+  processOverlayLabel: 'Building pivots, Opening Stock, and Receipts/Issues…',
+  badgeLabel: 'Opening + MR/DC + Pivots',
   defaultFinancialYear: 'AY 2025-26',
   fileAccept:
     '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12',

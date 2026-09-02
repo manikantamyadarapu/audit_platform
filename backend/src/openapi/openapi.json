@@ -12,22 +12,46 @@
     }
   ],
   "tags": [
-    { "name": "Auth" },
-    { "name": "Users" },
-    { "name": "Health" },
-    { "name": "PAN" },
-    { "name": "Gross weight" },
-    { "name": "Sales" },
-    { "name": "Financials" },
-    { "name": "Rate rules" },
-    { "name": "Diamond rate rules" },
-    { "name": "Sales return" },
-    { "name": "Dashboard" }
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Users"
+    },
+    {
+      "name": "Health"
+    },
+    {
+      "name": "PAN"
+    },
+    {
+      "name": "Gross weight"
+    },
+    {
+      "name": "Sales"
+    },
+    {
+      "name": "Financials"
+    },
+    {
+      "name": "Rate rules"
+    },
+    {
+      "name": "Diamond rate rules"
+    },
+    {
+      "name": "Sales return"
+    },
+    {
+      "name": "Dashboard"
+    }
   ],
   "paths": {
     "/api/health": {
       "get": {
-        "tags": ["Health"],
+        "tags": [
+          "Health"
+        ],
         "summary": "Health check",
         "responses": {
           "200": {
@@ -37,8 +61,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": { "type": "string", "example": "ok" },
-                    "service": { "type": "string", "example": "audit-platform-node-backend" }
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "audit-platform-node-backend"
+                    }
                   }
                 }
               }
@@ -49,15 +79,29 @@
     },
     "/api/dashboard/widgets": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get dashboard KPI widgets with period trends",
         "description": "Returns total audits, records, issues, and accuracy with trend vs the previous period. Requires JWT Bearer token.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
             "name": "period",
-            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" },
+            "schema": {
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ],
+              "default": "week"
+            },
             "description": "week = last 7 days, month = last 30 days, year = last 365 days"
           }
         ],
@@ -66,16 +110,34 @@
             "description": "Dashboard widgets fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardWidgetsSuccess" },
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardWidgetsSuccess"
+                },
                 "example": {
                   "success": true,
                   "message": "Dashboard widgets fetched successfully",
                   "data": {
                     "period": "week",
-                    "totalAudits": { "value": 124, "change": 18, "trend": "up" },
-                    "totalRecords": { "value": 48562, "change": 24, "trend": "up" },
-                    "totalIssues": { "value": 2156, "change": -8, "trend": "down" },
-                    "accuracy": { "value": 94.62, "change": 6, "trend": "up" }
+                    "totalAudits": {
+                      "value": 124,
+                      "change": 18,
+                      "trend": "up"
+                    },
+                    "totalRecords": {
+                      "value": 48562,
+                      "change": 24,
+                      "trend": "up"
+                    },
+                    "totalIssues": {
+                      "value": 2156,
+                      "change": -8,
+                      "trend": "down"
+                    },
+                    "accuracy": {
+                      "value": 94.62,
+                      "change": 6,
+                      "trend": "up"
+                    }
                   }
                 }
               }
@@ -85,8 +147,13 @@
             "description": "Invalid period filter",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid period filter" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid period filter"
+                }
               }
             }
           },
@@ -94,8 +161,13 @@
             "description": "Access token required",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Access token required" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Access token required"
+                }
               }
             }
           },
@@ -103,8 +175,13 @@
             "description": "Invalid or expired token",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid or expired token" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
               }
             }
           },
@@ -112,8 +189,13 @@
             "description": "Dashboard data not found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Dashboard data not found" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Dashboard data not found"
+                }
               }
             }
           },
@@ -121,8 +203,13 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Internal server error" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
               }
             }
           }
@@ -131,14 +218,28 @@
     },
     "/api/v1/dashboard/widgets": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get dashboard KPI widgets with period trends (v1)",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
             "name": "period",
-            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ],
+              "default": "week"
+            }
           }
         ],
         "responses": {
@@ -146,29 +247,55 @@
             "description": "Dashboard widgets fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardWidgetsSuccess" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardWidgetsSuccess"
+                }
               }
             }
           },
-          "400": { "description": "Invalid period filter" },
-          "401": { "description": "Access token required" },
-          "403": { "description": "Invalid or expired token" },
-          "404": { "description": "Dashboard data not found" },
-          "500": { "description": "Internal server error" }
+          "400": {
+            "description": "Invalid period filter"
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "403": {
+            "description": "Invalid or expired token"
+          },
+          "404": {
+            "description": "Dashboard data not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
         }
       }
     },
     "/api/dashboard/audit-trend": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get audit activity trend chart data",
         "description": "Returns chart-ready time series for Audits Processed and Issues Found. Requires JWT Bearer token.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
             "name": "period",
-            "schema": { "type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily" },
+            "schema": {
+              "type": "string",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+              ],
+              "default": "daily"
+            },
             "description": "daily = last 7 days, weekly = last 12 weeks, monthly = last 12 months"
           }
         ],
@@ -177,119 +304,40 @@
             "description": "Audit trend fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardAuditTrendSuccess" },
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAuditTrendSuccess"
+                },
                 "example": {
                   "success": true,
                   "message": "Audit trend fetched successfully",
                   "data": {
                     "period": "daily",
-                    "labels": ["Dec 10", "Dec 11", "Dec 12", "Dec 13", "Dec 14", "Dec 15", "Dec 16"],
-                    "auditsProcessed": [220, 760, 680, 1080, 1080, 1180, 1920],
-                    "issuesFound": [50, 410, 220, 520, 350, 410, 860]
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid period filter",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid period filter" }
-              }
-            }
-          },
-          "401": {
-            "description": "Access token required",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Access token required" }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid or expired token" }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Internal server error" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dashboard/audit-trend": {
-      "get": {
-        "tags": ["Dashboard"],
-        "summary": "Get audit activity trend chart data (v1)",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          {
-            "in": "query",
-            "name": "period",
-            "schema": { "type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Audit trend fetched successfully",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardAuditTrendSuccess" }
-              }
-            }
-          },
-          "400": { "description": "Invalid period filter" },
-          "401": { "description": "Access token required" },
-          "403": { "description": "Invalid or expired token" },
-          "500": { "description": "Internal server error" }
-        }
-      }
-    },
-    "/api/dashboard/issues-category": {
-      "get": {
-        "tags": ["Dashboard"],
-        "summary": "Get issues grouped by issue type (dynamic)",
-        "description": "Returns issue counts and percentages for each distinct issue type found in audit_issue_counts for the selected period. New issue codes automatically appear in the response. Requires JWT Bearer token.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          {
-            "in": "query",
-            "name": "period",
-            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" },
-            "description": "week = last 7 days, month = last 30 days, year = last 365 days"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Issues by category fetched successfully",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardIssuesCategorySuccess" },
-                "example": {
-                  "success": true,
-                  "message": "Issues by category fetched successfully",
-                  "data": {
-                    "totalIssues": 145,
-                    "categories": [
-                      { "name": "Gross Weight Mismatch", "code": "GROSS_MISMATCH", "count": 45, "percentage": 31.0 },
-                      { "name": "Invalid PAN Format", "code": "INVALID_PAN", "count": 25, "percentage": 17.2 },
-                      { "name": "Net Weight Mismatch", "code": "NET_MISMATCH", "count": 20, "percentage": 13.8 },
-                      { "name": "Rate Deviation", "code": "RATE_DEVIATION", "count": 30, "percentage": 20.7 },
-                      { "name": "Missing Unit Rate", "code": "MISSING_UNIT_RATE", "count": 20, "percentage": 13.8 },
-                      { "name": "Missing PAN Number", "code": "MISSING_PAN", "count": 5, "percentage": 3.4 }
+                    "labels": [
+                      "Dec 10",
+                      "Dec 11",
+                      "Dec 12",
+                      "Dec 13",
+                      "Dec 14",
+                      "Dec 15",
+                      "Dec 16"
+                    ],
+                    "auditsProcessed": [
+                      220,
+                      760,
+                      680,
+                      1080,
+                      1080,
+                      1180,
+                      1920
+                    ],
+                    "issuesFound": [
+                      50,
+                      410,
+                      220,
+                      520,
+                      350,
+                      410,
+                      860
                     ]
                   }
                 }
@@ -300,8 +348,13 @@
             "description": "Invalid period filter",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid period filter" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid period filter"
+                }
               }
             }
           },
@@ -309,8 +362,13 @@
             "description": "Access token required",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Access token required" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Access token required"
+                }
               }
             }
           },
@@ -318,8 +376,13 @@
             "description": "Invalid or expired token",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid or expired token" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
               }
             }
           },
@@ -327,8 +390,208 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Internal server error" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/audit-trend": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get audit activity trend chart data (v1)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+              ],
+              "default": "daily"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit trend fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAuditTrendSuccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period filter"
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "403": {
+            "description": "Invalid or expired token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/dashboard/issues-category": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get issues grouped by issue type (dynamic)",
+        "description": "Returns issue counts and percentages for each distinct issue type found in audit_issue_counts for the selected period. New issue codes automatically appear in the response. Requires JWT Bearer token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ],
+              "default": "week"
+            },
+            "description": "week = last 7 days, month = last 30 days, year = last 365 days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issues by category fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardIssuesCategorySuccess"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Issues by category fetched successfully",
+                  "data": {
+                    "totalIssues": 145,
+                    "categories": [
+                      {
+                        "name": "Gross Weight Mismatch",
+                        "code": "GROSS_MISMATCH",
+                        "count": 45,
+                        "percentage": 31.0
+                      },
+                      {
+                        "name": "Invalid PAN Format",
+                        "code": "INVALID_PAN",
+                        "count": 25,
+                        "percentage": 17.2
+                      },
+                      {
+                        "name": "Net Weight Mismatch",
+                        "code": "NET_MISMATCH",
+                        "count": 20,
+                        "percentage": 13.8
+                      },
+                      {
+                        "name": "Rate Deviation",
+                        "code": "RATE_DEVIATION",
+                        "count": 30,
+                        "percentage": 20.7
+                      },
+                      {
+                        "name": "Missing Unit Rate",
+                        "code": "MISSING_UNIT_RATE",
+                        "count": 20,
+                        "percentage": 13.8
+                      },
+                      {
+                        "name": "Missing PAN Number",
+                        "code": "MISSING_PAN",
+                        "count": 5,
+                        "percentage": 3.4
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid period filter"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Access token required"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
               }
             }
           }
@@ -337,14 +600,28 @@
     },
     "/api/v1/dashboard/issues-category": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get issues grouped by dashboard category (v1)",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
             "name": "period",
-            "schema": { "type": "string", "enum": ["week", "month", "year"], "default": "week" }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ],
+              "default": "week"
+            }
           }
         ],
         "responses": {
@@ -352,42 +629,88 @@
             "description": "Issues by category fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardIssuesCategorySuccess" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardIssuesCategorySuccess"
+                }
               }
             }
           },
-          "400": { "description": "Invalid period filter" },
-          "401": { "description": "Access token required" },
-          "403": { "description": "Invalid or expired token" },
-          "500": { "description": "Internal server error" }
+          "400": {
+            "description": "Invalid period filter"
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "403": {
+            "description": "Invalid or expired token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
         }
       }
     },
     "/api/dashboard/recent-audits": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get paginated recent audit uploads",
         "description": "Returns recent audit runs joined with audit_types, sorted by upload date (newest first). Requires JWT Bearer token.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
-          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
           {
             "in": "query",
             "name": "status",
-            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PROCESSING",
+                "COMPLETED",
+                "FAILED"
+              ]
+            },
             "description": "Filter by audit run status"
           },
           {
             "in": "query",
             "name": "auditType",
-            "schema": { "type": "integer", "minimum": 1 },
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
             "description": "Filter by audit_types.id"
           },
           {
             "in": "query",
             "name": "search",
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "description": "Search file name (case-insensitive partial match)"
           }
         ],
@@ -396,7 +719,9 @@
             "description": "Recent audits fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" },
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardRecentAuditsSuccess"
+                },
                 "example": {
                   "success": true,
                   "message": "Recent audits fetched successfully",
@@ -410,7 +735,12 @@
                       "status": "COMPLETED"
                     }
                   ],
-                  "pagination": { "page": 1, "limit": 10, "total": 120, "totalPages": 12 }
+                  "pagination": {
+                    "page": 1,
+                    "limit": 10,
+                    "total": 120,
+                    "totalPages": 12
+                  }
                 }
               }
             }
@@ -419,8 +749,13 @@
             "description": "Invalid query parameters",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid status filter" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid status filter"
+                }
               }
             }
           },
@@ -428,8 +763,13 @@
             "description": "Access token required",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Access token required" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Access token required"
+                }
               }
             }
           },
@@ -437,8 +777,13 @@
             "description": "Invalid or expired token",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Invalid or expired token" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
               }
             }
           },
@@ -446,8 +791,13 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardErrorBody" },
-                "example": { "success": false, "message": "Internal server error" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorBody"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Internal server error"
+                }
               }
             }
           }
@@ -456,101 +806,296 @@
     },
     "/api/v1/dashboard/recent-audits": {
       "get": {
-        "tags": ["Dashboard"],
+        "tags": [
+          "Dashboard"
+        ],
         "summary": "Get paginated recent audit uploads (v1)",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
-          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
           {
             "in": "query",
             "name": "status",
-            "schema": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PROCESSING",
+                "COMPLETED",
+                "FAILED"
+              ]
+            }
           },
-          { "in": "query", "name": "auditType", "schema": { "type": "integer", "minimum": 1 } },
-          { "in": "query", "name": "search", "schema": { "type": "string" } }
+          {
+            "in": "query",
+            "name": "auditType",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
             "description": "Recent audits fetched successfully",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DashboardRecentAuditsSuccess" }
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardRecentAuditsSuccess"
+                }
               }
             }
           },
-          "400": { "description": "Invalid query parameters" },
-          "401": { "description": "Access token required" },
-          "403": { "description": "Invalid or expired token" },
-          "500": { "description": "Internal server error" }
+          "400": {
+            "description": "Invalid query parameters"
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "403": {
+            "description": "Invalid or expired token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
         }
       }
     },
     "/api/v1/users": {
       "get": {
-        "tags": ["Users"],
-        "summary": "Get all users",
-        "security": [{ "bearerAuth": [] }],
+        "operationId": "usersList",
+        "tags": [
+          "Users"
+        ],
+        "summary": "List users (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "query", "name": "search", "schema": { "type": "string" } },
-          { "in": "query", "name": "page", "schema": { "type": "integer", "default": 1 } },
-          { "in": "query", "name": "limit", "schema": { "type": "integer", "default": 10 } }
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "List of users" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" }
+          "200": {
+            "description": "Users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       },
       "post": {
-        "tags": ["Users"],
-        "summary": "Create user",
-        "security": [{ "bearerAuth": [] }],
+        "operationId": "usersCreate",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Create user (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "name": { "type": "string", "example": "John Doe" },
-                  "email": { "type": "string", "example": "john@audit.com" },
-                  "password": { "type": "string", "example": "password123" },
-                  "role": { "type": "string", "enum": ["ADMIN", "AUDITOR", "VIEWER"], "example": "AUDITOR" }
-                }
+                "additionalProperties": true
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "User created" },
-          "400": { "description": "Validation error" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "409": { "description": "Email exists" }
+          "201": {
+            "description": "User created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/users/{id}": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Get user by ID",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "User details" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
+          "200": {
+            "description": "User details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
         }
       },
       "put": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Update user",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "content": {
@@ -558,45 +1103,102 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "email": { "type": "string" },
-                  "role": { "type": "string", "enum": ["ADMIN", "AUDITOR", "VIEWER"] },
-                  "password": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "AUDITOR",
+                      "VIEWER"
+                    ]
+                  },
+                  "password": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "User updated" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" },
-          "409": { "description": "Email exists" }
+          "200": {
+            "description": "User updated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "409": {
+            "description": "Email exists"
+          }
         }
       },
       "delete": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Delete user",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "User deleted" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
+          "200": {
+            "description": "User deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
         }
       }
     },
     "/api/v1/users/{id}/password": {
       "put": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Change password",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "content": {
@@ -604,25 +1206,40 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "newPassword": { "type": "string", "example": "newpassword123" }
+                  "newPassword": {
+                    "type": "string",
+                    "example": "newpassword123"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Password changed" },
-          "400": { "description": "Validation error" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
+          "200": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
         }
       }
     },
     "/api/v1/process/pan/validate": {
       "post": {
         "operationId": "panValidateExcel",
-        "tags": ["PAN"],
+        "tags": [
+          "PAN"
+        ],
         "summary": "Validate PAN Excel (multipart upload)",
         "description": "Upload an Excel file. Field name must be **`file`**. Response body matches Python `POST /api/process/pan` (JSON preview with invalid rows in `records`).",
         "parameters": [
@@ -630,7 +1247,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id (also returned in error JSON)."
           }
         ],
@@ -640,7 +1260,9 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -668,7 +1290,9 @@
             "description": "Bad request (missing file, invalid type, Python 400)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -676,7 +1300,9 @@
             "description": "Validation error (Python missing columns / schema)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -684,7 +1310,9 @@
             "description": "Python service unreachable or error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           }
@@ -694,7 +1322,9 @@
     "/api/v1/process/pan/export-invalid": {
       "post": {
         "operationId": "panExportInvalid",
-        "tags": ["PAN"],
+        "tags": [
+          "PAN"
+        ],
         "summary": "Export invalid rows as Excel",
         "description": "Send **`records`** exactly as returned by **Validate** (`records` = list of rows with issues). Request body must be `{ \"records\": [ ... ] }` (minimum one row). Response is binary `.xlsx` (save from browser or use curl `--output`). Proxies to Python `POST /api/process/pan/export-invalid`.",
         "parameters": [
@@ -702,7 +1332,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id (also returned in error JSON)."
           }
         ],
@@ -712,19 +1345,23 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["records"],
+                "required": [
+                  "records"
+                ],
                 "properties": {
                   "records": {
                     "type": "array",
                     "minItems": 1,
-                    "description": "Invalid rows only — copy from validate response `records`.",
-                    "items": { "$ref": "#/components/schemas/PanInvalidRecord" }
+                    "description": "Invalid rows only \u2014 copy from validate response `records`.",
+                    "items": {
+                      "$ref": "#/components/schemas/PanInvalidRecord"
+                    }
                   }
                 }
               },
               "examples": {
                 "fromValidateResponse": {
-                  "summary": "Typical — paste your validate `records` here",
+                  "summary": "Typical \u2014 paste your validate `records` here",
                   "description": "After validate, wrap the array: `{ \"records\": <paste records array> }`",
                   "value": {
                     "records": [
@@ -738,7 +1375,9 @@
                         "pan1": "",
                         "addProof": "",
                         "addProof2": "",
-                        "issues": ["MISSING_ADDRESS_PROOF_ABOVE_50K"]
+                        "issues": [
+                          "MISSING_ADDRESS_PROOF_ABOVE_50K"
+                        ]
                       }
                     ]
                   }
@@ -746,7 +1385,14 @@
                 "minimal": {
                   "summary": "Minimal shape",
                   "value": {
-                    "records": [{ "rowNumber": 5, "issues": ["MISSING_PAN_ABOVE_2L"] }]
+                    "records": [
+                      {
+                        "rowNumber": 5,
+                        "issues": [
+                          "MISSING_PAN_ABOVE_2L"
+                        ]
+                      }
+                    ]
                   }
                 }
               }
@@ -758,7 +1404,10 @@
             "description": "Excel workbook download (`invalid` rows sheet)",
             "headers": {
               "Content-Type": {
-                "schema": { "type": "string", "example": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+                "schema": {
+                  "type": "string",
+                  "example": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                }
               },
               "Content-Disposition": {
                 "schema": {
@@ -769,10 +1418,16 @@
             },
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               },
               "application/octet-stream": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -780,7 +1435,9 @@
             "description": "Bad request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -788,7 +1445,9 @@
             "description": "Validation error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -796,7 +1455,9 @@
             "description": "Python service error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           }
@@ -806,7 +1467,9 @@
     "/api/v1/process/gross-weight/validate": {
       "post": {
         "operationId": "grossWeightValidateExcel",
-        "tags": ["Gross weight"],
+        "tags": [
+          "Gross weight"
+        ],
         "summary": "Validate gross-weight Excel (multipart upload)",
         "description": "Upload an Excel file. Field name must be **`file`**. Proxies to Python `POST /api/process/gross-weight`.",
         "parameters": [
@@ -814,7 +1477,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -824,7 +1490,9 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -841,7 +1509,10 @@
             "description": "Processing result JSON",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "additionalProperties": true }
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -849,7 +1520,9 @@
             "description": "Bad request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -857,7 +1530,9 @@
             "description": "Validation error (e.g. missing columns)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -865,7 +1540,9 @@
             "description": "Python service unreachable or error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           }
@@ -875,7 +1552,9 @@
     "/api/v1/process/gross-weight/export-invalid": {
       "post": {
         "operationId": "grossWeightExportInvalid",
-        "tags": ["Gross weight"],
+        "tags": [
+          "Gross weight"
+        ],
         "summary": "Export invalid gross-weight rows as Excel",
         "description": "Send **`records`** exactly as returned by **Validate**. Request body must be `{ \"records\": [ ... ] }`. Response is binary `.xlsx`.",
         "parameters": [
@@ -883,7 +1562,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -893,9 +1575,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["records"],
+                "required": [
+                  "records"
+                ],
                 "properties": {
-                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                  "records": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object"
+                    }
+                  }
                 }
               }
             }
@@ -906,20 +1596,52 @@
             "description": "Excel workbook download (`invalid` rows sheet)",
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
-          "400": { "description": "Bad request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "502": { "description": "Python service unreachable or error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service unreachable or error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/sales/validate": {
       "post": {
         "operationId": "salesValidateExcel",
-        "tags": ["Sales"],
+        "tags": [
+          "Sales"
+        ],
         "summary": "Validate sales ledger Excel (multipart upload)",
         "description": "Upload an Excel file. Field name must be **`file`**. Proxies to Python `POST /api/process/sales`.",
         "parameters": [
@@ -927,7 +1649,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -937,7 +1662,9 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -954,7 +1681,10 @@
             "description": "Processing result JSON",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "additionalProperties": true }
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -962,7 +1692,9 @@
             "description": "Bad request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -970,7 +1702,9 @@
             "description": "Validation error (e.g. missing columns)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           },
@@ -978,7 +1712,9 @@
             "description": "Python service unreachable or error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
               }
             }
           }
@@ -988,7 +1724,9 @@
     "/api/v1/process/sales/export-invalid": {
       "post": {
         "operationId": "salesExportInvalid",
-        "tags": ["Sales"],
+        "tags": [
+          "Sales"
+        ],
         "summary": "Export invalid sales rows as Excel",
         "description": "Send **`records`** exactly as returned by **Validate**. Request body must be `{ \"records\": [ ... ] }`. Response is binary `.xlsx`.",
         "parameters": [
@@ -996,7 +1734,10 @@
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -1006,9 +1747,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["records"],
+                "required": [
+                  "records"
+                ],
                 "properties": {
-                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                  "records": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object"
+                    }
+                  }
                 }
               }
             }
@@ -1019,20 +1768,52 @@
             "description": "Excel workbook download (`invalid` rows sheet)",
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
-          "400": { "description": "Bad request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "502": { "description": "Python service unreachable or error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service unreachable or error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/sales-return/validate": {
       "post": {
         "operationId": "salesReturnValidate",
-        "tags": ["Sales return"],
+        "tags": [
+          "Sales return"
+        ],
         "summary": "Validate sales return audit (dual Excel upload)",
         "description": "Upload **salesFile** (sales audit) and **salesReturnFile** (sales return audit). Both are mandatory.",
         "requestBody": {
@@ -1041,27 +1822,75 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["salesFile", "salesReturnFile"],
+                "required": [
+                  "salesFile",
+                  "salesReturnFile"
+                ],
                 "properties": {
-                  "salesFile": { "type": "string", "format": "binary" },
-                  "salesReturnFile": { "type": "string", "format": "binary" }
+                  "salesFile": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "salesReturnFile": {
+                    "type": "string",
+                    "format": "binary"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Audit result JSON", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "400": { "description": "Bad request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Audit result JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/sales-return/export-exceptions": {
       "post": {
         "operationId": "salesReturnExportExceptions",
-        "tags": ["Sales return"],
+        "tags": [
+          "Sales return"
+        ],
         "summary": "Export consolidated sales return exception report as Excel",
         "requestBody": {
           "required": true,
@@ -1069,9 +1898,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["records"],
+                "required": [
+                  "records"
+                ],
                 "properties": {
-                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                  "records": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object"
+                    }
+                  }
                 }
               }
             }
@@ -1082,7 +1919,10 @@
             "description": "Excel workbook",
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           }
@@ -1092,7 +1932,9 @@
     "/api/v1/process/sales-return/export-rate-comparison": {
       "post": {
         "operationId": "salesReturnExportRateComparison",
-        "tags": ["Sales return"],
+        "tags": [
+          "Sales return"
+        ],
         "summary": "Export higher return rate products as Excel",
         "requestBody": {
           "required": true,
@@ -1100,9 +1942,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["records"],
+                "required": [
+                  "records"
+                ],
                 "properties": {
-                  "records": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                  "records": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object"
+                    }
+                  }
                 }
               }
             }
@@ -1113,7 +1963,10 @@
             "description": "Excel workbook",
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           }
@@ -1123,16 +1976,25 @@
     "/api/v1/process/financials/validate": {
       "post": {
         "operationId": "financialsValidate",
-        "tags": ["Financials"],
+        "tags": [
+          "Financials"
+        ],
         "summary": "Process Financials Closing Stock inputs",
-        "description": "Upload the four Financials workbooks. Sales and Purchases require Product, Quantity, and Gross Amount headers. Opening Quantity and Previous Year Closing Stock are used for Opening Stock matching. Financials workbooks must be .xlsx or .xlsm.",
-        "security": [{ "bearerAuth": [] }],
+        "description": "Upload Financials Closing Stock workbooks. Required: salesFile, purchasesFile, openingQtyFile, previousYearFile. Optional paired: mrFile (Material Receipts) and dcFile (Delivery Challans) for Receipts/Issues. Sales/Purchases/MR/DC require Product, Quantity, Gross Amount. Financials workbooks must be .xlsx or .xlsm.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id; returned in the JSON response."
           }
         ],
@@ -1142,12 +2004,39 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["salesFile", "purchasesFile", "openingQtyFile", "previousYearFile"],
+                "required": [
+                  "salesFile",
+                  "purchasesFile",
+                  "openingQtyFile",
+                  "previousYearFile"
+                ],
                 "properties": {
-                  "salesFile": { "type": "string", "format": "binary" },
-                  "purchasesFile": { "type": "string", "format": "binary" },
-                  "openingQtyFile": { "type": "string", "format": "binary" },
-                  "previousYearFile": { "type": "string", "format": "binary" }
+                  "salesFile": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "purchasesFile": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "openingQtyFile": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "previousYearFile": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "mrFile": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Material Receipts (MR.xlsx) \u2014 optional; must be paired with dcFile"
+                  },
+                  "dcFile": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Delivery Challans (DC.xlsx) \u2014 optional; must be paired with mrFile"
+                  }
                 }
               }
             }
@@ -1158,22 +2047,44 @@
             "description": "Financials pivots and Opening Stock mapping",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FinancialsPivotResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialsPivotResponse"
+                }
               }
             }
           },
           "400": {
             "description": "Missing file, empty workbook, or unsupported workbook type",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
-          "401": { "description": "Access token required" },
+          "401": {
+            "description": "Access token required"
+          },
           "422": {
             "description": "Workbook header or sheet validation error",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "502": {
             "description": "Python service unavailable",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1181,15 +2092,24 @@
     "/api/v1/process/financials/export-pivots": {
       "post": {
         "operationId": "financialsExportPivots",
-        "tags": ["Financials"],
+        "tags": [
+          "Financials"
+        ],
         "summary": "Export Financials Sales and Purchases pivots",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -1197,7 +2117,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/FinancialsExportPivotsRequest"
+              }
             }
           }
         },
@@ -1206,35 +2128,75 @@
             "description": "Excel workbook containing Sales Pivot and Purchases Pivot sheets",
             "headers": {
               "Content-Disposition": {
-                "schema": { "type": "string", "example": "attachment; filename=\"Financials-Sales-Purchases-Pivots-20260831112500.xlsx\"" }
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"Financials-Sales-Purchases-Pivots-20260831112500.xlsx\""
+                }
               },
-              "x-request-id": { "schema": { "type": "string", "format": "uuid" } }
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             },
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
-          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "401": { "description": "Access token required" },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/financials/export-closing-stock": {
       "post": {
         "operationId": "financialsExportClosingStock",
-        "tags": ["Financials"],
+        "tags": [
+          "Financials"
+        ],
         "summary": "Export the Financials Closing Stock workbook",
-        "description": "Builds the five-sheet Closing Stock working paper from the current Rule Book and the supplied pivot rows. Only currently available Opening, Purchases, and Sales measures are represented.",
-        "security": [{ "bearerAuth": [] }],
+        "description": "Builds the five-sheet Closing Stock working paper from the current Rule Book and the supplied pivot rows (Opening, Purchases, Receipts/Issues buckets, Sales). Closing valuation / GP columns remain blank.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id."
           }
         ],
@@ -1242,7 +2204,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/FinancialsClosingStockExportRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/FinancialsClosingStockExportRequest"
+              }
             }
           }
         },
@@ -1251,59 +2215,125 @@
             "description": "Five-sheet Closing Stock Excel workbook",
             "headers": {
               "Content-Disposition": {
-                "schema": { "type": "string", "example": "attachment; filename=\"Closing-Stock-Jewels-20260831112500.xlsx\"" }
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"Closing-Stock-Jewels-20260831112500.xlsx\""
+                }
               },
-              "x-request-id": { "schema": { "type": "string", "format": "uuid" } }
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             },
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-                "schema": { "type": "string", "format": "binary" }
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
-          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "401": { "description": "Access token required" },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/financials/closing-stock-rule-book": {
       "get": {
         "operationId": "financialsGetClosingStockRuleBook",
-        "tags": ["Financials"],
+        "tags": [
+          "Financials"
+        ],
         "summary": "Get the current Closing Stock Rule Book",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id; returned in the JSON response."
           }
         ],
         "responses": {
           "200": {
             "description": "Rule Book and fingerprint",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialsRuleBookResponse" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialsRuleBookResponse"
+                }
+              }
+            }
           },
-          "401": { "description": "Access token required" },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "401": {
+            "description": "Access token required"
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/process/financials/remap-closing-stock": {
       "post": {
         "operationId": "financialsRemapClosingStock",
-        "tags": ["Financials"],
+        "tags": [
+          "Financials"
+        ],
         "summary": "Remap Financials pivots using the current Rule Book",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "x-request-id",
             "in": "header",
             "required": false,
-            "schema": { "type": "string", "format": "uuid" },
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
             "description": "Optional correlation id; returned in the JSON response."
           }
         ],
@@ -1311,25 +2341,55 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/FinancialsExportPivotsRequest"
+              }
             }
           }
         },
         "responses": {
           "200": {
             "description": "Updated Closing Stock mapping",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinancialsMappingResponse" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialsMappingResponse"
+                }
+              }
+            }
           },
-          "400": { "description": "Invalid request body", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "401": { "description": "Access token required" },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token required"
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "authLogin",
-        "tags": ["Auth"],
+        "tags": [
+          "Auth"
+        ],
         "summary": "Login (JWT)",
         "requestBody": {
           "required": true,
@@ -1337,118 +2397,241 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["email", "password"],
+                "required": [
+                  "email",
+                  "password"
+                ],
                 "properties": {
-                  "email": { "type": "string", "format": "email", "example": "admin@audit.com" },
-                  "password": { "type": "string", "format": "password", "example": "Admin@123" }
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "admin@audit.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "Admin@123"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Login successful", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "authMe",
-        "tags": ["Auth"],
+        "tags": [
+          "Auth"
+        ],
         "summary": "Get current user",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "200": { "description": "Current user", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
-        }
-      }
-    },
-    "/api/v1/users": {
-      "get": {
-        "operationId": "usersList",
-        "tags": ["Users"],
-        "summary": "List users (ADMIN)",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" } },
-          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
+        "security": [
+          {
+            "bearerAuth": []
+          }
         ],
         "responses": {
-          "200": { "description": "Users", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
-        }
-      },
-      "post": {
-        "operationId": "usersCreate",
-        "tags": ["Users"],
-        "summary": "Create user (ADMIN)",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "additionalProperties": true }
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
             }
           }
-        },
-        "responses": {
-          "201": { "description": "User created", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } },
-          "409": { "description": "Email exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
         }
       }
     },
     "/api/v1/rate-rules": {
       "get": {
         "operationId": "rateRulesGet",
-        "tags": ["Rate rules"],
+        "tags": [
+          "Rate rules"
+        ],
         "summary": "Get rate rules",
         "responses": {
-          "200": { "description": "Rate rules", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Rate rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       },
       "post": {
         "operationId": "rateRulesSave",
-        "tags": ["Rate rules"],
+        "tags": [
+          "Rate rules"
+        ],
         "summary": "Save rate rules",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
         },
         "responses": {
-          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/diamond-rate-rules": {
       "get": {
         "operationId": "diamondRateRulesGet",
-        "tags": ["Diamond rate rules"],
+        "tags": [
+          "Diamond rate rules"
+        ],
         "summary": "Get diamond rate rules",
         "responses": {
-          "200": { "description": "Diamond rate rules", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Diamond rate rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       },
       "post": {
         "operationId": "diamondRateRulesSave",
-        "tags": ["Diamond rate rules"],
+        "tags": [
+          "Diamond rate rules"
+        ],
         "summary": "Save diamond rate rules",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
         },
         "responses": {
-          "200": { "description": "Saved", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
-          "502": { "description": "Python service error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } } } }
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Python service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -1465,9 +2648,17 @@
       "FinancialsPivotRow": {
         "type": "object",
         "properties": {
-          "product": { "type": "string" },
-          "sumOfQuantity": { "type": "number", "nullable": true },
-          "sumOfGross": { "type": "number", "nullable": true }
+          "product": {
+            "type": "string"
+          },
+          "sumOfQuantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "sumOfGross": {
+            "type": "number",
+            "nullable": true
+          }
         }
       },
       "FinancialsExportPivotsRequest": {
@@ -1475,183 +2666,548 @@
         "properties": {
           "salesPivot": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
             "default": []
           },
           "purchasesPivot": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
             "default": []
           },
           "openingPivot": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/FinancialsPivotRow" },
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
             "default": []
+          },
+          "receiptsPivot": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/FinancialsBucketPivotRow"
+            },
+            "description": "MR classified bucket pivots (product, bucket, qty, gross)"
+          },
+          "issuesPivot": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/FinancialsBucketPivotRow"
+            },
+            "description": "DC classified bucket pivots (product, bucket, qty, gross)"
           }
         }
       },
       "FinancialsClosingStockExportRequest": {
         "allOf": [
-          { "$ref": "#/components/schemas/FinancialsExportPivotsRequest" },
+          {
+            "$ref": "#/components/schemas/FinancialsExportPivotsRequest"
+          },
           {
             "type": "object",
             "properties": {
-              "products": { "type": "array", "items": { "type": "string" }, "default": [] },
-              "companyName": { "type": "string", "default": "" },
-              "address": { "type": "string", "default": "" },
-              "financialYear": { "type": "string", "default": "AY 2025-26" }
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "companyName": {
+                "type": "string",
+                "default": ""
+              },
+              "address": {
+                "type": "string",
+                "default": ""
+              },
+              "financialYear": {
+                "type": "string",
+                "default": "AY 2025-26"
+              }
             }
           }
-        ]
+        ],
+        "properties": {
+          "receiptsPivot": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/FinancialsBucketPivotRow"
+            },
+            "description": "MR classified bucket pivots (product, bucket, qty, gross)"
+          },
+          "issuesPivot": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/FinancialsBucketPivotRow"
+            },
+            "description": "DC classified bucket pivots (product, bucket, qty, gross)"
+          }
+        }
       },
       "FinancialsPivotResponse": {
         "type": "object",
-        "required": ["success", "fileType", "auditKey", "salesPivot", "purchasesPivot", "openingPivot", "requestId"],
+        "required": [
+          "success",
+          "fileType",
+          "auditKey",
+          "salesPivot",
+          "purchasesPivot",
+          "openingPivot",
+          "requestId"
+        ],
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "fileType": { "type": "string", "example": "closing_stock" },
-          "auditKey": { "type": "string", "example": "FINANCIALS_PIVOT" },
-          "requestId": { "type": "string", "format": "uuid" },
-          "auditRunId": { "type": "integer", "nullable": true },
-          "salesPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
-          "purchasesPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
-          "openingPivot": { "type": "array", "items": { "$ref": "#/components/schemas/FinancialsPivotRow" } },
-          "validatedOpening": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "openingStockReport": { "type": "object", "additionalProperties": true },
-          "productsByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
-          "layoutByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
-          "unmappedProducts": { "type": "array", "items": { "type": "string" } },
-          "summary": { "type": "object", "additionalProperties": true },
-          "executionTiming": { "type": "object", "additionalProperties": true }
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "fileType": {
+            "type": "string",
+            "example": "closing_stock"
+          },
+          "auditKey": {
+            "type": "string",
+            "example": "FINANCIALS_PIVOT"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "auditRunId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "salesPivot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            }
+          },
+          "purchasesPivot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            }
+          },
+          "openingPivot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            }
+          },
+          "validatedOpening": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "openingStockReport": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "productsByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "layoutByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "unmappedProducts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "executionTiming": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       },
       "FinancialsMappingResponse": {
         "type": "object",
-        "required": ["success", "productsByCategory", "layoutByCategory", "requestId"],
+        "required": [
+          "success",
+          "productsByCategory",
+          "layoutByCategory",
+          "requestId"
+        ],
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "requestId": { "type": "string", "format": "uuid" },
-          "productsByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
-          "layoutByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
-          "salesByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
-          "purchasesByCategory": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "object", "additionalProperties": true } } },
-          "unmappedProducts": { "type": "array", "items": { "type": "string" } },
-          "unmappedOpeningProducts": { "type": "array", "items": { "type": "string" } },
-          "mappedOpeningProducts": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "summary": { "type": "object", "additionalProperties": true }
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productsByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "layoutByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "salesByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "purchasesByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "unmappedProducts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unmappedOpeningProducts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mappedOpeningProducts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       },
       "FinancialsRuleBookResponse": {
         "type": "object",
-        "required": ["ruleBook", "ruleBookFingerprint", "ruleBookProductCounts", "categories", "requestId"],
+        "required": [
+          "ruleBook",
+          "ruleBookFingerprint",
+          "ruleBookProductCounts",
+          "categories",
+          "requestId"
+        ],
         "properties": {
-          "ruleBook": { "type": "object", "additionalProperties": true },
-          "ruleBookFingerprint": { "type": "string" },
-          "ruleBookProductCounts": { "type": "object", "additionalProperties": { "type": "integer" } },
-          "ruleBookProductTotal": { "type": "integer" },
-          "ruleBookMtime": { "type": "number", "nullable": true },
-          "categories": { "type": "array", "items": { "type": "string" } },
-          "requestId": { "type": "string", "format": "uuid" }
+          "ruleBook": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "ruleBookFingerprint": {
+            "type": "string"
+          },
+          "ruleBookProductCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "ruleBookProductTotal": {
+            "type": "integer"
+          },
+          "ruleBookMtime": {
+            "type": "number",
+            "nullable": true
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
         }
       },
       "DashboardErrorBody": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": false },
-          "message": { "type": "string", "example": "Invalid period filter" }
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid period filter"
+          }
         }
       },
       "DashboardWidgetMetric": {
         "type": "object",
         "properties": {
-          "value": { "type": "number", "example": 124 },
-          "change": { "type": "number", "example": 18 },
-          "trend": { "type": "string", "enum": ["up", "down", "neutral"], "example": "up" }
+          "value": {
+            "type": "number",
+            "example": 124
+          },
+          "change": {
+            "type": "number",
+            "example": 18
+          },
+          "trend": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "neutral"
+            ],
+            "example": "up"
+          }
         }
       },
       "DashboardWidgetsData": {
         "type": "object",
         "properties": {
-          "period": { "type": "string", "enum": ["week", "month", "year"], "example": "week" },
-          "totalAudits": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
-          "totalRecords": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
-          "totalIssues": { "$ref": "#/components/schemas/DashboardWidgetMetric" },
-          "accuracy": { "$ref": "#/components/schemas/DashboardWidgetMetric" }
+          "period": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month",
+              "year"
+            ],
+            "example": "week"
+          },
+          "totalAudits": {
+            "$ref": "#/components/schemas/DashboardWidgetMetric"
+          },
+          "totalRecords": {
+            "$ref": "#/components/schemas/DashboardWidgetMetric"
+          },
+          "totalIssues": {
+            "$ref": "#/components/schemas/DashboardWidgetMetric"
+          },
+          "accuracy": {
+            "$ref": "#/components/schemas/DashboardWidgetMetric"
+          }
         }
       },
       "DashboardWidgetsSuccess": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "message": { "type": "string", "example": "Dashboard widgets fetched successfully" },
-          "data": { "$ref": "#/components/schemas/DashboardWidgetsData" }
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Dashboard widgets fetched successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DashboardWidgetsData"
+          }
         }
       },
       "DashboardAuditTrendData": {
         "type": "object",
         "properties": {
-          "period": { "type": "string", "enum": ["daily", "weekly", "monthly"], "example": "daily" },
-          "labels": { "type": "array", "items": { "type": "string" } },
-          "auditsProcessed": { "type": "array", "items": { "type": "integer" } },
-          "issuesFound": { "type": "array", "items": { "type": "integer" } }
+          "period": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly"
+            ],
+            "example": "daily"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auditsProcessed": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "issuesFound": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
         }
       },
       "DashboardAuditTrendSuccess": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "message": { "type": "string", "example": "Audit trend fetched successfully" },
-          "data": { "$ref": "#/components/schemas/DashboardAuditTrendData" }
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Audit trend fetched successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DashboardAuditTrendData"
+          }
         }
       },
       "DashboardIssueCategoryItem": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "example": "Gross Weight Mismatch", "description": "Human-readable issue name from audit_issue_counts.issue_name" },
-          "code": { "type": "string", "example": "GROSS_MISMATCH", "description": "Issue code from audit_issue_counts.issue_code" },
-          "count": { "type": "integer", "example": 45 },
-          "percentage": { "type": "number", "example": 31.0 }
+          "name": {
+            "type": "string",
+            "example": "Gross Weight Mismatch",
+            "description": "Human-readable issue name from audit_issue_counts.issue_name"
+          },
+          "code": {
+            "type": "string",
+            "example": "GROSS_MISMATCH",
+            "description": "Issue code from audit_issue_counts.issue_code"
+          },
+          "count": {
+            "type": "integer",
+            "example": 45
+          },
+          "percentage": {
+            "type": "number",
+            "example": 31.0
+          }
         }
       },
       "DashboardIssuesCategoryData": {
         "type": "object",
         "properties": {
-          "period": { "type": "string", "enum": ["week", "month", "year"], "example": "week" },
-          "totalIssues": { "type": "integer", "example": 2156 },
+          "period": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month",
+              "year"
+            ],
+            "example": "week"
+          },
+          "totalIssues": {
+            "type": "integer",
+            "example": 2156
+          },
           "categories": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/DashboardIssueCategoryItem" }
+            "items": {
+              "$ref": "#/components/schemas/DashboardIssueCategoryItem"
+            }
           }
         }
       },
       "DashboardIssuesCategorySuccess": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "message": { "type": "string", "example": "Issues by category fetched successfully" },
-          "data": { "$ref": "#/components/schemas/DashboardIssuesCategoryData" }
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Issues by category fetched successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DashboardIssuesCategoryData"
+          }
         }
       },
       "PaginationMeta": {
         "type": "object",
         "properties": {
-          "page": { "type": "integer", "example": 1 },
-          "limit": { "type": "integer", "example": 10 },
-          "total": { "type": "integer", "example": 120 },
-          "totalPages": { "type": "integer", "example": 12 }
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "total": {
+            "type": "integer",
+            "example": 120
+          },
+          "totalPages": {
+            "type": "integer",
+            "example": 12
+          }
         }
       },
       "DashboardRecentAuditItem": {
         "type": "object",
         "properties": {
-          "auditId": { "type": "integer", "example": 101 },
-          "fileName": { "type": "string", "example": "Gold_City_2024-12-16.xlsx" },
-          "auditType": { "type": "string", "example": "PAN Audit" },
-          "records": { "type": "integer", "example": 12458 },
-          "uploadedOn": { "type": "string", "format": "date-time", "example": "2024-12-16T10:30:00.000Z" },
+          "auditId": {
+            "type": "integer",
+            "example": 101
+          },
+          "fileName": {
+            "type": "string",
+            "example": "Gold_City_2024-12-16.xlsx"
+          },
+          "auditType": {
+            "type": "string",
+            "example": "PAN Audit"
+          },
+          "records": {
+            "type": "integer",
+            "example": 12458
+          },
+          "uploadedOn": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-12-16T10:30:00.000Z"
+          },
           "status": {
             "type": "string",
-            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "FAILED"
+            ],
             "example": "COMPLETED"
           }
         }
@@ -1659,26 +3215,67 @@
       "DashboardRecentAuditsSuccess": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "message": { "type": "string", "example": "Recent audits fetched successfully" },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Recent audits fetched successfully"
+          },
           "data": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/DashboardRecentAuditItem" }
+            "items": {
+              "$ref": "#/components/schemas/DashboardRecentAuditItem"
+            }
           },
-          "pagination": { "$ref": "#/components/schemas/PaginationMeta" }
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
         }
       },
       "ErrorBody": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": false },
-          "detail": { "type": "string" },
-          "requestId": { "type": "string" }
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "detail": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
         }
       },
       "PanInvalidRecord": {
         "type": "object",
         "additionalProperties": true
+      },
+      "FinancialsBucketPivotRow": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string",
+            "description": "ist|jubilee|kokapet (receipts) or ist|banjara|kokapet (issues)"
+          },
+          "sumOfQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sumOfGross": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
       }
     }
   }
