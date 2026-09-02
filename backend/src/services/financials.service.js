@@ -4,14 +4,26 @@ const auditRunPersistence = require('./auditRunPersistence.service');
 const { AUDIT_KEYS } = require('../constants/notifications');
 
 /**
- * Process Financials Sales & Purchases pivots.
+ * Process Financials Closing Stock (Sales/Purchases/Opening + optional MR/DC).
  *
  * @param {import('express').Request} req
  * @param {object} salesFile
  * @param {object} purchasesFile
+ * @param {object} openingQtyFile
+ * @param {object} previousYearFile
+ * @param {object} [mrFile]
+ * @param {object} [dcFile]
  * @returns {Promise<{ data: object, auditRunId: number | null }>}
  */
-async function processFinancialsPivot(req, salesFile, purchasesFile, openingQtyFile, previousYearFile) {
+async function processFinancialsPivot(
+  req,
+  salesFile,
+  purchasesFile,
+  openingQtyFile,
+  previousYearFile,
+  mrFile,
+  dcFile
+) {
   const { requestId, user } = req;
 
   const data = await pythonClient.postFinancialsPivot(
@@ -19,6 +31,8 @@ async function processFinancialsPivot(req, salesFile, purchasesFile, openingQtyF
     purchasesFile,
     openingQtyFile,
     previousYearFile,
+    mrFile,
+    dcFile,
     { requestId }
   );
 
@@ -27,6 +41,8 @@ async function processFinancialsPivot(req, salesFile, purchasesFile, openingQtyF
     purchasesFile.originalname,
     openingQtyFile?.originalname,
     previousYearFile?.originalname,
+    mrFile?.originalname,
+    dcFile?.originalname,
   ]
     .filter(Boolean)
     .join(', ');
@@ -38,7 +54,9 @@ async function processFinancialsPivot(req, salesFile, purchasesFile, openingQtyF
       (salesFile.size || 0) +
       (purchasesFile.size || 0) +
       (openingQtyFile?.size || 0) +
-      (previousYearFile?.size || 0),
+      (previousYearFile?.size || 0) +
+      (mrFile?.size || 0) +
+      (dcFile?.size || 0),
   };
 
   const performanceMetrics = {
@@ -77,6 +95,8 @@ function notifyFinancialsPivotFailure(req, err) {
     req.files?.purchasesFile?.[0]?.originalname,
     req.files?.openingQtyFile?.[0]?.originalname,
     req.files?.previousYearFile?.[0]?.originalname,
+    req.files?.mrFile?.[0]?.originalname,
+    req.files?.dcFile?.[0]?.originalname,
   ]
     .filter(Boolean)
     .join(', ');

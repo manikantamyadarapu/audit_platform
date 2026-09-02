@@ -48,6 +48,22 @@ CLOSING_STOCK_MEASURE_PATHS: dict[str, tuple[str | None, str | None, str]] = {
     'openingAmt': ('Opening Stock', None, 'Amt.'),
     'purchasesQty': ('Purchases', None, 'Qty'),
     'purchasesAmt': ('Purchases', None, 'Amt.'),
+    'receiptsIstQty': ('Receipts', 'Internal Stock Transfer', 'Qty'),
+    'receiptsIstAmt': ('Receipts', 'Internal Stock Transfer', 'Amt.'),
+    'receiptsJubileeQty': ('Receipts', 'Jubilee Hills', 'Qty'),
+    'receiptsJubileeAmt': ('Receipts', 'Jubilee Hills', 'Amt.'),
+    'receiptsKokapetQty': ('Receipts', 'Kokapet', 'Qty'),
+    'receiptsKokapetAmt': ('Receipts', 'Kokapet', 'Amt.'),
+    'receiptsTotalQty': ('Receipts', 'Total', 'Qty'),
+    'receiptsTotalAmt': ('Receipts', 'Total', 'Amt.'),
+    'issuesIstQty': ('Issues', 'Internal Stock Transfer', 'Qty'),
+    'issuesIstAmt': ('Issues', 'Internal Stock Transfer', 'Amt.'),
+    'issuesBanjaraQty': ('Issues', 'Banjara Hills', 'Qty'),
+    'issuesBanjaraAmt': ('Issues', 'Banjara Hills', 'Amt.'),
+    'issuesKokapetQty': ('Issues', 'Kokapet', 'Qty'),
+    'issuesKokapetAmt': ('Issues', 'Kokapet', 'Amt.'),
+    'issuesTotalQty': ('Issues', 'Total', 'Qty'),
+    'issuesTotalAmt': ('Issues', 'Total', 'Amt.'),
     'salesQty': ('Sales', None, 'Qty'),
     'salesAmt': ('Sales', None, 'Amt.'),
 }
@@ -194,12 +210,12 @@ def _leaf_excel_column(leaf_idx: int) -> int:
     return 2 + leaf_idx
 
 
-def _write_product_sales_purchases(
+def _write_product_measures(
     ws: Worksheet,
     row: int,
     entry: Mapping[str, Any],
 ) -> None:
-    """Write Purchases/Sales Qty/Amt for one product row; other columns stay blank."""
+    """Write wired Closing Stock measures for one product row; unwired columns stay blank."""
     for measure_key in CLOSING_STOCK_MEASURE_PATHS:
         value = entry.get(measure_key)
         if value is None:
@@ -208,6 +224,10 @@ def _write_product_sales_purchases(
         cell = ws.cell(row=row, column=_leaf_excel_column(leaf_idx), value=value)
         apply_indian_number_format(cell)
         cell.alignment = CENTER
+
+
+# Back-compat alias for older call sites / tests.
+_write_product_sales_purchases = _write_product_measures
 
 
 def _write_sum_formulas(
@@ -411,7 +431,7 @@ def _write_closing_stock_sheet(
                 cell = ws.cell(row=row, column=col, value=None)
                 cell.border = THIN
                 cell.alignment = CENTER
-            _write_product_sales_purchases(ws, row, entry)
+            _write_product_measures(ws, row, entry)
             if label.strip():
                 product_rows_all.append(row)
                 current_subcategory_product_rows.append(row)

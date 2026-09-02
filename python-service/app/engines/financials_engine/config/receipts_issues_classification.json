@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "description": "Configurable MR/DC → Closing Stock Receipts/Issues bucket mapping. Branch names mirror the Closing Stock template (Receipts: IST / Jubilee Hills / Kokapet; Issues: IST / Banjara Hills / Kokapet). Edit aliases to match your ERP godown/party/branch labels — do not invent accounting treatments outside this file.",
+  "classificationColumnAliases": [
+    "godown",
+    "godown_name",
+    "godownname",
+    "from_godown",
+    "to_godown",
+    "party",
+    "party_name",
+    "partyname",
+    "particulars",
+    "branch",
+    "branch_name",
+    "location",
+    "voucher_type",
+    "vouchertype",
+    "voucher_name",
+    "narration",
+    "account",
+    "ledger",
+    "contra",
+    "destination",
+    "source"
+  ],
+  "receiptsBuckets": {
+    "ist": {
+      "label": "Internal Stock Transfer",
+      "aliases": [
+        "internal stock transfer",
+        "internalstocktransfer",
+        "stock transfer",
+        "stocktransfer",
+        "ist",
+        "i.s.t",
+        "inter branch transfer",
+        "interbranch transfer",
+        "branch transfer"
+      ]
+    },
+    "jubilee": {
+      "label": "Jubilee Hills",
+      "aliases": [
+        "jubilee hills",
+        "jubileehills",
+        "jubilee",
+        "jh",
+        "j hills"
+      ]
+    },
+    "kokapet": {
+      "label": "Kokapet",
+      "aliases": [
+        "kokapet",
+        "koka pet"
+      ]
+    }
+  },
+  "issuesBuckets": {
+    "ist": {
+      "label": "Internal Stock Transfer",
+      "aliases": [
+        "internal stock transfer",
+        "internalstocktransfer",
+        "stock transfer",
+        "stocktransfer",
+        "ist",
+        "i.s.t",
+        "inter branch transfer",
+        "interbranch transfer",
+        "branch transfer"
+      ]
+    },
+    "banjara": {
+      "label": "Banjara Hills",
+      "aliases": [
+        "banjara hills",
+        "banjarahills",
+        "banjara",
+        "bh",
+        "b hills"
+      ]
+    },
+    "kokapet": {
+      "label": "Kokapet",
+      "aliases": [
+        "kokapet",
+        "koka pet"
+      ]
+    }
+  },
+  "matchPriority": {
+    "receipts": ["ist", "jubilee", "kokapet"],
+    "issues": ["ist", "banjara", "kokapet"]
+  },
+  "options": {
+    "includeIstInTotals": true,
+    "comment": "When true, Receipts/Issues Total = SUM(IST + branch buckets) from unrounded values. IST is not eliminated from totals; product-level net movement uses those totals so matching IST in/out cancel naturally."
+  }
+}

@@ -61,9 +61,62 @@ export const CLOSING_STOCK_MEASURE_PATHS = Object.freeze({
   openingAmt: ['Opening Stock', null, 'Amt.'],
   purchasesQty: ['Purchases', null, 'Qty'],
   purchasesAmt: ['Purchases', null, 'Amt.'],
+  receiptsIstQty: ['Receipts', 'Internal Stock Transfer', 'Qty'],
+  receiptsIstAmt: ['Receipts', 'Internal Stock Transfer', 'Amt.'],
+  receiptsJubileeQty: ['Receipts', 'Jubilee Hills', 'Qty'],
+  receiptsJubileeAmt: ['Receipts', 'Jubilee Hills', 'Amt.'],
+  receiptsKokapetQty: ['Receipts', 'Kokapet', 'Qty'],
+  receiptsKokapetAmt: ['Receipts', 'Kokapet', 'Amt.'],
+  receiptsTotalQty: ['Receipts', 'Total', 'Qty'],
+  receiptsTotalAmt: ['Receipts', 'Total', 'Amt.'],
+  issuesIstQty: ['Issues', 'Internal Stock Transfer', 'Qty'],
+  issuesIstAmt: ['Issues', 'Internal Stock Transfer', 'Amt.'],
+  issuesBanjaraQty: ['Issues', 'Banjara Hills', 'Qty'],
+  issuesBanjaraAmt: ['Issues', 'Banjara Hills', 'Amt.'],
+  issuesKokapetQty: ['Issues', 'Kokapet', 'Qty'],
+  issuesKokapetAmt: ['Issues', 'Kokapet', 'Amt.'],
+  issuesTotalQty: ['Issues', 'Total', 'Qty'],
+  issuesTotalAmt: ['Issues', 'Total', 'Amt.'],
   salesQty: ['Sales', null, 'Qty'],
   salesAmt: ['Sales', null, 'Amt.'],
 });
+
+export const RECEIPTS_ISSUES_MEASURE_KEYS = Object.freeze([
+  'receiptsIstQty',
+  'receiptsIstAmt',
+  'receiptsJubileeQty',
+  'receiptsJubileeAmt',
+  'receiptsKokapetQty',
+  'receiptsKokapetAmt',
+  'receiptsTotalQty',
+  'receiptsTotalAmt',
+  'issuesIstQty',
+  'issuesIstAmt',
+  'issuesBanjaraQty',
+  'issuesBanjaraAmt',
+  'issuesKokapetQty',
+  'issuesKokapetAmt',
+  'issuesTotalQty',
+  'issuesTotalAmt',
+]);
+
+const ALL_MEASURE_KEYS = Object.freeze([
+  'openingQty',
+  'openingAmt',
+  'purchasesQty',
+  'purchasesAmt',
+  ...RECEIPTS_ISSUES_MEASURE_KEYS,
+  'salesQty',
+  'salesAmt',
+]);
+
+function pickMeasureFields(row) {
+  const out = {};
+  for (const key of ALL_MEASURE_KEYS) {
+    out[key] = row?.[key] ?? null;
+  }
+  return out;
+}
 
 function pathsEqual(a, b) {
   return a[0] === b[0] && (a[1] ?? null) === (b[1] ?? null) && a[2] === b[2];
@@ -132,12 +185,7 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         const productRow = {
           kind: 'product',
           label: String(row?.label || ''),
-          openingQty: row?.openingQty ?? null,
-          openingAmt: row?.openingAmt ?? null,
-          purchasesQty: row?.purchasesQty ?? null,
-          purchasesAmt: row?.purchasesAmt ?? null,
-          salesQty: row?.salesQty ?? null,
-          salesAmt: row?.salesAmt ?? null,
+          ...pickMeasureFields(row),
         };
         enriched.push(productRow);
         if (productRow.label.trim()) {
@@ -151,12 +199,7 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         enriched.push({
           kind: 'subcategory_total',
           label: String(row?.label || 'TOTAL'),
-          openingQty: row?.openingQty ?? null,
-          openingAmt: row?.openingAmt ?? null,
-          purchasesQty: row?.purchasesQty ?? null,
-          purchasesAmt: row?.purchasesAmt ?? null,
-          salesQty: row?.salesQty ?? null,
-          salesAmt: row?.salesAmt ?? null,
+          ...pickMeasureFields(row),
         });
         subcategoryProducts = [];
         continue;
@@ -165,12 +208,7 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         enriched.push({
           kind: 'grand_total',
           label: String(row?.label || 'GRAND TOTAL'),
-          openingQty: row?.openingQty ?? null,
-          openingAmt: row?.openingAmt ?? null,
-          purchasesQty: row?.purchasesQty ?? null,
-          purchasesAmt: row?.purchasesAmt ?? null,
-          salesQty: row?.salesQty ?? null,
-          salesAmt: row?.salesAmt ?? null,
+          ...pickMeasureFields(row),
         });
         continue;
       }

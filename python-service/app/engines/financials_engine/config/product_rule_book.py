@@ -10,9 +10,19 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from app.engines.financials_engine.config.receipts_issues_config import (
+    ISSUES_BUCKET_KEYS,
+    RECEIPTS_BUCKET_KEYS,
+    RECEIPTS_ISSUES_MEASURE_KEYS,
+    load_receipts_issues_classification,
+)
 from app.engines.financials_engine.engine.closing_stock_template import (
     CLOSING_STOCK_CATEGORIES,
     subcategory_total_label,
+)
+from app.engines.financials_engine.engine.receipts_issues import (
+    compute_net_movement,
+    measures_from_bucket_maps,
 )
 from app.utils.logger import get_logger
 
@@ -197,6 +207,8 @@ def format_closing_stock_mapping_response(category_mapping: Mapping[str, Any]) -
         'unmappedProductDetails': category_mapping.get('unmappedProductDetails', []),
         'unmappedOpeningProducts': category_mapping.get('unmappedOpeningProducts', []),
         'mappedOpeningProducts': category_mapping.get('mappedOpeningProducts', []),
+        'unmappedReceiptsProducts': category_mapping.get('unmappedReceiptsProducts', []),
+        'unmappedIssuesProducts': category_mapping.get('unmappedIssuesProducts', []),
         'closingStockCategories': category_mapping['categories'],
         'ruleBookFingerprint': category_mapping.get('ruleBookFingerprint'),
         'ruleBookProductCounts': category_mapping.get('ruleBookProductCounts', {}),
@@ -204,8 +216,11 @@ def format_closing_stock_mapping_response(category_mapping: Mapping[str, Any]) -
         'productsWithSalesData': category_mapping.get('productsWithSalesData', 0),
         'productsWithPurchaseData': category_mapping.get('productsWithPurchaseData', 0),
         'productsWithOpeningData': category_mapping.get('productsWithOpeningData', 0),
+        'productsWithReceiptsData': category_mapping.get('productsWithReceiptsData', 0),
+        'productsWithIssuesData': category_mapping.get('productsWithIssuesData', 0),
         'productsDisplayed': category_mapping.get('productsDisplayed', 0),
         'reconciliation': category_mapping.get('reconciliation', {}),
+        'netMovement': category_mapping.get('netMovement', {}),
     }
 
 
@@ -406,18 +421,72 @@ def _aggregate_pivot_by_rule_book(
     return by_display, unmapped_rows
 
 
+def _aggregate_bucket_pivot_by_rule_book(
+    rows: Sequence[Mapping[str, Any]] | None,
+    *,
+    lookup: Mapping[str, str],
+    allowed_buckets: Sequence[str],
+) -> tuple[dict[str, dict[str, dict[str, float | None]]], list[dict[str, Any]]]:
+    """
+    Claim each bucket-pivot row once onto Rule Book display name × bucket.
+
+    Shape: display_name → bucket → {sumOfQuantity, sumOfGross}
+    """
+    allowed = set(allowed_buckets)
+    by_display: dict[str, dict[str, dict[str, float | None]]] = {}
+    unmapped_rows: list[dict[str, Any]] = []
+
+    for row in rows or ():
+        product_name = str(row.get('product') or '').strip()
+        bucket = str(row.get('bucket') or '').strip().casefold()
+        if not product_name:
+            continue
+        qty = _coerce_measure(row.get('sumOfQuantity'))
+        gross = _coerce_measure(row.get('sumOfGross'))
+        if bucket not in allowed:
+            unmapped_rows.append(
+                {
+                    'product': product_name,
+                    'bucket': bucket,
+                    'sumOfQuantity': qty,
+                    'sumOfGross': gross,
+                    'reason': 'unknown_bucket',
+                }
+            )
+            continue
+        display_name = _resolve_rule_book_display_name(product_name, lookup=lookup)
+        if display_name is None:
+            unmapped_rows.append(
+                {
+                    'product': product_name,
+                    'bucket': bucket,
+                    'sumOfQuantity': qty,
+                    'sumOfGross': gross,
+                }
+            )
+            continue
+        buckets = by_display.setdefault(display_name, {})
+        entry = buckets.setdefault(bucket, _empty_measures())
+        _accumulate_measures(entry, qty=qty, gross=gross)
+
+    return by_display, unmapped_rows
+
+
 def _raw_product_measures(
     rule_book_product: str,
     *,
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    receipts_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    issues_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    include_ist_in_totals: bool = True,
 ) -> dict[str, float | None]:
     """Original (unrounded) pivot measures for one Rule Book product."""
     sales = sales_by_display.get(rule_book_product, {})
     purchases = purchases_by_display.get(rule_book_product, {})
     opening = (opening_by_display or {}).get(rule_book_product, {})
-    return {
+    base = {
         'openingQty': opening.get('sumOfQuantity'),
         'openingAmt': opening.get('sumOfGross'),
         'purchasesQty': purchases.get('sumOfQuantity'),
@@ -425,21 +494,28 @@ def _raw_product_measures(
         'salesQty': sales.get('sumOfQuantity'),
         'salesAmt': sales.get('sumOfGross'),
     }
+    transfer = measures_from_bucket_maps(
+        receipts_by_bucket=(receipts_by_display or {}).get(rule_book_product),
+        issues_by_bucket=(issues_by_display or {}).get(rule_book_product),
+        include_ist_in_totals=include_ist_in_totals,
+    )
+    base.update(transfer)
+    return base
 
 
 def _display_product_measures(raw: Mapping[str, float | None]) -> dict[str, float | None]:
     """Product-level display: round Amounts only; Quantity stays exact."""
-    return {
-        'openingQty': raw.get('openingQty'),
-        'openingAmt': _round_closing_stock_measure(raw.get('openingAmt')),
-        'purchasesQty': raw.get('purchasesQty'),
-        'purchasesAmt': _round_closing_stock_measure(raw.get('purchasesAmt')),
-        'salesQty': raw.get('salesQty'),
-        'salesAmt': _round_closing_stock_measure(raw.get('salesAmt')),
-    }
+    display: dict[str, float | None] = {}
+    for key in _MEASURE_KEYS:
+        value = raw.get(key)
+        if key.endswith('Amt'):
+            display[key] = _round_closing_stock_measure(value)
+        else:
+            display[key] = value
+    return display
 
 
-_MEASURE_KEYS = (
+_BASE_MEASURE_KEYS = (
     'openingQty',
     'openingAmt',
     'purchasesQty',
@@ -447,6 +523,8 @@ _MEASURE_KEYS = (
     'salesQty',
     'salesAmt',
 )
+
+_MEASURE_KEYS = _BASE_MEASURE_KEYS + RECEIPTS_ISSUES_MEASURE_KEYS
 
 
 def _total_measures_from_raw(
@@ -484,12 +562,18 @@ def _product_measures_from_maps(
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    receipts_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    issues_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    include_ist_in_totals: bool = True,
 ) -> dict[str, float | None]:
     raw = _raw_product_measures(
         rule_book_product,
         sales_by_display=sales_by_display,
         purchases_by_display=purchases_by_display,
         opening_by_display=opening_by_display,
+        receipts_by_display=receipts_by_display,
+        issues_by_display=issues_by_display,
+        include_ist_in_totals=include_ist_in_totals,
     )
     return _display_product_measures(raw)
 
@@ -501,6 +585,9 @@ def _build_layout_for_category(
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    receipts_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    issues_by_display: Mapping[str, dict[str, dict[str, float | None]]] | None = None,
+    include_ist_in_totals: bool = True,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """
     Build sheet layout from the Rule Book master list.
@@ -512,6 +599,8 @@ def _build_layout_for_category(
     flat_products: list[str] = []
     sheet_raw: list[dict[str, float | None]] = []
     opening_map = opening_by_display or {}
+    receipts_map = receipts_by_display or {}
+    issues_map = issues_by_display or {}
 
     def _append_product(product: str, subcategory: str | None) -> None:
         raw = _raw_product_measures(
@@ -519,6 +608,9 @@ def _build_layout_for_category(
             sales_by_display=sales_by_display,
             purchases_by_display=purchases_by_display,
             opening_by_display=opening_map,
+            receipts_by_display=receipts_map,
+            issues_by_display=issues_map,
+            include_ist_in_totals=include_ist_in_totals,
         )
         display = _display_product_measures(raw)
         layout.append(
@@ -551,6 +643,9 @@ def _build_layout_for_category(
                     sales_by_display=sales_by_display,
                     purchases_by_display=purchases_by_display,
                     opening_by_display=opening_map,
+                    receipts_by_display=receipts_map,
+                    issues_by_display=issues_map,
+                    include_ist_in_totals=include_ist_in_totals,
                 )
                 display = _display_product_measures(raw)
                 layout.append(
@@ -784,18 +879,87 @@ def _build_reconciliation(
     }
 
 
+def _count_products_with_bucket_measures(
+    products_by_category: Mapping[str, Sequence[str]],
+    by_display: Mapping[str, dict[str, dict[str, float | None]]],
+) -> int:
+    count = 0
+    seen: set[str] = set()
+    for products in products_by_category.values():
+        for product in products:
+            key = _norm_product(product)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            buckets = by_display.get(product) or {}
+            has_data = False
+            for entry in buckets.values():
+                if entry.get('sumOfQuantity') is not None or entry.get('sumOfGross') is not None:
+                    has_data = True
+                    break
+            if has_data:
+                count += 1
+    return count
+
+
+def _sum_raw_net_movement(
+    raw_rows: Sequence[Mapping[str, float | None]],
+) -> dict[str, float | None]:
+    """Aggregate net movement from unrounded product measures."""
+    qty_total = 0.0
+    amt_total = 0.0
+    qty_present = False
+    amt_present = False
+    for raw in raw_rows:
+        net = compute_net_movement(
+            opening_qty=_coerce_measure(raw.get('openingQty')),
+            opening_amt=_coerce_measure(raw.get('openingAmt')),
+            purchases_qty=_coerce_measure(raw.get('purchasesQty')),
+            purchases_amt=_coerce_measure(raw.get('purchasesAmt')),
+            receipts_total_qty=_coerce_measure(raw.get('receiptsTotalQty')),
+            receipts_total_amt=_coerce_measure(raw.get('receiptsTotalAmt')),
+            issues_total_qty=_coerce_measure(raw.get('issuesTotalQty')),
+            issues_total_amt=_coerce_measure(raw.get('issuesTotalAmt')),
+            sales_qty=_coerce_measure(raw.get('salesQty')),
+            sales_amt=_coerce_measure(raw.get('salesAmt')),
+        )
+        nq = net.get('netMovementQty')
+        na = net.get('netMovementAmt')
+        if nq is not None:
+            qty_total += nq
+            qty_present = True
+        if na is not None:
+            amt_total += na
+            amt_present = True
+    return {
+        'netMovementQty': round(qty_total, 4) if qty_present else None,
+        'netMovementAmt': (
+            float(_round_closing_stock_measure(amt_total)) if amt_present else None
+        ),
+        'formula': 'Opening + Purchases + Total Receipts - Total Issues - Sales',
+        'note': (
+            'Computed from classified bucket totals after Rule Book join — '
+            'not MR file total minus DC file total.'
+        ),
+    }
+
+
 def map_pivots_to_closing_stock_categories(
     *,
     sales_pivot: Sequence[Mapping[str, Any]] | None = None,
     purchases_pivot: Sequence[Mapping[str, Any]] | None = None,
     opening_pivot: Sequence[Mapping[str, Any]] | None = None,
+    receipts_pivot: Sequence[Mapping[str, Any]] | None = None,
+    issues_pivot: Sequence[Mapping[str, Any]] | None = None,
+    include_ist_in_totals: bool | None = None,
     rule_book: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build Closing Stock from the Rule Book (master list) and LEFT JOIN pivot values.
 
-    Display names always come from the Rule Book. Sales/Purchases/Opening Qty/Amt are
-    the SUM of matching pivot rows (normalized / alphanumeric / unique core SKU).
+    Display names always come from the Rule Book. Sales/Purchases/Opening Qty/Amt and
+    Receipts/Issues bucket measures are the SUM of matching pivot rows
+    (normalized / alphanumeric / unique core SKU).
     """
     log = get_logger('closing-stock-rule-book')
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
@@ -804,6 +968,15 @@ def map_pivots_to_closing_stock_categories(
     rule_counts = count_rule_book_products(book)
     total_rule_products = sum(rule_counts.values())
     match_lookup = _build_rule_book_match_lookup(book)
+
+    if include_ist_in_totals is None:
+        try:
+            cfg = load_receipts_issues_classification()
+            include_ist = bool((cfg.get('options') or {}).get('includeIstInTotals', True))
+        except Exception:
+            include_ist = True
+    else:
+        include_ist = bool(include_ist_in_totals)
 
     log.info(
         'Rule Book loaded from disk: path={} mtime={} total_products={} fingerprint={}',
@@ -827,6 +1000,16 @@ def map_pivots_to_closing_stock_categories(
         opening_pivot,
         lookup=match_lookup,
     )
+    receipts_by_display, unmapped_receipts_rows = _aggregate_bucket_pivot_by_rule_book(
+        receipts_pivot,
+        lookup=match_lookup,
+        allowed_buckets=RECEIPTS_BUCKET_KEYS,
+    )
+    issues_by_display, unmapped_issues_rows = _aggregate_bucket_pivot_by_rule_book(
+        issues_pivot,
+        lookup=match_lookup,
+        allowed_buckets=ISSUES_BUCKET_KEYS,
+    )
 
     unmapped: list[str] = []
     unmapped_details: list[dict[str, str]] = []
@@ -835,6 +1018,8 @@ def map_pivots_to_closing_stock_categories(
         ('Sales', unmapped_sales_rows),
         ('Purchases', unmapped_purchases_rows),
         ('Opening', unmapped_opening_rows),
+        ('Receipts', unmapped_receipts_rows),
+        ('Issues', unmapped_issues_rows),
     ):
         for row in rows:
             product_name = str(row.get('product') or '')
@@ -854,6 +1039,7 @@ def map_pivots_to_closing_stock_categories(
 
     products_by_category: dict[str, list[str]] = {}
     layout_by_category: dict[str, list[dict[str, Any]]] = {}
+    all_raw_products: list[dict[str, float | None]] = []
     for category in CLOSING_STOCK_CATEGORIES:
         layout, flat = _build_layout_for_category(
             category,
@@ -861,9 +1047,24 @@ def map_pivots_to_closing_stock_categories(
             sales_by_display=sales_by_display,
             purchases_by_display=purchases_by_display,
             opening_by_display=opening_by_display,
+            receipts_by_display=receipts_by_display,
+            issues_by_display=issues_by_display,
+            include_ist_in_totals=include_ist,
         )
         layout_by_category[category] = layout
         products_by_category[category] = flat
+        for product in flat:
+            all_raw_products.append(
+                _raw_product_measures(
+                    product,
+                    sales_by_display=sales_by_display,
+                    purchases_by_display=purchases_by_display,
+                    opening_by_display=opening_by_display,
+                    receipts_by_display=receipts_by_display,
+                    issues_by_display=issues_by_display,
+                    include_ist_in_totals=include_ist,
+                )
+            )
 
     mapped_count = sum(len(v) for v in products_by_category.values())
     products_with_sales = _count_products_with_measures(products_by_category, sales_by_display)
@@ -874,6 +1075,14 @@ def map_pivots_to_closing_stock_categories(
     products_with_opening = _count_products_with_measures(
         products_by_category,
         opening_by_display,
+    )
+    products_with_receipts = _count_products_with_bucket_measures(
+        products_by_category,
+        receipts_by_display,
+    )
+    products_with_issues = _count_products_with_bucket_measures(
+        products_by_category,
+        issues_by_display,
     )
 
     mapped_opening_products = [
@@ -887,12 +1096,14 @@ def map_pivots_to_closing_stock_categories(
 
     log.info(
         'Closing Stock fill — rule_book={} displayed={} with_sales={} with_purchases={} '
-        'with_opening={} pivot_unmapped={}',
+        'with_opening={} with_receipts={} with_issues={} pivot_unmapped={}',
         total_rule_products,
         mapped_count,
         products_with_sales,
         products_with_purchases,
         products_with_opening,
+        products_with_receipts,
+        products_with_issues,
         len(unmapped),
     )
     if mapped_count != total_rule_products:
@@ -911,10 +1122,15 @@ def map_pivots_to_closing_stock_categories(
         unmapped_sales=unmapped_sales_rows,
         unmapped_purchases=unmapped_purchases_rows,
     )
+    net_movement = _sum_raw_net_movement(all_raw_products)
+    reconciliation['netMovementQty'] = net_movement.get('netMovementQty')
+    reconciliation['netMovementAmt'] = net_movement.get('netMovementAmt')
+    reconciliation['netMovementFormula'] = net_movement.get('formula')
 
     log.info(
         'Reconciliation — sales pivot={} mapped={} output={} | '
-        'purchases pivot={} mapped={} output={} | mapped_ok={} split_ok={} unmapped={}',
+        'purchases pivot={} mapped={} output={} | mapped_ok={} split_ok={} unmapped={} | '
+        'net_qty={} net_amt={}',
         reconciliation['salesPivotQty'],
         reconciliation['mappedSalesQty'],
         reconciliation['outputSalesQty'],
@@ -924,6 +1140,8 @@ def map_pivots_to_closing_stock_categories(
         reconciliation['mappedOutputMatch'],
         reconciliation['pivotSplitMatch'],
         len(unmapped),
+        net_movement.get('netMovementQty'),
+        net_movement.get('netMovementAmt'),
     )
     if not reconciliation['mappedOutputMatch']:
         log.error('Mapped pivot totals do not match Closing Stock output totals')
@@ -947,6 +1165,12 @@ def map_pivots_to_closing_stock_categories(
         'unmappedOpeningProducts': [
             str(r.get('product') or '') for r in unmapped_opening_rows if r.get('product')
         ],
+        'unmappedReceiptsProducts': [
+            str(r.get('product') or '') for r in unmapped_receipts_rows if r.get('product')
+        ],
+        'unmappedIssuesProducts': [
+            str(r.get('product') or '') for r in unmapped_issues_rows if r.get('product')
+        ],
         'mappedOpeningProducts': mapped_opening_products,
         'ruleBookProductCounts': rule_counts,
         'ruleBookProductTotal': total_rule_products,
@@ -954,8 +1178,12 @@ def map_pivots_to_closing_stock_categories(
         'productsWithSalesData': products_with_sales,
         'productsWithPurchaseData': products_with_purchases,
         'productsWithOpeningData': products_with_opening,
+        'productsWithReceiptsData': products_with_receipts,
+        'productsWithIssuesData': products_with_issues,
         'productsDisplayed': mapped_count,
         'reconciliation': reconciliation,
+        'netMovement': net_movement,
+        'includeIstInTotals': include_ist,
         'categories': list(CLOSING_STOCK_CATEGORIES),
     }
 

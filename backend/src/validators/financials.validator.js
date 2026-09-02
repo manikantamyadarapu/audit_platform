@@ -24,6 +24,8 @@ function validatePivotArray(value, field) {
  *   salesPivot: object[],
  *   purchasesPivot: object[],
  *   openingPivot: object[],
+ *   receiptsPivot: object[],
+ *   issuesPivot: object[],
  * } | { ok: false, detail: string }}
  */
 function validateFinancialsExportPivotsBody(body) {
@@ -37,12 +39,18 @@ function validateFinancialsExportPivotsBody(body) {
   if (!purchases.ok) return purchases;
   const opening = validatePivotArray(body.openingPivot, 'openingPivot');
   if (!opening.ok) return opening;
+  const receipts = validatePivotArray(body.receiptsPivot, 'receiptsPivot');
+  if (!receipts.ok) return receipts;
+  const issues = validatePivotArray(body.issuesPivot, 'issuesPivot');
+  if (!issues.ok) return issues;
 
   return {
     ok: true,
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
     openingPivot: opening.rows,
+    receiptsPivot: receipts.rows,
+    issuesPivot: issues.rows,
   };
 }
 
@@ -54,6 +62,8 @@ function validateFinancialsExportPivotsBody(body) {
  *   salesPivot: object[],
  *   purchasesPivot: object[],
  *   openingPivot: object[],
+ *   receiptsPivot: object[],
+ *   issuesPivot: object[],
  *   companyName: string,
  *   address: string,
  *   financialYear: string,
@@ -74,6 +84,10 @@ function validateClosingStockExportBody(body) {
   if (!purchases.ok) return purchases;
   const opening = validatePivotArray(body.openingPivot, 'openingPivot');
   if (!opening.ok) return opening;
+  const receipts = validatePivotArray(body.receiptsPivot, 'receiptsPivot');
+  if (!receipts.ok) return receipts;
+  const issues = validatePivotArray(body.issuesPivot, 'issuesPivot');
+  if (!issues.ok) return issues;
 
   const companyName = body.companyName == null ? '' : String(body.companyName);
   const address = body.address == null ? '' : String(body.address);
@@ -88,6 +102,8 @@ function validateClosingStockExportBody(body) {
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
     openingPivot: opening.rows,
+    receiptsPivot: receipts.rows,
+    issuesPivot: issues.rows,
     companyName,
     address,
     financialYear,
