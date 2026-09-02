@@ -33,9 +33,15 @@ def _request_id(request: Request) -> str:
 
 
 class PivotRow(BaseModel):
+    model_config = {'extra': 'allow'}
+
     product: str = ''
     sumOfQuantity: float | int | None = None
     sumOfGross: float | int | None = None
+    ruleBookProduct: str | None = None
+    category: str | None = None
+    subcategory: str | None = None
+    status: str | None = None
 
 
 class ExportPivotsRequest(BaseModel):

@@ -93,14 +93,13 @@ class FinancialsPivotAudit:
             opening_pivot = validated_opening_to_pivot(validated_opening)
             self._log.info(
                 'Opening Stock mapping: qty_products={} prev_index={} exact_matched={} '
-                'fallback_matched={} unmatched={} qty_mismatch={} mapping_required={}',
+                'fallback_matched={} unmatched={} manual_mapping_required={}',
                 len(qty_rows),
                 len(prev_payload.get('productIndex') or {}),
                 opening_report.get('exactMatchedCount', 0),
                 opening_report.get('fallbackMatchedCount', 0),
                 opening_report.get('unmatchedCount', 0),
-                opening_report.get('quantityMismatchCount', 0),
-                opening_report.get('previousYearMappingRequiredCount', 0),
+                opening_report.get('manualMappingRequiredCount', 0),
             )
 
         self._log.info(

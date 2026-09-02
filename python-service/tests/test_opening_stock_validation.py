@@ -126,11 +126,11 @@ class TestOpeningStockProductSheetMapping:
             previous_year_sheets=sheets,
         )
         assert result['report']['matchedCount'] == 0
-        assert result['report']['previousYearMappingRequiredCount'] == 1
+        assert result['report']['manualMappingRequiredCount'] == 1
         row = result['validatedOpening'][0]
         assert row['openingQty'] == 3
         assert row['openingAmt'] is None
-        assert row['reason'] == 'Previous Year Mapping Required'
+        assert row['reason'] == 'Manual Mapping Required'
 
     def test_maps_validated_opening_into_closing_stock_layout_by_name(self):
         opening_pivot = validated_opening_to_pivot(
@@ -361,7 +361,7 @@ def _chakri_orphan_workbook_bytes() -> bytes:
 
 
 class TestOpeningStockSubcategoryFallback:
-    def test_chakri_sums_orphan_previous_products_when_qty_reconciles(self):
+    def test_chakri_orphans_require_manual_mapping_no_auto_combination(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
             load_previous_year_opening_stock,
         )
@@ -388,12 +388,15 @@ class TestOpeningStockSubcategoryFallback:
             },
         )
         report = result['report']
-        assert report['fallbackMatchedCount'] == 1
+        assert report['fallbackMatchedCount'] == 0
+        assert report['manualMappingRequiredCount'] == 1
         row = result['validatedOpening'][0]
         assert row['openingQty'] == 100.0
-        assert row['openingAmt'] == 6000.0
-        assert row['status'] == 'matched_fallback'
-        assert set(row['previousYearProducts']) == {'Old Product A', 'Old Product B', 'Old Product C'}
+        assert row['openingAmt'] is None
+        assert row['status'] == 'manual_mapping_required'
+        assert row['reason'] == 'Manual Mapping Required'
+        candidate_names = {c['product'] for c in row['candidateProducts']}
+        assert candidate_names == {'Old Product A', 'Old Product B', 'Old Product C'}
 
     def test_chakri_matches_chakri_a_and_chakri_b_variants(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
@@ -447,7 +450,7 @@ class TestOpeningStockSubcategoryFallback:
         assert row['ruleBookProduct'] == 'Flat polki FP 1'
         assert set(row['previousYearProducts']) == {'FP1', 'FP 1'}
 
-    def test_fallback_quantity_mismatch(self):
+    def test_fallback_qty_mismatch_requires_manual_mapping(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
             load_previous_year_opening_stock,
         )
@@ -459,12 +462,13 @@ class TestOpeningStockSubcategoryFallback:
             subcategory_products=payload['subcategoryProducts'],
             sheet_products=payload['sheetProducts'],
         )
-        assert result['report']['quantityMismatchCount'] == 1
+        assert result['report']['manualMappingRequiredCount'] == 1
         assert result['report']['fallbackMatchedCount'] == 0
         row = result['validatedOpening'][0]
-        assert row['status'] == 'quantity_mismatch'
-        assert row['reason'] == 'Quantity Mismatch'
+        assert row['status'] == 'manual_mapping_required'
+        assert row['reason'] == 'Manual Mapping Required'
         assert row['openingAmt'] is None
+        assert {c['product'] for c in row['candidateProducts']} == {'FP1', 'FP 1'}
 
     def test_exact_match_untouched_when_primary_resolves(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
@@ -561,7 +565,7 @@ class TestOpeningStockSubcategoryFallback:
         assert chakri['openingQty'] == 100.0
         assert chakri['openingAmt'] == 6000
 
-    def test_chakri_orphan_fallback_end_to_end_on_layout(self):
+    def test_chakri_orphan_manual_mapping_does_not_auto_write_layout(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
             load_previous_year_opening_stock,
         )
@@ -584,7 +588,44 @@ class TestOpeningStockSubcategoryFallback:
                 },
             },
         )
+        assert result['validatedOpening'][0]['status'] == 'manual_mapping_required'
         opening_pivot = validated_opening_to_pivot(result['validatedOpening'])
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        chakri = next(
+            item
+            for item in mapped['layoutByCategory']['Diamond']
+            if item.get('kind') == 'product' and item.get('label') == 'Chakri'
+        )
+        # Qty from Quantity file may still appear via name match; Amt must stay blank.
+        assert chakri['openingAmt'] is None
+
+    def test_manual_confirm_writes_opening_to_layout(self):
+        opening_pivot = validated_opening_to_pivot(
+            [
+                {
+                    'product': 'Chakri',
+                    'ruleBookProduct': 'Chakri',
+                    'category': 'Diamond',
+                    'subcategory': 'Uncut - diamonds',
+                    'openingQty': 100.0,
+                    'openingAmt': 6000.0,
+                    'status': 'matched_fallback',
+                }
+            ]
+        )
         mapped = map_pivots_to_closing_stock_categories(
             opening_pivot=opening_pivot,
             rule_book={
@@ -643,8 +684,10 @@ class TestOpeningStockRosecutFallback:
             rule_book=_diamond_rosecut_rule_book(),
         )
         row = result['validatedOpening'][0]
-        assert row['status'] == 'quantity_mismatch'
+        assert row['status'] == 'manual_mapping_required'
         assert row['previousClosingQty'] == 12.5
+        assert row['openingAmt'] is None
+        assert row['reason'] == 'Manual Mapping Required'
 
     def test_di_rc_2_matches_previous_rc_2_token(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
@@ -710,7 +753,7 @@ class TestOpeningStockSubcategoryFallbackContinued:
                 },
             },
         )
-        assert result['report']['previousYearMappingRequiredCount'] == 1
+        assert result['report']['manualMappingRequiredCount'] == 1
         row = result['validatedOpening'][0]
-        assert row['reason'] == 'Previous Year Mapping Required'
+        assert row['reason'] == 'Manual Mapping Required'
         assert row['openingAmt'] is None

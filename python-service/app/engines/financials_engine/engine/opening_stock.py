@@ -309,8 +309,7 @@ def map_opening_stock_from_product_sheets(
     matched: list[dict[str, Any]] = []
     fallback_matched: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
-    quantity_mismatch: list[dict[str, Any]] = []
-    previous_year_mapping_required: list[dict[str, Any]] = []
+    manual_mapping_required: list[dict[str, Any]] = []
     validated_opening: list[dict[str, Any]] = []
 
     seen_keys: set[str] = set()
@@ -378,6 +377,7 @@ def map_opening_stock_from_product_sheets(
             'previousYearProducts': fallback.get('previousYearProducts'),
             'previousClosingQty': fallback.get('previousClosingQty'),
             'previousClosingAmount': fallback.get('previousClosingAmount'),
+            'candidateProducts': fallback.get('candidateProducts') or [],
             'primaryReason': primary_reason,
         }
 
@@ -405,45 +405,30 @@ def map_opening_stock_from_product_sheets(
             )
             return True
 
-        if status == 'quantity_mismatch':
+        if status == 'manual_mapping_required':
             row = {
                 **common,
                 'openingAmt': None,
-                'status': 'quantity_mismatch',
-                'reason': fallback.get('reason'),
+                'status': 'manual_mapping_required',
+                'reason': fallback.get('reason') or 'Manual Mapping Required',
                 'difference': fallback.get('difference'),
             }
-            quantity_mismatch.append(row)
+            manual_mapping_required.append(row)
             validated_opening.append(
                 {
                     'product': entry_base['product'],
                     'openingQty': entry_base.get('openingQty'),
                     'openingAmt': None,
-                    'status': 'quantity_mismatch',
-                    'reason': fallback.get('reason'),
+                    'status': 'manual_mapping_required',
+                    'reason': fallback.get('reason') or 'Manual Mapping Required',
                     'sheetName': sheet_name,
+                    'ruleBookProduct': fallback.get('ruleBookProduct'),
+                    'category': fallback.get('category'),
+                    'subcategory': fallback.get('subcategory'),
                     'previousYearProducts': fallback.get('previousYearProducts'),
                     'previousClosingQty': fallback.get('previousClosingQty'),
-                }
-            )
-            return True
-
-        if status == 'previous_year_mapping_required':
-            row = {
-                **common,
-                'openingAmt': None,
-                'status': 'previous_year_mapping_required',
-                'reason': fallback.get('reason'),
-            }
-            previous_year_mapping_required.append(row)
-            validated_opening.append(
-                {
-                    'product': entry_base['product'],
-                    'openingQty': entry_base.get('openingQty'),
-                    'openingAmt': None,
-                    'status': 'previous_year_mapping_required',
-                    'reason': fallback.get('reason'),
-                    'sheetName': sheet_name,
+                    'candidateProducts': fallback.get('candidateProducts') or [],
+                    'difference': fallback.get('difference'),
                 }
             )
             return True
@@ -547,14 +532,17 @@ def map_opening_stock_from_product_sheets(
             'matched': matched,
             'fallbackMatched': fallback_matched,
             'unmatched': unmatched,
-            'quantityMismatch': quantity_mismatch,
-            'previousYearMappingRequired': previous_year_mapping_required,
+            'manualMappingRequired': manual_mapping_required,
+            # Backward-compatible aliases for older UI fields.
+            'quantityMismatch': [],
+            'previousYearMappingRequired': manual_mapping_required,
             'matchedCount': total_matched_count,
             'exactMatchedCount': exact_matched_count,
             'fallbackMatchedCount': fallback_matched_count,
             'unmatchedCount': len(unmatched),
-            'quantityMismatchCount': len(quantity_mismatch),
-            'previousYearMappingRequiredCount': len(previous_year_mapping_required),
+            'manualMappingRequiredCount': len(manual_mapping_required),
+            'quantityMismatchCount': 0,
+            'previousYearMappingRequiredCount': len(manual_mapping_required),
             'totalOpeningQty': round(total_opening_qty, 6),
             'totalOpeningAmount': round(total_opening_amt, 4),
             'previousYearProductSheetCount': len(unique_products),
