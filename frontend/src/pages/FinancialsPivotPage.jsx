@@ -634,27 +634,33 @@ export default function FinancialsPivotPage() {
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {[
                   [
-                    'Matched (sheet + amount)',
-                    openingStockReport.matchedCount ?? openingStockReport.quantityMatchedCount ?? 0,
+                    'Exact matched',
+                    openingStockReport.exactMatchedCount ?? openingStockReport.matchedCount ?? 0,
                   ],
                   [
-                    'Unmatched',
-                    openingStockReport.unmatchedCount
-                      ?? openingStockReport.missingFromPreviousYearFileCount
-                      ?? 0,
+                    'Fallback matched',
+                    openingStockReport.fallbackMatchedCount ?? 0,
+                  ],
+                  [
+                    'Quantity mismatch',
+                    openingStockReport.quantityMismatchCount ?? 0,
+                  ],
+                  [
+                    'Previous year mapping required',
+                    openingStockReport.previousYearMappingRequiredCount ?? 0,
+                  ],
+                  [
+                    'Other unmatched',
+                    (openingStockReport.unmatched || []).length,
                   ],
                   [
                     'Mapped to Closing Stock',
                     openingStockReport.mappedToClosingStockCount
                       ?? summary.productsWithOpeningData
                       ?? 0,
-                  ],
-                  [
-                    'Previous-year product sheets',
-                    openingStockReport.previousYearProductSheetCount ?? 0,
                   ],
                 ].map(([label, value]) => (
                   <div
@@ -688,6 +694,51 @@ export default function FinancialsPivotPage() {
                   </strong>
                 </span>
               </div>
+              {(openingStockReport.fallbackMatched || []).length ? (
+                <details className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                    Fallback matched (
+                    {formatNumber(openingStockReport.fallbackMatchedCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.fallbackMatched || [])
+                      .map(
+                        (row) =>
+                          `${row.product} ← [${(row.previousYearProducts || []).join(' + ')}] qty=${row.openingQty} amt=${row.openingAmt}`
+                      )
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
+              {(openingStockReport.quantityMismatch || []).length ? (
+                <details className="rounded-xl border border-rose-200/70 bg-rose-50/50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-rose-950 dark:text-rose-100">
+                    Quantity mismatches (
+                    {formatNumber(openingStockReport.quantityMismatchCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.quantityMismatch || [])
+                      .map(
+                        (row) =>
+                          `${row.product}: Opening ${row.openingQty} ≠ Previous ${row.previousClosingQty}`
+                      )
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
+              {(openingStockReport.previousYearMappingRequired || []).length ? (
+                <details className="rounded-xl border border-violet-200/70 bg-violet-50/50 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-violet-950 dark:text-violet-100">
+                    Previous year mapping required (
+                    {formatNumber(openingStockReport.previousYearMappingRequiredCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.previousYearMappingRequired || [])
+                      .map((row) => `${row.product}: ${row.reason || 'Previous Year Mapping Required'}`)
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
               {(openingStockReport.unmatched || openingStockReport.missingFromPreviousYearFile || [])
                 .length ? (
                 <details className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">

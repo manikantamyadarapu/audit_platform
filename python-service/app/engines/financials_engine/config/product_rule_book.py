@@ -14,6 +14,10 @@ from app.engines.financials_engine.engine.closing_stock_template import (
     CLOSING_STOCK_CATEGORIES,
     subcategory_total_label,
 )
+from app.engines.financials_engine.engine.opening_stock import (
+    apply_fallback_opening_to_layout,
+    build_opening_measures_for_layout,
+)
 from app.utils.logger import get_logger
 
 _RULE_BOOK_PATH = Path(__file__).resolve().parent / 'closing_stock_product_rule_book.json'
@@ -373,6 +377,17 @@ def _resolve_rule_book_display_name(
         if key and key in lookup:
             return lookup[key]
     return None
+
+
+def resolve_rule_book_display_name(
+    product: str,
+    *,
+    rule_book: Mapping[str, Any] | None = None,
+) -> str | None:
+    """Public helper — map a product label to its Rule Book display name."""
+    book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
+    lookup = _build_rule_book_match_lookup(book)
+    return _resolve_rule_book_display_name(product, lookup=lookup)
 
 
 def _aggregate_pivot_by_rule_book(
@@ -823,9 +838,16 @@ def map_pivots_to_closing_stock_categories(
         purchases_pivot,
         lookup=match_lookup,
     )
-    opening_by_display, unmapped_opening_rows = _aggregate_pivot_by_rule_book(
+    layout_product_names = [display for _cat, _sub, display in _iter_rule_book_products(book)]
+    opening_by_display, unmapped_opening_rows = build_opening_measures_for_layout(
         opening_pivot,
-        lookup=match_lookup,
+        layout_product_names,
+    )
+    opening_by_display, unmapped_opening_rows = apply_fallback_opening_to_layout(
+        opening_by_display,
+        opening_pivot,
+        rule_book=book,
+        unmapped_rows=unmapped_opening_rows,
     )
 
     unmapped: list[str] = []

@@ -10,17 +10,21 @@ from app.engines.financials_engine.engine.opening_stock import validate_opening_
 from app.engines.financials_engine.engine.output import build_financials_pivot_response
 from app.engines.financials_engine.parsers.opening_stock_loader import (
     load_opening_quantity_workbook,
-    load_previous_year_product_sheets,
+    load_previous_year_opening_stock,
 )
 from app.engines.financials_engine.parsers.workbook_loader import load_financials_workbook
 from app.utils.logger import get_logger
 
 
 def validated_opening_to_pivot(validated_opening: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert Opening Stock rows into pivot-shaped records for Rule Book mapping."""
+    """Convert Opening Stock rows into pivot-shaped records for layout mapping."""
     return [
         {
             'product': str(row.get('product') or '').strip(),
+            'ruleBookProduct': row.get('ruleBookProduct'),
+            'category': row.get('category'),
+            'subcategory': row.get('subcategory'),
+            'status': row.get('status'),
             'sumOfQuantity': row.get('openingQty'),
             'sumOfGross': row.get('openingAmt'),
         }
@@ -72,25 +76,31 @@ class FinancialsPivotAudit:
                 opening_qty_bytes,
                 opening_qty_file_name or 'opening-quantity.xlsx',
             )
-            prev_sheets = load_previous_year_product_sheets(
+            prev_payload = load_previous_year_opening_stock(
                 previous_year_bytes,
                 previous_year_file_name or 'previous-year-closing.xlsx',
                 log=self._log,
             )
             opening_result = validate_opening_stock(
                 quantity_rows=qty_rows,
-                previous_year_sheets=prev_sheets,
+                previous_year_sheets=prev_payload['productIndex'],
+                subcategory_products=prev_payload.get('subcategoryProducts'),
+                sheet_products=prev_payload.get('sheetProducts'),
                 log=self._log,
             )
             validated_opening = list(opening_result.get('validatedOpening') or [])
             opening_report = dict(opening_result.get('report') or {})
             opening_pivot = validated_opening_to_pivot(validated_opening)
             self._log.info(
-                'Opening Stock mapping: qty_products={} prev_sheets={} matched={} unmatched={}',
+                'Opening Stock mapping: qty_products={} prev_index={} exact_matched={} '
+                'fallback_matched={} unmatched={} qty_mismatch={} mapping_required={}',
                 len(qty_rows),
-                len(prev_sheets),
-                opening_report.get('matchedCount', 0),
+                len(prev_payload.get('productIndex') or {}),
+                opening_report.get('exactMatchedCount', 0),
+                opening_report.get('fallbackMatchedCount', 0),
                 opening_report.get('unmatchedCount', 0),
+                opening_report.get('quantityMismatchCount', 0),
+                opening_report.get('previousYearMappingRequiredCount', 0),
             )
 
         self._log.info(

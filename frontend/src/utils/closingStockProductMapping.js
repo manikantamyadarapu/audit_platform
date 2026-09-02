@@ -158,6 +158,174 @@ function resolveLocation(product, index) {
   return null;
 }
 
+const CATEGORY_PREFIXES = [
+  'emeralds ',
+  'emerald ',
+  'rubies ',
+  'ruby ',
+  'pearls ',
+  'pearl ',
+  'diamonds ',
+  'diamond ',
+  'semi precious ',
+  'semiprecious ',
+  'precious ',
+  'synthetic ',
+  'synthetics ',
+  'sythetic ',
+  'sythetics ',
+  'precious stones ',
+];
+
+function stripCategoryPrefix(normName) {
+  for (const prefix of CATEGORY_PREFIXES) {
+    if (normName.startsWith(prefix)) {
+      return normName.slice(prefix.length).trim();
+    }
+  }
+  return normName;
+}
+
+/** Opening Stock name keys — mirrors Python product_sheet_lookup_keys (no Rule Book). */
+function openingProductLookupKeys(product) {
+  const name = String(product || '').trim();
+  const keys = [];
+  const seen = new Set();
+  const add = (key) => {
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+  };
+
+  const primary = normProduct(name);
+  add(primary);
+  add(matchKey(name));
+
+  const stripped = stripCategoryPrefix(primary);
+  if (stripped !== primary) {
+    add(stripped);
+    add(matchKey(stripped));
+  }
+
+  const truncated = name.slice(0, 31);
+  add(normProduct(truncated));
+  add(matchKey(truncated));
+  return keys;
+}
+
+/** Map Opening pivot onto layout labels by product name keys only (no Rule Book). */
+function aggregateOpeningByNameMatch(rows, layoutProductNames) {
+  const skuOwners = {};
+  for (const layoutName of layoutProductNames || []) {
+    const display = String(layoutName || '').trim();
+    const sku = coreSkuKey(display);
+    if (!sku) continue;
+    if (!skuOwners[sku]) skuOwners[sku] = [];
+    skuOwners[sku].push(display);
+  }
+  const uniqueSkus = new Set(
+    Object.entries(skuOwners)
+      .filter(([, owners]) => owners.length === 1)
+      .map(([sku]) => sku)
+  );
+
+  const keysFor = (name) => {
+    const keys = openingProductLookupKeys(name);
+    const sku = coreSkuKey(name);
+    if (sku && uniqueSkus.has(sku) && !keys.includes(sku)) keys.push(sku);
+    return keys;
+  };
+
+  const pivotIndex = {};
+  const pivotProducts = [];
+
+  for (const row of rows || []) {
+    const product = String(row?.product || '').trim();
+    if (!product) continue;
+    const measures = {
+      sumOfQuantity: coerceMeasure(row?.sumOfQuantity),
+      sumOfGross: coerceMeasure(row?.sumOfGross),
+    };
+    const aliasNames = [product];
+    const ruleBookProduct = String(row?.ruleBookProduct || '').trim();
+    if (ruleBookProduct && !aliasNames.includes(ruleBookProduct)) {
+      aliasNames.push(ruleBookProduct);
+    }
+    const keys = [];
+    for (const alias of aliasNames) {
+      for (const key of keysFor(alias)) {
+        if (!keys.includes(key)) keys.push(key);
+      }
+    }
+    pivotProducts.push({ product, keys });
+    for (const key of keys) {
+      if (!pivotIndex[key]) pivotIndex[key] = measures;
+    }
+  }
+
+  const byDisplay = {};
+  const claimedKeys = new Set();
+  for (const layoutName of layoutProductNames || []) {
+    const display = String(layoutName || '').trim();
+    if (!display) continue;
+    for (const key of keysFor(display)) {
+      if (pivotIndex[key]) {
+        byDisplay[display] = pivotIndex[key];
+        claimedKeys.add(key);
+        break;
+      }
+    }
+  }
+
+  const unmappedRows = [];
+  for (const { product, keys } of pivotProducts) {
+    if (keys.some((key) => claimedKeys.has(key))) continue;
+    unmappedRows.push({
+      product,
+      sumOfQuantity: keys.length ? pivotIndex[keys[0]]?.sumOfQuantity ?? null : null,
+      sumOfGross: keys.length ? pivotIndex[keys[0]]?.sumOfGross ?? null : null,
+    });
+  }
+
+  return { byDisplay, unmappedRows };
+}
+
+/** Write fallback-matched Opening onto layout rows by ruleBookProduct + category/subcategory. */
+function applyFallbackOpeningToLayout(byDisplay, rows, book, unmappedRows = []) {
+  const displayLocations = {};
+  for (const { category, subcategory, product } of iterRuleBookProducts(book)) {
+    displayLocations[product] = { category, subcategory };
+  }
+  const normSub = (name) => (name ? normProduct(name) : null);
+  const fallbackQtyNames = new Set();
+
+  for (const row of rows || []) {
+    if (row?.status !== 'matched_fallback') continue;
+    const target = String(row?.ruleBookProduct || '').trim();
+    if (!target || !displayLocations[target]) continue;
+    const loc = displayLocations[target];
+    if (row?.category && row.category !== loc.category) continue;
+    if (
+      row?.subcategory != null &&
+      normSub(row.subcategory) !== normSub(loc.subcategory)
+    ) {
+      continue;
+    }
+    const qty = coerceMeasure(row?.sumOfQuantity);
+    const gross = coerceMeasure(row?.sumOfGross);
+    if (qty === null && gross === null) continue;
+    byDisplay[target] = { sumOfQuantity: qty, sumOfGross: gross };
+    fallbackQtyNames.add(String(row?.product || '').trim());
+  }
+
+  const filteredUnmapped =
+    fallbackQtyNames.size > 0
+      ? unmappedRows.filter((row) => !fallbackQtyNames.has(String(row?.product || '').trim()))
+      : unmappedRows;
+  return { byDisplay, unmappedRows: filteredUnmapped };
+}
+
 function emptyMeasures() {
   return { sumOfQuantity: null, sumOfGross: null };
 }
@@ -387,8 +555,11 @@ export function mapPivotsWithRuleBook({
   );
   const { byDisplay: purchasesByDisplay, unmappedRows: unmappedPurchasesRows } =
     aggregatePivotByRuleBook(purchasesPivot, matchLookup);
-  const { byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
-    aggregatePivotByRuleBook(openingPivot, matchLookup);
+  const layoutProductNames = iterRuleBookProducts(book).map((row) => row.product);
+  let { byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
+    aggregateOpeningByNameMatch(openingPivot, layoutProductNames);
+  ({ byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
+    applyFallbackOpeningToLayout(openingByDisplay, openingPivot, book, unmappedOpeningRows));
 
   const unmappedProducts = [];
   const unmappedProductDetails = [];
