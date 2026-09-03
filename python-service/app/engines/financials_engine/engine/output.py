@@ -136,7 +136,9 @@ def build_financials_pivot_response(
         },
         'totalRows': sales_source_rows + purchases_source_rows,
         'errorRows': len(category_mapping['unmappedProducts'])
-        + int(report.get('unmatchedCount') or report.get('missingFromPreviousYearFileCount') or 0)
+        + int(report.get('unmatchedCount') or 0)
+        + int(report.get('manualMappingRequiredCount') or 0)
+        + int(report.get('previousYearMappingRequiredCount') or 0)
         + int(receipts_rep.get('unclassifiedCount') or 0)
         + int(issues_rep.get('unclassifiedCount') or 0),
         'fileType': 'closing_stock',

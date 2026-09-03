@@ -18,6 +18,10 @@ import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import {
+  OpeningStockManualMappingPanel,
+  applyManualOpeningMapping,
+} from '../components/audit/OpeningStockManualMappingPanel';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { Input } from '../components/ui/Input';
 import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
@@ -395,6 +399,16 @@ export default function FinancialsPivotPage() {
     address,
     financialYear,
   ]);
+
+  const handleConfirmManualOpeningMapping = useCallback(
+    (mapping) => {
+      setResult((prev) => {
+        if (!prev) return prev;
+        return applyManualOpeningMapping(prev, mapping);
+      });
+    },
+    []
+  );
 
   const handleStartNew = useCallback(() => {
     startNewAudit();
@@ -834,27 +848,31 @@ export default function FinancialsPivotPage() {
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {[
                   [
-                    'Matched (sheet + amount)',
-                    openingStockReport.matchedCount ?? openingStockReport.quantityMatchedCount ?? 0,
+                    'Exact matched',
+                    openingStockReport.exactMatchedCount ?? openingStockReport.matchedCount ?? 0,
                   ],
                   [
-                    'Unmatched',
-                    openingStockReport.unmatchedCount
-                      ?? openingStockReport.missingFromPreviousYearFileCount
+                    'Fallback matched',
+                    openingStockReport.fallbackMatchedCount ?? 0,
+                  ],
+                  [
+                    'Manual mapping required',
+                    openingStockReport.manualMappingRequiredCount
+                      ?? openingStockReport.previousYearMappingRequiredCount
                       ?? 0,
+                  ],
+                  [
+                    'Other unmatched',
+                    (openingStockReport.unmatched || []).length,
                   ],
                   [
                     'Mapped to Closing Stock',
                     openingStockReport.mappedToClosingStockCount
                       ?? summary.productsWithOpeningData
                       ?? 0,
-                  ],
-                  [
-                    'Previous-year product sheets',
-                    openingStockReport.previousYearProductSheetCount ?? 0,
                   ],
                 ].map(([label, value]) => (
                   <div
@@ -888,6 +906,30 @@ export default function FinancialsPivotPage() {
                   </strong>
                 </span>
               </div>
+              {(openingStockReport.fallbackMatched || []).length ? (
+                <details className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                    Fallback matched (
+                    {formatNumber(openingStockReport.fallbackMatchedCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.fallbackMatched || [])
+                      .map(
+                        (row) =>
+                          `${row.product} ← [${(row.previousYearProducts || []).join(' + ')}] qty=${row.openingQty} amt=${row.openingAmt}`
+                      )
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
+              <OpeningStockManualMappingPanel
+                rows={
+                  openingStockReport.manualMappingRequired
+                  || openingStockReport.previousYearMappingRequired
+                  || []
+                }
+                onConfirmMapping={handleConfirmManualOpeningMapping}
+              />
               {(openingStockReport.unmatched || openingStockReport.missingFromPreviousYearFile || [])
                 .length ? (
                 <details className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">

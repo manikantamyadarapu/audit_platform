@@ -10,7 +10,10 @@ from app.engines.financials_engine.config.product_rule_book import (
     map_pivots_to_closing_stock_categories,
 )
 from app.engines.financials_engine.engine.audit import validated_opening_to_pivot
-from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
+from app.engines.financials_engine.engine.opening_stock import (
+    build_opening_measures_for_layout,
+    validate_opening_stock,
+)
 from app.engines.financials_engine.parsers.opening_stock_loader import (
     load_previous_year_product_sheets,
 )
@@ -44,10 +47,25 @@ def _prev_year_category_workbook_bytes() -> bytes:
     eme.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.'])
     eme.append(['JEM 100', 10, 20, 8, 999.5])
 
-    # Financial statement — ignored.
     bs = wb.create_sheet('Balance Sheet')
     bs.append(['Particulars', 'Closing stock', None])
     bs.append(['Something', 1, 999999])
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _prev_year_product_sheet_workbook_bytes() -> bytes:
+    """Dedicated product sheet named after the product."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Chakri'
+    ws.append(['Particulars', 'Opening stock', None, 'Closing stock', None])
+    ws.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    ws.append(['Receipts', 0, 0, 0, 0])
+    ws.append(['Issues', 0, 0, 0, 0])
+    ws.append(['Closing Balance', 12.5, 0, 12.5, 45678.9])
 
     buf = BytesIO()
     wb.save(buf)
@@ -66,7 +84,16 @@ class TestOpeningStockProductSheetMapping:
         assert index['polki']['closingStockAmount'] == 200.0
         assert index['jem 100']['closingStockAmount'] == 999.5
         assert 'total' not in index
-        assert 'something' not in index  # balance sheet skipped
+        assert 'something' not in index
+
+    def test_indexes_dedicated_product_sheet_by_sheet_name(self):
+        index = load_previous_year_product_sheets(
+            _prev_year_product_sheet_workbook_bytes(),
+            'prev.xlsx',
+        )
+        assert 'chakri' in index
+        assert index['chakri']['closingStockAmount'] == 45678.9
+        assert index['chakri']['sheetName'] == 'Chakri'
 
     def test_maps_qty_from_quantity_file_and_amount_from_closing_stock(self):
         sheets = load_previous_year_product_sheets(
@@ -99,29 +126,27 @@ class TestOpeningStockProductSheetMapping:
             previous_year_sheets=sheets,
         )
         assert result['report']['matchedCount'] == 0
-        assert result['report']['unmatchedCount'] == 1
+        assert result['report']['manualMappingRequiredCount'] == 1
         row = result['validatedOpening'][0]
         assert row['openingQty'] == 3
         assert row['openingAmt'] is None
-        assert row['reason'] == 'product_sheet_not_found'
+        assert row['reason'] == 'Manual Mapping Required'
 
-    def test_does_not_use_total_row_amount(self):
-        sheets = load_previous_year_product_sheets(
-            _prev_year_category_workbook_bytes(),
-            'prev.xlsx',
-        )
-        # Di. Beads amount is product row, not TOTAL.
-        assert sheets['di. beads']['closingStockAmount'] == 234713.15
-
-    def test_maps_validated_opening_into_closing_stock_layout(self):
+    def test_maps_validated_opening_into_closing_stock_layout_by_name(self):
         opening_pivot = validated_opening_to_pivot(
             [
                 {
-                    'product': 'Product A',
-                    'openingQty': 10.49,
-                    'openingAmt': 100.49,
+                    'product': 'Di. beads',
+                    'openingQty': 263.03,
+                    'openingAmt': 234713.15,
                     'status': 'matched',
-                }
+                },
+                {
+                    'product': 'Emeralds JEM 100',
+                    'openingQty': 10,
+                    'openingAmt': 999.5,
+                    'status': 'matched',
+                },
             ]
         )
         mapped = map_pivots_to_closing_stock_categories(
@@ -130,8 +155,358 @@ class TestOpeningStockProductSheetMapping:
             opening_pivot=opening_pivot,
             rule_book={
                 'Diamond': {
-                    'Diamonds - Beads': ['Product A'],
+                    'Diamonds - Beads': ['Di. Beads'],
                     'Diamonds': [],
+                },
+                'Emerald': ['JEM 100'],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        beads = next(
+            row
+            for row in mapped['layoutByCategory']['Diamond']
+            if row.get('kind') == 'product' and row.get('label') == 'Di. Beads'
+        )
+        jem = next(
+            row
+            for row in mapped['layoutByCategory']['Emerald']
+            if row.get('kind') == 'product' and row.get('label') == 'JEM 100'
+        )
+        assert beads['openingQty'] == 263.03
+        assert beads['openingAmt'] == 234713
+        assert jem['openingQty'] == 10
+        assert jem['openingAmt'] == 1000
+        assert mapped['productsWithOpeningData'] == 2
+
+    def test_build_opening_measures_for_layout_uses_name_keys_not_rule_book(self):
+        by_display, unmapped = build_opening_measures_for_layout(
+            [
+                {'product': 'Emeralds JEM 100', 'sumOfQuantity': 10, 'sumOfGross': 999.5},
+            ],
+            ['JEM 100', 'Unrelated Product'],
+        )
+        assert unmapped == []
+        assert by_display['JEM 100']['sumOfQuantity'] == 10
+        assert by_display['JEM 100']['sumOfGross'] == 999.5
+        assert 'Unrelated Product' not in by_display
+
+    def test_quantity_typo_sythetic_jsy_300_maps_to_layout(self):
+        opening_pivot = validated_opening_to_pivot(
+            [
+                {
+                    'product': 'Sythetic JSY 300',
+                    'openingQty': 42.5,
+                    'openingAmt': None,
+                    'status': 'unmatched',
+                }
+            ]
+        )
+        mapped = map_pivots_to_closing_stock_categories(
+            sales_pivot=[],
+            purchases_pivot=[],
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': [],
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [
+                        'Synthetic JSY 50',
+                        'Synthetic JSY 150',
+                        'Synthetic JSY 300',
+                        'Synthetic JSY 100',
+                    ],
+                },
+            },
+        )
+        row = next(
+            item
+            for item in mapped['layoutByCategory']['Precious and Semi Precious']
+            if item.get('kind') == 'product' and item.get('label') == 'Synthetic JSY 300'
+        )
+        assert row['openingQty'] == 42.5
+        sibling = next(
+            item
+            for item in mapped['layoutByCategory']['Precious and Semi Precious']
+            if item.get('kind') == 'product' and item.get('label') == 'Synthetic JSY 50'
+        )
+        assert sibling['openingQty'] is None
+
+
+def _fallback_workbook_bytes() -> bytes:
+    """Prev-year FP1 / FP 1 rows; qty file uses Rule Book name Flat polki FP 1."""
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(
+        [
+            'Particulars',
+            'Opening stock',
+            None,
+            'Purchases',
+            None,
+            'Closing stock',
+            None,
+        ]
+    )
+    dia.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    dia.append(['Diamonds - Flat polki'])
+    dia.append(['FP1', 0, 0, 0, 0, 5.0, 100.0])
+    dia.append(['FP 1', 0, 0, 0, 0, 5.0, 200.0])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _rosecut_workbook_bytes() -> bytes:
+    """Dia Rosecut section with RC1 / RC 2 / RC 10 previous-year product names."""
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(
+        [
+            'Particulars',
+            'Opening stock',
+            None,
+            'Purchases',
+            None,
+            'Closing stock',
+            None,
+        ]
+    )
+    dia.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    dia.append(['Diamonds Rosecut diamonds'])
+    dia.append(['RC1', 0, 0, 0, 0, 12.5, 500.0])
+    dia.append(['RC 2', 0, 0, 0, 0, 8.0, 300.0])
+    dia.append(['RC 10', 0, 0, 0, 0, 99.0, 9999.0])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _diamond_rosecut_rule_book() -> dict:
+    return {
+        'Diamond': {
+            'Diamonds Rosecut diamonds': ['Di. RC 1', 'Di. RC 2', 'Di. RC 10'],
+        },
+        'Emerald': [],
+        'Pearls': [],
+        'Rubie': [],
+        'Precious and Semi Precious': {
+            'Precious Stones': [],
+            'Semi Precious': [],
+            'Synthetic Stones': [],
+        },
+    }
+
+
+def _chakri_variant_workbook_bytes() -> bytes:
+    """Uncut - diamonds: Chakri a + Chakri b sum to current Chakri Opening Balance."""
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(
+        [
+            'Particulars',
+            'Opening stock',
+            None,
+            'Purchases',
+            None,
+            'Closing stock',
+            None,
+        ]
+    )
+    dia.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    dia.append(['Uncut - diamonds'])
+    dia.append(['Chakri a', 0, 0, 0, 0, 100.0, 1000.0])
+    dia.append(['Chakri b', 0, 0, 0, 0, 77.26, 2000.0])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _chakri_orphan_workbook_bytes() -> bytes:
+    """Uncut - diamonds: Chakri qty from Old Product A + B + C."""
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(
+        [
+            'Particulars',
+            'Opening stock',
+            None,
+            'Purchases',
+            None,
+            'Closing stock',
+            None,
+        ]
+    )
+    dia.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    dia.append(['Uncut - diamonds'])
+    dia.append(['Old Product A', 0, 0, 0, 0, 40.0, 1000.0])
+    dia.append(['Old Product B', 0, 0, 0, 0, 35.0, 2000.0])
+    dia.append(['Old Product C', 0, 0, 0, 0, 25.0, 3000.0])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+class TestOpeningStockSubcategoryFallback:
+    def test_chakri_orphans_require_manual_mapping_no_auto_combination(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_chakri_orphan_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Chakri', 'openingBalance': 100.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book={
+                'Diamond': {
+                    'Uncut - diamonds': ['Chakri', 'Polki'],
+                    'Diamonds - Beads': [],
+                },
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        report = result['report']
+        assert report['fallbackMatchedCount'] == 0
+        assert report['manualMappingRequiredCount'] == 1
+        row = result['validatedOpening'][0]
+        assert row['openingQty'] == 100.0
+        assert row['openingAmt'] is None
+        assert row['status'] == 'manual_mapping_required'
+        assert row['reason'] == 'Manual Mapping Required'
+        candidate_names = {c['product'] for c in row['candidateProducts']}
+        assert candidate_names == {'Old Product A', 'Old Product B', 'Old Product C'}
+
+    def test_chakri_matches_chakri_a_and_chakri_b_variants(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_chakri_variant_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Chakri', 'openingBalance': 177.26}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'matched_fallback'
+        assert row['openingQty'] == 177.26
+        assert row['openingAmt'] == 3000.0
+        assert set(row['previousYearProducts']) == {'Chakri a', 'Chakri b'}
+
+    def test_fallback_sums_multiple_previous_products_when_qty_matches(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_fallback_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Flat polki FP 1', 'openingBalance': 10.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+        )
+        report = result['report']
+        assert report['exactMatchedCount'] == 0
+        assert report['fallbackMatchedCount'] == 1
+        assert report['matchedCount'] == 1
+        row = result['validatedOpening'][0]
+        assert row['openingQty'] == 10.0
+        assert row['openingAmt'] == 300.0
+        assert row['status'] == 'matched_fallback'
+        assert row['ruleBookProduct'] == 'Flat polki FP 1'
+        assert set(row['previousYearProducts']) == {'FP1', 'FP 1'}
+
+    def test_fallback_qty_mismatch_requires_manual_mapping(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_fallback_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Flat polki FP 1', 'openingBalance': 9.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+        )
+        assert result['report']['manualMappingRequiredCount'] == 1
+        assert result['report']['fallbackMatchedCount'] == 0
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'manual_mapping_required'
+        assert row['reason'] == 'Manual Mapping Required'
+        assert row['openingAmt'] is None
+        assert {c['product'] for c in row['candidateProducts']} == {'FP1', 'FP 1'}
+
+    def test_exact_match_untouched_when_primary_resolves(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(
+            _prev_year_category_workbook_bytes(),
+            'prev.xlsx',
+        )
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. beads', 'openingBalance': 263.03}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+        )
+        assert result['report']['exactMatchedCount'] == 1
+        assert result['report']['fallbackMatchedCount'] == 0
+        assert result['validatedOpening'][0]['status'] == 'matched'
+
+    def test_fallback_resolves_into_closing_stock_layout(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_fallback_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Flat polki FP 1', 'openingBalance': 10.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+        )
+        opening_pivot = validated_opening_to_pivot(result['validatedOpening'])
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': {
+                    'Diamonds - Flat polki': ['Flat polki FP 1'],
                 },
                 'Emerald': [],
                 'Pearls': [],
@@ -146,8 +521,239 @@ class TestOpeningStockProductSheetMapping:
         product = next(
             row
             for row in mapped['layoutByCategory']['Diamond']
-            if row.get('kind') == 'product' and row.get('label') == 'Product A'
+            if row.get('kind') == 'product' and row.get('label') == 'Flat polki FP 1'
         )
-        assert product['openingQty'] == 10.49
-        assert product['openingAmt'] == 100
-        assert mapped['productsWithOpeningData'] == 1
+        assert product['openingQty'] == 10.0
+        assert product['openingAmt'] == 300
+
+    def test_fallback_opening_written_to_layout_by_rule_book_product(self):
+        """Fallback row with non-matching qty-file label still fills the Rule Book row."""
+        opening_pivot = validated_opening_to_pivot(
+            [
+                {
+                    'product': 'qty-file-label-not-on-layout',
+                    'ruleBookProduct': 'Chakri',
+                    'category': 'Diamond',
+                    'subcategory': 'Uncut - diamonds',
+                    'openingQty': 100.0,
+                    'openingAmt': 6000.0,
+                    'status': 'matched_fallback',
+                }
+            ]
+        )
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': {
+                    'Uncut - diamonds': ['Chakri', 'Polki'],
+                },
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        chakri = next(
+            item
+            for item in mapped['layoutByCategory']['Diamond']
+            if item.get('kind') == 'product' and item.get('label') == 'Chakri'
+        )
+        assert chakri['openingQty'] == 100.0
+        assert chakri['openingAmt'] == 6000
+
+    def test_chakri_orphan_manual_mapping_does_not_auto_write_layout(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_chakri_orphan_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Chakri', 'openingBalance': 100.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        assert result['validatedOpening'][0]['status'] == 'manual_mapping_required'
+        opening_pivot = validated_opening_to_pivot(result['validatedOpening'])
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        chakri = next(
+            item
+            for item in mapped['layoutByCategory']['Diamond']
+            if item.get('kind') == 'product' and item.get('label') == 'Chakri'
+        )
+        # Qty from Quantity file may still appear via name match; Amt must stay blank.
+        assert chakri['openingAmt'] is None
+
+    def test_manual_confirm_writes_opening_to_layout(self):
+        opening_pivot = validated_opening_to_pivot(
+            [
+                {
+                    'product': 'Chakri',
+                    'ruleBookProduct': 'Chakri',
+                    'category': 'Diamond',
+                    'subcategory': 'Uncut - diamonds',
+                    'openingQty': 100.0,
+                    'openingAmt': 6000.0,
+                    'status': 'matched_fallback',
+                }
+            ]
+        )
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        chakri = next(
+            item
+            for item in mapped['layoutByCategory']['Diamond']
+            if item.get('kind') == 'product' and item.get('label') == 'Chakri'
+        )
+        assert chakri['openingQty'] == 100.0
+        assert chakri['openingAmt'] == 6000
+
+
+class TestOpeningStockRosecutFallback:
+    def test_di_rc_1_matches_previous_rc1_token(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_rosecut_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. RC 1', 'openingBalance': 12.5}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book=_diamond_rosecut_rule_book(),
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'matched_fallback'
+        assert row['openingQty'] == 12.5
+        assert row['openingAmt'] == 500.0
+        assert row['previousYearProducts'] == ['RC1']
+        assert row['subcategory'] == 'Diamonds Rosecut diamonds'
+
+    def test_di_rc_1_does_not_match_rc_10(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_rosecut_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. RC 1', 'openingBalance': 99.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book=_diamond_rosecut_rule_book(),
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'manual_mapping_required'
+        assert row['previousClosingQty'] == 12.5
+        assert row['openingAmt'] is None
+        assert row['reason'] == 'Manual Mapping Required'
+
+    def test_di_rc_2_matches_previous_rc_2_token(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_rosecut_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. RC 2', 'openingBalance': 8.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book=_diamond_rosecut_rule_book(),
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'matched_fallback'
+        assert row['openingAmt'] == 300.0
+        assert row['previousYearProducts'] == ['RC 2']
+
+    def test_rosecut_fallback_written_to_closing_stock_layout(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_rosecut_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. RC 1', 'openingBalance': 12.5}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book=_diamond_rosecut_rule_book(),
+        )
+        opening_pivot = validated_opening_to_pivot(result['validatedOpening'])
+        mapped = map_pivots_to_closing_stock_categories(
+            opening_pivot=opening_pivot,
+            rule_book=_diamond_rosecut_rule_book(),
+        )
+        rc1 = next(
+            item
+            for item in mapped['layoutByCategory']['Diamond']
+            if item.get('kind') == 'product' and item.get('label') == 'Di. RC 1'
+        )
+        assert rc1['openingQty'] == 12.5
+        assert rc1['openingAmt'] == 500
+
+
+class TestOpeningStockSubcategoryFallbackContinued:
+    def test_previous_year_mapping_required_when_no_subcategory_rows(self):
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Chakri', 'openingBalance': 5.0}],
+            previous_year_sheets={},
+            subcategory_products={},
+            sheet_products={},
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        assert result['report']['manualMappingRequiredCount'] == 1
+        row = result['validatedOpening'][0]
+        assert row['reason'] == 'Manual Mapping Required'
+        assert row['openingAmt'] is None
