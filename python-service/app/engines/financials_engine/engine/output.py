@@ -93,6 +93,32 @@ def build_financials_pivot_response(
         + int(report.get('unmatchedCount') or report.get('missingFromPreviousYearFileCount') or 0),
         'fileType': 'closing_stock',
         'auditKey': 'FINANCIALS_PIVOT',
+        'closingStockMeasures': {
+            'complete': False,
+            'implemented': [
+                'openingQty',
+                'openingAmt',
+                'purchasesQty',
+                'purchasesAmt',
+                'salesQty',
+                'salesAmt',
+            ],
+            'pending': [
+                'receiptsQty',
+                'receiptsAmount',
+                'issuesQty',
+                'issuesAmount',
+                'averageRate',
+                'closingQty',
+                'closingAmount',
+                'grossProfit',
+                'deviation',
+            ],
+            'message': (
+                'Closing Stock measure calculations (receipts, issues, average rate, '
+                'closing, GP, deviation) are not implemented yet.'
+            ),
+        },
         'executionTiming': {
             'loadMs': load_ms,
         },

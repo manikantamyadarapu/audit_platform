@@ -27,7 +27,7 @@ async function validate(req, res, next) {
       returnFile.buffer,
       returnFile.originalname,
       returnFile.mimetype,
-      { requestId: req.requestId }
+      { requestId: req.requestId, userId: req.user?.id }
     );
     return res.json(data);
   } catch (err) {
@@ -80,7 +80,7 @@ async function runAudit(req, res, next) {
 
 async function getRateComparison(req, res, next) {
   try {
-    const data = purchaseReturnService.getRateComparison();
+    const data = purchaseReturnService.getRateComparison(req.user?.id);
     if (!data) {
       return res.status(404).json({
         success: false,

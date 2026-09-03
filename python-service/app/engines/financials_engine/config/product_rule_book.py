@@ -180,9 +180,36 @@ def get_closing_stock_rule_book_payload() -> dict[str, Any]:
         'ruleBookFingerprint': compute_rule_book_fingerprint(book),
         'ruleBookProductCounts': counts,
         'ruleBookProductTotal': sum(counts.values()),
-        'ruleBookPath': str(_RULE_BOOK_PATH),
+        # Absolute filesystem paths are not exposed to API clients.
         'ruleBookMtime': mtime,
         'categories': list(CLOSING_STOCK_CATEGORIES),
+        'closingStockMeasures': {
+            'complete': False,
+            'implemented': [
+                'openingQty',
+                'openingAmt',
+                'purchasesQty',
+                'purchasesAmt',
+                'salesQty',
+                'salesAmt',
+            ],
+            'pending': [
+                'receiptsQty',
+                'receiptsAmount',
+                'issuesQty',
+                'issuesAmount',
+                'averageRate',
+                'closingQty',
+                'closingAmount',
+                'grossProfit',
+                'deviation',
+            ],
+            'message': (
+                'Closing Stock measure calculations (receipts, issues, average rate, '
+                'closing, GP, deviation) are not implemented yet. Template layout and '
+                'Opening/Sales/Purchases pivots are available.'
+            ),
+        },
     }
 
 

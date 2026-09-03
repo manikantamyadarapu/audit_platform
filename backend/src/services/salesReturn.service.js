@@ -4,8 +4,8 @@ const auditRunPersistence = require('./auditRunPersistence.service');
 const { AUDIT_KEYS } = require('../constants/notifications');
 const salesReturnRepository = require('../repositories/salesReturn.repository');
 
-/** @type {{ rateComparisonRecords: object[]; validationIssues: object[]; summary: object; ranAt: string } | null} */
-let lastAuditResult = null;
+/** @type {Map<number, object>} */
+const lastAuditResultByUser = new Map();
 
 function mapStoredAverageRow(row) {
   return {
@@ -18,15 +18,16 @@ function mapStoredAverageRow(row) {
 }
 
 /**
- * Run sales return audit using stored sales audit averages from the database.
- *
  * @param {Buffer} returnBuffer
  * @param {string} returnName
  * @param {string} returnMime
- * @param {{ requestId?: string }} [options]
+ * @param {{ requestId?: string, userId?: number }} [options]
  */
 async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
-  const { auditRun, rows } = await salesReturnRepository.findLatestSalesAuditProductAverages();
+  const uploadedBy = options.userId != null ? Number(options.userId) : undefined;
+  const { auditRun, rows } = await salesReturnRepository.findLatestSalesAuditProductAverages(
+    uploadedBy
+  );
 
   if (!auditRun || !rows.length) {
     const error = new Error(
@@ -51,7 +52,7 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
     }
   );
 
-  lastAuditResult = {
+  const result = {
     rateComparisonRecords: data.rateComparisonRecords ?? data.comparisonIssues ?? [],
     validationIssues: data.returnValidationRecords ?? data.validationIssues ?? [],
     summary: data.summary ?? {},
@@ -59,6 +60,10 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
     salesAuditRunId: auditRun.id,
     salesAuditFileName: auditRun.fileName,
   };
+
+  if (uploadedBy != null) {
+    lastAuditResultByUser.set(uploadedBy, result);
+  }
 
   return {
     ...data,
@@ -71,9 +76,11 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
 }
 
 /**
- * Rate comparison rows from the most recent successful run-audit on this server instance.
+ * @param {number} [userId]
  */
-function getRateComparison() {
+function getRateComparison(userId) {
+  const lastAuditResult =
+    userId != null ? lastAuditResultByUser.get(Number(userId)) : null;
   if (!lastAuditResult) {
     return null;
   }
@@ -88,17 +95,13 @@ function getRateComparison() {
   };
 }
 
-/**
- * Run the sales-return audit and persist the audit run + fire notifications.
- * Used by the primary POST /run-audit endpoint.
- *
- * @param {import('express').Request} req
- * @returns {Promise<{ data: object, auditRunId: number | null }>}
- */
 async function runAuditWithPersistence(req) {
   const { file, requestId, user } = req;
 
-  const data = await runAudit(file.buffer, file.originalname, file.mimetype, { requestId });
+  const data = await runAudit(file.buffer, file.originalname, file.mimetype, {
+    requestId,
+    userId: user?.id,
+  });
 
   const fileMetadata = {
     originalName: file.originalname,
@@ -132,10 +135,6 @@ async function runAuditWithPersistence(req) {
   return { data, auditRunId };
 }
 
-/**
- * @param {import('express').Request} req
- * @param {Error} err
- */
 function notifySalesReturnFailure(req, err) {
   if (!req.user?.id) return;
 
@@ -151,18 +150,10 @@ function notifySalesReturnFailure(req, err) {
     .catch(() => {});
 }
 
-/**
- * @param {object[]} records
- * @param {{ requestId?: string }} [options]
- */
 async function exportRateComparison(records, options = {}) {
   return pythonClient.postSalesReturnExportRateComparison(records, options);
 }
 
-/**
- * @param {{ records?: object[], validationIssues?: object[], comparisonIssues?: object[], exportColumns?: string[], columnDisplayHeaders?: object }} payload
- * @param {{ requestId?: string }} [options]
- */
 async function exportExceptions(payload, options = {}) {
   return pythonClient.postSalesReturnExportExceptions(payload, options);
 }

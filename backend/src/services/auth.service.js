@@ -25,8 +25,8 @@ function createResetToken() {
 }
 
 function validatePasswordStrength(password) {
-  if (!password || password.length < 6) {
-    const error = new Error('Password must be at least 6 characters');
+  if (!password || password.length < 12) {
+    const error = new Error('Password must be at least 12 characters');
     error.statusCode = 400;
     throw error;
   }
@@ -37,18 +37,18 @@ function buildUserResponse(user) {
   return userWithoutPassword;
 }
 
-function registerRefreshSession(userId, refreshToken) {
+async function registerRefreshSession(userId, refreshToken) {
   const decoded = decodeToken(refreshToken);
   if (!decoded?.jti || !decoded?.exp) {
     const error = new Error('Failed to issue refresh token');
     error.statusCode = 500;
     throw error;
   }
-  refreshTokenStore.registerToken(decoded.jti, userId, decoded.exp * 1000);
+  await refreshTokenStore.registerToken(decoded.jti, userId, decoded.exp * 1000);
   return refreshToken;
 }
 
-function issueTokenPair(user) {
+async function issueTokenPair(user) {
   const jti = refreshTokenStore.createJti();
 
   const accessToken = generateAccessToken({
@@ -64,7 +64,7 @@ function issueTokenPair(user) {
     jti,
   });
 
-  registerRefreshSession(user.id, refreshToken);
+  await registerRefreshSession(user.id, refreshToken);
 
   return {
     accessToken,
@@ -115,7 +115,7 @@ async function refreshAccessToken(refreshToken) {
     throw error;
   }
 
-  if (!decoded.jti || !refreshTokenStore.isTokenActive(decoded.jti)) {
+  if (!decoded.jti || !(await refreshTokenStore.isTokenActive(decoded.jti))) {
     const error = new Error('Invalid or expired refresh token');
     error.statusCode = 401;
     throw error;
@@ -123,7 +123,7 @@ async function refreshAccessToken(refreshToken) {
 
   const user = await userRepository.findById(decoded.id);
   if (!user?.isActive) {
-    refreshTokenStore.revokeToken(decoded.jti);
+    await refreshTokenStore.revokeToken(decoded.jti);
     const error = new Error('Invalid or expired refresh token');
     error.statusCode = 401;
     throw error;
@@ -149,7 +149,7 @@ async function logout(refreshToken) {
   try {
     const decoded = verifyRefreshToken(refreshToken);
     if (decoded.jti) {
-      refreshTokenStore.revokeToken(decoded.jti);
+      await refreshTokenStore.revokeToken(decoded.jti);
     }
   } catch {
     // Cookie may already be invalid — still clear client cookie.
@@ -237,7 +237,7 @@ async function resetPassword(token, newPassword) {
   await userRepository.updatePassword(record.userId, passwordHash);
   await passwordResetTokenRepository.markUsed(record.id);
   await passwordResetTokenRepository.invalidateUserTokens(record.userId);
-  refreshTokenStore.revokeAllForUser(record.userId);
+  await refreshTokenStore.revokeAllForUser(record.userId);
 
   return { message: 'Password reset successfully. You can now sign in.' };
 }

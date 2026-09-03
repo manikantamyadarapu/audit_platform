@@ -19,8 +19,7 @@ export const PURCHASE_LEDGER_AUDIT_CONFIG = {
   sessionKey: 'purchase-ledger',
   demoModuleKey: 'purchase-audit',
   rateRulesReturnTo: '/scrutiny/purchase/rate-ledger',
-  productAveragesPath: '/sales-audit/product-average-rates',
-  exportFilePrefix: 'purchase-ledger-exceptions',
+  productAveragesPath: '/sales-audit/product-average-rates?auditType=PURCHASE',
   pdfTitle: 'Purchase rate and ledger audit — exception report',
   successToast: 'Purchase validation complete',
   filterLabels: {

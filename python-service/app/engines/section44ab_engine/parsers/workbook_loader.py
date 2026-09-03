@@ -129,21 +129,29 @@ def _is_blank_data_row(row: pd.Series, positions: list[int]) -> bool:
     return True
 
 
-def _parse_numeric_value(value: Any) -> float:
-    """Parse a numeric value from Excel, handling formatted strings."""
+def _parse_numeric_value(value: Any) -> float | None:
+    """
+    Parse a numeric Debit/Credit cell from Excel.
+
+    Blank/null → ``None`` (caller treats as no movement).
+    Valid numbers (including ``0``) → float.
+    Unparseable text → ``None`` (do not silently coerce garbage to zero).
+    """
     if value is None or (isinstance(value, float) and pd.isna(value)):
-        return 0.0
+        return None
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        # Remove commas and other formatting
         cleaned = value.replace(',', '').replace(' ', '').strip()
-        if cleaned:
-            try:
-                return float(cleaned)
-            except ValueError:
-                return 0.0
-    return 0.0
+        if not cleaned or cleaned in {'-', '.'}:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
 
 
 def section44ab_header_row_matches(labels: set[str]) -> bool:
@@ -265,12 +273,12 @@ def load_section44ab_workbook(
             opening_balance_excluded += 1
             continue
         
-        # Parse Debit and Credit
+        # Parse Debit and Credit (None = blank/invalid — treat as no movement)
         debit_value = _parse_numeric_value(row_values.get('debit'))
         credit_value = _parse_numeric_value(row_values.get('credit'))
-        
-        debit_total += debit_value
-        credit_total += credit_value
+
+        debit_total += debit_value or 0.0
+        credit_total += credit_value or 0.0
         total_data_rows += 1
 
     load_ms = (perf_counter() - load_start) * 1000

@@ -66,6 +66,7 @@ function parseListQuery(query = {}) {
   const limit = Math.min(100, Math.max(1, Number(query.limit) || 25));
   const sortBy = query.sortBy || 'createdAt';
   const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
+  const auditTypeRaw = String(query.auditType || 'SALES').trim().toUpperCase();
 
   return {
     page,
@@ -73,6 +74,8 @@ function parseListQuery(query = {}) {
     search: query.search?.trim() || undefined,
     salesAccount: query.salesAccount?.trim() || undefined,
     auditRunId: query.auditRunId ? Number(query.auditRunId) : undefined,
+    auditType: auditTypeRaw === 'PURCHASE' ? 'PURCHASE' : 'SALES',
+    uploadedBy: query.uploadedBy != null ? Number(query.uploadedBy) : undefined,
     sortBy,
     sortOrder,
   };
@@ -101,16 +104,25 @@ async function persistSalesAuditProductAverages({ userId, fileName, pythonResult
 /**
  * @param {Record<string, unknown>} query
  */
-async function getProductAverageRates(query) {
+async function getProductAverageRates(query, user) {
   const filters = parseListQuery(query);
+  const role = String(user?.role || '').toUpperCase();
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(role) && user?.id) {
+    filters.uploadedBy = user.id;
+  }
   return salesRepository.findProductAverageRates(filters);
 }
 
 /**
  * @param {Record<string, unknown>} query
+ * @param {{ id?: number, role?: string }} [user]
  */
-async function getProductAverageRatesForExport(query) {
+async function getProductAverageRatesForExport(query, user) {
   const filters = parseListQuery({ ...query, page: 1, limit: 100000 });
+  const role = String(user?.role || '').toUpperCase();
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(role) && user?.id) {
+    filters.uploadedBy = user.id;
+  }
   return salesRepository.findAllProductAverageRatesForExport(filters);
 }
 

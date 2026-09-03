@@ -4,8 +4,8 @@ const auditRunPersistence = require('./auditRunPersistence.service');
 const { AUDIT_KEYS } = require('../constants/notifications');
 const purchaseReturnRepository = require('../repositories/purchaseReturn.repository');
 
-/** @type {{ rateComparisonRecords: object[]; validationIssues: object[]; summary: object; ranAt: string } | null} */
-let lastAuditResult = null;
+/** @type {Map<number, object>} */
+const lastAuditResultByUser = new Map();
 
 function mapStoredAverageRow(row) {
   return {
@@ -18,10 +18,15 @@ function mapStoredAverageRow(row) {
 }
 
 /**
- * Run purchase return audit using stored purchase audit averages from the database.
+ * @param {Buffer} returnBuffer
+ * @param {string} returnName
+ * @param {string} returnMime
+ * @param {{ requestId?: string, userId?: number }} [options]
  */
 async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
-  const { auditRun, rows } = await purchaseReturnRepository.findLatestPurchaseAuditProductAverages();
+  const uploadedBy = options.userId != null ? Number(options.userId) : undefined;
+  const { auditRun, rows } =
+    await purchaseReturnRepository.findLatestPurchaseAuditProductAverages(uploadedBy);
 
   if (!auditRun || !rows.length) {
     const error = new Error(
@@ -46,7 +51,7 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
     }
   );
 
-  lastAuditResult = {
+  const result = {
     rateComparisonRecords: data.rateComparisonRecords ?? data.comparisonIssues ?? [],
     validationIssues: data.returnValidationRecords ?? data.validationIssues ?? [],
     summary: data.summary ?? {},
@@ -54,6 +59,10 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
     purchaseAuditRunId: auditRun.id,
     purchaseAuditFileName: auditRun.fileName,
   };
+
+  if (uploadedBy != null) {
+    lastAuditResultByUser.set(uploadedBy, result);
+  }
 
   return {
     ...data,
@@ -68,7 +77,12 @@ async function runAudit(returnBuffer, returnName, returnMime, options = {}) {
   };
 }
 
-function getRateComparison() {
+/**
+ * @param {number} [userId]
+ */
+function getRateComparison(userId) {
+  const lastAuditResult =
+    userId != null ? lastAuditResultByUser.get(Number(userId)) : null;
   if (!lastAuditResult) {
     return null;
   }
@@ -88,7 +102,10 @@ function getRateComparison() {
 async function runAuditWithPersistence(req) {
   const { file, requestId, user } = req;
 
-  const data = await runAudit(file.buffer, file.originalname, file.mimetype, { requestId });
+  const data = await runAudit(file.buffer, file.originalname, file.mimetype, {
+    requestId,
+    userId: user?.id,
+  });
 
   const fileMetadata = {
     originalName: file.originalname,

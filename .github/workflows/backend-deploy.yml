@@ -74,8 +74,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run health smoke test
-        run: pytest tests/test_health.py -q
+      - name: Run engine contract tests
+        run: |
+          pytest -q \
+            tests/test_health.py \
+            tests/test_financials_pivot.py \
+            tests/test_financials_router_contracts.py \
+            tests/test_section44ab.py
 
   deploy:
     name: Deploy to server
@@ -122,6 +127,15 @@ jobs:
       - name: Set SSH Key Permissions
         run: chmod 600 ~/.ssh/deploy_key
 
+      - name: Configure known_hosts
+        run: |
+          if [ -z "${{ secrets.DEPLOY_KNOWN_HOSTS }}" ]; then
+            echo "DEPLOY_KNOWN_HOSTS secret is required (pin host keys; do not disable StrictHostKeyChecking)"
+            exit 1
+          fi
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
       - name: Rsync backend
         run: |
           CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
@@ -130,7 +144,7 @@ jobs:
           rsync -avz --delete \
             --exclude node_modules \
             --exclude .env \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
             backend/ \
             "${CLEAN_USER}@${CLEAN_HOST}:${CLEAN_PATH}/"
 
@@ -144,7 +158,7 @@ jobs:
             --exclude __pycache__ \
             --exclude .pytest_cache \
             --exclude .env \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
             python-service/ \
             "${CLEAN_USER}@${CLEAN_HOST}:${CLEAN_PATH}/"
 
@@ -154,7 +168,7 @@ jobs:
           CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_BACKEND_PATH=$(echo "${{ secrets.DEPLOY_BACKEND_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_PYTHON_PATH=$(echo "${{ secrets.DEPLOY_PYTHON_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
             "${CLEAN_USER}@${CLEAN_HOST}" \
             "set -euo pipefail && \
             cd '${CLEAN_BACKEND_PATH}' && \
@@ -171,6 +185,6 @@ jobs:
         run: |
           CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
             "${CLEAN_USER}@${CLEAN_HOST}" \
             "curl -fsS http://127.0.0.1:4002/api/health && curl -fsS http://127.0.0.1:8000/api/health"

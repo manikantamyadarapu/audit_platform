@@ -1,10 +1,12 @@
 const express = require('express');
+const axios = require('axios');
+const prisma = require('./lib/prisma');
+const config = require('./config');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
-const config = require('./config');
 const apiV1 = require('./routes');
 const authRoutes = require('./routes/auth.routes');
 const openapiSpec = require('./openapi/openapi.json');
@@ -57,24 +59,45 @@ if (config.ENABLE_SWAGGER) {
   );
 }
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'audit-platform-node-backend' });
+app.get('/api/health', async (_req, res) => {
+  const checks = {
+    service: 'audit-platform-node-backend',
+    database: 'unknown',
+    python: 'unknown',
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = 'ok';
+  } catch {
+    checks.database = 'error';
+  }
+
+  try {
+    const pythonHealth = await axios.get(`${config.PYTHON_SERVICE_URL}/api/health`, {
+      timeout: 3000,
+      validateStatus: () => true,
+    });
+    checks.python = pythonHealth.status >= 200 && pythonHealth.status < 300 ? 'ok' : 'error';
+  } catch {
+    checks.python = 'error';
+  }
+
+  const healthy = checks.database === 'ok' && checks.python === 'ok';
+  return res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    ...checks,
+  });
 });
 
-// Single mount point for all versioned routes — see routes/index.js.
 app.use('/api/v1', apiV1);
 
-// Legacy unversioned compatibility mounts.
-// These paths are called directly (without /v1) by the frontend today —
-// verified against frontend/src/services/*.js — so they are kept as thin
-// re-mounts of the same routers registered above under /api/v1, rather than
-// separate/duplicated route files.
-app.use('/api/auth', authRoutes); // frontend/src/services/authService.js (login/logout)
-app.use('/api/notifications', require('./routes/notification.routes')); // notificationService.js
-app.use('/api/dashboard', require('./routes/dashboard.routes')); // dashboardService.js
-app.use('/api/audit-sessions', require('./routes/auditSession.routes')); // auditSessionService.js
-app.use('/api/sales-audit', require('./routes/sales.routes')); // salesAuditService.js (product-average-rates)
-app.use('/api/sales-return', require('./routes/salesReturn.routes')); // processExcelService.js (run-audit/rate-comparison/export-*)
+app.use('/api/auth', authRoutes);
+app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/audit-sessions', require('./routes/auditSession.routes'));
+app.use('/api/sales-audit', require('./routes/sales.routes'));
+app.use('/api/sales-return', require('./routes/salesReturn.routes'));
 app.use('/api/purchase-return', require('./routes/purchaseReturn.routes'));
 
 app.use(notFoundHandler);

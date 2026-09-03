@@ -29,6 +29,26 @@ const DEFAULT_AUDIT_TYPES = {
     auditName: 'Closing Stock Audit',
     description: 'Financials closing stock pivot and opening stock validation',
   },
+  CASH_LEDGER: {
+    auditName: 'Cash Ledger Audit',
+    description: 'Cash ledger scrutiny validation',
+  },
+  NEGATIVE_BANK: {
+    auditName: 'Negative Bank Audit',
+    description: 'Negative bank balance scrutiny validation',
+  },
+  PARTY_WISE_TDS: {
+    auditName: 'Party Wise TDS Summary',
+    description: 'Party-wise TDS purchase and payable summary',
+  },
+  TDS_01: {
+    auditName: 'TDS @ 0.1%',
+    description: 'TDS at 0.1 percent rate audit',
+  },
+  SECTION44AB: {
+    auditName: 'Section 44AB',
+    description: 'Section 44AB cash and bank audit',
+  },
 };
 
 const CODE_ALIASES = {

@@ -1,11 +1,10 @@
 """Sales return engine HTTP routes."""
 
 import json
-import uuid
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.engines.sales_return_engine.engine.processor import SalesReturnAuditProcessor
@@ -13,11 +12,13 @@ from app.schemas.process_schemas import (
     SalesReturnExceptionExportRequest,
     SalesReturnRateComparisonExportRequest,
 )
+from app.utils.async_work import run_sync
 from app.utils.excel_exporter import (
     export_sales_return_exceptions,
     export_sales_return_rate_comparison,
 )
 from app.utils.logger import get_logger
+from app.utils.request_id import resolve_request_id
 
 router = APIRouter(prefix='/api/process', tags=['sales-return'])
 gateway_router = APIRouter(prefix='/api/v1/process', tags=['sales-return'])
@@ -26,10 +27,11 @@ gateway_router = APIRouter(prefix='/api/v1/process', tags=['sales-return'])
 @router.post('/sales-return/validate')
 @gateway_router.post('/sales-return/validate')
 async def process_sales_return(
+    request: Request,
     sales_return_file: UploadFile = File(..., description='Sales return audit Excel file'),
     sales_averages: str = Form(default='[]', description='Stored sales audit product averages JSON'),
 ) -> dict:
-    request_id = str(uuid.uuid4())
+    request_id = resolve_request_id(request)
     log = get_logger(request_id)
     log.info('Sales return audit processing request received')
     return_bytes = await sales_return_file.read()
@@ -42,7 +44,7 @@ async def process_sales_return(
     if not isinstance(parsed_averages, list):
         raise ValueError('sales_averages must be a JSON array')
     processor = SalesReturnAuditProcessor()
-    response = processor.process(return_bytes, parsed_averages)
+    response = await run_sync(processor.process, return_bytes, parsed_averages)
     log.info('Sales return audit processing complete')
     return response
 
@@ -50,6 +52,7 @@ async def process_sales_return(
 @router.post('/sales-return/export-exceptions')
 @gateway_router.post('/sales-return/export-exceptions')
 async def export_sales_return_exception_rows(
+    request: Request,
     payload: SalesReturnExceptionExportRequest,
 ) -> StreamingResponse:
     from app.engines.sales_return_engine.engine.exception_report import (
@@ -57,7 +60,7 @@ async def export_sales_return_exception_rows(
         build_export_metadata,
     )
 
-    request_id = str(uuid.uuid4())
+    request_id = resolve_request_id(request)
     log = get_logger(request_id)
     log.info('Sales return exception export request received')
     if payload.records:
@@ -90,7 +93,8 @@ async def export_sales_return_exception_rows(
     elif records:
         export_columns = list(records[0].keys())
 
-    excel_bytes = export_sales_return_exceptions(
+    excel_bytes = await run_sync(
+        export_sales_return_exceptions,
         records,
         export_columns=export_columns,
     )
@@ -100,24 +104,31 @@ async def export_sales_return_exception_rows(
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
     )
 
 
 @router.post('/sales-return/export-rate-comparison')
 @gateway_router.post('/sales-return/export-rate-comparison')
 async def export_sales_return_rate_comparison_rows(
+    request: Request,
     payload: SalesReturnRateComparisonExportRequest,
 ) -> StreamingResponse:
-    request_id = str(uuid.uuid4())
+    request_id = resolve_request_id(request)
     log = get_logger(request_id)
     log.info('Sales return rate comparison export request received')
-    excel_bytes = export_sales_return_rate_comparison(payload.records)
+    excel_bytes = await run_sync(export_sales_return_rate_comparison, payload.records)
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'sales-return-rate-comparison-{timestamp}.xlsx'
     log.info('Sales return rate comparison export generated')
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
     )

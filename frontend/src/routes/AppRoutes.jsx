@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { RequireAuth } from '../components/auth/RequireAuth';
+import { RequireRole } from '../components/auth/RequireRole';
 import { GuestRoute } from '../components/auth/GuestRoute';
 import { LoginSkeleton } from '../components/layout/LoginSkeleton';
 
@@ -65,9 +66,10 @@ export function AppRoutes() {
           <Route path="/reports" element={lazyPage(Reports)} />
           <Route path="/settings" element={lazyPage(Settings)} />
           <Route path="/profile" element={lazyPage(Profile)} />
-          <Route path="/users" element={lazyPage(Users)} />
-          <Route path="/demo-videos" element={lazyPage(DemoVideosPage)} />
-
+          <Route element={<RequireRole roles={['ADMIN', 'SUPER_ADMIN']} />}>
+            <Route path="/users" element={lazyPage(Users)} />
+            <Route path="/demo-videos" element={lazyPage(DemoVideosPage)} />
+          </Route>
           <Route path="/scrutiny/pan" element={lazyPage(PanVerification)} />
           <Route path="/scrutiny/gross-weight" element={lazyPage(GrossWeight)} />
           <Route path="/scrutiny/purchase/gross-weight" element={lazyPage(PurchaseGrossWeight)} />

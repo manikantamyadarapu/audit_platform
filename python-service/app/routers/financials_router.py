@@ -1,6 +1,5 @@
 """Financials Sales & Purchases pivot + Opening Stock + Closing Stock template HTTP routes."""
 
-import uuid
 from datetime import datetime
 from io import BytesIO
 from typing import Any
@@ -19,7 +18,10 @@ from app.engines.financials_engine.config.product_rule_book import (
     get_closing_stock_rule_book_payload,
     map_pivots_to_closing_stock_categories,
 )
+from app.utils.async_work import run_sync
 from app.utils.logger import get_logger
+from app.utils.request_id import resolve_request_id
+from app.utils.safe_errors import internal_error_body
 from app.utils.sheet_validation_error import SheetValidationError
 
 router = APIRouter(prefix='/api/process', tags=['financials'])
@@ -28,8 +30,8 @@ processor = FinancialsClosingStockProcessor()
 
 
 def _request_id(request: Request) -> str:
-    incoming = request.headers.get('x-request-id')
-    return incoming.strip() if incoming and incoming.strip() else str(uuid.uuid4())
+    """Preserve gateway correlation id (contract tests import this helper)."""
+    return resolve_request_id(request)
 
 
 class PivotRow(BaseModel):
@@ -92,7 +94,8 @@ async def _process_financials_pivot(
             )
 
     try:
-        response = processor.process(
+        response = await run_sync(
+            processor.process,
             sales_file.filename or 'sales.xlsx',
             sales_bytes,
             purchases_file.filename or 'purchases.xlsx',
@@ -109,10 +112,10 @@ async def _process_financials_pivot(
         content['requestId'] = request_id
         return JSONResponse(status_code=422, content=content)
     except Exception as exc:
-        log.error('Financials pivot failed: {}', exc)
+        log.exception('Financials pivot failed: {}', exc)
         return JSONResponse(
             status_code=500,
-            content={'success': False, 'detail': str(exc), 'requestId': request_id},
+            content=internal_error_body(request_id=request_id),
         )
 
 
@@ -147,7 +150,8 @@ async def export_financials_pivots(
         len(payload.salesPivot),
         len(payload.purchasesPivot),
     )
-    excel_bytes = build_pivots_workbook_bytes(
+    excel_bytes = await run_sync(
+        build_pivots_workbook_bytes,
         sales_pivot=[row.model_dump() for row in payload.salesPivot],
         purchases_pivot=[row.model_dump() for row in payload.purchasesPivot],
     )
@@ -236,7 +240,8 @@ async def export_closing_stock_template(
         mapped_count,
         mapped.get('ruleBookFingerprint'),
     )
-    excel_bytes = build_closing_stock_template_bytes(
+    excel_bytes = await run_sync(
+        build_closing_stock_template_bytes,
         products_by_category=products_by_category,
         layout_by_category=layout_by_category,
         company_name=payload.companyName,

@@ -8,6 +8,12 @@ const { hashPassword } = require('../utils/password.util');
  * @throws {Error} If email already exists or role invalid
  */
 async function createUser(userData) {
+  if (!userData.password || String(userData.password).length < 12) {
+    const error = new Error('Password must be at least 12 characters');
+    error.statusCode = 400;
+    throw error;
+  }
+
   // Check if email already exists
   const emailExists = await userRepository.emailExists(userData.email);
   if (emailExists) {

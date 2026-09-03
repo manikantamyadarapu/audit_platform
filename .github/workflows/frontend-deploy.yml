@@ -82,13 +82,22 @@ jobs:
       - name: Set SSH Key Permissions
         run: chmod 600 ~/.ssh/deploy_key
 
+      - name: Configure known_hosts
+        run: |
+          if [ -z "${{ secrets.DEPLOY_KNOWN_HOSTS }}" ]; then
+            echo "DEPLOY_KNOWN_HOSTS secret is required (pin host keys; do not disable StrictHostKeyChecking)"
+            exit 1
+          fi
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
       - name: Rsync static files
         run: |
           CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_PATH=$(echo "${{ secrets.DEPLOY_FRONTEND_PATH }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
             dist/ \
             "${CLEAN_USER}@${CLEAN_HOST}:${CLEAN_PATH}/"
 
@@ -97,6 +106,6 @@ jobs:
         run: |
           CLEAN_USER=$(echo "${{ secrets.DEPLOY_USER }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
           CLEAN_HOST=$(echo "${{ secrets.DEPLOY_HOST }}" | sed -e 's/^[[:space:]"'\''\r\n]*//' -e 's/[[:space:]"'\''\r\n]*$//')
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
             "${CLEAN_USER}@${CLEAN_HOST}" \
             "sudo nginx -t && sudo systemctl reload nginx"

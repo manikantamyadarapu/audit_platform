@@ -77,7 +77,10 @@ async function getProductAverageRates(req, res, next) {
       return ErrorResponse(res, 401, 'Access token required');
     }
 
-    const { rows, pagination, meta } = await salesService.getProductAverageRates(req.query);
+    const { rows, pagination, meta } = await salesService.getProductAverageRates(
+      req.query,
+      req.user
+    );
     return PaginatedSuccessResponse(
       res,
       'Product average rates fetched successfully',
@@ -105,7 +108,7 @@ async function exportProductAverageRates(req, res, next) {
       return ErrorResponse(res, 401, 'Access token required');
     }
 
-    const rows = await salesService.getProductAverageRatesForExport(req.query);
+    const rows = await salesService.getProductAverageRatesForExport(req.query, req.user);
     const header = [
       'Product',
       'Sales Account',

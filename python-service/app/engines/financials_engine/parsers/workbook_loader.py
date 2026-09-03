@@ -16,23 +16,24 @@ from app.utils.header_cleaner import normalize_header
 from app.utils.sheet_validation_error import SheetValidationError
 
 
-def parse_numeric_value(value: Any) -> float:
+def parse_numeric_value(value: Any) -> float | None:
     """
     Convert Quantity / Gross Amount to float.
 
-    Handles blank/null, plain numbers, and comma-grouped strings such as
-    ``14,30,000.39`` (Indian-style grouping) or ``1,234.56``.
+    Blank/null/invalid values return ``None`` (not ``0.0``) so callers can
+    distinguish missing measures from a true zero. Handles plain numbers and
+    comma-grouped strings such as ``14,30,000.39`` or ``1,234.56``.
     """
     if value is None or (isinstance(value, float) and pd.isna(value)):
-        return 0.0
+        return None
     if isinstance(value, bool):
-        return 0.0
+        return None
     if isinstance(value, (int, float)):
         return float(value)
 
     text = str(value).strip()
     if not text or text.lower() in {'nan', 'none', 'null', '-'}:
-        return 0.0
+        return None
 
     # Strip currency symbols / spaces, keep digits, decimal point, and leading minus.
     cleaned = (
@@ -47,11 +48,11 @@ def parse_numeric_value(value: Any) -> float:
     if cleaned.endswith('%'):
         cleaned = cleaned[:-1]
     if not cleaned or cleaned in {'.', '-', '-.'}:
-        return 0.0
+        return None
     try:
         return float(cleaned)
     except ValueError:
-        return 0.0
+        return None
 
 
 def _display_product_name(value: Any) -> str:

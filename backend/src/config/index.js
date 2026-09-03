@@ -3,7 +3,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const { validateEnvOrThrow } = require('./env-validation');
 
-const PORT = Number(process.env.PORT) || 4001;
+const PORT = Number(process.env.PORT) || 4002;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
 
