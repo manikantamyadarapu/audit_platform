@@ -7,6 +7,7 @@ from typing import Any
 
 from app.engines.financials_engine.engine.calculator import build_product_pivot
 from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
+from app.engines.financials_engine.engine.opening_stock_manual import attach_manual_quantity_mapping
 from app.engines.financials_engine.engine.output import build_financials_pivot_response
 from app.engines.financials_engine.engine.receipts_issues import process_mr_dc_ledgers
 from app.engines.financials_engine.parsers.mr_dc_loader import load_transfer_workbook
@@ -96,16 +97,21 @@ class FinancialsPivotAudit:
             )
             validated_opening = list(opening_result.get('validatedOpening') or [])
             opening_report = dict(opening_result.get('report') or {})
+            attach_manual_quantity_mapping(
+                opening_report,
+                dedicated_product_sheets=prev_payload.get('dedicatedProductSheets') or [],
+            )
             opening_pivot = validated_opening_to_pivot(validated_opening)
             self._log.info(
                 'Opening Stock mapping: qty_products={} prev_index={} exact_matched={} '
-                'fallback_matched={} unmatched={} manual_mapping_required={}',
+                'fallback_matched={} unmatched={} qty_mismatch={} mapping_required={}',
                 len(qty_rows),
                 len(prev_payload.get('productIndex') or {}),
                 opening_report.get('exactMatchedCount', 0),
                 opening_report.get('fallbackMatchedCount', 0),
                 opening_report.get('unmatchedCount', 0),
-                opening_report.get('manualMappingRequiredCount', 0),
+                opening_report.get('quantityMismatchCount', 0),
+                opening_report.get('previousYearMappingRequiredCount', 0),
             )
 
         receipts_pivot: list[dict[str, Any]] = []

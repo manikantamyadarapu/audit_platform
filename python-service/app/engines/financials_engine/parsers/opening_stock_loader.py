@@ -472,12 +472,16 @@ def load_previous_year_product_index(
     file_name: str,
     *,
     log: Any | None = None,
+    dedicated_product_sheets: list[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
     Index previous-year Closing Balance by product.
 
     1. Dedicated product sheets — sheet name matches product; read Closing Balance row.
     2. Category tabs (Dia/Eme/…) — product rows with Closing stock Qty/Amt.
+
+    When ``dedicated_product_sheets`` is provided, individual product-sheet records
+    (Closing Balance Qty/Amt) are appended there. Category summary tabs are not.
     """
     logger = log or get_logger()
     try:
@@ -538,6 +542,18 @@ def load_previous_year_product_index(
                 raw,
                 sheet_name=display_name,
             )
+            if dedicated_product_sheets is not None and (
+                product_entry.get('found') or product_entry.get('closingStockQty') is not None
+            ):
+                dedicated_product_sheets.append(
+                    {
+                        'product': str(product_entry.get('product') or display_name).strip(),
+                        'sheetName': display_name,
+                        'closingStockQty': product_entry.get('closingStockQty'),
+                        'closingStockAmount': product_entry.get('closingStockAmount'),
+                        'source': 'product_sheet',
+                    }
+                )
             if product_entry.get('found'):
                 product_sheet_hits.append(display_name)
                 _register_product_keys(index, product_entry)
@@ -610,12 +626,19 @@ def load_previous_year_opening_stock(
     log: Any | None = None,
 ) -> dict[str, Any]:
     """Product index plus subcategory/sheet groupings for fallback mapping."""
-    product_index = load_previous_year_product_index(file_bytes, file_name, log=log)
+    dedicated_product_sheets: list[dict[str, Any]] = []
+    product_index = load_previous_year_product_index(
+        file_bytes,
+        file_name,
+        log=log,
+        dedicated_product_sheets=dedicated_product_sheets,
+    )
     subcategory_products, sheet_products = _build_subcategory_indexes(product_index)
     return {
         'productIndex': product_index,
         'subcategoryProducts': subcategory_products,
         'sheetProducts': sheet_products,
+        'dedicatedProductSheets': dedicated_product_sheets,
     }
 
 
