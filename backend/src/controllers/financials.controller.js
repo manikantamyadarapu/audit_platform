@@ -53,10 +53,17 @@ async function processFinancialsPivot(req, res, next) {
         requestId: req.requestId,
       });
     }
-    if ((mrFile && !dcFile) || (dcFile && !mrFile)) {
+    if (!mrFile?.buffer) {
       return res.status(400).json({
         success: false,
-        detail: 'Upload both Material Receipts (mrFile) and Delivery Challans (dcFile) together.',
+        detail: 'Missing file field "mrFile"',
+        requestId: req.requestId,
+      });
+    }
+    if (!dcFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "dcFile"',
         requestId: req.requestId,
       });
     }
@@ -67,8 +74,8 @@ async function processFinancialsPivot(req, res, next) {
       purchasesFile: purchasesFile.originalname,
       openingQtyFile: openingQtyFile.originalname,
       previousYearFile: previousYearFile.originalname,
-      mrFile: mrFile?.originalname,
-      dcFile: dcFile?.originalname,
+      mrFile: mrFile.originalname,
+      dcFile: dcFile.originalname,
     });
 
     const { data, auditRunId } = await financialsService.processFinancialsPivot(
@@ -130,8 +137,6 @@ async function exportClosingStockTemplate(req, res, next) {
       salesCount: parsed.salesPivot.length,
       purchasesCount: parsed.purchasesPivot.length,
       openingCount: parsed.openingPivot.length,
-      receiptsCount: parsed.receiptsPivot.length,
-      issuesCount: parsed.issuesPivot.length,
       productCount: parsed.products.length,
     });
 
@@ -140,8 +145,8 @@ async function exportClosingStockTemplate(req, res, next) {
       salesPivot: parsed.salesPivot,
       purchasesPivot: parsed.purchasesPivot,
       openingPivot: parsed.openingPivot,
-      receiptsPivot: parsed.receiptsPivot,
-      issuesPivot: parsed.issuesPivot,
+      mrPivots: parsed.mrPivots,
+      dcPivots: parsed.dcPivots,
       companyName: parsed.companyName,
       address: parsed.address,
       financialYear: parsed.financialYear,
@@ -176,8 +181,8 @@ async function remapClosingStock(req, res, next) {
       salesPivot: parsed.salesPivot,
       purchasesPivot: parsed.purchasesPivot,
       openingPivot: parsed.openingPivot,
-      receiptsPivot: parsed.receiptsPivot,
-      issuesPivot: parsed.issuesPivot,
+      mrPivots: parsed.mrPivots,
+      dcPivots: parsed.dcPivots,
     });
     return res.json(data);
   } catch (err) {

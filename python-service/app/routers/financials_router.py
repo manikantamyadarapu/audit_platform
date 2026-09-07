@@ -1,4 +1,4 @@
-"""Financials Sales & Purchases pivot + Opening + MR/DC + Closing Stock HTTP routes."""
+"""Financials Sales & Purchases pivot + Opening Stock + Closing Stock template HTTP routes."""
 
 import uuid
 from datetime import datetime
@@ -44,19 +44,20 @@ class PivotRow(BaseModel):
     status: str | None = None
 
 
-class BucketPivotRow(BaseModel):
-    product: str = ''
-    bucket: str = ''
-    sumOfQuantity: float | int | None = None
-    sumOfGross: float | int | None = None
+class LocationPivotTree(BaseModel):
+    model_config = {'extra': 'ignore'}
+
+    jubileeHills: list[PivotRow] = Field(default_factory=list)
+    kokapet: list[PivotRow] = Field(default_factory=list)
+    internalBasheerbagh: list[PivotRow] = Field(default_factory=list)
 
 
 class ExportPivotsRequest(BaseModel):
     salesPivot: list[PivotRow] = Field(default_factory=list)
     purchasesPivot: list[PivotRow] = Field(default_factory=list)
     openingPivot: list[PivotRow] = Field(default_factory=list)
-    receiptsPivot: list[BucketPivotRow] = Field(default_factory=list)
-    issuesPivot: list[BucketPivotRow] = Field(default_factory=list)
+    mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+    dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
 
 
 class ExportClosingStockRequest(BaseModel):
@@ -64,11 +65,19 @@ class ExportClosingStockRequest(BaseModel):
     salesPivot: list[PivotRow] = Field(default_factory=list)
     purchasesPivot: list[PivotRow] = Field(default_factory=list)
     openingPivot: list[PivotRow] = Field(default_factory=list)
-    receiptsPivot: list[BucketPivotRow] = Field(default_factory=list)
-    issuesPivot: list[BucketPivotRow] = Field(default_factory=list)
+    mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+    dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
     companyName: str = ''
     address: str = ''
     financialYear: str = 'AY 2025-26'
+
+
+def _dump_location_pivots(tree: LocationPivotTree) -> dict[str, list[dict[str, Any]]]:
+    return {
+        'jubileeHills': [row.model_dump() for row in tree.jubileeHills],
+        'kokapet': [row.model_dump() for row in tree.kokapet],
+        'internalBasheerbagh': [row.model_dump() for row in tree.internalBasheerbagh],
+    }
 
 
 async def _process_financials_pivot(
@@ -76,9 +85,9 @@ async def _process_financials_pivot(
     purchases_file: UploadFile,
     opening_qty_file: UploadFile,
     previous_year_file: UploadFile,
-    mr_file: UploadFile | None,
-    dc_file: UploadFile | None,
     request_id: str,
+    mr_file: UploadFile,
+    dc_file: UploadFile,
 ) -> dict[str, Any]:
     log = get_logger(request_id)
     log.info(
@@ -87,22 +96,24 @@ async def _process_financials_pivot(
         purchases_file.filename,
         opening_qty_file.filename,
         previous_year_file.filename,
-        mr_file.filename if mr_file else None,
-        dc_file.filename if dc_file else None,
+        mr_file.filename,
+        dc_file.filename,
     )
 
     sales_bytes = await sales_file.read()
     purchases_bytes = await purchases_file.read()
     opening_qty_bytes = await opening_qty_file.read()
     previous_year_bytes = await previous_year_file.read()
-    mr_bytes = await mr_file.read() if mr_file is not None else None
-    dc_bytes = await dc_file.read() if dc_file is not None else None
+    mr_bytes = await mr_file.read()
+    dc_bytes = await dc_file.read()
 
     for label, payload in (
         ('Sales', sales_bytes),
         ('Purchases', purchases_bytes),
         ('Opening Quantity', opening_qty_bytes),
         ('Previous Year Closing Stock', previous_year_bytes),
+        ('MR', mr_bytes),
+        ('DC', dc_bytes),
     ):
         if not payload:
             return JSONResponse(
@@ -114,35 +125,6 @@ async def _process_financials_pivot(
                 },
             )
 
-    # MR and DC are paired — both required when either is supplied.
-    if (mr_bytes and not dc_bytes) or (dc_bytes and not mr_bytes):
-        return JSONResponse(
-            status_code=400,
-            content={
-                'success': False,
-                'detail': 'Upload both Material Receipts (MR) and Delivery Challans (DC) together.',
-                'requestId': request_id,
-            },
-        )
-    if mr_bytes is not None and len(mr_bytes) == 0:
-        return JSONResponse(
-            status_code=400,
-            content={
-                'success': False,
-                'detail': 'Material Receipts (MR) file is empty',
-                'requestId': request_id,
-            },
-        )
-    if dc_bytes is not None and len(dc_bytes) == 0:
-        return JSONResponse(
-            status_code=400,
-            content={
-                'success': False,
-                'detail': 'Delivery Challans (DC) file is empty',
-                'requestId': request_id,
-            },
-        )
-
     try:
         response = processor.process(
             sales_file.filename or 'sales.xlsx',
@@ -153,9 +135,9 @@ async def _process_financials_pivot(
             opening_qty_bytes=opening_qty_bytes,
             previous_year_file_name=previous_year_file.filename or 'previous-year-closing.xlsx',
             previous_year_bytes=previous_year_bytes,
-            mr_file_name=(mr_file.filename if mr_file else None) or 'MR.xlsx',
+            mr_file_name=mr_file.filename or 'mr.xlsx',
             mr_bytes=mr_bytes,
-            dc_file_name=(dc_file.filename if dc_file else None) or 'DC.xlsx',
+            dc_file_name=dc_file.filename or 'dc.xlsx',
             dc_bytes=dc_bytes,
         )
         response['requestId'] = request_id
@@ -180,17 +162,17 @@ async def process_financials_pivot(
     purchases_file: UploadFile = File(...),
     opening_qty_file: UploadFile = File(...),
     previous_year_file: UploadFile = File(...),
-    mr_file: UploadFile | None = File(None),
-    dc_file: UploadFile | None = File(None),
+    mr_file: UploadFile = File(...),
+    dc_file: UploadFile = File(...),
 ) -> dict[str, Any]:
     return await _process_financials_pivot(
         sales_file,
         purchases_file,
         opening_qty_file,
         previous_year_file,
-        mr_file,
-        dc_file,
         _request_id(request),
+        mr_file=mr_file,
+        dc_file=dc_file,
     )
 
 
@@ -246,8 +228,8 @@ async def remap_closing_stock(
         sales_pivot=[row.model_dump() for row in payload.salesPivot],
         purchases_pivot=[row.model_dump() for row in payload.purchasesPivot],
         opening_pivot=[row.model_dump() for row in payload.openingPivot],
-        receipts_pivot=[row.model_dump() for row in payload.receiptsPivot],
-        issues_pivot=[row.model_dump() for row in payload.issuesPivot],
+        mr_pivots=_dump_location_pivots(payload.mrPivots),
+        dc_pivots=_dump_location_pivots(payload.dcPivots),
     )
     log.info(
         'Closing Stock remap: fingerprint={} products={}',
@@ -259,9 +241,6 @@ async def remap_closing_stock(
         **format_closing_stock_mapping_response(mapped),
         'mappedOpeningProducts': mapped.get('mappedOpeningProducts', []),
         'unmappedOpeningProducts': mapped.get('unmappedOpeningProducts', []),
-        'unmappedReceiptsProducts': mapped.get('unmappedReceiptsProducts', []),
-        'unmappedIssuesProducts': mapped.get('unmappedIssuesProducts', []),
-        'netMovement': mapped.get('netMovement', {}),
         'summary': {
             'ruleBookFingerprint': mapped.get('ruleBookFingerprint'),
             'ruleBookProductCounts': mapped.get('ruleBookProductCounts', {}),
@@ -269,15 +248,10 @@ async def remap_closing_stock(
             'productsWithSalesData': mapped.get('productsWithSalesData', 0),
             'productsWithPurchaseData': mapped.get('productsWithPurchaseData', 0),
             'productsWithOpeningData': mapped.get('productsWithOpeningData', 0),
-            'productsWithReceiptsData': mapped.get('productsWithReceiptsData', 0),
-            'productsWithIssuesData': mapped.get('productsWithIssuesData', 0),
             'productsDisplayed': mapped.get('productsDisplayed', 0),
             'mappedProductCount': mapped.get('productsDisplayed', 0),
             'unmappedProductCount': len(mapped.get('unmappedProducts', [])),
             'reconciliation': mapped.get('reconciliation', {}),
-            'netMovementQty': (mapped.get('netMovement') or {}).get('netMovementQty'),
-            'netMovementAmt': (mapped.get('netMovement') or {}).get('netMovementAmt'),
-            'netMovementFormula': (mapped.get('netMovement') or {}).get('formula'),
         },
         'requestId': request_id,
     }
@@ -296,8 +270,8 @@ async def export_closing_stock_template(
         sales_pivot=[row.model_dump() for row in payload.salesPivot],
         purchases_pivot=[row.model_dump() for row in payload.purchasesPivot],
         opening_pivot=[row.model_dump() for row in payload.openingPivot],
-        receipts_pivot=[row.model_dump() for row in payload.receiptsPivot],
-        issues_pivot=[row.model_dump() for row in payload.issuesPivot],
+        mr_pivots=_dump_location_pivots(payload.mrPivots),
+        dc_pivots=_dump_location_pivots(payload.dcPivots),
     )
     products_by_category = mapped['productsByCategory']
     layout_by_category = mapped['layoutByCategory']

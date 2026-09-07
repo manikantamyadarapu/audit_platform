@@ -7,6 +7,12 @@ from io import BytesIO
 from openpyxl import load_workbook
 
 from app.engines.financials_engine.config.product_rule_book import (
+    _add_average_rate,
+    _add_closing_stock,
+    _add_gross_profit,
+    _add_gross_profit_pct,
+    _add_issues_amounts,
+    _add_stock_section_totals,
     compute_rule_book_fingerprint,
     count_rule_book_products,
     load_closing_stock_product_rule_book,
@@ -55,11 +61,29 @@ class TestClosingStockProductRuleBook:
     def test_semantic_column_indices(self):
         assert leaf_index_for_measure('purchasesQty') == 2
         assert leaf_index_for_measure('purchasesAmt') == 3
-        assert leaf_index_for_measure('salesQty') == 21
-        assert leaf_index_for_measure('salesAmt') == 22
+        assert leaf_index_for_measure('receiptsInternalQty') == 4
+        assert leaf_index_for_measure('receiptsJubileeHillsQty') == 6
+        assert leaf_index_for_measure('receiptsKokapetQty') == 8
+        assert leaf_index_for_measure('issuesInternalQty') == 15
+        assert leaf_index_for_measure('issuesInternalAmt') == 16
+        assert leaf_index_for_measure('issuesBanjaraHillsQty') == 17
+        assert leaf_index_for_measure('issuesBanjaraHillsAmt') == 18
+        assert leaf_index_for_measure('issuesKokapetQty') == 19
+        assert leaf_index_for_measure('issuesKokapetAmt') == 20
+        assert leaf_index_for_measure('receiptsQty') == 10
+        assert leaf_index_for_measure('receiptsAmt') == 11
+        assert leaf_index_for_measure('totalQty') == 12
+        assert leaf_index_for_measure('totalAmt') == 13
+        assert leaf_index_for_measure('averageRateAmt') == 14
+        assert leaf_index_for_measure('salesQty') == 23
+        assert leaf_index_for_measure('salesAmt') == 24
+        assert leaf_index_for_measure('closingStockQty') == 25
+        assert leaf_index_for_measure('closingStockAmt') == 26
+        assert leaf_index_for_measure('grossProfitAmt') == 27
+        assert leaf_index_for_measure('grossProfitPct') == 28
         assert PURCHASES_QTY_LEAF_IDX == 2
-        assert SALES_QTY_LEAF_IDX == 21
-        assert SALES_AMT_LEAF_IDX == 22
+        assert SALES_QTY_LEAF_IDX == 23
+        assert SALES_AMT_LEAF_IDX == 24
 
     def test_maps_all_rule_book_products_regardless_of_pivot_input(self):
         mapped = map_product_names_to_categories(
@@ -149,6 +173,10 @@ class TestClosingStockProductRuleBook:
         assert product_a['salesAmt'] == 100
         assert product_a['purchasesQty'] == 1
         assert product_a['purchasesAmt'] == 10
+        assert product_a['receiptsQty'] is None
+        assert product_a['receiptsAmt'] is None
+        assert product_a['totalQty'] == 1
+        assert product_a['totalAmt'] == 10
 
         recon = result['reconciliation']
         assert recon['mappedOutputMatch'] is True
@@ -335,6 +363,10 @@ class TestClosingStockProductRuleBook:
         assert diamond.cell(row=product_a_row, column=_leaf_col(PURCHASES_AMT_LEAF_IDX)).value == 10
         assert diamond.cell(row=product_a_row, column=_leaf_col(SALES_QTY_LEAF_IDX)).value == 2
         assert diamond.cell(row=product_a_row, column=_leaf_col(SALES_AMT_LEAF_IDX)).value == 100
+        assert diamond.cell(row=product_a_row, column=_leaf_col(leaf_index_for_measure('totalQty'))).value == 1
+        assert diamond.cell(row=product_a_row, column=_leaf_col(leaf_index_for_measure('totalAmt'))).value == 10
+        assert diamond.cell(row=product_a_row, column=_leaf_col(leaf_index_for_measure('averageRateAmt'))).value == 10
+        assert diamond.cell(row=product_a_row, column=_leaf_col(leaf_index_for_measure('receiptsQty'))).value is None
         assert diamond.cell(row=product_a_row, column=_leaf_col(0)).value is None
         # Sales must not land in Issues Total columns (indices 19–20).
         assert diamond.cell(row=product_a_row, column=_leaf_col(19)).value is None
@@ -554,3 +586,301 @@ class TestClosingStockProductRuleBook:
             assert 'LEGACY SKU' in second['unmappedProducts']
         finally:
             prb._RULE_BOOK_PATH = original_path
+
+    def test_total_qty_and_amount_from_opening_purchases_receipts(self):
+        summed = _add_stock_section_totals(
+            {
+                'openingQty': 10,
+                'openingAmt': 100.4,
+                'purchasesQty': 2,
+                'purchasesAmt': 20.4,
+                'receiptsQty': 5,
+                'receiptsAmt': 5.2,
+            }
+        )
+        assert summed['totalQty'] == 17
+        assert summed['totalAmt'] == 126.0
+        assert summed['openingQty'] == 10
+        assert summed['purchasesQty'] == 2
+        assert summed['receiptsQty'] == 5
+
+        blank = _add_stock_section_totals({})
+        assert blank['totalQty'] is None
+        assert blank['totalAmt'] is None
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['openingQty'] == 4
+        assert product_a['openingAmt'] == 40
+        assert product_a['totalQty'] == 4
+        assert product_a['totalAmt'] == 40
+        assert product_a['averageRateAmt'] == 10
+        product_h = _product_row(
+            result['layoutByCategory']['Precious and Semi Precious'],
+            'Product H',
+        )
+        assert product_h['totalQty'] is None
+        assert product_h['totalAmt'] is None
+        assert product_h['averageRateAmt'] is None
+
+    def test_average_rate_divides_total_amount_by_total_qty(self):
+        rate = _add_average_rate({'totalQty': 4, 'totalAmt': 40})
+        assert rate['averageRateAmt'] == 10
+        assert rate['totalQty'] == 4
+        assert rate['totalAmt'] == 40
+
+        zero_qty = _add_average_rate({'totalQty': 0, 'totalAmt': 50})
+        assert zero_qty['averageRateAmt'] == 0
+        assert zero_qty['totalAmt'] == 50
+
+        blank = _add_average_rate({})
+        assert blank['averageRateAmt'] is None
+
+    def test_issues_amount_is_qty_times_average_rate(self):
+        filled = _add_issues_amounts(
+            {
+                'averageRateAmt': 10,
+                'issuesInternalQty': 2,
+                'issuesBanjaraHillsQty': 0,
+                'issuesKokapetQty': 3,
+            }
+        )
+        assert filled['issuesInternalAmt'] == 20
+        assert filled['issuesBanjaraHillsAmt'] == 0
+        assert filled['issuesKokapetAmt'] == 30
+        assert filled['issuesInternalQty'] == 2
+        assert filled['issuesBanjaraHillsQty'] == 0
+        assert filled['issuesKokapetQty'] == 3
+        assert filled['averageRateAmt'] == 10
+
+        blank = _add_issues_amounts({'averageRateAmt': 10})
+        assert blank['issuesInternalAmt'] is None
+        assert blank['issuesBanjaraHillsAmt'] is None
+        assert blank['issuesKokapetAmt'] is None
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            mr_pivots={
+                'jubileeHills': [],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'internalBasheerbagh': [],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['issuesBanjaraHillsQty'] == 2
+        assert product_a['issuesKokapetQty'] == 1
+        assert product_a['averageRateAmt'] == 10
+        assert product_a['issuesBanjaraHillsAmt'] == 20
+        assert product_a['issuesKokapetAmt'] == 10
+        assert product_a['issuesInternalAmt'] is None
+        assert product_a['totalQty'] == 4
+        assert product_a['totalAmt'] == 40
+
+    def test_closing_stock_qty_and_amount(self):
+        from_components = _add_closing_stock(
+            {
+                'totalQty': 10,
+                'salesQty': 3,
+                'averageRateAmt': 5,
+                'issuesInternalQty': 1,
+                'issuesBanjaraHillsQty': 2,
+                'issuesKokapetQty': 0,
+            }
+        )
+        assert from_components['closingStockQty'] == 4
+        assert from_components['closingStockAmt'] == 20
+        assert from_components['totalQty'] == 10
+        assert from_components['salesQty'] == 3
+        assert from_components['issuesInternalQty'] == 1
+        assert from_components['issuesBanjaraHillsQty'] == 2
+        assert from_components['issuesKokapetQty'] == 0
+        assert from_components['averageRateAmt'] == 5
+
+        existing_total = _add_closing_stock(
+            {
+                'totalQty': 10,
+                'salesQty': 3,
+                'issuesTotalQty': 4,
+                'issuesInternalQty': 99,
+                'averageRateAmt': 2,
+            }
+        )
+        assert existing_total['closingStockQty'] == 3
+        assert existing_total['closingStockAmt'] == 6
+        assert existing_total['issuesTotalQty'] == 4
+        assert existing_total['issuesInternalQty'] == 99
+
+        blank = _add_closing_stock({})
+        assert blank['closingStockQty'] is None
+        assert blank['closingStockAmt'] is None
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            mr_pivots={
+                'jubileeHills': [],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'internalBasheerbagh': [],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['totalQty'] == 4
+        assert product_a['salesQty'] == 1
+        assert product_a['issuesBanjaraHillsQty'] == 2
+        assert product_a['issuesKokapetQty'] == 1
+        assert product_a['averageRateAmt'] == 10
+        assert product_a['closingStockQty'] == 0
+        assert product_a['closingStockAmt'] == 0
+        product_h = _product_row(
+            result['layoutByCategory']['Precious and Semi Precious'],
+            'Product H',
+        )
+        assert product_h['closingStockQty'] is None
+        assert product_h['closingStockAmt'] is None
+
+    def test_gross_profit_amount(self):
+        filled = _add_gross_profit(
+            {
+                'closingStockAmt': 20,
+                'salesAmt': 50,
+                'issuesInternalAmt': 4,
+                'issuesBanjaraHillsAmt': 6,
+                'issuesKokapetAmt': 0,
+                'totalAmt': 40,
+            }
+        )
+        assert filled['grossProfitAmt'] == 40
+        assert filled['closingStockAmt'] == 20
+        assert filled['salesAmt'] == 50
+        assert filled['totalAmt'] == 40
+        assert filled['issuesInternalAmt'] == 4
+        assert filled['issuesBanjaraHillsAmt'] == 6
+        assert filled['issuesKokapetAmt'] == 0
+
+        existing_total = _add_gross_profit(
+            {
+                'closingStockAmt': 20,
+                'salesAmt': 50,
+                'issuesTotalAmt': 10,
+                'issuesInternalAmt': 99,
+                'totalAmt': 40,
+            }
+        )
+        assert existing_total['grossProfitAmt'] == 40
+        assert existing_total['issuesTotalAmt'] == 10
+        assert existing_total['issuesInternalAmt'] == 99
+
+        blank = _add_gross_profit({})
+        assert blank['grossProfitAmt'] is None
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            mr_pivots={
+                'jubileeHills': [],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'internalBasheerbagh': [],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['closingStockAmt'] == 0
+        assert product_a['salesAmt'] == 50
+        assert product_a['issuesBanjaraHillsAmt'] == 20
+        assert product_a['issuesKokapetAmt'] == 10
+        assert product_a['totalAmt'] == 40
+        assert product_a['grossProfitAmt'] == 40
+        product_h = _product_row(
+            result['layoutByCategory']['Precious and Semi Precious'],
+            'Product H',
+        )
+        assert product_h['grossProfitAmt'] is None
+
+    def test_gross_profit_percent(self):
+        ratio = _add_gross_profit_pct({'grossProfitAmt': 40, 'salesAmt': 50})
+        assert ratio['grossProfitPct'] == 0.8
+        assert ratio['grossProfitAmt'] == 40
+        assert ratio['salesAmt'] == 50
+
+        zero_gp = _add_gross_profit_pct({'grossProfitAmt': 0, 'salesAmt': 50})
+        assert zero_gp['grossProfitPct'] == 0
+        assert zero_gp['grossProfitAmt'] == 0
+
+        negative_gp = _add_gross_profit_pct({'grossProfitAmt': -10, 'salesAmt': 50})
+        assert negative_gp['grossProfitPct'] == 0
+        assert negative_gp['grossProfitAmt'] == -10
+
+        zero_sales = _add_gross_profit_pct({'grossProfitAmt': 40, 'salesAmt': 0})
+        assert zero_sales['grossProfitPct'] == 0
+        assert zero_sales['salesAmt'] == 0
+
+        blank = _add_gross_profit_pct({})
+        assert blank['grossProfitPct'] is None
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            mr_pivots={
+                'jubileeHills': [],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'internalBasheerbagh': [],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['grossProfitAmt'] == 40
+        assert product_a['salesAmt'] == 50
+        assert product_a['grossProfitPct'] == 0.8
+        product_h = _product_row(
+            result['layoutByCategory']['Precious and Semi Precious'],
+            'Product H',
+        )
+        assert product_h['grossProfitPct'] is None
