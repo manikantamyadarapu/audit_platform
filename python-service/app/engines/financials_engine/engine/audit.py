@@ -140,9 +140,14 @@ class FinancialsPivotAudit:
             )
         mr_dc_pivots = build_mr_dc_pivot_payload(mr_rows=mr_rows, dc_rows=dc_rows)
         self._log.info(
-            'MR/DC pivots: mr_rows={} dc_rows={}',
+            'MR/DC pivots: mr_rows={} dc_rows={} mr_classified={} mr_unclassified={} '
+            'dc_classified={} dc_unclassified={}',
             len(mr_rows),
             len(dc_rows),
+            (mr_dc_pivots.get('mrReport') or {}).get('classifiedRowCount', 0),
+            (mr_dc_pivots.get('mrReport') or {}).get('unclassifiedCount', 0),
+            (mr_dc_pivots.get('dcReport') or {}).get('classifiedRowCount', 0),
+            (mr_dc_pivots.get('dcReport') or {}).get('unclassifiedCount', 0),
         )
 
         load_ms = (perf_counter() - started) * 1000
@@ -160,6 +165,8 @@ class FinancialsPivotAudit:
             previous_year_file_name=previous_year_file_name or None,
             mr_pivots=mr_dc_pivots['mrPivots'],
             dc_pivots=mr_dc_pivots['dcPivots'],
+            mr_report=mr_dc_pivots.get('mrReport'),
+            dc_report=mr_dc_pivots.get('dcReport'),
             mr_file_name=mr_file_name or None,
             dc_file_name=dc_file_name or None,
             mr_source_rows=len(mr_rows),

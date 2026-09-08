@@ -10,7 +10,7 @@ router.use(authenticate);
 
 /**
  * Full paths (mounted under /api/v1):
- * POST /api/v1/process/financials/validate  (sales/purchases/opening/previousYear + optional mr/dc)
+ * POST /api/v1/process/financials/validate  (sales/purchases/opening/previousYear + required mr/dc)
  * POST /api/v1/process/financials/export-pivots
  * POST /api/v1/process/financials/export-closing-stock
  * GET  /api/v1/process/financials/closing-stock-rule-book

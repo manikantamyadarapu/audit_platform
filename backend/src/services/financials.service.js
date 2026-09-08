@@ -4,15 +4,15 @@ const auditRunPersistence = require('./auditRunPersistence.service');
 const { AUDIT_KEYS } = require('../constants/notifications');
 
 /**
- * Process Financials Closing Stock (Sales/Purchases/Opening + optional MR/DC).
+ * Process Financials Closing Stock (Sales/Purchases/Opening + required MR/DC).
  *
  * @param {import('express').Request} req
  * @param {object} salesFile
  * @param {object} purchasesFile
  * @param {object} openingQtyFile
  * @param {object} previousYearFile
- * @param {object} [mrFile]
- * @param {object} [dcFile]
+ * @param {object} mrFile
+ * @param {object} dcFile
  * @returns {Promise<{ data: object, auditRunId: number | null }>}
  */
 async function processFinancialsPivot(

@@ -299,13 +299,17 @@ export default function FinancialsPivotPage() {
       const openingMatched = data?.openingStockReport?.matchedCount
         ?? data?.openingStockReport?.quantityMatchedCount
         ?? 0;
-      const receiptsClassified = data?.receiptsReport?.classifiedRowCount ?? 0;
-      const issuesClassified = data?.issuesReport?.classifiedRowCount ?? 0;
+      const mrClassified = data?.summary?.mrClassifiedRows
+        ?? data?.mrReport?.classifiedRowCount
+        ?? 0;
+      const dcClassified = data?.summary?.dcClassifiedRows
+        ?? data?.dcReport?.classifiedRowCount
+        ?? 0;
       if (mapped > 0) {
         auditToastSuccess(
           `Closing Stock ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
             (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
-            ` · MR ${receiptsClassified} / DC ${issuesClassified}` +
+            ` · MR ${mrClassified} / DC ${dcClassified} classified` +
             (unmapped ? ` (${unmapped} unmapped)` : '')
         );
       } else {
@@ -805,45 +809,47 @@ export default function FinancialsPivotPage() {
               />
               <AuditSummaryWidget
                 label="MR classified"
-                value={formatNumber(summary.receiptsClassifiedRows ?? mappedResult?.receiptsReport?.classifiedRowCount ?? 0)}
+                value={formatNumber(
+                  summary.mrClassifiedRows
+                    ?? mappedResult?.mrReport?.classifiedRowCount
+                    ?? result?.mrReport?.classifiedRowCount
+                    ?? 0
+                )}
                 icon={Package}
                 accent="emerald"
               />
               <AuditSummaryWidget
                 label="MR unclassified"
-                value={formatNumber(summary.receiptsUnclassifiedRows ?? mappedResult?.receiptsReport?.unclassifiedCount ?? 0)}
+                value={formatNumber(
+                  summary.mrUnclassifiedRows
+                    ?? mappedResult?.mrReport?.unclassifiedCount
+                    ?? result?.mrReport?.unclassifiedCount
+                    ?? 0
+                )}
                 icon={Package}
                 accent="rose"
               />
               <AuditSummaryWidget
                 label="DC classified"
-                value={formatNumber(summary.issuesClassifiedRows ?? mappedResult?.issuesReport?.classifiedRowCount ?? 0)}
+                value={formatNumber(
+                  summary.dcClassifiedRows
+                    ?? mappedResult?.dcReport?.classifiedRowCount
+                    ?? result?.dcReport?.classifiedRowCount
+                    ?? 0
+                )}
                 icon={ShoppingCart}
                 accent="amber"
               />
               <AuditSummaryWidget
                 label="DC unclassified"
-                value={formatNumber(summary.issuesUnclassifiedRows ?? mappedResult?.issuesReport?.unclassifiedCount ?? 0)}
+                value={formatNumber(
+                  summary.dcUnclassifiedRows
+                    ?? mappedResult?.dcReport?.unclassifiedCount
+                    ?? result?.dcReport?.unclassifiedCount
+                    ?? 0
+                )}
                 icon={ShoppingCart}
                 accent="rose"
-              />
-              <AuditSummaryWidget
-                label="Net movement qty"
-                value={formatNumber(
-                  summary.netMovementQty ?? mappedResult?.netMovement?.netMovementQty ?? 0,
-                  2
-                )}
-                icon={Table2}
-                accent="emerald"
-              />
-              <AuditSummaryWidget
-                label="Net movement amt"
-                value={formatNumber(
-                  summary.netMovementAmt ?? mappedResult?.netMovement?.netMovementAmt ?? 0,
-                  2
-                )}
-                icon={FileSpreadsheet}
-                accent="blue"
               />
             </AuditSummaryGrid>
           </section>

@@ -25,6 +25,8 @@ _INTERNAL = frozenset(
     }
 )
 
+_UNCLASSIFIED_SAMPLE_LIMIT = 50
+
 
 def _norm_place(value: Any) -> str:
     return ' '.join(str(value or '').replace('\n', ' ').replace('\r', ' ').lower().split())
@@ -65,19 +67,49 @@ def classify_mr_dc_location(branch: Any, party: Any = '') -> str | None:
     return None
 
 
-def _empty_pivots() -> dict[str, list[dict[str, Any]]]:
-    return {key: [] for key in PIVOT_KEYS}
+def _unclassified_sample(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        'product': str(row.get('product') or '').strip(),
+        'branch': str(row.get('branch') or '').strip(),
+        'party': str(row.get('party') or '').strip(),
+        'quantity': row.get('quantity'),
+        'grossAmount': row.get('grossAmount'),
+    }
+
+
+def build_location_pivots_with_report(
+    rows: list[dict[str, Any]] | None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """Group rows by location into pivots and return classification counts."""
+    source_rows = list(rows or [])
+    buckets: dict[str, list[dict[str, Any]]] = {key: [] for key in PIVOT_KEYS}
+    unclassified_samples: list[dict[str, Any]] = []
+    unclassified_count = 0
+
+    for row in source_rows:
+        loc = classify_mr_dc_location(row.get('branch'), row.get('party'))
+        if loc is None:
+            unclassified_count += 1
+            if len(unclassified_samples) < _UNCLASSIFIED_SAMPLE_LIMIT:
+                unclassified_samples.append(_unclassified_sample(row))
+            continue
+        buckets[loc].append(row)
+
+    pivots = {key: build_product_pivot(buckets[key]) for key in PIVOT_KEYS}
+    report = {
+        'sourceRowCount': len(source_rows),
+        'classifiedRowCount': len(source_rows) - unclassified_count,
+        'unclassifiedCount': unclassified_count,
+        'locationCounts': {key: len(buckets[key]) for key in PIVOT_KEYS},
+        'unclassifiedRows': unclassified_samples,
+    }
+    return pivots, report
 
 
 def build_location_pivots(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Group rows by location, then product SUM(Quantity) and SUM(Gross Amount)."""
-    buckets: dict[str, list[dict[str, Any]]] = {key: [] for key in PIVOT_KEYS}
-    for row in rows:
-        loc = classify_mr_dc_location(row.get('branch'), row.get('party'))
-        if loc is None:
-            continue
-        buckets[loc].append(row)
-    return {key: build_product_pivot(buckets[key]) for key in PIVOT_KEYS}
+    pivots, _report = build_location_pivots_with_report(rows)
+    return pivots
 
 
 def build_mr_dc_pivot_payload(
@@ -86,7 +118,11 @@ def build_mr_dc_pivot_payload(
     dc_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """MR and DC stay in separate pivot trees. Never mixed."""
+    mr_pivots, mr_report = build_location_pivots_with_report(list(mr_rows or []))
+    dc_pivots, dc_report = build_location_pivots_with_report(list(dc_rows or []))
     return {
-        'mrPivots': build_location_pivots(list(mr_rows or [])),
-        'dcPivots': build_location_pivots(list(dc_rows or [])),
+        'mrPivots': mr_pivots,
+        'dcPivots': dc_pivots,
+        'mrReport': mr_report,
+        'dcReport': dc_report,
     }

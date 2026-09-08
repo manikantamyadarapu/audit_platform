@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 from app.engines.financials_engine.config.mr_dc_columns import MR_DC_COLUMN_SPEC
 from app.engines.financials_engine.engine.mr_dc_pivots import (
     build_location_pivots,
+    build_location_pivots_with_report,
     build_mr_dc_pivot_payload,
     classify_mr_dc_location,
 )
@@ -210,6 +211,66 @@ class TestMrDcPivots:
             'kokapet': [],
             'internalBasheerbagh': [],
         }
+
+    def test_classification_report_counts_classified_and_unclassified(self):
+        rows = [
+            {
+                'product': 'A',
+                'quantity': 1,
+                'grossAmount': 10,
+                'branch': 'Jubilee Hills',
+                'party': '',
+            },
+            {
+                'product': 'B',
+                'quantity': 2,
+                'grossAmount': 20,
+                'branch': 'Unknown Place',
+                'party': '',
+            },
+            {
+                'product': 'C',
+                'quantity': 3,
+                'grossAmount': 30,
+                'branch': 'Kokapet',
+                'party': '',
+            },
+        ]
+        pivots, report = build_location_pivots_with_report(rows)
+        assert report['sourceRowCount'] == 3
+        assert report['classifiedRowCount'] == 2
+        assert report['unclassifiedCount'] == 1
+        assert report['locationCounts']['jubileeHills'] == 1
+        assert report['locationCounts']['kokapet'] == 1
+        assert report['unclassifiedRows'][0]['product'] == 'B'
+        assert pivots['jubileeHills'][0]['product'] == 'A'
+
+    def test_payload_includes_mr_and_dc_reports(self):
+        payload = build_mr_dc_pivot_payload(
+            mr_rows=[
+                {
+                    'product': 'A',
+                    'quantity': 1,
+                    'grossAmount': 1,
+                    'branch': 'Other',
+                    'party': '',
+                }
+            ],
+            dc_rows=[
+                {
+                    'product': 'A',
+                    'quantity': 1,
+                    'grossAmount': 1,
+                    'branch': 'Jubilee Hills',
+                    'party': '',
+                }
+            ],
+        )
+        assert payload['mrReport']['unclassifiedCount'] == 1
+        assert payload['mrReport']['classifiedRowCount'] == 0
+        assert payload['dcReport']['classifiedRowCount'] == 1
+        assert payload['dcReport']['unclassifiedCount'] == 0
+        assert payload['dcPivots']['jubileeHills'][0]['product'] == 'A'
 
 
 class TestMrDcClosingStockQty:
