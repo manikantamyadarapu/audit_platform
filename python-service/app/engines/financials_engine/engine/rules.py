@@ -1,16 +1,13 @@
-"""Closing Stock measure helpers for Receipts / Issues (and future columns).
+"""Closing Stock measure helpers.
 
 Opening / Purchases / Sales remain owned by the Rule Book join.
-Closing Stock valuation, Average Rate, COGS, and Gross Profit stay unimplemented.
+MR/DC location pivots are owned by ``mr_dc_pivots`` + ``mr_dc_closing_qty``.
+Closing Stock valuation, Average Rate, COGS, and Gross Profit stay unimplemented here.
 """
 
 from __future__ import annotations
 
 from typing import Any
-
-from app.engines.financials_engine.engine.receipts_issues import (
-    process_mr_dc_ledgers,
-)
 
 
 class ClosingStockRulesNotImplementedError(NotImplementedError):
@@ -24,12 +21,13 @@ def apply_closing_stock_measures(
     """
     Placeholder for Closing Stock *valuation* columns (Closing Qty/Amt, Avg Rate, GP).
 
-    Receipts/Issues population is handled by ``receipts_issues`` + Rule Book join.
+    Receipts/Issues quantities from MR/DC are populated via ``mr_dc_pivots`` and
+    ``mr_dc_closing_qty`` during the Rule Book join.
     """
     raise ClosingStockRulesNotImplementedError(
         'Closing Stock valuation measures (Closing Qty/Amt, Average Rate, Gross Profit, '
-        'Deviation) are not implemented yet. Receipts/Issues from MR/DC are populated '
-        'via the Receipts & Issues engine.'
+        'Deviation) are not implemented yet. MR/DC location pivots are handled by '
+        'mr_dc_pivots + mr_dc_closing_qty.'
     )
 
 
@@ -52,13 +50,3 @@ def build_blank_measure_values() -> dict[str, None]:
         'grossProfit': None,
         'deviation': None,
     }
-
-
-def build_receipts_issues_from_ledgers(
-    *,
-    mr_rows: list[dict[str, Any]] | None = None,
-    dc_rows: list[dict[str, Any]] | None = None,
-    log: Any | None = None,
-) -> dict[str, Any]:
-    """Classify MR/DC ledgers into Receipts/Issues bucket pivots."""
-    return process_mr_dc_ledgers(mr_rows=mr_rows, dc_rows=dc_rows, log=log)

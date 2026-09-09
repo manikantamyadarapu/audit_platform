@@ -6,6 +6,7 @@ export const DEMO_VIDEO_MODULES = [
   { key: 'tds-audit', label: 'TDS Audit' },
   { key: 'negative-bank', label: 'Negative Bank' },
   { key: 'section44ab', label: 'Section 44AB' },
+  { key: 'closing-stock', label: 'Closing Stock' },
   { key: 'gold-silver-rates', label: 'Gold & Silver Rates' },
   { key: 'rate-master', label: 'Rate Master' },
   { key: 'vouching', label: 'Vouching' },

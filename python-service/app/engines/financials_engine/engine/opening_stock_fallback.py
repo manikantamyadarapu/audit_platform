@@ -1,4 +1,4 @@
-"""Subcategory Opening Stock fallback — name-based candidates only; no qty combination guessing."""
+"""Rule Book subcategory fallback for Opening Stock (unmatched products only)."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ _NON_ALNUM = re.compile(r'[^a-z0-9]+', re.IGNORECASE)
 _ROSECUT_RC_NUMBER = re.compile(r'rc\s*(\d+)', re.IGNORECASE)
 _ROSECUT_SUBCATEGORY_NORM = _norm_product('Diamonds Rosecut diamonds')
 
+# Closing Stock category sheet → previous-year workbook tab (Eximp layout).
 _CATEGORY_SHEET_MAP: dict[str, str] = {
     'Diamond': 'Dia',
     'Emerald': 'Eme',
@@ -30,7 +31,8 @@ _CATEGORY_SHEET_MAP: dict[str, str] = {
     'Precious and Semi Precious': 'Prec',
 }
 
-REASON_MANUAL_MAPPING_REQUIRED = 'Manual Mapping Required'
+REASON_QUANTITY_MISMATCH = 'Quantity Mismatch'
+REASON_PREVIOUS_YEAR_MAPPING_REQUIRED = 'Previous Year Mapping Required'
 
 
 def _qty_equal(a: float | None, b: float | None) -> bool:
@@ -57,15 +59,6 @@ def _coerce_float(value: Any) -> float | None:
 
 def _prev_row_key(row: Mapping[str, Any]) -> str:
     return norm_opening_product_name(str(row.get('product') or ''))
-
-
-def _candidate_payload(row: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        'product': str(row.get('product') or '').strip(),
-        'closingStockQty': _coerce_float(row.get('closingStockQty')),
-        'closingStockAmount': _coerce_float(row.get('closingStockAmount')),
-        'sheetName': row.get('sheetName'),
-    }
 
 
 def _rule_book_names_in_subcategory(
@@ -101,12 +94,13 @@ def _sum_prev_qty(rows: Sequence[Mapping[str, Any]]) -> float:
     return sum(_coerce_float(r.get('closingStockQty')) or 0.0 for r in rows)
 
 
-def _sum_prev_amt(rows: Sequence[Mapping[str, Any]]) -> float:
-    return sum(_coerce_float(r.get('closingStockAmount')) or 0.0 for r in rows)
-
-
 def _is_base_name_variant(prev_name: str, base_display_name: str) -> bool:
-    """Chakri ↔ Chakri a / Chakri b — trailing suffix only, not fuzzy."""
+    """
+    True when prev_name is the same product with a suffix variant.
+
+    Chakri ↔ Chakri a / Chakri b; Polki ↔ Polki x. Requires a word boundary after
+    the base name (trailing space + suffix), not a longer unrelated name.
+    """
     norm_prev = _norm_product(prev_name)
     norm_base = _norm_product(base_display_name)
     if not norm_base or not norm_prev:
@@ -125,6 +119,11 @@ def _match_base_name_variant_products(
     subcategory: str | None,
     claimed_keys: set[str],
 ) -> list[dict[str, Any]]:
+    """
+    Previous-year rows whose names extend the Rule Book product (Chakri a + Chakri b → Chakri).
+
+    Applies in any subcategory after primary Rule Book name matching fails.
+    """
     norm_sub = _norm_subcategory(subcategory)
     matched: list[dict[str, Any]] = []
     for row in candidates:
@@ -152,13 +151,23 @@ def _is_rosecut_subcategory(subcategory: str | None) -> bool:
 
 
 def _extract_rosecut_number(product_name: str) -> str | None:
+    """Extract trailing RC number from names like Di. RC 1 → '1'."""
     match = _ROSECUT_RC_NUMBER.search(_norm_product(product_name))
     if not match:
         return None
     return match.group(1)
 
 
+def _is_rosecut_rule_book_product(display_name: str) -> bool:
+    return _extract_rosecut_number(display_name) is not None
+
+
 def _prev_name_matches_rosecut_number(prev_name: str, rc_number: str) -> bool:
+    """
+    True when a previous-year Rosecut row name contains RC<number> as a token.
+
+    Di. RC 1 ↔ RC1 / RC 1; must not match RC 10 or RC 13 when looking for RC 1.
+    """
     norm_prev = _norm_product(prev_name)
     alnum_prev = _NON_ALNUM.sub('', norm_prev)
     spaced_patterns = (
@@ -187,10 +196,12 @@ def _match_rosecut_previous_year_products(
     subcategory: str | None,
     claimed_keys: set[str],
 ) -> list[dict[str, Any]]:
+    """Rosecut-only: map Di. RC N to previous-year rows containing RC N / RCN tokens."""
     if not _is_rosecut_subcategory(subcategory):
         return []
+
     rc_number = _extract_rosecut_number(display_name)
-    if not rc_number:
+    if not rc_number or not _is_rosecut_rule_book_product(display_name):
         return []
 
     norm_sub = _norm_subcategory(subcategory)
@@ -215,48 +226,71 @@ def _match_rosecut_previous_year_products(
     return matched
 
 
-def _list_subcategory_candidates(
-    candidates: Sequence[Mapping[str, Any]],
+def _find_unique_qty_subset(
+    rows: Sequence[Mapping[str, Any]],
+    target_qty: float | None,
     *,
-    subcategory: str | None,
-    claimed_keys: set[str],
-) -> list[dict[str, Any]]:
-    """All previous-year product rows in the subcategory (for Manual Mapping UI)."""
-    norm_sub = _norm_subcategory(subcategory)
-    rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for row in candidates:
-        key = _prev_row_key(row)
-        if not key or key in claimed_keys or key in seen:
-            continue
-        prev_name = str(row.get('product') or '').strip()
-        if not prev_name:
-            continue
-        if norm_sub and _norm_product(prev_name) == norm_sub:
-            continue
-        seen.add(key)
-        rows.append(_candidate_payload(row))
-    return rows
+    exclude_keys: set[str] | None = None,
+) -> list[dict[str, Any]] | None:
+    """
+    Return the unique subset of rows whose Closing Qty sums to target_qty.
+
+    Returns None when zero or more than one subset matches.
+    """
+    if target_qty is None:
+        return None
+
+    excluded = exclude_keys or set()
+    available = [
+        dict(row)
+        for row in rows
+        if _prev_row_key(row) and _prev_row_key(row) not in excluded
+    ]
+    if not available:
+        return None
+
+    matches: list[list[dict[str, Any]]] = []
+
+    def search(index: int, chosen: list[dict[str, Any]], qty_sum: float) -> None:
+        if _qty_equal(qty_sum, target_qty):
+            matches.append(list(chosen))
+            return
+        if index >= len(available) or qty_sum > float(target_qty) + _QTY_EPS:
+            return
+        if len(matches) > 1:
+            return
+        row = available[index]
+        row_qty = _coerce_float(row.get('closingStockQty')) or 0.0
+        search(index + 1, chosen, qty_sum)
+        search(index + 1, chosen + [row], qty_sum + row_qty)
+
+    search(0, [], 0.0)
+    if len(matches) == 1:
+        return matches[0]
+    return None
 
 
 def _identify_previous_year_products(
     candidates: Sequence[Mapping[str, Any]],
     *,
     display_name: str,
+    opening_qty: float | None,
     match_lookup: Mapping[str, str],
     subcategory_names: set[str],
     subcategory: str | None,
     claimed_keys: set[str],
 ) -> list[dict[str, Any]]:
     """
-    Name-based previous-year identification only (no orphan qty combination guessing).
+    Previous-year rows for one current Rule Book product.
 
-    1. Rows that resolve to this Rule Book display name.
-    2. Base-name variants (Chakri a / Chakri b).
+    1. Rows that resolve to this Rule Book display name (e.g. FP1 + FP 1 → Flat polki FP 1).
+    2. Rows whose names extend the base product (e.g. Chakri a + Chakri b → Chakri).
     3. Rosecut RC-token rows (Di. RC 1 ↔ RC1) — Rosecut subcategory only.
+    4. Otherwise, unclaimed orphan rows whose Closing Qty subset equals Opening Balance.
     """
     norm_sub = _norm_subcategory(subcategory)
     primary: list[dict[str, Any]] = []
+    orphans: list[dict[str, Any]] = []
 
     for row in candidates:
         key = _prev_row_key(row)
@@ -274,6 +308,8 @@ def _identify_previous_year_products(
         )
         if resolved == display_name:
             primary.append(dict(row))
+        elif resolved is None:
+            orphans.append(dict(row))
 
     if primary:
         return primary
@@ -289,7 +325,7 @@ def _identify_previous_year_products(
     if variant_matches:
         return variant_matches
 
-    return _match_rosecut_previous_year_products(
+    rosecut_matches = _match_rosecut_previous_year_products(
         candidates,
         display_name=display_name,
         match_lookup=match_lookup,
@@ -297,39 +333,19 @@ def _identify_previous_year_products(
         subcategory=subcategory,
         claimed_keys=claimed_keys,
     )
+    if rosecut_matches:
+        return rosecut_matches
 
+    subset = _find_unique_qty_subset(orphans, opening_qty, exclude_keys=claimed_keys)
+    if subset is not None:
+        return subset
 
-def _manual_mapping_result(
-    *,
-    category: str | None,
-    subcategory: str | None,
-    rule_book_product: str | None,
-    sheet_name: str | None,
-    candidate_products: list[dict[str, Any]],
-    identified: Sequence[Mapping[str, Any]] | None = None,
-    opening_qty: float | None = None,
-) -> dict[str, Any]:
-    identified_rows = list(identified or ())
-    sum_qty = _sum_prev_qty(identified_rows) if identified_rows else None
-    sum_amt = _sum_prev_amt(identified_rows) if identified_rows else None
-    difference = None
-    if opening_qty is not None and sum_qty is not None:
-        difference = round(float(opening_qty) - float(sum_qty), 6)
+    # Single unmatched product in subcategory: all orphans must sum to opening qty.
+    unclaimed_orphans = [row for row in orphans if _prev_row_key(row) not in claimed_keys]
+    if unclaimed_orphans and _qty_equal(_sum_prev_qty(unclaimed_orphans), opening_qty):
+        return unclaimed_orphans
 
-    return {
-        'status': 'manual_mapping_required',
-        'reason': REASON_MANUAL_MAPPING_REQUIRED,
-        'category': category,
-        'subcategory': subcategory,
-        'ruleBookProduct': rule_book_product,
-        'sheetName': sheet_name,
-        'candidateProducts': candidate_products,
-        'previousYearProducts': [str(r.get('product') or '') for r in identified_rows],
-        'previousClosingQty': round(sum_qty, 6) if sum_qty is not None else None,
-        'previousClosingAmount': round(sum_amt, 4) if sum_amt is not None else None,
-        'openingAmt': None,
-        'difference': difference,
-    }
+    return []
 
 
 def try_subcategory_fallback(
@@ -344,12 +360,10 @@ def try_subcategory_fallback(
     claimed_prev_keys: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """
-    Fallback ONLY after exact previous-year name lookup fails.
+    Fallback ONLY for products not resolved by exact previous-year name lookup.
 
-    Auto-accepts Opening Amount only when a valid name-based previous-year set is
-    found AND its Closing Qty exactly equals the Quantity file Opening Balance.
-    Otherwise returns Manual Mapping Required with subcategory candidates — never
-    invents combinations or maps amounts when quantities differ.
+    Uses Rule Book category/subcategory, identifies previous-year Closing stock rows
+    (by Rule Book name or orphan qty reconciliation), and validates qty against Opening Balance.
     """
     if not subcategory_products and not sheet_products:
         subcategory_products = {}
@@ -368,26 +382,27 @@ def try_subcategory_fallback(
             'Opening Stock fallback: Rule Book location not found product={}',
             product,
         )
-        return _manual_mapping_result(
-            category=None,
-            subcategory=None,
-            rule_book_product=display_name,
-            sheet_name=None,
-            candidate_products=[],
-            opening_qty=opening_qty,
-        )
+        return {
+            'status': 'previous_year_mapping_required',
+            'reason': REASON_PREVIOUS_YEAR_MAPPING_REQUIRED,
+            'ruleBookProduct': display_name,
+        }
 
     category, subcategory = location
     sheet_name = _CATEGORY_SHEET_MAP.get(category)
     if not sheet_name:
-        return _manual_mapping_result(
-            category=category,
-            subcategory=subcategory,
-            rule_book_product=display_name,
-            sheet_name=None,
-            candidate_products=[],
-            opening_qty=opening_qty,
+        logger.warning(
+            'Opening Stock fallback: no previous-year sheet for category={} product={}',
+            category,
+            product,
         )
+        return {
+            'status': 'previous_year_mapping_required',
+            'reason': REASON_PREVIOUS_YEAR_MAPPING_REQUIRED,
+            'category': category,
+            'subcategory': subcategory,
+            'ruleBookProduct': display_name,
+        }
 
     norm_sub = _norm_subcategory(subcategory)
     subcategory_names = _rule_book_names_in_subcategory(
@@ -401,55 +416,54 @@ def try_subcategory_fallback(
     if not candidates and sheet_products:
         candidates = list(sheet_products.get(sheet_name, ()))
 
-    candidate_products = _list_subcategory_candidates(
-        candidates,
-        subcategory=subcategory,
-        claimed_keys=claimed,
-    )
-
     if not candidates:
         logger.warning(
-            'Opening Stock fallback: no previous-year subcategory rows product={} category={} subcategory={}',
+            'Opening Stock fallback: no previous-year subcategory rows product={} category={} subcategory={} sheet={}',
             product,
             category,
             subcategory,
+            sheet_name,
         )
-        return _manual_mapping_result(
-            category=category,
-            subcategory=subcategory,
-            rule_book_product=display_name,
-            sheet_name=sheet_name,
-            candidate_products=[],
-            opening_qty=opening_qty,
-        )
+        return {
+            'status': 'previous_year_mapping_required',
+            'reason': REASON_PREVIOUS_YEAR_MAPPING_REQUIRED,
+            'category': category,
+            'subcategory': subcategory,
+            'ruleBookProduct': display_name,
+            'sheetName': sheet_name,
+        }
 
     matched_prev = _identify_previous_year_products(
         candidates,
         display_name=display_name,
+        opening_qty=opening_qty,
         match_lookup=match_lookup,
         subcategory_names=subcategory_names,
         subcategory=subcategory,
         claimed_keys=claimed,
     )
 
+    prev_product_names = [str(r.get('product') or '') for r in matched_prev]
+
     if not matched_prev:
         logger.warning(
-            'Opening Stock fallback: previous-year products not identified product={} → Manual Mapping Required',
+            'Opening Stock fallback: previous-year products not identified product={} rule_book={} subcategory={}',
             product,
+            display_name,
+            subcategory,
         )
-        return _manual_mapping_result(
-            category=category,
-            subcategory=subcategory,
-            rule_book_product=display_name,
-            sheet_name=sheet_name,
-            candidate_products=candidate_products,
-            opening_qty=opening_qty,
-        )
+        return {
+            'status': 'previous_year_mapping_required',
+            'reason': REASON_PREVIOUS_YEAR_MAPPING_REQUIRED,
+            'category': category,
+            'subcategory': subcategory,
+            'ruleBookProduct': display_name,
+            'sheetName': sheet_name,
+        }
 
     sum_qty = _sum_prev_qty(matched_prev)
-    sum_amt = _sum_prev_amt(matched_prev)
+    sum_amt = sum(_coerce_float(r.get('closingStockAmount')) or 0.0 for r in matched_prev)
     qty_matches = _qty_equal(opening_qty, sum_qty)
-    prev_product_names = [str(r.get('product') or '') for r in matched_prev]
 
     logger.info(
         'Opening Stock fallback: product={} → prev_products={} → prev_qty_sum={} → '
@@ -462,26 +476,7 @@ def try_subcategory_fallback(
         round(sum_amt, 4),
     )
 
-    if not qty_matches:
-        # Never auto-map amount when qty differs — user must resolve manually.
-        return _manual_mapping_result(
-            category=category,
-            subcategory=subcategory,
-            rule_book_product=display_name,
-            sheet_name=sheet_name,
-            candidate_products=candidate_products,
-            identified=matched_prev,
-            opening_qty=opening_qty,
-        )
-
-    for row in matched_prev:
-        key = _prev_row_key(row)
-        if key:
-            claimed.add(key)
-
-    return {
-        'status': 'matched_fallback',
-        'reason': 'matched_via_subcategory_fallback',
+    base = {
         'category': category,
         'subcategory': subcategory,
         'ruleBookProduct': display_name,
@@ -489,6 +484,25 @@ def try_subcategory_fallback(
         'previousYearProducts': prev_product_names,
         'previousClosingQty': round(sum_qty, 6),
         'previousClosingAmount': round(sum_amt, 4),
-        'candidateProducts': candidate_products,
+    }
+
+    if not qty_matches:
+        return {
+            **base,
+            'status': 'quantity_mismatch',
+            'reason': REASON_QUANTITY_MISMATCH,
+            'openingAmt': None,
+            'difference': round((opening_qty or 0) - sum_qty, 6),
+        }
+
+    for row in matched_prev:
+        key = _prev_row_key(row)
+        if key:
+            claimed.add(key)
+
+    return {
+        **base,
+        'status': 'matched_fallback',
+        'reason': 'matched_via_subcategory_fallback',
         'openingAmt': sum_amt,
     }

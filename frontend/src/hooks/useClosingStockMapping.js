@@ -36,26 +36,20 @@ export function useClosingStockMapping(result, onSynced) {
     const salesPivot = Array.isArray(current.salesPivot) ? current.salesPivot : [];
     const purchasesPivot = Array.isArray(current.purchasesPivot) ? current.purchasesPivot : [];
     const openingPivot = Array.isArray(current.openingPivot) ? current.openingPivot : [];
-    const receiptsPivot = Array.isArray(current.receiptsPivot) ? current.receiptsPivot : [];
-    const issuesPivot = Array.isArray(current.issuesPivot) ? current.issuesPivot : [];
+    const mrPivots = current.mrPivots && typeof current.mrPivots === 'object' ? current.mrPivots : {};
+    const dcPivots = current.dcPivots && typeof current.dcPivots === 'object' ? current.dcPivots : {};
     const prevFingerprint = resultRuleBookFingerprint(current);
 
     setRefreshing(true);
     try {
       let remapped;
-      if (
-        salesPivot.length ||
-        purchasesPivot.length ||
-        openingPivot.length ||
-        receiptsPivot.length ||
-        issuesPivot.length
-      ) {
+      if (salesPivot.length || purchasesPivot.length || openingPivot.length) {
         remapped = await remapClosingStockFromPivots({
           salesPivot,
           purchasesPivot,
           openingPivot,
-          receiptsPivot,
-          issuesPivot,
+          mrPivots,
+          dcPivots,
         });
       } else {
         const live = await fetchClosingStockRuleBook();
@@ -63,6 +57,8 @@ export function useClosingStockMapping(result, onSynced) {
           salesPivot: [],
           purchasesPivot: [],
           openingPivot: [],
+          mrPivots,
+          dcPivots,
           ruleBook: live.ruleBook,
           ruleBookMeta: live,
         });
@@ -77,8 +73,6 @@ export function useClosingStockMapping(result, onSynced) {
             productsWithOpeningData: local.productsWithOpeningData ?? 0,
             productsWithSalesData: local.productsWithSalesData ?? 0,
             productsWithPurchaseData: local.productsWithPurchaseData ?? 0,
-            productsWithReceiptsData: local.productsWithReceiptsData ?? 0,
-            productsWithIssuesData: local.productsWithIssuesData ?? 0,
           },
         };
       }
@@ -99,6 +93,8 @@ export function useClosingStockMapping(result, onSynced) {
           salesPivot,
           purchasesPivot,
           openingPivot,
+          mrPivots,
+          dcPivots,
           ruleBook: live.ruleBook,
           ruleBookMeta: live,
         });
@@ -113,8 +109,6 @@ export function useClosingStockMapping(result, onSynced) {
             productsWithOpeningData: local.productsWithOpeningData ?? 0,
             productsWithSalesData: local.productsWithSalesData ?? 0,
             productsWithPurchaseData: local.productsWithPurchaseData ?? 0,
-            productsWithReceiptsData: local.productsWithReceiptsData ?? 0,
-            productsWithIssuesData: local.productsWithIssuesData ?? 0,
             unmappedProductCount: local.unmappedProducts?.length ?? 0,
           },
         });
@@ -127,7 +121,8 @@ export function useClosingStockMapping(result, onSynced) {
           onSyncedRef.current?.(updated);
         }
         return updated;
-      } catch (err) {
+      } catch {
+        // eslint-disable-next-line no-console
         console.error('Closing Stock Rule Book sync failed', err);
         setMappedResult(current);
         return current;

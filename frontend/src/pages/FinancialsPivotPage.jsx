@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
+  ArrowLeftRight,
   ChevronRight,
   Download,
   FileSpreadsheet,
@@ -18,11 +19,11 @@ import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
-import {
-  OpeningStockManualMappingPanel,
-  applyManualOpeningMapping,
-} from '../components/audit/OpeningStockManualMappingPanel';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
+import {
+  OpeningStockManualQuantityPanel,
+  applyManualOpeningQuantityMapping,
+} from '../components/audit/OpeningStockManualQuantityPanel';
 import { Input } from '../components/ui/Input';
 import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
 import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
@@ -35,6 +36,81 @@ import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
+
+const TRANSFER_PIVOT_LOCATIONS = [
+  { key: 'jubileeHills', title: 'Jubilee Hills' },
+  { key: 'kokapet', title: 'Kokapet' },
+  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
+];
+
+function TransferLocationPivots({ heading, sourceLabel, tree }) {
+  return (
+    <Card>
+      <CardHeader>
+        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
+          Amount.
+        </p>
+      </CardHeader>
+      <CardBody>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
+            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
+            return (
+              <div
+                key={`${sourceLabel}-${key}`}
+                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
+              >
+                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    {sourceLabel} – {title}
+                  </p>
+                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
+                </div>
+                <div className="max-h-72 overflow-auto">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Product</th>
+                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
+                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.length ? (
+                        rows.map((row) => (
+                          <tr
+                            key={`${sourceLabel}-${key}-${row.product}`}
+                            className="border-t border-slate-100 dark:border-slate-800"
+                          >
+                            <td className="px-3 py-1.5">{row.product}</td>
+                            <td className="px-3 py-1.5 tabular-nums">
+                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
+                            </td>
+                            <td className="px-3 py-1.5 tabular-nums">
+                              {formatNumber(row.sumOfGross ?? 0, 2)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
+                            No rows for this location.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
 
 function slimSnapshot(data) {
   if (!data) return null;
@@ -176,7 +252,7 @@ export default function FinancialsPivotPage() {
   const runProcess = useCallback(async () => {
     if (!salesFile || !purchasesFile || !openingQtyFile || !previousYearFile || !mrFile || !dcFile) {
       auditToastError(
-        'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC before processing.'
+        'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC files before processing.'
       );
       return;
     }
@@ -223,13 +299,17 @@ export default function FinancialsPivotPage() {
       const openingMatched = data?.openingStockReport?.matchedCount
         ?? data?.openingStockReport?.quantityMatchedCount
         ?? 0;
-      const receiptsClassified = data?.receiptsReport?.classifiedRowCount ?? 0;
-      const issuesClassified = data?.issuesReport?.classifiedRowCount ?? 0;
+      const mrClassified = data?.summary?.mrClassifiedRows
+        ?? data?.mrReport?.classifiedRowCount
+        ?? 0;
+      const dcClassified = data?.summary?.dcClassifiedRows
+        ?? data?.dcReport?.classifiedRowCount
+        ?? 0;
       if (mapped > 0) {
         auditToastSuccess(
           `Closing Stock ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
             (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
-            ` · MR ${receiptsClassified} / DC ${issuesClassified}` +
+            ` · MR ${mrClassified} / DC ${dcClassified} classified` +
             (unmapped ? ` (${unmapped} unmapped)` : '')
         );
       } else {
@@ -271,12 +351,12 @@ export default function FinancialsPivotPage() {
     () => (Array.isArray(result?.openingPivot) ? result.openingPivot : []),
     [result]
   );
-  const receiptsPivot = useMemo(
-    () => (Array.isArray(result?.receiptsPivot) ? result.receiptsPivot : []),
+  const mrPivots = useMemo(
+    () => (result?.mrPivots && typeof result.mrPivots === 'object' ? result.mrPivots : {}),
     [result]
   );
-  const issuesPivot = useMemo(
-    () => (Array.isArray(result?.issuesPivot) ? result.issuesPivot : []),
+  const dcPivots = useMemo(
+    () => (result?.dcPivots && typeof result.dcPivots === 'object' ? result.dcPivots : {}),
     [result]
   );
   const handleRuleBookSynced = useCallback((updated) => {
@@ -376,8 +456,8 @@ export default function FinancialsPivotPage() {
         salesPivot,
         purchasesPivot,
         openingPivot,
-        receiptsPivot,
-        issuesPivot,
+        mrPivots,
+        dcPivots,
         companyName: companyName.trim(),
         address: address.trim(),
         financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
@@ -388,27 +468,14 @@ export default function FinancialsPivotPage() {
     } finally {
       setExportingClosing(false);
     }
-  }, [
-    result,
-    salesPivot,
-    purchasesPivot,
-    openingPivot,
-    receiptsPivot,
-    issuesPivot,
-    companyName,
-    address,
-    financialYear,
-  ]);
+  }, [result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear]);
 
-  const handleConfirmManualOpeningMapping = useCallback(
-    (mapping) => {
-      setResult((prev) => {
-        if (!prev) return prev;
-        return applyManualOpeningMapping(prev, mapping);
-      });
-    },
-    []
-  );
+  const handleConfirmManualOpeningQuantity = useCallback((mapping) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      return applyManualOpeningQuantityMapping(prev, mapping);
+    });
+  }, []);
 
   const handleStartNew = useCallback(() => {
     startNewAudit();
@@ -468,8 +535,8 @@ export default function FinancialsPivotPage() {
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; process</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Six files are required. Opening Qty from Opening Balance; Opening Amount from each
-                product’s previous-year sheet Closing Balance; MR → Receipts; DC → Issues — then
-                Rule Book layout.
+                product’s previous-year sheet Closing Balance — then Rule Book layout. MR and DC
+                each produce three location pivots.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -568,12 +635,11 @@ export default function FinancialsPivotPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Package className="h-4 w-4 text-teal-600" />
+                <ArrowLeftRight className="h-4 w-4 text-teal-600" />
                 Material Receipts (MR)
               </div>
               <p className="text-xs text-slate-500">
-                Required · Product, Quantity, Gross Amount + godown/party/branch for Receipts
-                buckets (IST / Jubilee Hills / Kokapet)
+                Required · Product, Quantity, Gross Amount, Branch. Other columns optional.
               </p>
               <FileUploadZone
                 file={displayMr}
@@ -589,12 +655,11 @@ export default function FinancialsPivotPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <ShoppingCart className="h-4 w-4 text-rose-600" />
+                <ArrowLeftRight className="h-4 w-4 text-indigo-600" />
                 Delivery Challans (DC)
               </div>
               <p className="text-xs text-slate-500">
-                Required · Product, Quantity, Gross Amount + godown/party/branch for Issues buckets
-                (IST / Banjara Hills / Kokapet)
+                Required · Product, Quantity, Gross Amount, Branch. Other columns optional.
               </p>
               <FileUploadZone
                 file={displayDc}
@@ -640,8 +705,7 @@ export default function FinancialsPivotPage() {
           </div>
           {!allReady ? (
             <p className="mt-4 text-sm text-slate-500">
-              Select all six Excel files (Sales, Purchases, Opening Qty, Previous Year, MR, DC) to
-              enable Process.
+              Select all six Excel files to enable Process.
             </p>
           ) : null}
         </CardBody>
@@ -745,97 +809,61 @@ export default function FinancialsPivotPage() {
               />
               <AuditSummaryWidget
                 label="MR classified"
-                value={formatNumber(summary.receiptsClassifiedRows ?? mappedResult?.receiptsReport?.classifiedRowCount ?? 0)}
+                value={formatNumber(
+                  summary.mrClassifiedRows
+                    ?? mappedResult?.mrReport?.classifiedRowCount
+                    ?? result?.mrReport?.classifiedRowCount
+                    ?? 0
+                )}
                 icon={Package}
                 accent="emerald"
               />
               <AuditSummaryWidget
                 label="MR unclassified"
-                value={formatNumber(summary.receiptsUnclassifiedRows ?? mappedResult?.receiptsReport?.unclassifiedCount ?? 0)}
+                value={formatNumber(
+                  summary.mrUnclassifiedRows
+                    ?? mappedResult?.mrReport?.unclassifiedCount
+                    ?? result?.mrReport?.unclassifiedCount
+                    ?? 0
+                )}
                 icon={Package}
                 accent="rose"
               />
               <AuditSummaryWidget
                 label="DC classified"
-                value={formatNumber(summary.issuesClassifiedRows ?? mappedResult?.issuesReport?.classifiedRowCount ?? 0)}
+                value={formatNumber(
+                  summary.dcClassifiedRows
+                    ?? mappedResult?.dcReport?.classifiedRowCount
+                    ?? result?.dcReport?.classifiedRowCount
+                    ?? 0
+                )}
                 icon={ShoppingCart}
                 accent="amber"
               />
               <AuditSummaryWidget
                 label="DC unclassified"
-                value={formatNumber(summary.issuesUnclassifiedRows ?? mappedResult?.issuesReport?.unclassifiedCount ?? 0)}
+                value={formatNumber(
+                  summary.dcUnclassifiedRows
+                    ?? mappedResult?.dcReport?.unclassifiedCount
+                    ?? result?.dcReport?.unclassifiedCount
+                    ?? 0
+                )}
                 icon={ShoppingCart}
                 accent="rose"
-              />
-              <AuditSummaryWidget
-                label="Net movement qty"
-                value={formatNumber(
-                  summary.netMovementQty ?? mappedResult?.netMovement?.netMovementQty ?? 0,
-                  2
-                )}
-                icon={Table2}
-                accent="emerald"
-              />
-              <AuditSummaryWidget
-                label="Net movement amt"
-                value={formatNumber(
-                  summary.netMovementAmt ?? mappedResult?.netMovement?.netMovementAmt ?? 0,
-                  2
-                )}
-                icon={FileSpreadsheet}
-                accent="blue"
               />
             </AuditSummaryGrid>
           </section>
 
-          <Card className="border-teal-200/80 bg-teal-50/40 dark:border-teal-900/40 dark:bg-teal-950/20">
-            <CardHeader>
-              <h3 className="text-base font-semibold text-teal-950 dark:text-teal-100">
-                Receipts &amp; Issues (MR / DC)
-              </h3>
-              <p className="mt-1 text-sm text-teal-900/80 dark:text-teal-200/80">
-                MR rows classify into Receipts buckets (IST / Jubilee Hills / Kokapet). DC rows
-                classify into Issues buckets (IST / Banjara Hills / Kokapet). Totals are SUM of
-                unrounded bucket values. Net movement = Opening + Purchases + Total Receipts − Total
-                Issues − Sales (not MR file total − DC file total).
-              </p>
-            </CardHeader>
-            <CardBody className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg bg-white/70 p-3 dark:bg-slate-900/40">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Receipts qty</div>
-                  <div className="mt-1 font-semibold">
-                    {formatNumber(summary.receiptsTotalQuantity ?? 0, 2)}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-white/70 p-3 dark:bg-slate-900/40">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Receipts amt</div>
-                  <div className="mt-1 font-semibold">
-                    {formatNumber(summary.receiptsTotalGross ?? 0, 2)}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-white/70 p-3 dark:bg-slate-900/40">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Issues qty</div>
-                  <div className="mt-1 font-semibold">
-                    {formatNumber(summary.issuesTotalQuantity ?? 0, 2)}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-white/70 p-3 dark:bg-slate-900/40">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Issues amt</div>
-                  <div className="mt-1 font-semibold">
-                    {formatNumber(summary.issuesTotalGross ?? 0, 2)}
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-slate-500">
-                Bucket aliases are configurable in{' '}
-                <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-                  receipts_issues_classification.json
-                </code>
-                . Unclassified MR/DC rows are excluded from buckets until aliases are updated.
-              </p>
-            </CardBody>
-          </Card>
+          <TransferLocationPivots
+            heading="MR pivots"
+            sourceLabel="MR"
+            tree={mrPivots}
+          />
+          <TransferLocationPivots
+            heading="DC pivots"
+            sourceLabel="DC"
+            tree={dcPivots}
+          />
 
           <Card className="border-sky-200/80 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20">
             <CardHeader>
@@ -848,7 +876,7 @@ export default function FinancialsPivotPage() {
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {[
                   [
                     'Exact matched',
@@ -859,10 +887,12 @@ export default function FinancialsPivotPage() {
                     openingStockReport.fallbackMatchedCount ?? 0,
                   ],
                   [
-                    'Manual mapping required',
-                    openingStockReport.manualMappingRequiredCount
-                      ?? openingStockReport.previousYearMappingRequiredCount
-                      ?? 0,
+                    'Quantity mismatch',
+                    openingStockReport.quantityMismatchCount ?? 0,
+                  ],
+                  [
+                    'Previous year mapping required',
+                    openingStockReport.previousYearMappingRequiredCount ?? 0,
                   ],
                   [
                     'Other unmatched',
@@ -922,14 +952,39 @@ export default function FinancialsPivotPage() {
                   </pre>
                 </details>
               ) : null}
-              <OpeningStockManualMappingPanel
-                rows={
-                  openingStockReport.manualMappingRequired
-                  || openingStockReport.previousYearMappingRequired
-                  || []
-                }
-                onConfirmMapping={handleConfirmManualOpeningMapping}
+              <OpeningStockManualQuantityPanel
+                rows={openingStockReport.manualQuantityMappingRequired || []}
+                onConfirmMapping={handleConfirmManualOpeningQuantity}
               />
+              {(openingStockReport.quantityMismatch || []).length ? (
+                <details className="rounded-xl border border-rose-200/70 bg-rose-50/50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-rose-950 dark:text-rose-100">
+                    Quantity mismatches (
+                    {formatNumber(openingStockReport.quantityMismatchCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.quantityMismatch || [])
+                      .map(
+                        (row) =>
+                          `${row.product}: Opening ${row.openingQty} ≠ Previous ${row.previousClosingQty}`
+                      )
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
+              {(openingStockReport.previousYearMappingRequired || []).length ? (
+                <details className="rounded-xl border border-violet-200/70 bg-violet-50/50 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
+                  <summary className="cursor-pointer text-sm font-semibold text-violet-950 dark:text-violet-100">
+                    Previous year mapping required (
+                    {formatNumber(openingStockReport.previousYearMappingRequiredCount ?? 0)})
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {(openingStockReport.previousYearMappingRequired || [])
+                      .map((row) => `${row.product}: ${row.reason || 'Previous Year Mapping Required'}`)
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
               {(openingStockReport.unmatched || openingStockReport.missingFromPreviousYearFile || [])
                 .length ? (
                 <details className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">

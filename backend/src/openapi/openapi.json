@@ -1980,7 +1980,7 @@
           "Financials"
         ],
         "summary": "Process Financials Closing Stock inputs",
-        "description": "Upload Financials Closing Stock workbooks. Required: salesFile, purchasesFile, openingQtyFile, previousYearFile. Optional paired: mrFile (Material Receipts) and dcFile (Delivery Challans) for Receipts/Issues. Sales/Purchases/MR/DC require Product, Quantity, Gross Amount. Financials workbooks must be .xlsx or .xlsm.",
+        "description": "Upload Financials Closing Stock workbooks. Required: salesFile, purchasesFile, openingQtyFile, previousYearFile, mrFile (Material Receipts), dcFile (Delivery Challans). Sales/Purchases/MR/DC require Product, Quantity, Gross Amount. Financials workbooks must be .xlsx or .xlsm.",
         "security": [
           {
             "bearerAuth": []
@@ -2008,7 +2008,9 @@
                   "salesFile",
                   "purchasesFile",
                   "openingQtyFile",
-                  "previousYearFile"
+                  "previousYearFile",
+                  "mrFile",
+                  "dcFile"
                 ],
                 "properties": {
                   "salesFile": {
@@ -2030,12 +2032,12 @@
                   "mrFile": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Material Receipts (MR.xlsx) \u2014 optional; must be paired with dcFile"
+                    "description": "Material Receipts (MR.xlsx) \u2014 required"
                   },
                   "dcFile": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Delivery Challans (DC.xlsx) \u2014 optional; must be paired with mrFile"
+                    "description": "Delivery Challans (DC.xlsx) \u2014 required"
                   }
                 }
               }
@@ -2685,19 +2687,11 @@
             },
             "default": []
           },
-          "receiptsPivot": {
-            "type": "array",
-            "items": {
-              "": "#/components/schemas/FinancialsBucketPivotRow"
-            },
-            "description": "MR classified bucket pivots (product, bucket, qty, gross)"
+          "mrPivots": {
+            "$ref": "#/components/schemas/FinancialsLocationPivotTree"
           },
-          "issuesPivot": {
-            "type": "array",
-            "items": {
-              "": "#/components/schemas/FinancialsBucketPivotRow"
-            },
-            "description": "DC classified bucket pivots (product, bucket, qty, gross)"
+          "dcPivots": {
+            "$ref": "#/components/schemas/FinancialsLocationPivotTree"
           }
         }
       },
@@ -2730,23 +2724,7 @@
               }
             }
           }
-        ],
-        "properties": {
-          "receiptsPivot": {
-            "type": "array",
-            "items": {
-              "": "#/components/schemas/FinancialsBucketPivotRow"
-            },
-            "description": "MR classified bucket pivots (product, bucket, qty, gross)"
-          },
-          "issuesPivot": {
-            "type": "array",
-            "items": {
-              "": "#/components/schemas/FinancialsBucketPivotRow"
-            },
-            "description": "DC classified bucket pivots (product, bucket, qty, gross)"
-          }
-        }
+        ]
       },
       "FinancialsPivotResponse": {
         "type": "object",
@@ -2808,6 +2786,18 @@
           "openingStockReport": {
             "type": "object",
             "additionalProperties": true
+          },
+          "mrPivots": {
+            "$ref": "#/components/schemas/FinancialsLocationPivotTree"
+          },
+          "dcPivots": {
+            "$ref": "#/components/schemas/FinancialsLocationPivotTree"
+          },
+          "mrReport": {
+            "$ref": "#/components/schemas/FinancialsTransferReport"
+          },
+          "dcReport": {
+            "$ref": "#/components/schemas/FinancialsTransferReport"
           },
           "productsByCategory": {
             "type": "object",
@@ -3253,27 +3243,56 @@
         "type": "object",
         "additionalProperties": true
       },
-      "FinancialsBucketPivotRow": {
+      "FinancialsLocationPivotTree": {
         "type": "object",
         "properties": {
-          "product": {
-            "type": "string"
+          "jubileeHills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
+            "default": []
           },
-          "bucket": {
-            "type": "string",
-            "description": "ist|jubilee|kokapet (receipts) or ist|banjara|kokapet (issues)"
+          "kokapet": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
+            "default": []
           },
-          "sumOfQuantity": {
-            "type": [
-              "number",
-              "null"
-            ]
+          "internalBasheerbagh": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinancialsPivotRow"
+            },
+            "default": []
+          }
+        }
+      },
+      "FinancialsTransferReport": {
+        "type": "object",
+        "properties": {
+          "sourceRowCount": {
+            "type": "integer"
           },
-          "sumOfGross": {
-            "type": [
-              "number",
-              "null"
-            ]
+          "classifiedRowCount": {
+            "type": "integer"
+          },
+          "unclassifiedCount": {
+            "type": "integer"
+          },
+          "locationCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "unclassifiedRows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
           }
         }
       }

@@ -81,13 +81,21 @@ class TestClosingStockTemplate:
         assert ws.cell(row=7, column=6).value == 'Internal Stock Transfer'
         assert ws.cell(row=7, column=8).value == 'Jubilee Hills'
         assert ws.cell(row=7, column=10).value == 'Kokapet'
-        assert ws.cell(row=7, column=12).value == 'Total'
+        assert ws.cell(row=7, column=12).value == 'Receipts'
+        assert ws.cell(row=6, column=14).value == 'Total'
+        assert ws.cell(row=8, column=14).value == 'Qty'
+        assert ws.cell(row=8, column=15).value == 'Amt.'
+        assert ws.cell(row=6, column=16).value == 'Average Rate'
+        assert ws.cell(row=8, column=16).value == 'Amt.'
 
-        assert ws.cell(row=6, column=15).value == 'Issues'
-        assert ws.cell(row=7, column=15).value == 'Internal Stock Transfer'
-        assert ws.cell(row=7, column=17).value == 'Banjara Hills'
-        assert ws.cell(row=7, column=19).value == 'Kokapet'
-        assert ws.cell(row=7, column=21).value == 'Total'
+        assert ws.cell(row=6, column=17).value == 'Issues'
+        assert ws.cell(row=7, column=17).value == 'Internal Stock Transfer'
+        assert ws.cell(row=7, column=19).value == 'Banjara Hills'
+        assert ws.cell(row=7, column=21).value == 'Kokapet'
+        assert ws.cell(row=7, column=23).value == 'Total'
+        assert ws.cell(row=6, column=29).value == 'Gross Profit'
+        assert ws.cell(row=8, column=29).value == 'Amt.'
+        assert ws.cell(row=8, column=30).value == '%'
 
         assert ws.cell(row=8, column=2).value == 'Qty'
         assert ws.cell(row=8, column=3).value == 'Amt.'
@@ -104,7 +112,7 @@ class TestClosingStockTemplate:
             'Internal Stock Transfer',
             'Jubilee Hills',
             'Kokapet',
-            'Total',
+            'Receipts',
         ]
 
         issues_l2 = [path[1] for path, _ in LEAF_COLUMNS if path[0] == 'Issues']

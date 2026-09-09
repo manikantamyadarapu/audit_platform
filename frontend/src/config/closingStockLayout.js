@@ -32,27 +32,30 @@ export const CLOSING_STOCK_LEAF_COLUMNS = Object.freeze([
   [['Receipts', 'Jubilee Hills', 'Amt.'], '8'],
   [['Receipts', 'Kokapet', 'Qty'], '9'],
   [['Receipts', 'Kokapet', 'Amt.'], '10'],
-  [['Receipts', 'Total', 'Qty'], '11'],
-  [['Receipts', 'Total', 'Amt.'], '12'],
-  [['Average Rate', null, 'Amt.'], '13'],
-  [['Issues', 'Internal Stock Transfer', 'Qty'], '14'],
-  [['Issues', 'Internal Stock Transfer', 'Amt.'], '15'],
-  [['Issues', 'Banjara Hills', 'Qty'], '16'],
-  [['Issues', 'Banjara Hills', 'Amt.'], '17'],
-  [['Issues', 'Kokapet', 'Qty'], '18'],
-  [['Issues', 'Kokapet', 'Amt.'], '19'],
-  [['Issues', 'Total', 'Qty'], '20'],
-  [['Issues', 'Total', 'Amt.'], '21'],
-  [['Sales', null, 'Qty'], '22'],
-  [['Sales', null, 'Amt.'], '23'],
-  [['Closing Stock', null, 'Qty'], '24'],
-  [['Closing Stock', null, 'Amt.'], '25'],
-  [['Gross Profit', null, 'Amt.'], '26'],
-  [['GP AY 2025-26', null, 'Qty'], '27'],
-  [['GP AY 2025-26', null, 'Amt.'], '28'],
-  [['Deviation', null, 'Qty'], '29'],
-  [['Deviation', null, 'Amt.'], '30'],
-  [['Deviation', null, '%'], '31'],
+  [['Receipts', 'Receipts', 'Qty'], '11'],
+  [['Receipts', 'Receipts', 'Amt.'], '12'],
+  [['Total', null, 'Qty'], '13'],
+  [['Total', null, 'Amt.'], '14'],
+  [['Average Rate', null, 'Amt.'], '15'],
+  [['Issues', 'Internal Stock Transfer', 'Qty'], '16'],
+  [['Issues', 'Internal Stock Transfer', 'Amt.'], '17'],
+  [['Issues', 'Banjara Hills', 'Qty'], '18'],
+  [['Issues', 'Banjara Hills', 'Amt.'], '19'],
+  [['Issues', 'Kokapet', 'Qty'], '20'],
+  [['Issues', 'Kokapet', 'Amt.'], '21'],
+  [['Issues', 'Total', 'Qty'], '22'],
+  [['Issues', 'Total', 'Amt.'], '23'],
+  [['Sales', null, 'Qty'], '24'],
+  [['Sales', null, 'Amt.'], '25'],
+  [['Closing Stock', null, 'Qty'], '26'],
+  [['Closing Stock', null, 'Amt.'], '27'],
+  [['Gross Profit', null, 'Amt.'], '28'],
+  [['Gross Profit', null, '%'], '29'],
+  [['GP AY 2025-26', null, 'Qty'], '30'],
+  [['GP AY 2025-26', null, 'Amt.'], '31'],
+  [['Deviation', null, 'Qty'], '32'],
+  [['Deviation', null, 'Amt.'], '33'],
+  [['Deviation', null, '%'], '34'],
 ]);
 
 /** Semantic measure keys → header path [level1, level2, leaf]. */
@@ -61,62 +64,36 @@ export const CLOSING_STOCK_MEASURE_PATHS = Object.freeze({
   openingAmt: ['Opening Stock', null, 'Amt.'],
   purchasesQty: ['Purchases', null, 'Qty'],
   purchasesAmt: ['Purchases', null, 'Amt.'],
-  receiptsIstQty: ['Receipts', 'Internal Stock Transfer', 'Qty'],
-  receiptsIstAmt: ['Receipts', 'Internal Stock Transfer', 'Amt.'],
-  receiptsJubileeQty: ['Receipts', 'Jubilee Hills', 'Qty'],
-  receiptsJubileeAmt: ['Receipts', 'Jubilee Hills', 'Amt.'],
+  receiptsInternalQty: ['Receipts', 'Internal Stock Transfer', 'Qty'],
+  receiptsJubileeHillsQty: ['Receipts', 'Jubilee Hills', 'Qty'],
   receiptsKokapetQty: ['Receipts', 'Kokapet', 'Qty'],
-  receiptsKokapetAmt: ['Receipts', 'Kokapet', 'Amt.'],
-  receiptsTotalQty: ['Receipts', 'Total', 'Qty'],
-  receiptsTotalAmt: ['Receipts', 'Total', 'Amt.'],
-  issuesIstQty: ['Issues', 'Internal Stock Transfer', 'Qty'],
-  issuesIstAmt: ['Issues', 'Internal Stock Transfer', 'Amt.'],
-  issuesBanjaraQty: ['Issues', 'Banjara Hills', 'Qty'],
-  issuesBanjaraAmt: ['Issues', 'Banjara Hills', 'Amt.'],
+  receiptsQty: ['Receipts', 'Receipts', 'Qty'],
+  receiptsAmt: ['Receipts', 'Receipts', 'Amt.'],
+  totalQty: ['Total', null, 'Qty'],
+  totalAmt: ['Total', null, 'Amt.'],
+  averageRateAmt: ['Average Rate', null, 'Amt.'],
+  issuesInternalQty: ['Issues', 'Internal Stock Transfer', 'Qty'],
+  issuesInternalAmt: ['Issues', 'Internal Stock Transfer', 'Amt.'],
+  issuesBanjaraHillsQty: ['Issues', 'Banjara Hills', 'Qty'],
+  issuesBanjaraHillsAmt: ['Issues', 'Banjara Hills', 'Amt.'],
   issuesKokapetQty: ['Issues', 'Kokapet', 'Qty'],
   issuesKokapetAmt: ['Issues', 'Kokapet', 'Amt.'],
-  issuesTotalQty: ['Issues', 'Total', 'Qty'],
-  issuesTotalAmt: ['Issues', 'Total', 'Amt.'],
   salesQty: ['Sales', null, 'Qty'],
   salesAmt: ['Sales', null, 'Amt.'],
+  closingStockQty: ['Closing Stock', null, 'Qty'],
+  closingStockAmt: ['Closing Stock', null, 'Amt.'],
+  grossProfitAmt: ['Gross Profit', null, 'Amt.'],
+  grossProfitPct: ['Gross Profit', null, '%'],
 });
 
-export const RECEIPTS_ISSUES_MEASURE_KEYS = Object.freeze([
-  'receiptsIstQty',
-  'receiptsIstAmt',
-  'receiptsJubileeQty',
-  'receiptsJubileeAmt',
+export const TRANSFER_QTY_FIELDS = Object.freeze([
+  'receiptsInternalQty',
+  'receiptsJubileeHillsQty',
   'receiptsKokapetQty',
-  'receiptsKokapetAmt',
-  'receiptsTotalQty',
-  'receiptsTotalAmt',
-  'issuesIstQty',
-  'issuesIstAmt',
-  'issuesBanjaraQty',
-  'issuesBanjaraAmt',
+  'issuesInternalQty',
+  'issuesBanjaraHillsQty',
   'issuesKokapetQty',
-  'issuesKokapetAmt',
-  'issuesTotalQty',
-  'issuesTotalAmt',
 ]);
-
-const ALL_MEASURE_KEYS = Object.freeze([
-  'openingQty',
-  'openingAmt',
-  'purchasesQty',
-  'purchasesAmt',
-  ...RECEIPTS_ISSUES_MEASURE_KEYS,
-  'salesQty',
-  'salesAmt',
-]);
-
-function pickMeasureFields(row) {
-  const out = {};
-  for (const key of ALL_MEASURE_KEYS) {
-    out[key] = row?.[key] ?? null;
-  }
-  return out;
-}
 
 function pathsEqual(a, b) {
   return a[0] === b[0] && (a[1] ?? null) === (b[1] ?? null) && a[2] === b[2];
@@ -169,6 +146,21 @@ export function formatClosingStockMeasure(value) {
 }
 
 /**
+ * @param {number|null|undefined} value ratio (0.8 → 80%)
+ * @returns {string}
+ */
+export function formatClosingStockPercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return '\u00a0';
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '\u00a0';
+  const pct = formatIndianNumber(num * 100, { minDecimals: 0, maxDecimals: 2, fallback: '\u00a0' });
+  if (pct === '\u00a0') return '\u00a0';
+  return `${pct}%`;
+}
+
+/**
  * @param {Array<{ kind?: string, label?: string }>|null|undefined} layoutRows
  * @param {string[]} products
  * @returns {Array<{ kind: string, label: string, purchasesQty?: number|null, purchasesAmt?: number|null, salesQty?: number|null, salesAmt?: number|null }>}
@@ -185,7 +177,30 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         const productRow = {
           kind: 'product',
           label: String(row?.label || ''),
-          ...pickMeasureFields(row),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          receiptsQty: row?.receiptsQty ?? null,
+          receiptsAmt: row?.receiptsAmt ?? null,
+          totalQty: row?.totalQty ?? null,
+          totalAmt: row?.totalAmt ?? null,
+          averageRateAmt: row?.averageRateAmt ?? null,
+          receiptsInternalQty: row?.receiptsInternalQty ?? null,
+          receiptsJubileeHillsQty: row?.receiptsJubileeHillsQty ?? null,
+          receiptsKokapetQty: row?.receiptsKokapetQty ?? null,
+          issuesInternalQty: row?.issuesInternalQty ?? null,
+          issuesInternalAmt: row?.issuesInternalAmt ?? null,
+          issuesBanjaraHillsQty: row?.issuesBanjaraHillsQty ?? null,
+          issuesBanjaraHillsAmt: row?.issuesBanjaraHillsAmt ?? null,
+          issuesKokapetQty: row?.issuesKokapetQty ?? null,
+          issuesKokapetAmt: row?.issuesKokapetAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+          closingStockQty: row?.closingStockQty ?? null,
+          closingStockAmt: row?.closingStockAmt ?? null,
+          grossProfitAmt: row?.grossProfitAmt ?? null,
+          grossProfitPct: row?.grossProfitPct ?? null,
         };
         enriched.push(productRow);
         if (productRow.label.trim()) {
@@ -199,7 +214,30 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         enriched.push({
           kind: 'subcategory_total',
           label: String(row?.label || 'TOTAL'),
-          ...pickMeasureFields(row),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          receiptsQty: row?.receiptsQty ?? null,
+          receiptsAmt: row?.receiptsAmt ?? null,
+          totalQty: row?.totalQty ?? null,
+          totalAmt: row?.totalAmt ?? null,
+          averageRateAmt: row?.averageRateAmt ?? null,
+          receiptsInternalQty: row?.receiptsInternalQty ?? null,
+          receiptsJubileeHillsQty: row?.receiptsJubileeHillsQty ?? null,
+          receiptsKokapetQty: row?.receiptsKokapetQty ?? null,
+          issuesInternalQty: row?.issuesInternalQty ?? null,
+          issuesInternalAmt: row?.issuesInternalAmt ?? null,
+          issuesBanjaraHillsQty: row?.issuesBanjaraHillsQty ?? null,
+          issuesBanjaraHillsAmt: row?.issuesBanjaraHillsAmt ?? null,
+          issuesKokapetQty: row?.issuesKokapetQty ?? null,
+          issuesKokapetAmt: row?.issuesKokapetAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+          closingStockQty: row?.closingStockQty ?? null,
+          closingStockAmt: row?.closingStockAmt ?? null,
+          grossProfitAmt: row?.grossProfitAmt ?? null,
+          grossProfitPct: row?.grossProfitPct ?? null,
         });
         subcategoryProducts = [];
         continue;
@@ -208,7 +246,30 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
         enriched.push({
           kind: 'grand_total',
           label: String(row?.label || 'GRAND TOTAL'),
-          ...pickMeasureFields(row),
+          openingQty: row?.openingQty ?? null,
+          openingAmt: row?.openingAmt ?? null,
+          purchasesQty: row?.purchasesQty ?? null,
+          purchasesAmt: row?.purchasesAmt ?? null,
+          receiptsQty: row?.receiptsQty ?? null,
+          receiptsAmt: row?.receiptsAmt ?? null,
+          totalQty: row?.totalQty ?? null,
+          totalAmt: row?.totalAmt ?? null,
+          averageRateAmt: row?.averageRateAmt ?? null,
+          receiptsInternalQty: row?.receiptsInternalQty ?? null,
+          receiptsJubileeHillsQty: row?.receiptsJubileeHillsQty ?? null,
+          receiptsKokapetQty: row?.receiptsKokapetQty ?? null,
+          issuesInternalQty: row?.issuesInternalQty ?? null,
+          issuesInternalAmt: row?.issuesInternalAmt ?? null,
+          issuesBanjaraHillsQty: row?.issuesBanjaraHillsQty ?? null,
+          issuesBanjaraHillsAmt: row?.issuesBanjaraHillsAmt ?? null,
+          issuesKokapetQty: row?.issuesKokapetQty ?? null,
+          issuesKokapetAmt: row?.issuesKokapetAmt ?? null,
+          salesQty: row?.salesQty ?? null,
+          salesAmt: row?.salesAmt ?? null,
+          closingStockQty: row?.closingStockQty ?? null,
+          closingStockAmt: row?.closingStockAmt ?? null,
+          grossProfitAmt: row?.grossProfitAmt ?? null,
+          grossProfitPct: row?.grossProfitPct ?? null,
         });
         continue;
       }
@@ -240,6 +301,10 @@ export function buildClosingStockPreviewRows(layoutRows, products = []) {
 export function closingStockCellValue(row, leafIndex) {
   const field = MEASURE_FIELD_BY_LEAF_LOCAL[leafIndex];
   if (!field || !row) return '\u00a0';
+  const leaf = CLOSING_STOCK_LEAF_COLUMNS[leafIndex]?.[0]?.[2];
+  if (leaf === '%') {
+    return formatClosingStockPercent(row[field]);
+  }
   return formatClosingStockMeasure(row[field]);
 }
 
