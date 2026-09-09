@@ -18,6 +18,8 @@ import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
+import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
+import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import {
@@ -36,6 +38,7 @@ import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
+const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME];
 
 const TRANSFER_PIVOT_LOCATIONS = [
   { key: 'jubileeHills', title: 'Jubilee Hills' },
@@ -392,12 +395,12 @@ export default function FinancialsPivotPage() {
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
   }, [mappedResult]);
   const layoutByCategory = useMemo(() => {
-    const mapped = mappedResult?.layoutByCategory;
+    const mapped = mappedResult?.layoutByCategory || result?.layoutByCategory;
     if (mapped && typeof mapped === 'object') {
       return mapped;
     }
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  }, [mappedResult]);
+  }, [mappedResult, result]);
   const unmappedProducts = useMemo(
     () =>
       Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
@@ -1026,8 +1029,8 @@ export default function FinancialsPivotPage() {
                 Downloads
               </h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Download the five-sheet Closing Stock workbook or supporting pivot sheets for
-                verification.
+                Download the Closing Stock workbook (five category sheets plus Trading) or
+                supporting pivot sheets for verification.
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
@@ -1037,8 +1040,9 @@ export default function FinancialsPivotPage() {
                     Download Closing Stock
                   </h4>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')}. Products are
-                    placed by the Rule Book ({formatNumber(mappedProductCount)} mapped particular
+                    One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')},{' '}
+                    {TRADING_SHEET_NAME}. Products are placed by the Rule Book (
+                    {formatNumber(mappedProductCount)} mapped particular
                     {mappedProductCount === 1 ? '' : 's'}).
                   </p>
                 </div>
@@ -1095,8 +1099,9 @@ export default function FinancialsPivotPage() {
                 <div>
                   <h3 className="text-base font-bold text-emerald-700">Closing Stock preview</h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet. Every Rule Book product
-                    is listed even when Opening/Sales/Purchases measures are blank.
+                    Select a category to inspect its Closing Stock sheet, or Trading for the
+                    T-account layout. Every Rule Book product is listed even when
+                    Opening/Sales/Purchases measures are blank.
                     {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
                   {summary.ruleBookProductTotal ? (
@@ -1114,8 +1119,9 @@ export default function FinancialsPivotPage() {
                   role="tablist"
                   aria-label="Closing Stock category"
                 >
-                  {CLOSING_STOCK_CATEGORIES.map((category) => {
+                  {PREVIEW_SHEETS.map((category) => {
                     const selected = category === activeCategory;
+                    const isTrading = category === TRADING_SHEET_NAME;
                     const count = Array.isArray(productsByCategory[category])
                       ? productsByCategory[category].length
                       : 0;
@@ -1134,9 +1140,11 @@ export default function FinancialsPivotPage() {
                         )}
                       >
                         {category}
-                        <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
-                          ({count})
-                        </span>
+                        {isTrading ? null : (
+                          <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
+                            ({count})
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1144,12 +1152,16 @@ export default function FinancialsPivotPage() {
               </div>
             </CardHeader>
             <CardBody>
-              <ClosingStockPreviewTable
-                category={activeCategory}
-                products={activeCategoryProducts}
-                layoutRows={activeCategoryLayout}
-                financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
-              />
+              {activeCategory === TRADING_SHEET_NAME ? (
+                <TradingAccountPreview layoutByCategory={layoutByCategory} />
+              ) : (
+                <ClosingStockPreviewTable
+                  category={activeCategory}
+                  products={activeCategoryProducts}
+                  layoutRows={activeCategoryLayout}
+                  financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
+                />
+              )}
             </CardBody>
           </Card>
         </>

@@ -13,6 +13,7 @@ _UNICODE_WS = re.compile(
     re.UNICODE,
 )
 _NON_ALNUM = re.compile(r'[^a-z0-9]+', re.IGNORECASE)
+_QTY_EPS = 1e-4
 
 # Leading category words used in Quantity file but omitted on Closing Stock sheets.
 _CATEGORY_PREFIXES = (
@@ -118,6 +119,19 @@ def _lookup_product_sheet(
         if entry is not None:
             return entry
     return None
+
+
+def _qty_equal(a: float | None, b: float | None) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(float(a) - float(b)) <= _QTY_EPS
+
+
+def _is_single_exact_previous_name(product: str, previous_names: Sequence[Any] | None) -> bool:
+    names = [str(name or '').strip() for name in (previous_names or ()) if str(name or '').strip()]
+    if len(names) != 1:
+        return False
+    return norm_opening_product_name(names[0]) == norm_opening_product_name(product)
 
 
 def _coerce_opening_measure(value: Any) -> float | None:
@@ -385,20 +399,29 @@ def map_opening_stock_from_product_sheets(
         }
 
         if status == 'matched_fallback':
+            prev_names = fallback.get('previousYearProducts')
+            use_exact = _is_single_exact_previous_name(
+                str(entry_base['product']),
+                prev_names,
+            )
+            status_label = 'matched' if use_exact else 'matched_fallback'
             row = {
                 **common,
                 'openingAmt': fallback.get('openingAmt'),
-                'status': 'matched_fallback',
-                'reason': fallback.get('reason'),
+                'status': status_label,
+                'reason': fallback.get('reason') if not use_exact else None,
             }
-            fallback_matched.append(row)
+            if use_exact:
+                matched.append(row)
+            else:
+                fallback_matched.append(row)
             validated_opening.append(
                 {
                     'product': entry_base['product'],
                     'openingQty': entry_base.get('openingQty'),
                     'openingAmt': fallback.get('openingAmt'),
-                    'status': 'matched_fallback',
-                    'reason': fallback.get('reason'),
+                    'status': status_label,
+                    'reason': fallback.get('reason') if not use_exact else None,
                     'sheetName': sheet_name,
                     'ruleBookProduct': fallback.get('ruleBookProduct'),
                     'category': fallback.get('category'),
@@ -544,11 +567,31 @@ def map_opening_stock_from_product_sheets(
             )
             continue
 
+        has_fallback_index = bool(
+            subcategory_products or sheet_products or dedicated_product_sheets
+        )
+        # Always check qty (and any Polki a / Polki b variants) before taking amount.
+        if has_fallback_index:
+            if _apply_fallback(entry_base, primary_reason='quantity_must_match_before_amount'):
+                continue
+
+        closing_qty = _coerce_opening_measure(sheet.get('closingStockQty'))
+        if not _qty_equal(opening_qty_f, closing_qty):
+            if _apply_fallback(entry_base, primary_reason='quantity_mismatch'):
+                continue
+            _record_unmatched(
+                entry_base,
+                reason='quantity_mismatch',
+                sheet_name=sheet_name,
+                primary_reason='quantity_mismatch',
+            )
+            continue
+
         matched.append(
             {
                 **entry_base,
                 'openingAmt': opening_amt_f,
-                'previousClosingQty': sheet.get('closingStockQty'),
+                'previousClosingQty': closing_qty,
                 'previousClosingAmount': opening_amt_f,
                 'status': 'matched',
                 'sheetName': sheet_name,

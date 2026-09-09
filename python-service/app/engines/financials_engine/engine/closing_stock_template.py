@@ -10,6 +10,10 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.trading_template import (
+    TRADING_SHEET_NAME,
+    write_trading_sheet,
+)
 from app.utils.indian_number_format import apply_indian_number_format
 
 # Category sheets in workbook order — reused later for per-category calculations.
@@ -49,8 +53,11 @@ CLOSING_STOCK_MEASURE_PATHS: dict[str, tuple[str | None, str | None, str]] = {
     'purchasesQty': ('Purchases', None, 'Qty'),
     'purchasesAmt': ('Purchases', None, 'Amt.'),
     'receiptsInternalQty': ('Receipts', 'Internal Stock Transfer', 'Qty'),
+    'receiptsInternalAmt': ('Receipts', 'Internal Stock Transfer', 'Amt.'),
     'receiptsJubileeHillsQty': ('Receipts', 'Jubilee Hills', 'Qty'),
+    'receiptsJubileeHillsAmt': ('Receipts', 'Jubilee Hills', 'Amt.'),
     'receiptsKokapetQty': ('Receipts', 'Kokapet', 'Qty'),
+    'receiptsKokapetAmt': ('Receipts', 'Kokapet', 'Amt.'),
     'receiptsQty': ('Receipts', 'Receipts', 'Qty'),
     'receiptsAmt': ('Receipts', 'Receipts', 'Amt.'),
     'totalQty': ('Total', None, 'Qty'),
@@ -62,6 +69,8 @@ CLOSING_STOCK_MEASURE_PATHS: dict[str, tuple[str | None, str | None, str]] = {
     'issuesBanjaraHillsAmt': ('Issues', 'Banjara Hills', 'Amt.'),
     'issuesKokapetQty': ('Issues', 'Kokapet', 'Qty'),
     'issuesKokapetAmt': ('Issues', 'Kokapet', 'Amt.'),
+    'issuesTotalQty': ('Issues', 'Total', 'Qty'),
+    'issuesTotalAmt': ('Issues', 'Total', 'Amt.'),
     'salesQty': ('Sales', None, 'Qty'),
     'salesAmt': ('Sales', None, 'Amt.'),
     'closingStockQty': ('Closing Stock', None, 'Qty'),
@@ -552,6 +561,11 @@ def build_closing_stock_template_bytes(
             address=address,
             financial_year=financial_year,
         )
+
+    write_trading_sheet(
+        wb.create_sheet(title=TRADING_SHEET_NAME),
+        layout_by_category=layouts,
+    )
 
     buffer = BytesIO()
     wb.save(buffer)

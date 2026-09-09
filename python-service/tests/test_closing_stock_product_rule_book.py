@@ -62,14 +62,19 @@ class TestClosingStockProductRuleBook:
         assert leaf_index_for_measure('purchasesQty') == 2
         assert leaf_index_for_measure('purchasesAmt') == 3
         assert leaf_index_for_measure('receiptsInternalQty') == 4
+        assert leaf_index_for_measure('receiptsInternalAmt') == 5
         assert leaf_index_for_measure('receiptsJubileeHillsQty') == 6
+        assert leaf_index_for_measure('receiptsJubileeHillsAmt') == 7
         assert leaf_index_for_measure('receiptsKokapetQty') == 8
+        assert leaf_index_for_measure('receiptsKokapetAmt') == 9
         assert leaf_index_for_measure('issuesInternalQty') == 15
         assert leaf_index_for_measure('issuesInternalAmt') == 16
         assert leaf_index_for_measure('issuesBanjaraHillsQty') == 17
         assert leaf_index_for_measure('issuesBanjaraHillsAmt') == 18
         assert leaf_index_for_measure('issuesKokapetQty') == 19
         assert leaf_index_for_measure('issuesKokapetAmt') == 20
+        assert leaf_index_for_measure('issuesTotalQty') == 21
+        assert leaf_index_for_measure('issuesTotalAmt') == 22
         assert leaf_index_for_measure('receiptsQty') == 10
         assert leaf_index_for_measure('receiptsAmt') == 11
         assert leaf_index_for_measure('totalQty') == 12
@@ -718,14 +723,16 @@ class TestClosingStockProductRuleBook:
                 'totalQty': 10,
                 'salesQty': 3,
                 'issuesTotalQty': 4,
-                'issuesInternalQty': 99,
+                'issuesInternalQty': 1,
+                'issuesBanjaraHillsQty': 1,
+                'issuesKokapetQty': 1,
                 'averageRateAmt': 2,
             }
         )
-        assert existing_total['closingStockQty'] == 3
-        assert existing_total['closingStockAmt'] == 6
-        assert existing_total['issuesTotalQty'] == 4
-        assert existing_total['issuesInternalQty'] == 99
+        assert existing_total['closingStockQty'] == 4
+        assert existing_total['closingStockAmt'] == 8
+        assert existing_total['issuesTotalQty'] == 3
+        assert existing_total['issuesInternalQty'] == 1
 
         blank = _add_closing_stock({})
         assert blank['closingStockQty'] is None
@@ -759,12 +766,76 @@ class TestClosingStockProductRuleBook:
         assert product_a['averageRateAmt'] == 10
         assert product_a['closingStockQty'] == 0
         assert product_a['closingStockAmt'] == 0
+        assert product_a['issuesTotalQty'] == 3
         product_h = _product_row(
             result['layoutByCategory']['Precious and Semi Precious'],
             'Product H',
         )
         assert product_h['closingStockQty'] is None
         assert product_h['closingStockAmt'] is None
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 5, 'sumOfGross': 50},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+            ],
+            mr_pivots={
+                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 10, 'sumOfGross': 1}],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [],
+                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'internalBasheerbagh': [],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        # Total = Opening 4 + Receipts 10 = 14; Issues = 2; Closing = 14 − 5 − 2 = 7
+        assert product_a['receiptsQty'] == 10
+        assert product_a['receiptsJubileeHillsQty'] == 10
+        assert product_a['totalQty'] == 14
+        assert product_a['salesQty'] == 5
+        assert product_a['issuesKokapetQty'] == 2
+        assert product_a['issuesTotalQty'] == 2
+        assert product_a['closingStockQty'] == 7
+        assert product_a.get('receiptsJubileeHillsAmt') is None
+        assert product_a['receiptsAmt'] is None
+        grand = next(
+            row
+            for row in result['layoutByCategory']['Diamond']
+            if row.get('kind') == 'grand_total'
+        )
+        assert grand['closingStockQty'] == 7
+
+    def test_grand_total_sums_each_closing_stock_column(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Product B', 'sumOfQuantity': 2, 'sumOfGross': 20},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Product B', 'sumOfQuantity': 6, 'sumOfGross': 60},
+            ],
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        diamond = result['layoutByCategory']['Diamond']
+        product_a = _product_row(diamond, 'Product A')
+        product_b = _product_row(diamond, 'Product B')
+        grand = next(row for row in diamond if row.get('kind') == 'grand_total')
+        assert grand['openingQty'] == (product_a['openingQty'] or 0) + (product_b['openingQty'] or 0)
+        assert grand['salesQty'] == (product_a['salesQty'] or 0) + (product_b['salesQty'] or 0)
+        assert grand['closingStockQty'] == (product_a['closingStockQty'] or 0) + (
+            product_b['closingStockQty'] or 0
+        )
+        assert grand['closingStockAmt'] == (product_a['closingStockAmt'] or 0) + (
+            product_b['closingStockAmt'] or 0
+        )
 
     def test_gross_profit_amount(self):
         filled = _add_gross_profit(
@@ -794,8 +865,7 @@ class TestClosingStockProductRuleBook:
                 'totalAmt': 40,
             }
         )
-        assert existing_total['grossProfitAmt'] == 40
-        assert existing_total['issuesTotalAmt'] == 10
+        assert existing_total['grossProfitAmt'] == 129
         assert existing_total['issuesInternalAmt'] == 99
 
         blank = _add_gross_profit({})

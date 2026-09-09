@@ -102,16 +102,16 @@ class TestOpeningStockProductSheetMapping:
         )
         result = validate_opening_stock(
             quantity_rows=[
-                {'product': 'Di. beads', 'openingBalance': 263.03},
+                {'product': 'Di. beads', 'openingBalance': 177.86},
                 {'product': 'Polki', 'openingBalance': 5.5},
-                {'product': 'Emeralds JEM 100', 'openingBalance': 10},
+                {'product': 'Emeralds JEM 100', 'openingBalance': 8},
             ],
             previous_year_sheets=sheets,
         )
         report = result['report']
         assert report['matchedCount'] == 3
         validated = {r['product']: r for r in result['validatedOpening']}
-        assert validated['Di. beads']['openingQty'] == 263.03
+        assert validated['Di. beads']['openingQty'] == 177.86
         assert validated['Di. beads']['openingAmt'] == 234713.15
         assert validated['Polki']['openingAmt'] == 200.0
         assert validated['Emeralds JEM 100']['openingAmt'] == 999.5
@@ -334,6 +334,32 @@ def _chakri_variant_workbook_bytes() -> bytes:
     return buf.getvalue()
 
 
+def _polki_variant_workbook_bytes() -> bytes:
+    """Uncut - diamonds: leftover Polki plus Polki a / Polki b."""
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(
+        [
+            'Particulars',
+            'Opening stock',
+            None,
+            'Purchases',
+            None,
+            'Closing stock',
+            None,
+        ]
+    )
+    dia.append([1, 'Qty', 'Amt.', 'Qty', 'Amt.', 'Qty', 'Amt.'])
+    dia.append(['Uncut - diamonds'])
+    dia.append(['Polki', 0, 0, 0, 0, 2.0, 100.0])
+    dia.append(['Polki a', 0, 0, 0, 0, 3.0, 150.0])
+    dia.append(['Polki b', 0, 0, 0, 0, 4.0, 250.0])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def _chakri_orphan_workbook_bytes() -> bytes:
     """Uncut - diamonds: Chakri qty from Old Product A + B + C."""
     wb = Workbook()
@@ -429,6 +455,83 @@ class TestOpeningStockSubcategoryFallback:
         assert row['openingAmt'] == 3000.0
         assert set(row['previousYearProducts']) == {'Chakri a', 'Chakri b'}
 
+    def test_polki_sums_exact_name_with_polki_a_and_b_when_qty_matches(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_polki_variant_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Polki', 'openingBalance': 9.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'matched_fallback'
+        assert row['openingQty'] == 9.0
+        assert row['openingAmt'] == 500.0
+        assert set(row['previousYearProducts']) == {'Polki', 'Polki a', 'Polki b'}
+
+    def test_polki_exact_name_does_not_take_amount_when_qty_differs(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(_polki_variant_workbook_bytes(), 'prev.xlsx')
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Polki', 'openingBalance': 2.0}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+            rule_book={
+                'Diamond': {'Uncut - diamonds': ['Chakri', 'Polki']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {
+                    'Precious Stones': [],
+                    'Semi Precious': [],
+                    'Synthetic Stones': [],
+                },
+            },
+        )
+        row = result['validatedOpening'][0]
+        assert row['status'] == 'manual_mapping_required'
+        assert row['openingAmt'] is None
+        assert set(row['previousYearProducts']) == {'Polki', 'Polki a', 'Polki b'}
+
+    def test_exact_name_qty_mismatch_does_not_take_amount(self):
+        from app.engines.financials_engine.parsers.opening_stock_loader import (
+            load_previous_year_opening_stock,
+        )
+
+        payload = load_previous_year_opening_stock(
+            _prev_year_category_workbook_bytes(),
+            'prev.xlsx',
+        )
+        result = validate_opening_stock(
+            quantity_rows=[{'product': 'Di. beads', 'openingBalance': 263.03}],
+            previous_year_sheets=payload['productIndex'],
+            subcategory_products=payload['subcategoryProducts'],
+            sheet_products=payload['sheetProducts'],
+        )
+        row = result['validatedOpening'][0]
+        assert row['openingAmt'] is None
+        assert row['status'] == 'manual_mapping_required'
+        assert result['report']['exactMatchedCount'] == 0
+
     def test_fallback_sums_multiple_previous_products_when_qty_matches(self):
         from app.engines.financials_engine.parsers.opening_stock_loader import (
             load_previous_year_opening_stock,
@@ -521,7 +624,7 @@ class TestOpeningStockSubcategoryFallback:
             'prev.xlsx',
         )
         result = validate_opening_stock(
-            quantity_rows=[{'product': 'Di. beads', 'openingBalance': 263.03}],
+            quantity_rows=[{'product': 'Di. beads', 'openingBalance': 177.86}],
             previous_year_sheets=payload['productIndex'],
             subcategory_products=payload['subcategoryProducts'],
             sheet_products=payload['sheetProducts'],

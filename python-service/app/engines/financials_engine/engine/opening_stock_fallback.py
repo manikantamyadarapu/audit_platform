@@ -324,9 +324,10 @@ def _identify_previous_year_products(
     """
     Name-based previous-year identification only (no orphan qty combination guessing).
 
-    1. Rows that resolve to this Rule Book display name.
-    2. Base-name variants (Chakri a / Chakri b).
-    3. Rosecut RC-token rows (Di. RC 1 ↔ RC1) — Rosecut subcategory only.
+    Combines rows that resolve to this Rule Book display name with base-name
+    variants (Polki + Polki a / Polki b, Chakri a / Chakri b). Amount is applied
+    only after the combined Closing Qty equals Opening Balance.
+    Rosecut RC-token rows (Di. RC 1 ↔ RC1) are used when no name/variant set exists.
     """
     norm_sub = _norm_subcategory(subcategory)
     primary: list[dict[str, Any]] = []
@@ -348,8 +349,11 @@ def _identify_previous_year_products(
         if resolved == display_name:
             primary.append(dict(row))
 
-    if primary:
-        return primary
+    combined: dict[str, dict[str, Any]] = {}
+    for row in primary:
+        key = _prev_row_key(row)
+        if key:
+            combined[key] = row
 
     variant_matches = _match_base_name_variant_products(
         candidates,
@@ -359,8 +363,13 @@ def _identify_previous_year_products(
         subcategory=subcategory,
         claimed_keys=claimed_keys,
     )
-    if variant_matches:
-        return variant_matches
+    for row in variant_matches:
+        key = _prev_row_key(row)
+        if key:
+            combined[key] = row
+
+    if combined:
+        return list(combined.values())
 
     return _match_rosecut_previous_year_products(
         candidates,
@@ -418,12 +427,10 @@ def try_subcategory_fallback(
     claimed_prev_keys: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """
-    Fallback ONLY after exact previous-year name lookup fails.
-
-    Auto-accepts Opening Amount only when a valid name-based previous-year set is
-    found AND its Closing Qty exactly equals the Quantity file Opening Balance.
-    Otherwise returns Manual Mapping Required with subcategory candidates — never
-    invents combinations or maps amounts when quantities differ.
+    Name-based previous-year identification. Auto-accepts Opening Amount only
+    when the identified set (exact name plus trailing variants such as Polki a /
+    Polki b) has combined Closing Qty equal to the Quantity file Opening Balance.
+    Otherwise returns Manual Mapping Required — never maps amount when qty differs.
     """
     if not subcategory_products and not sheet_products:
         subcategory_products = {}

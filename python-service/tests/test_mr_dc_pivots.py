@@ -337,9 +337,17 @@ class TestMrDcClosingStockQty:
             row=product_a_row, column=2 + leaf_index_for_measure('issuesKokapetQty')
         ).value == 3
         assert diamond.cell(
-            row=product_a_row, column=2 + leaf_index_for_measure('receiptsJubileeHillsQty') + 1
+            row=product_a_row, column=2 + leaf_index_for_measure('receiptsJubileeHillsAmt')
         ).value is None
-        assert diamond.cell(row=product_a_row, column=2 + 12).value is None
+        assert diamond.cell(
+            row=product_a_row, column=2 + leaf_index_for_measure('receiptsQty')
+        ).value == 7
+        assert diamond.cell(
+            row=product_a_row, column=2 + leaf_index_for_measure('totalQty')
+        ).value == 7
+        assert diamond.cell(
+            row=product_a_row, column=2 + leaf_index_for_measure('closingStockQty')
+        ).value == 3
 
     def test_exact_normalized_match_rejects_fuzzy_and_prefix(self):
         from app.engines.financials_engine.config.product_rule_book import (
