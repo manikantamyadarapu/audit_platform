@@ -21,9 +21,9 @@ import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPrevi
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import {
-  OpeningStockManualQuantityPanel,
-  applyManualOpeningQuantityMapping,
-} from '../components/audit/OpeningStockManualQuantityPanel';
+  OpeningStockManualMappingPanel,
+  applyManualOpeningMapping,
+} from '../components/audit/OpeningStockManualMappingPanel';
 import { Input } from '../components/ui/Input';
 import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
 import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
@@ -470,10 +470,10 @@ export default function FinancialsPivotPage() {
     }
   }, [result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear]);
 
-  const handleConfirmManualOpeningQuantity = useCallback((mapping) => {
+  const handleConfirmManualOpeningMapping = useCallback((mapping) => {
     setResult((prev) => {
       if (!prev) return prev;
-      return applyManualOpeningQuantityMapping(prev, mapping);
+      return applyManualOpeningMapping(prev, mapping);
     });
   }, []);
 
@@ -887,12 +887,10 @@ export default function FinancialsPivotPage() {
                     openingStockReport.fallbackMatchedCount ?? 0,
                   ],
                   [
-                    'Quantity mismatch',
-                    openingStockReport.quantityMismatchCount ?? 0,
-                  ],
-                  [
-                    'Previous year mapping required',
-                    openingStockReport.previousYearMappingRequiredCount ?? 0,
+                    'Manual mapping required',
+                    openingStockReport.manualMappingRequiredCount
+                      ?? openingStockReport.previousYearMappingRequiredCount
+                      ?? 0,
                   ],
                   [
                     'Other unmatched',
@@ -952,9 +950,9 @@ export default function FinancialsPivotPage() {
                   </pre>
                 </details>
               ) : null}
-              <OpeningStockManualQuantityPanel
-                rows={openingStockReport.manualQuantityMappingRequired || []}
-                onConfirmMapping={handleConfirmManualOpeningQuantity}
+              <OpeningStockManualMappingPanel
+                rows={openingStockReport.manualMappingRequired || []}
+                onConfirmMapping={handleConfirmManualOpeningMapping}
               />
               {(openingStockReport.quantityMismatch || []).length ? (
                 <details className="rounded-xl border border-rose-200/70 bg-rose-50/50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
@@ -968,19 +966,6 @@ export default function FinancialsPivotPage() {
                         (row) =>
                           `${row.product}: Opening ${row.openingQty} ≠ Previous ${row.previousClosingQty}`
                       )
-                      .join('\n')}
-                  </pre>
-                </details>
-              ) : null}
-              {(openingStockReport.previousYearMappingRequired || []).length ? (
-                <details className="rounded-xl border border-violet-200/70 bg-violet-50/50 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
-                  <summary className="cursor-pointer text-sm font-semibold text-violet-950 dark:text-violet-100">
-                    Previous year mapping required (
-                    {formatNumber(openingStockReport.previousYearMappingRequiredCount ?? 0)})
-                  </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
-                    {(openingStockReport.previousYearMappingRequired || [])
-                      .map((row) => `${row.product}: ${row.reason || 'Previous Year Mapping Required'}`)
                       .join('\n')}
                   </pre>
                 </details>
