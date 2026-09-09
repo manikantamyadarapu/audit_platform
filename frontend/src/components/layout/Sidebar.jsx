@@ -65,7 +65,7 @@ const tdsItems = [
 ];
 
 const financialsItems = [
-  { to: '/financials/closing-stock', label: 'Closing Stock', icon: Gem },
+  { to: '/financials/closing-stock', label: 'Stock Reconciliation', icon: Gem },
 ];
 
 const vouchingItems = [

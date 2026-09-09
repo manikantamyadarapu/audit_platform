@@ -7,9 +7,9 @@ import { Card, CardBody } from '../components/ui/Card';
 
 const modules = [
   {
-    title: 'Closing Stock',
+    title: 'Stock Reconciliation',
     description:
-      'Upload Sales and Purchases, build product pivots, download verification pivots, and generate the blank Closing Stock working-paper template.',
+      'Reconcile opening stock, purchases, receipts, issues and sales. Download the working paper and supporting pivots as Excel.',
     path: '/financials/closing-stock',
     icon: Gem,
     tone: 'emerald',
@@ -27,8 +27,8 @@ export default function FinancialsHub() {
           <Badge tone="emerald">Active division</Badge>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Financial statement workflows. Closing Stock starts with independent Sales and Purchases
-          product pivots and a blank jewels working-paper template; calculations land step by step.
+          Financial statement workflows. Stock Reconciliation builds product pivots from Sales,
+          Purchases, Opening, MR, and DC, then produces the jewels working-paper template.
         </p>
       </motion.div>
 

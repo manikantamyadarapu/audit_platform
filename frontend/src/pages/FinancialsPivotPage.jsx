@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
-  ChevronRight,
   Download,
   FileSpreadsheet,
   Gem,
@@ -30,87 +29,16 @@ import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
 import { formatNumber } from '../utils/format';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
+import {
+  downloadFlatPivotXlsx,
+  downloadLocationPivotTreeXlsx,
+} from '../utils/financialsPivotXlsxExport';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { useClosingStockMapping } from '../hooks/useClosingStockMapping';
 import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
-
-const TRANSFER_PIVOT_LOCATIONS = [
-  { key: 'jubileeHills', title: 'Jubilee Hills' },
-  { key: 'kokapet', title: 'Kokapet' },
-  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
-];
-
-function TransferLocationPivots({ heading, sourceLabel, tree }) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
-          Amount.
-        </p>
-      </CardHeader>
-      <CardBody>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
-            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
-            return (
-              <div
-                key={`${sourceLabel}-${key}`}
-                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
-              >
-                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    {sourceLabel} – {title}
-                  </p>
-                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
-                </div>
-                <div className="max-h-72 overflow-auto">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold">Product</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length ? (
-                        rows.map((row) => (
-                          <tr
-                            key={`${sourceLabel}-${key}-${row.product}`}
-                            className="border-t border-slate-100 dark:border-slate-800"
-                          >
-                            <td className="px-3 py-1.5">{row.product}</td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
-                            </td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfGross ?? 0, 2)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
-                            No rows for this location.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
 
 function slimSnapshot(data) {
   if (!data) return null;
@@ -156,8 +84,7 @@ export default function FinancialsPivotPage() {
     () => initialSession.data?.dcFileName ?? null
   );
   const [loading, setLoading] = useState(false);
-  const [exportingPivots, setExportingPivots] = useState(false);
-  const [exportingClosing, setExportingClosing] = useState(false);
+  const [exportingKey, setExportingKey] = useState(null);
   const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
   const [activeCategory, setActiveCategory] = useState(CLOSING_STOCK_CATEGORIES[0]);
@@ -307,7 +234,7 @@ export default function FinancialsPivotPage() {
         ?? 0;
       if (mapped > 0) {
         auditToastSuccess(
-          `Closing Stock ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
+          `Stock Reconciliation ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
             (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
             ` · MR ${mrClassified} / DC ${dcClassified} classified` +
             (unmapped ? ` (${unmapped} unmapped)` : '')
@@ -316,7 +243,7 @@ export default function FinancialsPivotPage() {
         auditToastError(
           unmapped
             ? `No products matched the Rule Book (${unmapped} unmapped). Check product names.`
-            : 'Closing Stock ready but no products were mapped.'
+            : 'Stock Reconciliation ready but no products were mapped.'
         );
       }
     } catch (e) {
@@ -398,11 +325,12 @@ export default function FinancialsPivotPage() {
     }
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
   }, [mappedResult]);
-  const unmappedProducts = useMemo(
-    () =>
-      Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
-    [mappedResult]
-  );
+  // Temporarily hidden — unmapped products list UI
+  // const unmappedProducts = useMemo(
+  //   () =>
+  //     Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
+  //   [mappedResult]
+  // );
   const activeCategoryProducts = useMemo(
     () =>
       Array.isArray(productsByCategory[activeCategory])
@@ -426,49 +354,138 @@ export default function FinancialsPivotPage() {
     [productsByCategory]
   );
 
-  const handleDownloadPivots = useCallback(async () => {
-    if (!salesPivot.length && !purchasesPivot.length) {
-      auditToastError('No pivot rows to download.');
-      return;
-    }
-    setExportingPivots(true);
-    try {
-      await CLOSING_STOCK_AUDIT_CONFIG.downloadPivots({
-        salesPivot,
-        purchasesPivot,
-      });
-      auditToastSuccess('Pivots workbook downloaded');
-    } catch (e) {
-      auditToastError(e.message || 'Pivot download failed');
-    } finally {
-      setExportingPivots(false);
-    }
-  }, [salesPivot, purchasesPivot]);
+  const locationPivotHasRows = useCallback((tree) => {
+    if (!tree || typeof tree !== 'object') return false;
+    return Object.values(tree).some((rows) => Array.isArray(rows) && rows.length > 0);
+  }, []);
 
-  const handleDownloadClosingStock = useCallback(async () => {
+  const runExport = useCallback(async (key, work, successMessage) => {
+    setExportingKey(key);
+    try {
+      await work();
+      auditToastSuccess(successMessage);
+    } catch (e) {
+      auditToastError(e.message || 'Download failed');
+    } finally {
+      setExportingKey(null);
+    }
+  }, []);
+
+  const handleDownloadWorkingPaper = useCallback(async () => {
     if (!result) {
       auditToastError('Process all six input files first.');
       return;
     }
-    setExportingClosing(true);
-    try {
-      await CLOSING_STOCK_AUDIT_CONFIG.downloadClosingStock({
-        salesPivot,
-        purchasesPivot,
-        openingPivot,
-        mrPivots,
-        dcPivots,
-        companyName: companyName.trim(),
-        address: address.trim(),
-        financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
-      });
-      auditToastSuccess('Closing Stock workbook downloaded');
-    } catch (e) {
-      auditToastError(e.message || 'Closing Stock download failed');
-    } finally {
-      setExportingClosing(false);
+    await runExport(
+      'working-paper',
+      () =>
+        CLOSING_STOCK_AUDIT_CONFIG.downloadClosingStock({
+          salesPivot,
+          purchasesPivot,
+          openingPivot,
+          mrPivots,
+          dcPivots,
+          companyName: companyName.trim(),
+          address: address.trim(),
+          financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
+        }),
+      'Stock Reconciliation workbook downloaded'
+    );
+  }, [
+    result,
+    runExport,
+    salesPivot,
+    purchasesPivot,
+    openingPivot,
+    mrPivots,
+    dcPivots,
+    companyName,
+    address,
+    financialYear,
+  ]);
+
+  const handleDownloadSalesPivot = useCallback(async () => {
+    if (!salesPivot.length) {
+      auditToastError('No Sales pivot rows to download.');
+      return;
     }
-  }, [result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear]);
+    await runExport(
+      'sales',
+      () =>
+        CLOSING_STOCK_AUDIT_CONFIG.downloadPivots({
+          salesPivot,
+          purchasesPivot: [],
+        }),
+      'Sales Pivot downloaded'
+    );
+  }, [runExport, salesPivot]);
+
+  const handleDownloadPurchasesPivot = useCallback(async () => {
+    if (!purchasesPivot.length) {
+      auditToastError('No Purchases pivot rows to download.');
+      return;
+    }
+    await runExport(
+      'purchases',
+      () =>
+        CLOSING_STOCK_AUDIT_CONFIG.downloadPivots({
+          salesPivot: [],
+          purchasesPivot,
+        }),
+      'Purchases Pivot downloaded'
+    );
+  }, [runExport, purchasesPivot]);
+
+  const handleDownloadOpeningPivot = useCallback(async () => {
+    if (!openingPivot.length) {
+      auditToastError('No Opening Stock pivot rows to download.');
+      return;
+    }
+    await runExport(
+      'opening',
+      () =>
+        downloadFlatPivotXlsx(
+          `Stock-Reconciliation-Opening-Pivot-${Date.now()}.xlsx`,
+          openingPivot,
+          'Opening Stock Pivot'
+        ),
+      'Opening Stock Pivot downloaded'
+    );
+  }, [runExport, openingPivot]);
+
+  const handleDownloadMrPivot = useCallback(async () => {
+    if (!locationPivotHasRows(mrPivots)) {
+      auditToastError('No MR pivot rows to download.');
+      return;
+    }
+    await runExport(
+      'mr',
+      () =>
+        downloadLocationPivotTreeXlsx(
+          `Stock-Reconciliation-MR-Pivot-${Date.now()}.xlsx`,
+          mrPivots,
+          'MR'
+        ),
+      'MR Pivot downloaded'
+    );
+  }, [runExport, locationPivotHasRows, mrPivots]);
+
+  const handleDownloadDcPivot = useCallback(async () => {
+    if (!locationPivotHasRows(dcPivots)) {
+      auditToastError('No DC pivot rows to download.');
+      return;
+    }
+    await runExport(
+      'dc',
+      () =>
+        downloadLocationPivotTreeXlsx(
+          `Stock-Reconciliation-DC-Pivot-${Date.now()}.xlsx`,
+          dcPivots,
+          'DC'
+        ),
+      'DC Pivot downloaded'
+    );
+  }, [runExport, locationPivotHasRows, dcPivots]);
 
   const handleConfirmManualOpeningMapping = useCallback((mapping) => {
     setResult((prev) => {
@@ -854,17 +871,6 @@ export default function FinancialsPivotPage() {
             </AuditSummaryGrid>
           </section>
 
-          <TransferLocationPivots
-            heading="MR pivots"
-            sourceLabel="MR"
-            tree={mrPivots}
-          />
-          <TransferLocationPivots
-            heading="DC pivots"
-            sourceLabel="DC"
-            tree={dcPivots}
-          />
-
           <Card className="border-sky-200/80 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20">
             <CardHeader>
               <h3 className="text-base font-semibold text-sky-950 dark:text-sky-100">
@@ -1001,6 +1007,7 @@ export default function FinancialsPivotPage() {
             </CardBody>
           </Card>
 
+          {/* Temporarily hidden — Unmapped products section
           {unmappedProducts.length ? (
             <Card className="border-amber-200/80 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
               <CardHeader>
@@ -1019,6 +1026,7 @@ export default function FinancialsPivotPage() {
               </CardBody>
             </Card>
           ) : null}
+          */}
 
           <Card className="border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white shadow-md dark:from-emerald-950/20 dark:to-[var(--color-surface-elevated)]">
             <CardHeader>
@@ -1026,64 +1034,107 @@ export default function FinancialsPivotPage() {
                 Downloads
               </h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Download the five-sheet Closing Stock workbook or supporting pivot sheets for
-                verification.
+                Excel (.xlsx) only — working paper and supporting pivots generated from this audit
+                run.
               </p>
             </CardHeader>
-            <CardBody className="space-y-4">
-              <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-white/80 p-4 dark:border-emerald-900/40 dark:bg-[var(--color-surface-elevated)]/80 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                    Download Closing Stock
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')}. Products are
-                    placed by the Rule Book ({formatNumber(mappedProductCount)} mapped particular
-                    {mappedProductCount === 1 ? '' : 's'}).
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exportingClosing}
-                  disabled={exportingClosing || !result}
-                  onClick={handleDownloadClosingStock}
-                >
-                  <Gem className="h-4 w-4" />
-                  Download Closing Stock
-                </Button>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/20">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                      Download Pivots
-                    </h4>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Supporting intermediate data — Excel workbook with two sheets:
+            <CardBody className="space-y-5">
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Working Paper
+                </h4>
+                <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-white/80 p-4 dark:border-emerald-900/40 dark:bg-[var(--color-surface-elevated)]/80 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                      Stock Reconciliation
                     </p>
-                    <ul className="mt-2 space-y-1 text-xs text-slate-700 dark:text-slate-300">
-                      <li className="flex items-center gap-1.5">
-                        <ChevronRight className="h-3 w-3 text-emerald-600" />
-                        Sales Pivot
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <ChevronRight className="h-3 w-3 text-emerald-600" />
-                        Purchases Pivot
-                      </li>
-                    </ul>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Five category sheets ({CLOSING_STOCK_CATEGORIES.join(', ')}) with Rule Book
+                      placement ({formatNumber(mappedProductCount)} mapped particular
+                      {mappedProductCount === 1 ? '' : 's'}).
+                    </p>
                   </div>
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="md"
-                    loading={exportingPivots}
-                    disabled={exportingPivots || (!salesPivot.length && !purchasesPivot.length)}
-                    onClick={handleDownloadPivots}
+                    className="shrink-0"
+                    loading={exportingKey === 'working-paper'}
+                    disabled={Boolean(exportingKey) || !result}
+                    onClick={handleDownloadWorkingPaper}
                   >
-                    <Download className="h-4 w-4" />
-                    Download Pivots → Excel Workbook
+                    <Gem className="h-4 w-4" />
+                    Download Stock Reconciliation
                   </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Supporting Pivots
+                </h4>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    {
+                      key: 'opening',
+                      title: 'Opening Stock Pivot',
+                      description: 'Product · Qty · Gross from the process response.',
+                      disabled: !openingPivot.length,
+                      onClick: handleDownloadOpeningPivot,
+                    },
+                    {
+                      key: 'purchases',
+                      title: 'Purchases Pivot',
+                      description: 'Product · Qty · Gross — Excel (.xlsx).',
+                      disabled: !purchasesPivot.length,
+                      onClick: handleDownloadPurchasesPivot,
+                    },
+                    {
+                      key: 'sales',
+                      title: 'Sales Pivot',
+                      description: 'Product · Qty · Gross — Excel (.xlsx).',
+                      disabled: !salesPivot.length,
+                      onClick: handleDownloadSalesPivot,
+                    },
+                    {
+                      key: 'mr',
+                      title: 'MR Pivot',
+                      description: 'Location sheets: Jubilee Hills, Kokapet, Internal.',
+                      disabled: !locationPivotHasRows(mrPivots),
+                      onClick: handleDownloadMrPivot,
+                    },
+                    {
+                      key: 'dc',
+                      title: 'DC Pivot',
+                      description: 'Location sheets: Jubilee Hills, Kokapet, Internal.',
+                      disabled: !locationPivotHasRows(dcPivots),
+                      onClick: handleDownloadDcPivot,
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/20"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                          {item.title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                          {item.description}
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        className="w-full sm:w-auto"
+                        loading={exportingKey === item.key}
+                        disabled={Boolean(exportingKey) || item.disabled}
+                        onClick={item.onClick}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download {item.title}
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardBody>
@@ -1093,9 +1144,11 @@ export default function FinancialsPivotPage() {
             <CardHeader>
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-base font-bold text-emerald-700">Closing Stock preview</h3>
+                  <h3 className="text-base font-bold text-emerald-700">
+                    Stock Reconciliation preview
+                  </h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet. Every Rule Book product
+                    Select a category to inspect its working-paper sheet. Every Rule Book product
                     is listed even when Opening/Sales/Purchases measures are blank.
                     {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
@@ -1112,7 +1165,7 @@ export default function FinancialsPivotPage() {
                 <div
                   className="flex flex-wrap gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 dark:border-slate-700 dark:bg-slate-900/30"
                   role="tablist"
-                  aria-label="Closing Stock category"
+                  aria-label="Stock Reconciliation category"
                 >
                   {CLOSING_STOCK_CATEGORIES.map((category) => {
                     const selected = category === activeCategory;
