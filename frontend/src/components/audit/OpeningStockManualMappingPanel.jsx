@@ -373,7 +373,7 @@ function MappingModal({
 }
 
 export function OpeningStockManualMappingPanel({ rows, onConfirmMapping }) {
-  const items = Array.isArray(rows) ? rows : [];
+  const items = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const [activeKey, setActiveKey] = useState(null);
   const [productIndex, setProductIndex] = useState(0);
   const [claimedPrevNames, setClaimedPrevNames] = useState(() => new Set());

@@ -17,7 +17,9 @@ import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
+import { AbstractPreviewTable } from '../components/tables/AbstractPreviewTable';
 import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
+import { ABSTRACT_SHEET_NAME } from '../config/abstractLayout';
 import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
@@ -41,82 +43,7 @@ import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
-const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME];
-
-const TRANSFER_PIVOT_LOCATIONS = [
-  { key: 'jubileeHills', title: 'Jubilee Hills' },
-  { key: 'kokapet', title: 'Kokapet' },
-  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
-];
-
-function TransferLocationPivots({ heading, sourceLabel, tree }) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
-          Amount.
-        </p>
-      </CardHeader>
-      <CardBody>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
-            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
-            return (
-              <div
-                key={`${sourceLabel}-${key}`}
-                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
-              >
-                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    {sourceLabel} – {title}
-                  </p>
-                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
-                </div>
-                <div className="max-h-72 overflow-auto">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold">Product</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length ? (
-                        rows.map((row) => (
-                          <tr
-                            key={`${sourceLabel}-${key}-${row.product}`}
-                            className="border-t border-slate-100 dark:border-slate-800"
-                          >
-                            <td className="px-3 py-1.5">{row.product}</td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
-                            </td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfGross ?? 0, 2)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
-                            No rows for this location.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
+const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
 
 function slimSnapshot(data) {
   if (!data) return null;
@@ -403,11 +330,12 @@ export default function FinancialsPivotPage() {
     }
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
   }, [mappedResult, result]);
-  const unmappedProducts = useMemo(
-    () =>
-      Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
-    [mappedResult]
-  );
+  // Temporarily unused while Unmapped products UI is commented out below.
+  // const unmappedProducts = useMemo(
+  //   () =>
+  //     Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
+  //   [mappedResult]
+  // );
   const activeCategoryProducts = useMemo(
     () =>
       Array.isArray(productsByCategory[activeCategory])
@@ -1111,8 +1039,8 @@ export default function FinancialsPivotPage() {
                 Downloads
               </h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Download the Closing Stock workbook (five category sheets plus Trading) or
-                supporting pivot sheets for verification.
+                Download the Closing Stock workbook (five category sheets plus Trading and
+                Abstract) or supporting pivot sheets for verification.
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
@@ -1123,7 +1051,7 @@ export default function FinancialsPivotPage() {
                   </h4>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')},{' '}
-                    {TRADING_SHEET_NAME}. Products are placed by the Rule Book (
+                    {TRADING_SHEET_NAME}, {ABSTRACT_SHEET_NAME}. Products are placed by the Rule Book (
                     {formatNumber(mappedProductCount)} mapped particular
                     {mappedProductCount === 1 ? '' : 's'}).
                   </p>
@@ -1221,9 +1149,9 @@ export default function FinancialsPivotPage() {
                     Stock Reconciliation preview
                   </h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet, or Trading for the
-                    T-account layout. Every Rule Book product is listed even when
-                    Opening/Sales/Purchases measures are blank.
+                    Select a category to inspect its Closing Stock sheet, Trading for the
+                    T-account layout, or Abstract for the Trading Account Abstract. Every Rule Book
+                    product is listed even when Opening/Sales/Purchases measures are blank.
                     {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
                   {summary.ruleBookProductTotal ? (
@@ -1243,7 +1171,8 @@ export default function FinancialsPivotPage() {
                 >
                   {PREVIEW_SHEETS.map((category) => {
                     const selected = category === activeCategory;
-                    const isTrading = category === TRADING_SHEET_NAME;
+                    const isNonCategory =
+                      category === TRADING_SHEET_NAME || category === ABSTRACT_SHEET_NAME;
                     const count = Array.isArray(productsByCategory[category])
                       ? productsByCategory[category].length
                       : 0;
@@ -1262,7 +1191,7 @@ export default function FinancialsPivotPage() {
                         )}
                       >
                         {category}
-                        {isTrading ? null : (
+                        {isNonCategory ? null : (
                           <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
                             ({count})
                           </span>
@@ -1276,6 +1205,15 @@ export default function FinancialsPivotPage() {
             <CardBody>
               {activeCategory === TRADING_SHEET_NAME ? (
                 <TradingAccountPreview
+                  layoutByCategory={layoutByCategory}
+                  salesPivot={salesPivot}
+                  purchasesPivot={purchasesPivot}
+                  openingPivot={openingPivot}
+                  mrPivots={mrPivots}
+                  dcPivots={dcPivots}
+                />
+              ) : activeCategory === ABSTRACT_SHEET_NAME ? (
+                <AbstractPreviewTable
                   layoutByCategory={layoutByCategory}
                   salesPivot={salesPivot}
                   purchasesPivot={purchasesPivot}
