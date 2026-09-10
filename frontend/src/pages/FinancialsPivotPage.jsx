@@ -17,7 +17,9 @@ import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
+import { AbstractPreviewTable } from '../components/tables/AbstractPreviewTable';
 import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
+import { ABSTRACT_SHEET_NAME } from '../config/abstractLayout';
 import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
@@ -41,7 +43,7 @@ import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
-const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME];
+const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
 
 const TRANSFER_PIVOT_LOCATIONS = [
   { key: 'jubileeHills', title: 'Jubilee Hills' },
@@ -1111,8 +1113,8 @@ export default function FinancialsPivotPage() {
                 Downloads
               </h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Download the Closing Stock workbook (five category sheets plus Trading) or
-                supporting pivot sheets for verification.
+                Download the Closing Stock workbook (five category sheets plus Trading and
+                Abstract) or supporting pivot sheets for verification.
               </p>
             </CardHeader>
             <CardBody className="space-y-4">
@@ -1123,7 +1125,7 @@ export default function FinancialsPivotPage() {
                   </h4>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')},{' '}
-                    {TRADING_SHEET_NAME}. Products are placed by the Rule Book (
+                    {TRADING_SHEET_NAME}, {ABSTRACT_SHEET_NAME}. Products are placed by the Rule Book (
                     {formatNumber(mappedProductCount)} mapped particular
                     {mappedProductCount === 1 ? '' : 's'}).
                   </p>
@@ -1221,9 +1223,9 @@ export default function FinancialsPivotPage() {
                     Stock Reconciliation preview
                   </h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet, or Trading for the
-                    T-account layout. Every Rule Book product is listed even when
-                    Opening/Sales/Purchases measures are blank.
+                    Select a category to inspect its Closing Stock sheet, Trading for the
+                    T-account layout, or Abstract for the Trading Account Abstract. Every Rule Book
+                    product is listed even when Opening/Sales/Purchases measures are blank.
                     {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
                   {summary.ruleBookProductTotal ? (
@@ -1243,7 +1245,8 @@ export default function FinancialsPivotPage() {
                 >
                   {PREVIEW_SHEETS.map((category) => {
                     const selected = category === activeCategory;
-                    const isTrading = category === TRADING_SHEET_NAME;
+                    const isNonCategory =
+                      category === TRADING_SHEET_NAME || category === ABSTRACT_SHEET_NAME;
                     const count = Array.isArray(productsByCategory[category])
                       ? productsByCategory[category].length
                       : 0;
@@ -1262,7 +1265,7 @@ export default function FinancialsPivotPage() {
                         )}
                       >
                         {category}
-                        {isTrading ? null : (
+                        {isNonCategory ? null : (
                           <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
                             ({count})
                           </span>
@@ -1276,6 +1279,15 @@ export default function FinancialsPivotPage() {
             <CardBody>
               {activeCategory === TRADING_SHEET_NAME ? (
                 <TradingAccountPreview
+                  layoutByCategory={layoutByCategory}
+                  salesPivot={salesPivot}
+                  purchasesPivot={purchasesPivot}
+                  openingPivot={openingPivot}
+                  mrPivots={mrPivots}
+                  dcPivots={dcPivots}
+                />
+              ) : activeCategory === ABSTRACT_SHEET_NAME ? (
+                <AbstractPreviewTable
                   layoutByCategory={layoutByCategory}
                   salesPivot={salesPivot}
                   purchasesPivot={purchasesPivot}

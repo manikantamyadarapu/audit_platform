@@ -43,7 +43,7 @@ class TestClosingStockTemplate:
             financial_year='AY 2025-26',
         )
         wb = load_workbook(BytesIO(raw))
-        assert wb.sheetnames == list(CLOSING_STOCK_CATEGORIES) + ['Trading']
+        assert wb.sheetnames == list(CLOSING_STOCK_CATEGORIES) + ['Trading', 'Abstract']
 
         for category in CLOSING_STOCK_CATEGORIES:
             ws = wb[category]
