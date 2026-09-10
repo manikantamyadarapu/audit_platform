@@ -10,6 +10,10 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.abstract_template import (
+    ABSTRACT_SHEET_NAME,
+    write_abstract_sheet,
+)
 from app.engines.financials_engine.engine.trading_template import (
     TRADING_SHEET_NAME,
     write_trading_sheet,
@@ -569,6 +573,15 @@ def build_closing_stock_template_bytes(
 
     write_trading_sheet(
         wb.create_sheet(title=TRADING_SHEET_NAME),
+        layout_by_category=layouts,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
+    write_abstract_sheet(
+        wb.create_sheet(title=ABSTRACT_SHEET_NAME),
         layout_by_category=layouts,
         sales_pivot=sales_pivot,
         purchases_pivot=purchases_pivot,

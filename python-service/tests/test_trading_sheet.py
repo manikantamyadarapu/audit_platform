@@ -79,7 +79,7 @@ class TestTradingSheet:
             products_by_category={category: [] for category in CLOSING_STOCK_CATEGORIES}
         )
         wb = load_workbook(BytesIO(raw))
-        assert wb.sheetnames == list(CLOSING_STOCK_CATEGORIES) + [TRADING_SHEET_NAME]
+        assert wb.sheetnames == list(CLOSING_STOCK_CATEGORIES) + [TRADING_SHEET_NAME, 'Abstract']
         assert TRADING_SHEET_NAME in wb.sheetnames
         assert wb[TRADING_SHEET_NAME].title == 'Trading'
 
