@@ -17,6 +17,7 @@ import { AuditFilterStrip } from '../components/audit/AuditFilterStrip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import {
   exportInvalidNegativeBankRows,
   validateNegativeBankExcel,
@@ -231,6 +232,7 @@ export default function NegativeBankPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <WatchDemoButton moduleKey="negative-bank" />
               <Button
                 variant="primary"
                 size="md"

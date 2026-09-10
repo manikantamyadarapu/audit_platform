@@ -5,6 +5,7 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { fetchTdsRules, saveTdsRules } from '../services/tds.service';
 import { TDS_RULE_BOOK_SECTIONS } from '../constants/tdsRuleBook';
 import { formatSavedDateTime } from '../utils/dateTime';
@@ -135,9 +136,12 @@ export default function TdsPage() {
             separately.
           </p>
         </div>
-        {updatedAt ? (
-          <p className="shrink-0 text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <WatchDemoButton moduleKey="tds-audit" />
+          {updatedAt ? (
+            <p className="shrink-0 text-xs text-slate-500">Last saved: {formatSavedDateTime(updatedAt)}</p>
+          ) : null}
+        </div>
       </div>
 
       <Card>

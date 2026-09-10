@@ -17,6 +17,7 @@ import { Button } from '../components/ui/Button';
 import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { AuditUploadResultsTable } from '../components/tables/AuditUploadResultsTable';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { exportTds01Report, validateTds01Excel } from '../services/tds01.service';
@@ -205,6 +206,7 @@ const filteredRecords = useMemo(() => summaryRecords, [summaryRecords]);
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <WatchDemoButton moduleKey="tds-audit" />
               <Button
                 variant="primary"
                 size="md"

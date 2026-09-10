@@ -64,11 +64,19 @@ class TestNumericParsing:
 
 
 def create_test_excel(data, header_row=0):
-    """Helper to create a test Excel file."""
-    df = pd.DataFrame(data)
+    """Helper to create a test Excel file.
+
+    `header_row` pads blank rows before `data` so the first data row lands at that index.
+    Do not also embed the same padding inside `data`.
+    """
+    rows = list(data)
+    if header_row > 0:
+        width = max((len(r) for r in rows), default=1)
+        rows = [[''] * width for _ in range(header_row)] + rows
+    df = pd.DataFrame(rows)
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, header=False, startrow=header_row)
+        df.to_excel(writer, index=False, header=False, startrow=0)
     buffer.seek(0)
     return buffer.getvalue()
 
@@ -392,7 +400,7 @@ class TestHeaderDetection:
             ['Date', 'Voucher No', 'Contra Account', 'Debit', 'Credit', 'Balance'],
             ['2024-01-01', 'V001', 'Test', '1000', '0', '1000'],
         ]
-        file_bytes = create_test_excel(data, header_row=4)
+        file_bytes = create_test_excel(data, header_row=0)
         
         result = load_section44ab_workbook(file_bytes, 'test.xlsx', is_cash=True)
         
@@ -401,11 +409,11 @@ class TestHeaderDetection:
 
     def test_header_at_row_10(self):
         data = [
-            ['Title'] * 9,
+            *[['Title']] * 9,
             ['Date', 'Voucher No', 'Contra Account', 'Debit', 'Credit', 'Balance'],
             ['2024-01-01', 'V001', 'Test', '1000', '0', '1000'],
         ]
-        file_bytes = create_test_excel(data, header_row=9)
+        file_bytes = create_test_excel(data, header_row=0)
         
         result = load_section44ab_workbook(file_bytes, 'test.xlsx', is_cash=True)
         

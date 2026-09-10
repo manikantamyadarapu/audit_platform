@@ -99,6 +99,52 @@ async function getMe(req, res, next) {
   }
 }
 
+/**
+ * Update current user profile (self-service)
+ * PUT /api/auth/me
+ */
+async function updateMe(req, res, next) {
+  try {
+    const { name, email, password } = req.body || {};
+
+    if (password && String(password).length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    if (name !== undefined && !String(name).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name cannot be empty',
+      });
+    }
+
+    if (email !== undefined && !String(email).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email cannot be empty',
+      });
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = String(name).trim();
+    if (email !== undefined) updateData.email = String(email).trim().toLowerCase();
+    if (password) updateData.password = String(password);
+
+    const user = await authService.updateCurrentUser(req.user.id, updateData);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body;
@@ -147,6 +193,7 @@ module.exports = {
   refresh,
   logout,
   getMe,
+  updateMe,
   forgotPassword,
   validateResetToken,
   resetPassword,

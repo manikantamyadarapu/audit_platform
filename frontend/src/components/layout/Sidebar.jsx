@@ -27,6 +27,7 @@ import {
   Receipt,
   Percent,
   FileText,
+  FileArchive,
 } from 'lucide-react';
 import { logoutRequest } from '../../services/auth.service';
 import { cn } from '../../utils/cn';
@@ -61,6 +62,10 @@ const tdsItems = [
   { to: '/scrutiny/tds/party-wise-summary', label: 'Party Wise Summary', icon: Receipt },
   { to: '/scrutiny/tds/rate-0.1', label: 'TDS @ 0.1%', icon: Percent },
   { to: '/scrutiny/tds/rule-book', label: 'TDS Rule Book', icon: FileText },
+];
+
+const financialsItems = [
+  { to: '/financials/closing-stock', label: 'Stock Reconciliation', icon: Gem },
 ];
 
 const vouchingItems = [
@@ -226,6 +231,7 @@ export function Sidebar() {
   const ensureScrutiny = () => setDivision('scrutiny');
 
   const scrutinyActive = pathname.startsWith('/scrutiny');
+  const financialsActive = pathname.startsWith('/financials');
   const vouchingActive = pathname.startsWith('/vouching');
   const salesChildActive = ['/scrutiny/pan', '/scrutiny/gross-weight', '/scrutiny/sales-ledger', '/scrutiny/making-charges', '/scrutiny/sales-return-rate'].some((path) => pathname.startsWith(path));
   const purchaseChildActive = ['/scrutiny/purchase/gross-weight', '/scrutiny/purchase/rate-ledger', '/scrutiny/purchase/return-rate'].some((path) => pathname.startsWith(path));
@@ -233,6 +239,7 @@ export function Sidebar() {
   const otherFeaturesChildActive = pathname.startsWith('/scrutiny/section44ab');
 
   const [scrutinyOpen, setScrutinyOpen] = useState(scrutinyActive);
+  const [financialsOpen, setFinancialsOpen] = useState(financialsActive);
   const [vouchingOpen, setVouchingOpen] = useState(vouchingActive);
   const [salesOpen, setSalesOpen] = useState(salesChildActive);
   const [purchaseOpen, setPurchaseOpen] = useState(purchaseChildActive);
@@ -260,6 +267,10 @@ export function Sidebar() {
   useEffect(() => {
     if (scrutinyActive) setScrutinyOpen(true);
   }, [scrutinyActive]);
+
+  useEffect(() => {
+    if (financialsActive) setFinancialsOpen(true);
+  }, [financialsActive]);
 
   useEffect(() => {
     if (vouchingActive) setVouchingOpen(true);
@@ -443,6 +454,25 @@ export function Sidebar() {
             ))}
           </NavGroup>
 
+          <NavGroup
+            label="Financials"
+            icon={FileArchive}
+            collapsed={sidebarCollapsed}
+            open={financialsOpen}
+            onToggle={() => setFinancialsOpen((v) => !v)}
+            active={financialsActive}
+            to="/financials"
+          >
+            {financialsItems.map((item) => (
+              <NavItem
+                key={item.to}
+                {...item}
+                collapsed={sidebarCollapsed}
+                nested
+              />
+            ))}
+          </NavGroup>
+
           {isAdmin ? (
             <NavGroup
               label="Vouching"
@@ -453,6 +483,7 @@ export function Sidebar() {
               active={vouchingActive}
               badge="Hold"
               userRole={userRole}
+              to="/vouching"
             >
               {vouchingItems.map((item) => (
                 <DisabledItem key={item.label} {...item} collapsed={sidebarCollapsed} nested />

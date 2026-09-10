@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '../../utils/cn';
+import { formatNumber } from '../../utils/format';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
 
@@ -72,7 +73,7 @@ export function Pagination({
         </div>
 
         <p className="text-sm font-semibold text-[var(--color-text-secondary)]">
-          {totalLabel}: {totalRows.toLocaleString()}
+          {totalLabel}: {formatNumber(totalRows)}
         </p>
       </div>
 

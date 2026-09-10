@@ -3,6 +3,7 @@ import { Save, RefreshCw, Diamond } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { EmptyState } from '../components/ui/EmptyState';
+import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import { fetchDiamondRates, saveDiamondRates } from '../services/rateBook.service';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 
@@ -118,6 +119,7 @@ export default function DiamondGemRateBook() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <WatchDemoButton moduleKey="rate-master" />
           {hasChanges ? (
             <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
               Unsaved changes

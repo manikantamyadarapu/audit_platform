@@ -12,11 +12,12 @@ SECTION44AB_HEADER_MARKER_COLUMNS: Final = frozenset({
     'balance',
 })
 
-# Opening balance patterns (case-insensitive, normalized)
+# Opening balance patterns — must match normalize_header() output
+# e.g. "Balance b/f" → "balance_b_f"
 OPENING_BALANCE_PATTERNS: Final = frozenset({
-    'balance b/f',
-    'balance bf',
-    'opening balance',
+    'balance_b_f',
+    'balance_bf',
+    'opening_balance',
     'ob',
 })
 

@@ -25,6 +25,10 @@ const DEFAULT_AUDIT_TYPES = {
     auditName: 'Gross Weight Audit',
     description: 'Gross weight mismatch validation',
   },
+  FINANCIALS_PIVOT: {
+    auditName: 'Closing Stock Audit',
+    description: 'Financials closing stock pivot and opening stock validation',
+  },
 };
 
 const CODE_ALIASES = {

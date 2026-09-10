@@ -62,7 +62,7 @@ def _is_opening_balance_row(contra_account: str | None) -> bool:
     return normalized in OPENING_BALANCE_PATTERNS
 
 
-def _extract_account_name_from_header(raw_df: pd.DataFrame, header_row_index: int) -> str:
+def _extract_account_name_from_header(raw_df: pd.DataFrame, header_row_index: int) -> str | None:
     """
     Extract account name from the header section (rows above the detected header).
     Look for patterns like "Account: American Express Corp - Credit cards account"
@@ -76,13 +76,12 @@ def _extract_account_name_from_header(raw_df: pd.DataFrame, header_row_index: in
                 continue
             text_lower = text.lower()
             for pattern in ACCOUNT_NAME_PATTERNS:
-                if pattern in text_lower:
-                    # Extract account name after the pattern
-                    parts = text.split(pattern, 1)
-                    if len(parts) > 1:
-                        account_name = parts[1].strip()
-                        if account_name:
-                            return account_name
+                idx = text_lower.find(pattern)
+                if idx < 0:
+                    continue
+                account_name = text[idx + len(pattern) :].strip(' :-')
+                if account_name:
+                    return account_name
     return None
 
 

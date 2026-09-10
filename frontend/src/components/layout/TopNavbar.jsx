@@ -10,6 +10,7 @@ const TITLE_MAP = [
   { test: /^\/settings/, title: 'Settings' },
   { test: /^\/profile/, title: 'My Profile' },
   { test: /^\/users/, title: 'Users' },
+  { test: /^\/demo-videos/, title: 'Demo Videos' },
   { test: /^\/scrutiny$/, title: 'Scrutiny' },
   { test: /^\/scrutiny\/pan/, title: 'ID Proof Audit' },
   { test: /^\/scrutiny\/purchase\/gross-weight/, title: 'Purchase Gross Weight Audit' },
@@ -26,6 +27,10 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/diamond-gem-rates/, title: 'Diamond & Gemstone Rate Book' },
   { test: /^\/scrutiny\/duplicate-invoice/, title: 'Duplicate Invoice Check' },
   { test: /^\/scrutiny\/vendor-reconciliation/, title: 'Vendor Reconciliation' },
+  { test: /^\/financials$/, title: 'Financials' },
+  { test: /^\/financials\/closing-stock/, title: 'Stock Reconciliation' },
+  { test: /^\/financials\/first-audit/, title: 'Stock Reconciliation' },
+  { test: /^\/financials\//, title: 'Financials' },
   { test: /^\/vouching$/, title: 'Vouching' },
   { test: /^\/vouching\//, title: 'Vouching' },
 ];
