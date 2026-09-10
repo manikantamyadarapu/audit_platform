@@ -294,6 +294,7 @@ def map_opening_stock_from_product_sheets(
     subcategory_products: Mapping[tuple[str, str | None], Sequence[Mapping[str, Any]]]
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
 ) -> dict[str, Any]:
@@ -310,7 +311,7 @@ def map_opening_stock_from_product_sheets(
     fallback_matched: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
     quantity_mismatch: list[dict[str, Any]] = []
-    previous_year_mapping_required: list[dict[str, Any]] = []
+    manual_mapping_required: list[dict[str, Any]] = []
     validated_opening: list[dict[str, Any]] = []
 
     seen_keys: set[str] = set()
@@ -360,6 +361,7 @@ def map_opening_stock_from_product_sheets(
             opening_qty=entry_base.get('openingQty'),
             subcategory_products=subcategory_products,
             sheet_products=sheet_products,
+            dedicated_product_sheets=dedicated_product_sheets,
             rule_book=rule_book,
             log=logger,
             claimed_prev_keys=claimed_prev_keys,
@@ -378,6 +380,7 @@ def map_opening_stock_from_product_sheets(
             'previousYearProducts': fallback.get('previousYearProducts'),
             'previousClosingQty': fallback.get('previousClosingQty'),
             'previousClosingAmount': fallback.get('previousClosingAmount'),
+            'candidateProducts': fallback.get('candidateProducts') or [],
             'primaryReason': primary_reason,
         }
 
@@ -432,18 +435,53 @@ def map_opening_stock_from_product_sheets(
             row = {
                 **common,
                 'openingAmt': None,
-                'status': 'previous_year_mapping_required',
-                'reason': fallback.get('reason'),
+                'status': 'manual_mapping_required',
+                'reason': fallback.get('reason') or 'Manual Mapping Required',
             }
-            previous_year_mapping_required.append(row)
+            manual_mapping_required.append(row)
             validated_opening.append(
                 {
                     'product': entry_base['product'],
                     'openingQty': entry_base.get('openingQty'),
                     'openingAmt': None,
-                    'status': 'previous_year_mapping_required',
-                    'reason': fallback.get('reason'),
+                    'status': 'manual_mapping_required',
+                    'reason': fallback.get('reason') or 'Manual Mapping Required',
                     'sheetName': sheet_name,
+                    'ruleBookProduct': fallback.get('ruleBookProduct'),
+                    'category': fallback.get('category'),
+                    'subcategory': fallback.get('subcategory'),
+                    'previousYearProducts': fallback.get('previousYearProducts'),
+                    'previousClosingQty': fallback.get('previousClosingQty'),
+                    'candidateProducts': fallback.get('candidateProducts') or [],
+                    'difference': fallback.get('difference'),
+                }
+            )
+            return True
+
+        if status == 'manual_mapping_required':
+            row = {
+                **common,
+                'openingAmt': None,
+                'status': 'manual_mapping_required',
+                'reason': fallback.get('reason') or 'Manual Mapping Required',
+                'difference': fallback.get('difference'),
+            }
+            manual_mapping_required.append(row)
+            validated_opening.append(
+                {
+                    'product': entry_base['product'],
+                    'openingQty': entry_base.get('openingQty'),
+                    'openingAmt': None,
+                    'status': 'manual_mapping_required',
+                    'reason': fallback.get('reason') or 'Manual Mapping Required',
+                    'sheetName': sheet_name,
+                    'ruleBookProduct': fallback.get('ruleBookProduct'),
+                    'category': fallback.get('category'),
+                    'subcategory': fallback.get('subcategory'),
+                    'previousYearProducts': fallback.get('previousYearProducts'),
+                    'previousClosingQty': fallback.get('previousClosingQty'),
+                    'candidateProducts': fallback.get('candidateProducts') or [],
+                    'difference': fallback.get('difference'),
                 }
             )
             return True
@@ -516,6 +554,10 @@ def map_opening_stock_from_product_sheets(
                 'sheetName': sheet_name,
             }
         )
+        for claimed_key in product_sheet_lookup_keys(
+            str(sheet.get('product') or sheet.get('sheetName') or product)
+        ):
+            claimed_prev_keys.add(claimed_key)
         validated_opening.append(
             {
                 'product': product,
@@ -548,13 +590,15 @@ def map_opening_stock_from_product_sheets(
             'fallbackMatched': fallback_matched,
             'unmatched': unmatched,
             'quantityMismatch': quantity_mismatch,
-            'previousYearMappingRequired': previous_year_mapping_required,
+            'previousYearMappingRequired': manual_mapping_required,
+            'manualMappingRequired': manual_mapping_required,
             'matchedCount': total_matched_count,
             'exactMatchedCount': exact_matched_count,
             'fallbackMatchedCount': fallback_matched_count,
             'unmatchedCount': len(unmatched),
             'quantityMismatchCount': len(quantity_mismatch),
-            'previousYearMappingRequiredCount': len(previous_year_mapping_required),
+            'previousYearMappingRequiredCount': len(manual_mapping_required),
+            'manualMappingRequiredCount': len(manual_mapping_required),
             'totalOpeningQty': round(total_opening_qty, 6),
             'totalOpeningAmount': round(total_opening_amt, 4),
             'previousYearProductSheetCount': len(unique_products),
@@ -570,6 +614,7 @@ def validate_opening_stock(
     subcategory_products: Mapping[tuple[str, str | None], Sequence[Mapping[str, Any]]]
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
     **_ignored: Any,
@@ -598,6 +643,7 @@ def validate_opening_stock(
         previous_year_sheets=previous_year_sheets,
         subcategory_products=subcategory_products,
         sheet_products=sheet_products,
+        dedicated_product_sheets=dedicated_product_sheets,
         rule_book=rule_book,
         log=log,
     )

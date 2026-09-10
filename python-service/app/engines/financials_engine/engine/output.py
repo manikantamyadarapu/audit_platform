@@ -85,8 +85,11 @@ def build_financials_pivot_response(
     dc_classified = int(dc_rep.get('classifiedRowCount') or 0)
     dc_unclassified = int(dc_rep.get('unclassifiedCount') or 0)
     opening_unmatched = int(report.get('unmatchedCount') or 0)
-    opening_manual = int(report.get('manualMappingRequiredCount') or 0)
-    opening_prev_required = int(report.get('previousYearMappingRequiredCount') or 0)
+    opening_manual = int(
+        report.get('manualMappingRequiredCount')
+        or report.get('previousYearMappingRequiredCount')
+        or 0
+    )
     unmapped_products = len(category_mapping['unmappedProducts'])
 
     return {
@@ -149,7 +152,6 @@ def build_financials_pivot_response(
         'errorRows': unmapped_products
         + opening_unmatched
         + opening_manual
-        + opening_prev_required
         + mr_unclassified
         + dc_unclassified,
         'fileType': 'closing_stock',

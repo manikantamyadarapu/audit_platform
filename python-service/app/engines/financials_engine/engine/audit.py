@@ -8,7 +8,6 @@ from typing import Any
 from app.engines.financials_engine.engine.calculator import build_product_pivot
 from app.engines.financials_engine.engine.mr_dc_pivots import build_mr_dc_pivot_payload
 from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
-from app.engines.financials_engine.engine.opening_stock_manual import attach_manual_quantity_mapping
 from app.engines.financials_engine.engine.output import build_financials_pivot_response
 from app.engines.financials_engine.parsers.mr_dc_loader import load_transfer_workbook
 from app.engines.financials_engine.parsers.opening_stock_loader import (
@@ -93,14 +92,11 @@ class FinancialsPivotAudit:
                 previous_year_sheets=prev_payload['productIndex'],
                 subcategory_products=prev_payload.get('subcategoryProducts'),
                 sheet_products=prev_payload.get('sheetProducts'),
+                dedicated_product_sheets=prev_payload.get('dedicatedProductSheets') or [],
                 log=self._log,
             )
             validated_opening = list(opening_result.get('validatedOpening') or [])
             opening_report = dict(opening_result.get('report') or {})
-            attach_manual_quantity_mapping(
-                opening_report,
-                dedicated_product_sheets=prev_payload.get('dedicatedProductSheets') or [],
-            )
             opening_pivot = validated_opening_to_pivot(validated_opening)
             self._log.info(
                 'Opening Stock mapping: qty_products={} prev_index={} exact_matched={} '
@@ -111,7 +107,7 @@ class FinancialsPivotAudit:
                 opening_report.get('fallbackMatchedCount', 0),
                 opening_report.get('unmatchedCount', 0),
                 opening_report.get('quantityMismatchCount', 0),
-                opening_report.get('previousYearMappingRequiredCount', 0),
+                opening_report.get('manualMappingRequiredCount', 0),
             )
 
         self._log.info(

@@ -10,14 +10,21 @@ import {
   Loader2,
   Settings,
   BadgeCheck,
+  Pencil,
+  X,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import {
   fetchCurrentUser,
   formatRoleLabel,
   getStoredUser,
   getUserInitials,
+  persistUser,
+  updateCurrentUser,
 } from '../utils/authUser';
 import { cn } from '../utils/cn';
 
@@ -30,6 +37,11 @@ function roleBadgeClass(role) {
     return 'bg-amber-100 text-amber-800 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60';
   }
   return 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700/60';
+}
+
+function canSelfEditProfile(role) {
+  const r = String(role || '').toUpperCase();
+  return r === 'AUDITOR' || r === 'VIEWER';
 }
 
 function DetailRow({ icon: Icon, label, value }) {
@@ -46,10 +58,130 @@ function DetailRow({ icon: Icon, label, value }) {
   );
 }
 
+function ProfileEditModal({ isOpen, user, saving, error, onClose, onSave }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(user?.name || '');
+    setEmail(user?.email || '');
+    setPassword('');
+    setShowPassword(false);
+  }, [isOpen, user]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      name: name.trim(),
+      email: email.trim(),
+      password: password.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-glass)]">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-soft)] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Edit profile</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
+          {error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+              {error}
+            </div>
+          ) : null}
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--color-text-secondary)]">
+              Full name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoComplete="name"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--color-text-secondary)]">
+              Email address
+            </label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--color-text-secondary)]">
+              New password <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+            </label>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={password ? 6 : undefined}
+                autoComplete="new-password"
+                placeholder="Leave blank to keep current"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Role cannot be changed here. Ask an admin if you need a different role.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1" loading={saving} disabled={saving}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Profile() {
   const [user, setUser] = useState(() => getStoredUser());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const canEdit = canSelfEditProfile(user?.role);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -68,6 +200,30 @@ export default function Profile() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!successMessage) return undefined;
+    const timer = setTimeout(() => setSuccessMessage(''), 3000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
+  const handleSaveProfile = async ({ name, email, password }) => {
+    setSaving(true);
+    setEditError('');
+    try {
+      const payload = { name, email };
+      if (password) payload.password = password;
+      const updated = await updateCurrentUser(payload);
+      setUser(updated);
+      persistUser(updated);
+      setEditOpen(false);
+      setSuccessMessage('Profile updated successfully');
+    } catch (e) {
+      setEditError(e.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const initials = getUserInitials(user?.name);
   const createdLabel = user?.createdAt
@@ -89,6 +245,12 @@ export default function Profile() {
           Your account details for the Audit Platform workspace.
         </p>
       </motion.div>
+
+      {successMessage ? (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+          {successMessage}
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center justify-center rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface-elevated)] py-20 shadow-[var(--shadow-glass)]">
@@ -140,12 +302,27 @@ export default function Profile() {
                       </span>
                     </div>
                   </div>
-                  <Link to="/settings" className="shrink-0">
-                    <Button variant="secondary" size="md">
-                      <Settings className="h-4 w-4" />
-                      Settings
-                    </Button>
-                  </Link>
+                  <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+                    {canEdit ? (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={() => {
+                          setEditError('');
+                          setEditOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit profile
+                      </Button>
+                    ) : null}
+                    <Link to="/settings">
+                      <Button variant="secondary" size="md">
+                        <Settings className="h-4 w-4" />
+                        Settings
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </CardBody>
@@ -177,15 +354,31 @@ export default function Profile() {
             </CardHeader>
             <CardBody>
               <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                Your role controls which scrutiny modules and admin tools you can use. Contact an
-                administrator on the{' '}
-                <Link
-                  to="/users"
-                  className="font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                >
-                  Users
-                </Link>{' '}
-                page if you need a role or password change.
+                {canEdit ? (
+                  <>
+                    You can update your name, email, and password from this page. Role changes still
+                    require an administrator on the{' '}
+                    <Link
+                      to="/users"
+                      className="font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                    >
+                      Users
+                    </Link>{' '}
+                    page.
+                  </>
+                ) : (
+                  <>
+                    Your role controls which scrutiny modules and admin tools you can use. Contact an
+                    administrator on the{' '}
+                    <Link
+                      to="/users"
+                      className="font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                    >
+                      Users
+                    </Link>{' '}
+                    page if you need a role or password change.
+                  </>
+                )}
               </p>
             </CardBody>
           </Card>
@@ -202,6 +395,19 @@ export default function Profile() {
             </Link>
           </CardBody>
         </Card>
+      ) : null}
+
+      {canEdit ? (
+        <ProfileEditModal
+          isOpen={editOpen}
+          user={user}
+          saving={saving}
+          error={editError}
+          onClose={() => {
+            if (!saving) setEditOpen(false);
+          }}
+          onSave={handleSaveProfile}
+        />
       ) : null}
     </div>
   );
