@@ -35,9 +35,8 @@ GROSS_RECORD_FIELD_ORDER = (
 class GrossWeightProcessor(BaseProcessor):
     def __init__(self) -> None:
         self.reader = ExcelReader()
-        # Treat tiny rounding/noise differences as valid.
-        # Business expectation: values like 0.003 / -0.004 should not be flagged.
-        self._match_epsilon = Decimal("0.005")
+        # Exact match only — any non-zero difference is a mismatch.
+        self._match_epsilon = Decimal("0.000")
 
     def normalize_empty_value(self, value: Any) -> str | None:
         if value is None:
