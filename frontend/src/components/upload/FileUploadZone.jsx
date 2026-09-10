@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudUpload, FileSpreadsheet, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from '../ui/Button';
@@ -24,13 +24,17 @@ export function FileUploadZone({
   const [dragOver, setDragOver] = useState(false);
 
   const isMulti = Boolean(multiple && onFilesChange);
-  const selectedFiles = isMulti
-    ? Array.isArray(files)
-      ? files
-      : []
-    : file
-      ? [file]
-      : [];
+  const selectedFiles = useMemo(
+    () =>
+      isMulti
+        ? Array.isArray(files)
+          ? files
+          : []
+        : file
+          ? [file]
+          : [],
+    [isMulti, files, file]
+  );
 
   useEffect(() => {
     const node = shellRef.current;

@@ -45,81 +45,6 @@ import { cn } from '../utils/cn';
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
 const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
 
-const TRANSFER_PIVOT_LOCATIONS = [
-  { key: 'jubileeHills', title: 'Jubilee Hills' },
-  { key: 'kokapet', title: 'Kokapet' },
-  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
-];
-
-function TransferLocationPivots({ heading, sourceLabel, tree }) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
-          Amount.
-        </p>
-      </CardHeader>
-      <CardBody>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
-            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
-            return (
-              <div
-                key={`${sourceLabel}-${key}`}
-                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
-              >
-                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    {sourceLabel} – {title}
-                  </p>
-                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
-                </div>
-                <div className="max-h-72 overflow-auto">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold">Product</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length ? (
-                        rows.map((row) => (
-                          <tr
-                            key={`${sourceLabel}-${key}-${row.product}`}
-                            className="border-t border-slate-100 dark:border-slate-800"
-                          >
-                            <td className="px-3 py-1.5">{row.product}</td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
-                            </td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfGross ?? 0, 2)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
-                            No rows for this location.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
-
 function slimSnapshot(data) {
   if (!data) return null;
   return {
@@ -405,11 +330,12 @@ export default function FinancialsPivotPage() {
     }
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
   }, [mappedResult, result]);
-  const unmappedProducts = useMemo(
-    () =>
-      Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
-    [mappedResult]
-  );
+  // Temporarily unused while Unmapped products UI is commented out below.
+  // const unmappedProducts = useMemo(
+  //   () =>
+  //     Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
+  //   [mappedResult]
+  // );
   const activeCategoryProducts = useMemo(
     () =>
       Array.isArray(productsByCategory[activeCategory])

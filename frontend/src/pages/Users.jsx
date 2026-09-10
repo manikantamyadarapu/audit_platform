@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2, Eye, EyeOff, Shield } from 'lucide-react';
@@ -343,7 +343,7 @@ export default function Users() {
     setToast({ message, type });
   };
 
-  const fetchUsers = async (page = 1, search = '') => {
+  const fetchUsers = useCallback(async (page = 1, search = '') => {
     try {
       setLoading(true);
       const data = await apiRequest(`/api/v1/users?page=${page}&limit=10&search=${search}`);
@@ -354,7 +354,7 @@ export default function Users() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -362,7 +362,7 @@ export default function Users() {
       return;
     }
     fetchUsers(1, searchQuery);
-  }, [searchQuery, isAdmin]);
+  }, [searchQuery, isAdmin, fetchUsers]);
 
   if (!isAdmin) {
     return (
