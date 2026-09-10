@@ -34,7 +34,7 @@ def test_matching_positive_weights_pass() -> None:
 
 
 def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> None:
-    """Computed |manual - auto| above match epsilon (0.005) flags a mismatch."""
+    """Any non-zero |manual - auto| flags a mismatch (epsilon 0.000)."""
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -54,6 +54,7 @@ def test_tiny_manual_auto_mismatch_within_cent_flags_when_above_epsilon() -> Non
 
 
 def test_manual_auto_within_epsilon_passes() -> None:
+    """With epsilon 0.000, even tiny computed differences are mismatches."""
     processor = GrossWeightProcessor()
     file_bytes = _build_excel_bytes(
         [
@@ -67,8 +68,26 @@ def test_manual_auto_within_epsilon_passes() -> None:
     )
     result = processor.process(file_bytes)
     assert result['totalRows'] == 1
+    # Difference column is preferred when present — 0.0 still passes.
     assert result['errorRows'] == 0
 
+
+def test_tiny_nonzero_difference_column_flags_mismatch() -> None:
+    processor = GrossWeightProcessor()
+    file_bytes = _build_excel_bytes(
+        [
+            {
+                'Voucher No': 'V1',
+                'Manual Gross Weight': 10.5,
+                'Auto Gross Weight': 10.5,
+                'Difference': 0.0001,
+            }
+        ]
+    )
+    result = processor.process(file_bytes)
+    assert result['totalRows'] == 1
+    assert result['errorRows'] == 1
+    assert result['records'][0]['issues'] == ['GROSS_WEIGHT_MISMATCH']
 
 def test_manual_auto_mismatch_counts_mismatch_only() -> None:
     processor = GrossWeightProcessor()

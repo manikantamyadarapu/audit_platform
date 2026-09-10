@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, MoreVertical, Mail, X, AlertCircle, Loader2, Eye, EyeOff, Shield } from 'lucide-react';
 import { Card, CardBody } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
 
-import { getAuthToken } from '../utils/authUser';
+import { getAuthToken, getStoredUser } from '../utils/authUser';
 import { API_BASE_URL } from '../config/api';
 
 function getToken() {
   return getAuthToken();
+}
+
+function isAdminRole(role) {
+  const r = String(role || '').toUpperCase();
+  return r === 'ADMIN' || r === 'SUPER_ADMIN';
 }
 
 async function apiRequest(endpoint, options = {}) {
@@ -319,6 +325,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const isAdmin = isAdminRole(getStoredUser()?.role);
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -350,9 +357,36 @@ export default function Users() {
   };
 
   useEffect(() => {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
     fetchUsers(1, searchQuery);
-  }, [searchQuery]);
+  }, [searchQuery, isAdmin]);
 
+  if (!isAdmin) {
+    return (
+      <div className="pb-6">
+        <Card>
+          <CardBody className="flex flex-col items-center gap-3 py-16 text-center">
+            <Shield className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+              Admin access required
+            </h2>
+            <p className="max-w-md text-sm text-[var(--color-text-secondary)]">
+              Only administrators can manage users. You can still update your own name, email, and
+              password from My Profile.
+            </p>
+            <Link to="/profile">
+              <Button variant="primary" size="md">
+                Go to My Profile
+              </Button>
+            </Link>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
   const handleCreateUser = async (formData) => {
     try {
       setIsModalLoading(true);

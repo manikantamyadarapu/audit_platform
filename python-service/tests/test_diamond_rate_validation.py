@@ -66,7 +66,7 @@ def test_diamond_rate_below_minimum():
     assert rec['rateValidationSource'] == 'diamond_rule_book'
     assert rec['minAllowedRate'] == pytest.approx(8750.0)
     assert rec['maxAllowedRate'] == pytest.approx(24375.0)
-    assert 'rate below allowed range' in rec['rateMessage'].lower()
+    assert 'unit rates outside the range' in rec['rateMessage'].lower()
 
 
 def test_diamond_rate_above_maximum():
@@ -84,7 +84,7 @@ def test_diamond_rate_above_maximum():
         )
     )
     assert out['errorRows'] == 1
-    assert 'rate above allowed range' in out['records'][0]['rateMessage'].lower()
+    assert 'unit rates outside the range' in out['records'][0]['rateMessage'].lower()
 
 
 def test_diamond_without_rule_book_skips_rate_check():
@@ -189,7 +189,7 @@ def test_sd_di_mix_below_300000_invalid():
         )
     )
     assert out['errorRows'] == 1
-    assert 'rate below allowed range' in out['records'][0]['rateMessage'].lower()
+    assert 'unit rates outside the range' in out['records'][0]['rateMessage'].lower()
 
 
 def test_diamond_loose_di_ra_100_hardcoded_valid():
