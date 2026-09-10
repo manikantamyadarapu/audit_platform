@@ -1131,9 +1131,10 @@ export default function FinancialsPivotPage() {
                 <Button
                   variant="primary"
                   size="md"
-                  loading={exportingClosing}
-                  disabled={exportingClosing || !result}
-                  onClick={handleDownloadClosingStock}
+                  className="shrink-0"
+                  loading={exportingKey === 'working-paper'}
+                  disabled={Boolean(exportingKey) || !result}
+                  onClick={handleDownloadWorkingPaper}
                 >
                   <Gem className="h-4 w-4" />
                   Download Closing Stock
