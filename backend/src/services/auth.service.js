@@ -248,11 +248,35 @@ async function getCurrentUser(userId) {
   return buildUserResponse(user);
 }
 
+/**
+ * Self-service profile update (name / email / optional password).
+ * Role and isActive cannot be changed here.
+ * @param {number} userId
+ * @param {{ name?: string, email?: string, password?: string }} updateData
+ */
+async function updateCurrentUser(userId, updateData) {
+  const userService = require('./user.service');
+  const allowed = {};
+  if (updateData.name !== undefined) allowed.name = updateData.name;
+  if (updateData.email !== undefined) allowed.email = updateData.email;
+  if (updateData.password) allowed.password = updateData.password;
+
+  if (!Object.keys(allowed).length) {
+    const error = new Error('No profile fields to update');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const user = await userService.updateUser(userId, allowed);
+  return buildUserResponse(user);
+}
+
 module.exports = {
   login,
   refreshAccessToken,
   logout,
   getCurrentUser,
+  updateCurrentUser,
   requestPasswordReset,
   validateResetToken,
   resetPassword,
