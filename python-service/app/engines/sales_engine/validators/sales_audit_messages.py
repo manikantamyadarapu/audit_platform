@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 MSG_VALID = 'Valid'
-MSG_RATE_BELOW = 'Rate below allowed range'
-MSG_RATE_ABOVE = 'Rate above allowed range'
+MSG_RATE_OUTSIDE = 'Unit rates outside the range'
+# Legacy aliases — above/below both use the same display text.
+MSG_RATE_BELOW = MSG_RATE_OUTSIDE
+MSG_RATE_ABOVE = MSG_RATE_OUTSIDE
 MSG_PRODUCT_MAPPING = 'Product mapping mismatch'
 MSG_RATE_RULE_MISSING = 'Rate rule not configured'
 MSG_UNIT_RATE_MISSING = 'Unit rate missing'
@@ -16,7 +18,7 @@ _ISSUE_MESSAGE: dict[str, str] = {
     'INVALID_PRODUCT_MAPPING': MSG_PRODUCT_MAPPING,
     'INVALID_PRODUCT_PATTERN': MSG_PRODUCT_PATTERN,
     'INVALID_UOM': MSG_INVALID_UOM,
-    'INVALID_RATE_DEVIATION': MSG_RATE_BELOW,
+    'INVALID_RATE_DEVIATION': MSG_RATE_OUTSIDE,
     'MISSING_UNIT_RATE': MSG_UNIT_RATE_MISSING,
     'MISSING_RATE_RULE': MSG_RATE_RULE_MISSING,
     'INVALID_UNIT_RATE_RANGE': MSG_INVALID_UNIT_RATE_RANGE,
@@ -34,11 +36,8 @@ _ISSUE_PRIORITY: tuple[str, ...] = (
 
 
 def _rate_direction_message(row: dict[str, Any]) -> str:
-    if row.get('__rate_above_max'):
-        return MSG_RATE_ABOVE
-    if row.get('__rate_below_min') or row.get('__invalid_rate_deviation'):
-        return MSG_RATE_BELOW
-    return MSG_RATE_BELOW
+    """Same message for rates above max or below min."""
+    return MSG_RATE_OUTSIDE
 
 
 def primary_audit_message(row: dict[str, Any], issues: list[str]) -> str | None:
@@ -64,10 +63,12 @@ def primary_audit_message(row: dict[str, Any], issues: list[str]) -> str | None:
         return MSG_RATE_RULE_MISSING
     if row.get('__rate_unit_missing') or row.get('__invalid_rate_no_unit'):
         return MSG_UNIT_RATE_MISSING
-    if row.get('__rate_above_max'):
-        return MSG_RATE_ABOVE
-    if row.get('__rate_below_min') or row.get('__invalid_rate_deviation'):
-        return _rate_direction_message(row)
+    if (
+        row.get('__rate_above_max')
+        or row.get('__rate_below_min')
+        or row.get('__invalid_rate_deviation')
+    ):
+        return MSG_RATE_OUTSIDE
     if row.get('__rate_valid'):
         return MSG_VALID
     return None

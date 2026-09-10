@@ -14,6 +14,7 @@ from app.engines.financials_engine.config.product_rule_book import (
     load_closing_stock_product_rule_book,
     resolve_product_location,
 )
+from app.engines.financials_engine.engine.metal_trading import metal_opening_group
 from app.engines.financials_engine.engine.opening_stock import norm_opening_product_name
 from app.utils.logger import get_logger
 
@@ -324,9 +325,10 @@ def _identify_previous_year_products(
     """
     Name-based previous-year identification only (no orphan qty combination guessing).
 
-    1. Rows that resolve to this Rule Book display name.
-    2. Base-name variants (Chakri a / Chakri b).
-    3. Rosecut RC-token rows (Di. RC 1 ↔ RC1) — Rosecut subcategory only.
+    Combines rows that resolve to this Rule Book display name with base-name
+    variants (Polki + Polki a / Polki b, Chakri a / Chakri b). Amount is applied
+    only after the combined Closing Qty equals Opening Balance.
+    Rosecut RC-token rows (Di. RC 1 ↔ RC1) are used when no name/variant set exists.
     """
     norm_sub = _norm_subcategory(subcategory)
     primary: list[dict[str, Any]] = []
@@ -348,8 +350,11 @@ def _identify_previous_year_products(
         if resolved == display_name:
             primary.append(dict(row))
 
-    if primary:
-        return primary
+    combined: dict[str, dict[str, Any]] = {}
+    for row in primary:
+        key = _prev_row_key(row)
+        if key:
+            combined[key] = row
 
     variant_matches = _match_base_name_variant_products(
         candidates,
@@ -359,8 +364,13 @@ def _identify_previous_year_products(
         subcategory=subcategory,
         claimed_keys=claimed_keys,
     )
-    if variant_matches:
-        return variant_matches
+    for row in variant_matches:
+        key = _prev_row_key(row)
+        if key:
+            combined[key] = row
+
+    if combined:
+        return list(combined.values())
 
     return _match_rosecut_previous_year_products(
         candidates,
@@ -405,6 +415,157 @@ def _manual_mapping_result(
     }
 
 
+def _iter_previous_year_rows(
+    *,
+    subcategory_products: Mapping[Any, Sequence[Mapping[str, Any]]] | None,
+    sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+    dedicated_product_sheets: Sequence[Mapping[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+
+    def add(row: Mapping[str, Any]) -> None:
+        key = _prev_row_key(row)
+        if not key or key in seen:
+            return
+        seen.add(key)
+        rows.append(dict(row))
+
+    for sheet in dedicated_product_sheets or ():
+        add(sheet)
+    for group in (sheet_products or {}).values():
+        for row in group or ():
+            add(row)
+    for group in (subcategory_products or {}).values():
+        for row in group or ():
+            add(row)
+    return rows
+
+
+def _same_metal_opening_group(left: Mapping[str, str | None], right: Mapping[str, str | None]) -> bool:
+    return (
+        str(left.get('category') or '') == str(right.get('category') or '')
+        and str(left.get('subcategory') or '') == str(right.get('subcategory') or '')
+    )
+
+
+def _identify_metal_previous_year_products(
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    product: str,
+    catalog_name: str | None,
+    claimed_keys: set[str],
+    same_group_is_match: bool = False,
+) -> list[dict[str, Any]]:
+    display = str(catalog_name or product or '').strip()
+    combined: dict[str, dict[str, Any]] = {}
+    for row in candidates:
+        key = _prev_row_key(row)
+        if not key or key in claimed_keys:
+            continue
+        prev_name = str(row.get('product') or '').strip()
+        if not prev_name:
+            continue
+        if same_group_is_match:
+            combined[key] = dict(row)
+            continue
+        prev_catalog = metal_opening_group(prev_name) or {}
+        if display and prev_catalog.get('catalogName') == display:
+            combined[key] = dict(row)
+            continue
+        if display and _is_base_name_variant(prev_name, display):
+            combined[key] = dict(row)
+    return list(combined.values())
+
+
+def _try_metal_opening_fallback(
+    *,
+    product: str,
+    opening_qty: float | None,
+    subcategory_products: Mapping[Any, Sequence[Mapping[str, Any]]] | None,
+    sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+    dedicated_product_sheets: Sequence[Mapping[str, Any]] | None,
+    claimed_keys: set[str],
+    log: Any | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    group = metal_opening_group(product)
+    if group is None:
+        return None
+
+    logger = log or get_logger()
+    category = group.get('category')
+    subcategory = group.get('subcategory')
+    catalog_name = group.get('catalogName')
+    if trading_sheet_products:
+        previous_rows = [dict(row) for row in trading_sheet_products]
+    else:
+        previous_rows = _iter_previous_year_rows(
+            subcategory_products=subcategory_products,
+            sheet_products=sheet_products,
+            dedicated_product_sheets=dedicated_product_sheets,
+        )
+    metal_rows = [
+        row
+        for row in previous_rows
+        if (other := metal_opening_group(str(row.get('product') or '')))
+        and _same_metal_opening_group(group, other)
+    ]
+    candidate_products = _list_subcategory_candidates(
+        metal_rows,
+        subcategory=None,
+        claimed_keys=claimed_keys,
+    )
+    identified = _identify_metal_previous_year_products(
+        metal_rows,
+        product=product,
+        catalog_name=catalog_name,
+        claimed_keys=claimed_keys,
+        same_group_is_match=bool(trading_sheet_products),
+    )
+
+    logger.info(
+        'Opening Stock metal fallback: product={} group={}/{} candidates={} identified={}',
+        product,
+        category,
+        subcategory,
+        len(candidate_products),
+        [str(r.get('product') or '') for r in identified],
+    )
+
+    if identified:
+        sum_qty = _sum_prev_qty(identified)
+        sum_amt = _sum_prev_amt(identified)
+        if _qty_equal(opening_qty, sum_qty):
+            for row in identified:
+                key = _prev_row_key(row)
+                if key:
+                    claimed_keys.add(key)
+            return {
+                'status': 'matched_fallback',
+                'reason': 'matched_via_metal_opening_fallback',
+                'category': category,
+                'subcategory': subcategory,
+                'ruleBookProduct': catalog_name or product,
+                'sheetName': identified[0].get('sheetName') if len(identified) == 1 else None,
+                'previousYearProducts': [str(r.get('product') or '') for r in identified],
+                'previousClosingQty': round(sum_qty, 6),
+                'previousClosingAmount': round(sum_amt, 4),
+                'candidateProducts': candidate_products,
+                'openingAmt': sum_amt,
+            }
+
+    return _manual_mapping_result(
+        category=category,
+        subcategory=subcategory,
+        rule_book_product=catalog_name or product,
+        sheet_name=None,
+        candidate_products=candidate_products,
+        identified=identified,
+        opening_qty=opening_qty,
+    )
+
+
 def try_subcategory_fallback(
     *,
     product: str,
@@ -413,17 +574,16 @@ def try_subcategory_fallback(
     | None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None,
     dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
     claimed_prev_keys: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """
-    Fallback ONLY after exact previous-year name lookup fails.
-
-    Auto-accepts Opening Amount only when a valid name-based previous-year set is
-    found AND its Closing Qty exactly equals the Quantity file Opening Balance.
-    Otherwise returns Manual Mapping Required with subcategory candidates — never
-    invents combinations or maps amounts when quantities differ.
+    Name-based previous-year identification. Auto-accepts Opening Amount only
+    when the identified set (exact name plus trailing variants such as Polki a /
+    Polki b) has combined Closing Qty equal to the Quantity file Opening Balance.
+    Otherwise returns Manual Mapping Required — never maps amount when qty differs.
     """
     if not subcategory_products and not sheet_products:
         subcategory_products = {}
@@ -438,6 +598,18 @@ def try_subcategory_fallback(
     display_name = _resolve_rule_book_display_name(product, lookup=match_lookup)
     location = resolve_product_location(product, index=location_index)
     if not display_name or not location:
+        metal = _try_metal_opening_fallback(
+            product=product,
+            opening_qty=opening_qty,
+            subcategory_products=subcategory_products,
+            sheet_products=sheet_products,
+            dedicated_product_sheets=dedicated_product_sheets,
+            claimed_keys=claimed,
+            log=logger,
+            trading_sheet_products=trading_sheet_products,
+        )
+        if metal is not None:
+            return metal
         logger.warning(
             'Opening Stock fallback: Rule Book location not found product={}',
             product,

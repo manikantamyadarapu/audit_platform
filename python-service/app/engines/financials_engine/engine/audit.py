@@ -93,6 +93,7 @@ class FinancialsPivotAudit:
                 subcategory_products=prev_payload.get('subcategoryProducts'),
                 sheet_products=prev_payload.get('sheetProducts'),
                 dedicated_product_sheets=prev_payload.get('dedicatedProductSheets') or [],
+                trading_sheet_products=prev_payload.get('tradingSheetProducts') or [],
                 log=self._log,
             )
             validated_opening = list(opening_result.get('validatedOpening') or [])
