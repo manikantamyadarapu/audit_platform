@@ -497,7 +497,35 @@ function rawProductMeasures(
   return addStockSectionTotals(raw);
 }
 
+const RECEIPT_QTY_KEYS = [
+  'receiptsInternalQty',
+  'receiptsJubileeHillsQty',
+  'receiptsKokapetQty',
+];
+
+const ISSUE_QTY_KEYS = [
+  'issuesInternalQty',
+  'issuesBanjaraHillsQty',
+  'issuesKokapetQty',
+];
+
+const ISSUE_AMT_KEYS = [
+  'issuesInternalAmt',
+  'issuesBanjaraHillsAmt',
+  'issuesKokapetAmt',
+];
+
+function sumQtyParts(raw, keys) {
+  const parts = keys.map((key) => coerceMeasure(raw[key]));
+  if (parts.every((part) => part === null)) return null;
+  return parts.reduce((sum, part) => sum + (part ?? 0), 0);
+}
+
 function addStockSectionTotals(raw) {
+  const receiptsFromBranches = sumQtyParts(raw, RECEIPT_QTY_KEYS);
+  if (receiptsFromBranches !== null) {
+    raw.receiptsQty = receiptsFromBranches;
+  }
   const openingQty = coerceMeasure(raw.openingQty);
   const purchasesQty = coerceMeasure(raw.purchasesQty);
   const receiptsQty = coerceMeasure(raw.receiptsQty);
@@ -553,27 +581,19 @@ function addIssuesAmounts(raw) {
     }
     raw[amtKey] = qty * (rate ?? 0);
   }
+  raw.issuesTotalAmt = sumQtyParts(raw, ISSUE_AMT_KEYS);
   return raw;
 }
 
-const ISSUE_QTY_KEYS = [
-  'issuesInternalQty',
-  'issuesBanjaraHillsQty',
-  'issuesKokapetQty',
-];
-
 function issuesTotalQty(raw) {
-  const existing = coerceMeasure(raw.issuesTotalQty);
-  if (existing !== null) return existing;
-  const parts = ISSUE_QTY_KEYS.map((key) => coerceMeasure(raw[key]));
-  if (parts.every((part) => part === null)) return null;
-  return parts.reduce((sum, part) => sum + (part ?? 0), 0);
+  return sumQtyParts(raw, ISSUE_QTY_KEYS);
 }
 
 function addClosingStock(raw) {
   const totalQty = coerceMeasure(raw.totalQty);
   const salesQty = coerceMeasure(raw.salesQty);
   const issuesQty = issuesTotalQty(raw);
+  raw.issuesTotalQty = issuesQty;
   if (totalQty === null && salesQty === null && issuesQty === null) {
     raw.closingStockQty = null;
     raw.closingStockAmt = null;
@@ -586,18 +606,8 @@ function addClosingStock(raw) {
   return raw;
 }
 
-const ISSUE_AMT_KEYS = [
-  'issuesInternalAmt',
-  'issuesBanjaraHillsAmt',
-  'issuesKokapetAmt',
-];
-
 function issuesTotalAmt(raw) {
-  const existing = coerceMeasure(raw.issuesTotalAmt);
-  if (existing !== null) return existing;
-  const parts = ISSUE_AMT_KEYS.map((key) => coerceMeasure(raw[key]));
-  if (parts.every((part) => part === null)) return null;
-  return parts.reduce((sum, part) => sum + (part ?? 0), 0);
+  return sumQtyParts(raw, ISSUE_AMT_KEYS);
 }
 
 function addGrossProfit(raw) {
@@ -643,12 +653,17 @@ function displayProductMeasures(raw) {
     salesAmt: roundClosingStockAmount(raw.salesAmt),
     receiptsQty: raw.receiptsQty ?? null,
     receiptsAmt: roundClosingStockAmount(raw.receiptsAmt),
+    receiptsInternalAmt: roundClosingStockAmount(raw.receiptsInternalAmt),
+    receiptsJubileeHillsAmt: roundClosingStockAmount(raw.receiptsJubileeHillsAmt),
+    receiptsKokapetAmt: roundClosingStockAmount(raw.receiptsKokapetAmt),
     totalQty: raw.totalQty ?? null,
     totalAmt: roundClosingStockAmount(raw.totalAmt),
     averageRateAmt: raw.averageRateAmt ?? null,
     issuesInternalAmt: roundClosingStockAmount(raw.issuesInternalAmt),
     issuesBanjaraHillsAmt: roundClosingStockAmount(raw.issuesBanjaraHillsAmt),
     issuesKokapetAmt: roundClosingStockAmount(raw.issuesKokapetAmt),
+    issuesTotalQty: raw.issuesTotalQty ?? null,
+    issuesTotalAmt: roundClosingStockAmount(raw.issuesTotalAmt),
     closingStockQty: raw.closingStockQty ?? null,
     closingStockAmt: roundClosingStockAmount(raw.closingStockAmt),
     grossProfitAmt: roundClosingStockAmount(raw.grossProfitAmt),
@@ -674,11 +689,16 @@ function totalMeasuresFromRaw(rawRows) {
       'salesAmt',
       'receiptsQty',
       'receiptsAmt',
+      'receiptsInternalAmt',
+      'receiptsJubileeHillsAmt',
+      'receiptsKokapetAmt',
       'totalQty',
       'totalAmt',
       'issuesInternalAmt',
       'issuesBanjaraHillsAmt',
       'issuesKokapetAmt',
+      'issuesTotalQty',
+      'issuesTotalAmt',
       'closingStockQty',
       'closingStockAmt',
       'grossProfitAmt',
@@ -699,6 +719,15 @@ function totalMeasuresFromRaw(rawRows) {
     salesAmt: present.has('salesAmt') ? roundClosingStockAmount(totals.salesAmt) : null,
     receiptsQty: present.has('receiptsQty') ? totals.receiptsQty : null,
     receiptsAmt: present.has('receiptsAmt') ? roundClosingStockAmount(totals.receiptsAmt) : null,
+    receiptsInternalAmt: present.has('receiptsInternalAmt')
+      ? roundClosingStockAmount(totals.receiptsInternalAmt)
+      : null,
+    receiptsJubileeHillsAmt: present.has('receiptsJubileeHillsAmt')
+      ? roundClosingStockAmount(totals.receiptsJubileeHillsAmt)
+      : null,
+    receiptsKokapetAmt: present.has('receiptsKokapetAmt')
+      ? roundClosingStockAmount(totals.receiptsKokapetAmt)
+      : null,
     totalQty: present.has('totalQty') ? totals.totalQty : null,
     totalAmt: present.has('totalAmt') ? roundClosingStockAmount(totals.totalAmt) : null,
     issuesInternalAmt: present.has('issuesInternalAmt')
@@ -709,6 +738,10 @@ function totalMeasuresFromRaw(rawRows) {
       : null,
     issuesKokapetAmt: present.has('issuesKokapetAmt')
       ? roundClosingStockAmount(totals.issuesKokapetAmt)
+      : null,
+    issuesTotalQty: present.has('issuesTotalQty') ? totals.issuesTotalQty : null,
+    issuesTotalAmt: present.has('issuesTotalAmt')
+      ? roundClosingStockAmount(totals.issuesTotalAmt)
       : null,
     closingStockQty: present.has('closingStockQty') ? totals.closingStockQty : null,
     closingStockAmt: present.has('closingStockAmt')

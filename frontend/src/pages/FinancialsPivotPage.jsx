@@ -17,6 +17,8 @@ import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
 import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
+import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
+import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
 import {
@@ -39,6 +41,82 @@ import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
+const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME];
+
+const TRANSFER_PIVOT_LOCATIONS = [
+  { key: 'jubileeHills', title: 'Jubilee Hills' },
+  { key: 'kokapet', title: 'Kokapet' },
+  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
+];
+
+function TransferLocationPivots({ heading, sourceLabel, tree }) {
+  return (
+    <Card>
+      <CardHeader>
+        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
+          Amount.
+        </p>
+      </CardHeader>
+      <CardBody>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
+            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
+            return (
+              <div
+                key={`${sourceLabel}-${key}`}
+                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
+              >
+                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    {sourceLabel} – {title}
+                  </p>
+                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
+                </div>
+                <div className="max-h-72 overflow-auto">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Product</th>
+                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
+                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.length ? (
+                        rows.map((row) => (
+                          <tr
+                            key={`${sourceLabel}-${key}-${row.product}`}
+                            className="border-t border-slate-100 dark:border-slate-800"
+                          >
+                            <td className="px-3 py-1.5">{row.product}</td>
+                            <td className="px-3 py-1.5 tabular-nums">
+                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
+                            </td>
+                            <td className="px-3 py-1.5 tabular-nums">
+                              {formatNumber(row.sumOfGross ?? 0, 2)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
+                            No rows for this location.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
 
 function slimSnapshot(data) {
   if (!data) return null;
@@ -319,18 +397,17 @@ export default function FinancialsPivotPage() {
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
   }, [mappedResult]);
   const layoutByCategory = useMemo(() => {
-    const mapped = mappedResult?.layoutByCategory;
+    const mapped = mappedResult?.layoutByCategory || result?.layoutByCategory;
     if (mapped && typeof mapped === 'object') {
       return mapped;
     }
     return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  }, [mappedResult]);
-  // Temporarily hidden — unmapped products list UI
-  // const unmappedProducts = useMemo(
-  //   () =>
-  //     Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
-  //   [mappedResult]
-  // );
+  }, [mappedResult, result]);
+  const unmappedProducts = useMemo(
+    () =>
+      Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
+    [mappedResult]
+  );
   const activeCategoryProducts = useMemo(
     () =>
       Array.isArray(productsByCategory[activeCategory])
@@ -1034,38 +1111,33 @@ export default function FinancialsPivotPage() {
                 Downloads
               </h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Excel (.xlsx) only — working paper and supporting pivots generated from this audit
-                run.
+                Download the Closing Stock workbook (five category sheets plus Trading) or
+                supporting pivot sheets for verification.
               </p>
             </CardHeader>
-            <CardBody className="space-y-5">
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Working Paper
-                </h4>
-                <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-white/80 p-4 dark:border-emerald-900/40 dark:bg-[var(--color-surface-elevated)]/80 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                      Stock Reconciliation
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Five category sheets ({CLOSING_STOCK_CATEGORIES.join(', ')}) with Rule Book
-                      placement ({formatNumber(mappedProductCount)} mapped particular
-                      {mappedProductCount === 1 ? '' : 's'}).
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="shrink-0"
-                    loading={exportingKey === 'working-paper'}
-                    disabled={Boolean(exportingKey) || !result}
-                    onClick={handleDownloadWorkingPaper}
-                  >
-                    <Gem className="h-4 w-4" />
-                    Download Stock Reconciliation
-                  </Button>
+            <CardBody className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-white/80 p-4 dark:border-emerald-900/40 dark:bg-[var(--color-surface-elevated)]/80 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                    Download Closing Stock
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')},{' '}
+                    {TRADING_SHEET_NAME}. Products are placed by the Rule Book (
+                    {formatNumber(mappedProductCount)} mapped particular
+                    {mappedProductCount === 1 ? '' : 's'}).
+                  </p>
                 </div>
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={exportingClosing}
+                  disabled={exportingClosing || !result}
+                  onClick={handleDownloadClosingStock}
+                >
+                  <Gem className="h-4 w-4" />
+                  Download Closing Stock
+                </Button>
               </div>
 
               <div className="space-y-3">
@@ -1148,8 +1220,9 @@ export default function FinancialsPivotPage() {
                     Stock Reconciliation preview
                   </h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its working-paper sheet. Every Rule Book product
-                    is listed even when Opening/Sales/Purchases measures are blank.
+                    Select a category to inspect its Closing Stock sheet, or Trading for the
+                    T-account layout. Every Rule Book product is listed even when
+                    Opening/Sales/Purchases measures are blank.
                     {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
                   </p>
                   {summary.ruleBookProductTotal ? (
@@ -1167,8 +1240,9 @@ export default function FinancialsPivotPage() {
                   role="tablist"
                   aria-label="Stock Reconciliation category"
                 >
-                  {CLOSING_STOCK_CATEGORIES.map((category) => {
+                  {PREVIEW_SHEETS.map((category) => {
                     const selected = category === activeCategory;
+                    const isTrading = category === TRADING_SHEET_NAME;
                     const count = Array.isArray(productsByCategory[category])
                       ? productsByCategory[category].length
                       : 0;
@@ -1187,9 +1261,11 @@ export default function FinancialsPivotPage() {
                         )}
                       >
                         {category}
-                        <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
-                          ({count})
-                        </span>
+                        {isTrading ? null : (
+                          <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
+                            ({count})
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1197,12 +1273,23 @@ export default function FinancialsPivotPage() {
               </div>
             </CardHeader>
             <CardBody>
-              <ClosingStockPreviewTable
-                category={activeCategory}
-                products={activeCategoryProducts}
-                layoutRows={activeCategoryLayout}
-                financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
-              />
+              {activeCategory === TRADING_SHEET_NAME ? (
+                <TradingAccountPreview
+                  layoutByCategory={layoutByCategory}
+                  salesPivot={salesPivot}
+                  purchasesPivot={purchasesPivot}
+                  openingPivot={openingPivot}
+                  mrPivots={mrPivots}
+                  dcPivots={dcPivots}
+                />
+              ) : (
+                <ClosingStockPreviewTable
+                  category={activeCategory}
+                  products={activeCategoryProducts}
+                  layoutRows={activeCategoryLayout}
+                  financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
+                />
+              )}
             </CardBody>
           </Card>
         </>

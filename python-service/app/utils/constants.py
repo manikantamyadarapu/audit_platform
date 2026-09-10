@@ -69,7 +69,7 @@ SALES_ISSUE_MESSAGES = {
     ),
     'INVALID_PRODUCT_MAPPING': 'Product mapping mismatch',
     'PRODUCT_NOT_FOUND_IN_MASTER': 'Product mapping mismatch',
-    'INVALID_RATE_DEVIATION': 'Rate below allowed range',
+    'INVALID_RATE_DEVIATION': 'Unit rates outside the range',
     'INVALID_PRODUCT_PATTERN': (
         'Product matches a gemstone slab shape but the slab price could not be extracted.'
     ),

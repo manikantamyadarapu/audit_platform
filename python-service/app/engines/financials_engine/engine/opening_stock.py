@@ -13,6 +13,7 @@ _UNICODE_WS = re.compile(
     re.UNICODE,
 )
 _NON_ALNUM = re.compile(r'[^a-z0-9]+', re.IGNORECASE)
+_QTY_EPS = 1e-4
 
 # Leading category words used in Quantity file but omitted on Closing Stock sheets.
 _CATEGORY_PREFIXES = (
@@ -118,6 +119,19 @@ def _lookup_product_sheet(
         if entry is not None:
             return entry
     return None
+
+
+def _qty_equal(a: float | None, b: float | None) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(float(a) - float(b)) <= _QTY_EPS
+
+
+def _is_single_exact_previous_name(product: str, previous_names: Sequence[Any] | None) -> bool:
+    names = [str(name or '').strip() for name in (previous_names or ()) if str(name or '').strip()]
+    if len(names) != 1:
+        return False
+    return norm_opening_product_name(names[0]) == norm_opening_product_name(product)
 
 
 def _coerce_opening_measure(value: Any) -> float | None:
@@ -295,6 +309,7 @@ def map_opening_stock_from_product_sheets(
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
 ) -> dict[str, Any]:
@@ -304,6 +319,7 @@ def map_opening_stock_from_product_sheets(
     - Opening Qty = Quantity file Opening Balance (authority).
     - Opening Amount = previous-year Closing Balance Amount for that product (exact name first).
     - Unmatched products may resolve via Rule Book subcategory fallback (renamed/combined).
+    - Gold/Silver products use the previous-year Trading sheet Closing Stock when present.
     - Missing product or Closing Amt → amount blank, logged with product + reason.
     """
     logger = log or get_logger()
@@ -362,6 +378,7 @@ def map_opening_stock_from_product_sheets(
             subcategory_products=subcategory_products,
             sheet_products=sheet_products,
             dedicated_product_sheets=dedicated_product_sheets,
+            trading_sheet_products=trading_sheet_products,
             rule_book=rule_book,
             log=logger,
             claimed_prev_keys=claimed_prev_keys,
@@ -385,20 +402,29 @@ def map_opening_stock_from_product_sheets(
         }
 
         if status == 'matched_fallback':
+            prev_names = fallback.get('previousYearProducts')
+            use_exact = _is_single_exact_previous_name(
+                str(entry_base['product']),
+                prev_names,
+            )
+            status_label = 'matched' if use_exact else 'matched_fallback'
             row = {
                 **common,
                 'openingAmt': fallback.get('openingAmt'),
-                'status': 'matched_fallback',
-                'reason': fallback.get('reason'),
+                'status': status_label,
+                'reason': fallback.get('reason') if not use_exact else None,
             }
-            fallback_matched.append(row)
+            if use_exact:
+                matched.append(row)
+            else:
+                fallback_matched.append(row)
             validated_opening.append(
                 {
                     'product': entry_base['product'],
                     'openingQty': entry_base.get('openingQty'),
                     'openingAmt': fallback.get('openingAmt'),
-                    'status': 'matched_fallback',
-                    'reason': fallback.get('reason'),
+                    'status': status_label,
+                    'reason': fallback.get('reason') if not use_exact else None,
                     'sheetName': sheet_name,
                     'ruleBookProduct': fallback.get('ruleBookProduct'),
                     'category': fallback.get('category'),
@@ -505,6 +531,13 @@ def map_opening_stock_from_product_sheets(
             'sku': qty_row.get('sku'),
         }
 
+        if trading_sheet_products:
+            from app.engines.financials_engine.engine.metal_trading import metal_opening_group
+
+            if metal_opening_group(product) is not None:
+                if _apply_fallback(entry_base, primary_reason='previous_year_trading_sheet'):
+                    continue
+
         if sheet is None:
             if _apply_fallback(entry_base, primary_reason='product_sheet_not_found'):
                 continue
@@ -544,11 +577,31 @@ def map_opening_stock_from_product_sheets(
             )
             continue
 
+        has_fallback_index = bool(
+            subcategory_products or sheet_products or dedicated_product_sheets
+        )
+        # Always check qty (and any Polki a / Polki b variants) before taking amount.
+        if has_fallback_index:
+            if _apply_fallback(entry_base, primary_reason='quantity_must_match_before_amount'):
+                continue
+
+        closing_qty = _coerce_opening_measure(sheet.get('closingStockQty'))
+        if not _qty_equal(opening_qty_f, closing_qty):
+            if _apply_fallback(entry_base, primary_reason='quantity_mismatch'):
+                continue
+            _record_unmatched(
+                entry_base,
+                reason='quantity_mismatch',
+                sheet_name=sheet_name,
+                primary_reason='quantity_mismatch',
+            )
+            continue
+
         matched.append(
             {
                 **entry_base,
                 'openingAmt': opening_amt_f,
-                'previousClosingQty': sheet.get('closingStockQty'),
+                'previousClosingQty': closing_qty,
                 'previousClosingAmount': opening_amt_f,
                 'status': 'matched',
                 'sheetName': sheet_name,
@@ -615,6 +668,7 @@ def validate_opening_stock(
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
     **_ignored: Any,
@@ -644,6 +698,7 @@ def validate_opening_stock(
         subcategory_products=subcategory_products,
         sheet_products=sheet_products,
         dedicated_product_sheets=dedicated_product_sheets,
+        trading_sheet_products=trading_sheet_products,
         rule_book=rule_book,
         log=log,
     )

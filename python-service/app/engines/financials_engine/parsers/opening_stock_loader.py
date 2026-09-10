@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 from openpyxl import load_workbook
 
+from app.engines.financials_engine.engine.metal_trading import metal_opening_group
 from app.engines.financials_engine.engine.opening_stock import (
     norm_opening_product_name,
     product_sheet_lookup_keys,
@@ -246,14 +247,113 @@ def load_opening_quantity_workbook(
     return rows
 
 
+def _is_trading_sheet(sheet_name: str) -> bool:
+    low = str(sheet_name or '').strip().casefold()
+    return low in {'trading', 'trading account', 'trading a/c', 'trading ac'}
+
+
 def _is_non_stock_sheet(sheet_name: str) -> bool:
     low = str(sheet_name or '').strip().casefold()
     if not low:
+        return True
+    if _is_trading_sheet(low):
         return True
     for hint in NON_STOCK_SHEET_HINTS:
         if hint == low or hint in low:
             return True
     return False
+
+
+def _is_trading_particulars_line(text: str) -> bool:
+    key = normalize_header(text)
+    if not key:
+        return True
+    if key in {'total', 'particulars', 'amount', 'qty', 'qty_grms', 'qty_cts'}:
+        return True
+    if key.startswith('to_') or key.startswith('by_') or key.startswith('less'):
+        return True
+    return False
+
+
+def _is_trading_closing_label(text: str) -> bool:
+    key = normalize_header(text)
+    return key in {
+        'by_closing_stock',
+        'by_closing',
+        'closing_stock',
+        'by_closing_stk',
+        'closing_balance',
+    } or key.endswith('closing_stock')
+
+
+def _numbers_right_of_column(values: list[Any], label_col: int) -> tuple[float | None, float | None]:
+    nums: list[float] = []
+    for idx in range(label_col + 1, len(values)):
+        number = parse_numeric_value(values[idx])
+        if number is None:
+            continue
+        nums.append(float(number))
+        if len(nums) >= 2:
+            break
+    qty = nums[0] if nums else None
+    amt = nums[1] if len(nums) > 1 else None
+    return qty, amt
+
+
+def _extract_trading_metal_closing(
+    raw: pd.DataFrame,
+    *,
+    sheet_name: str,
+) -> list[dict[str, Any]]:
+    """Read Gold/Silver T-account Closing Stock from a previous-year Trading sheet."""
+    extracted: list[dict[str, Any]] = []
+    current_title: str | None = None
+
+    for ridx in range(len(raw)):
+        values = list(raw.iloc[ridx].tolist())
+        labels: list[tuple[int, str]] = []
+        for col, value in enumerate(values):
+            if isinstance(value, str) and str(value).strip():
+                labels.append((col, str(value).strip()))
+            elif value is not None and not isinstance(value, (int, float, bool)):
+                text = str(value).strip()
+                if text:
+                    labels.append((col, text))
+
+        title_hit = None
+        for _col, text in labels:
+            if _is_trading_particulars_line(text) or _is_trading_closing_label(text):
+                continue
+            if metal_opening_group(text) is None:
+                continue
+            title_hit = text
+            break
+        if title_hit:
+            current_title = title_hit
+            continue
+
+        if not current_title:
+            continue
+
+        for col, text in labels:
+            if not _is_trading_closing_label(text):
+                continue
+            qty, amt = _numbers_right_of_column(values, col)
+            if qty is None and amt is None:
+                break
+            extracted.append(
+                {
+                    'product': current_title,
+                    'sheetName': sheet_name,
+                    'closingStockQty': qty,
+                    'closingStockAmount': amt,
+                    'found': amt is not None or qty is not None,
+                    'source': 'trading_sheet',
+                }
+            )
+            break
+
+    return extracted
 
 
 def _is_category_closing_tab(sheet_name: str) -> bool:
@@ -473,6 +573,7 @@ def load_previous_year_product_index(
     *,
     log: Any | None = None,
     dedicated_product_sheets: list[dict[str, Any]] | None = None,
+    trading_sheet_products: list[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
     Index previous-year Closing Balance by product.
@@ -511,7 +612,7 @@ def load_previous_year_product_index(
     try:
         for sheet_name in sheet_names:
             display_name = str(sheet_name or '').strip()
-            if _is_non_stock_sheet(display_name):
+            if _is_non_stock_sheet(display_name) and not _is_trading_sheet(display_name):
                 continue
 
             try:
@@ -529,6 +630,13 @@ def load_previous_year_product_index(
                 continue
 
             raw = pd.DataFrame(rows)
+
+            if _is_trading_sheet(display_name):
+                if trading_sheet_products is not None:
+                    trading_sheet_products.extend(
+                        _extract_trading_metal_closing(raw, sheet_name=display_name)
+                    )
+                continue
 
             if _is_category_closing_tab(display_name):
                 extracted = _extract_products_from_category_sheet(raw, sheet_name=display_name)
@@ -627,11 +735,13 @@ def load_previous_year_opening_stock(
 ) -> dict[str, Any]:
     """Product index plus subcategory/sheet groupings for fallback mapping."""
     dedicated_product_sheets: list[dict[str, Any]] = []
+    trading_sheet_products: list[dict[str, Any]] = []
     product_index = load_previous_year_product_index(
         file_bytes,
         file_name,
         log=log,
         dedicated_product_sheets=dedicated_product_sheets,
+        trading_sheet_products=trading_sheet_products,
     )
     subcategory_products, sheet_products = _build_subcategory_indexes(product_index)
     return {
@@ -639,6 +749,7 @@ def load_previous_year_opening_stock(
         'subcategoryProducts': subcategory_products,
         'sheetProducts': sheet_products,
         'dedicatedProductSheets': dedicated_product_sheets,
+        'tradingSheetProducts': trading_sheet_products,
     }
 
 

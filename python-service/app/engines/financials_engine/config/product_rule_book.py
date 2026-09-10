@@ -421,13 +421,31 @@ def _aggregate_pivot_by_rule_book(
     return by_display, unmapped_rows
 
 
+_RECEIPT_QTY_KEYS: tuple[str, ...] = (
+    'receiptsInternalQty',
+    'receiptsJubileeHillsQty',
+    'receiptsKokapetQty',
+)
+
+
+def _sum_qty_parts(raw: Mapping[str, float | None], keys: Sequence[str]) -> float | None:
+    parts = [_coerce_measure(raw.get(key)) for key in keys]
+    if all(part is None for part in parts):
+        return None
+    return float(sum(Decimal(str(part or 0)) for part in parts))
+
+
 def _add_stock_section_totals(raw: dict[str, float | None]) -> dict[str, float | None]:
     """
-    Total Qty/Amt = Opening + Purchases + combined Receipts columns.
+    Total Qty/Amt = Opening + Purchases + Receipts Total.
 
-    Missing components count as 0. Leave Total blank when all three are blank.
-    Does not change Opening, Purchases, or Receipts values.
+    Receipts Total Qty = Internal + Jubilee Hills + Kokapet when those columns
+    have values. Missing components count as 0.
     """
+    receipts_from_branches = _sum_qty_parts(raw, _RECEIPT_QTY_KEYS)
+    if receipts_from_branches is not None:
+        raw['receiptsQty'] = receipts_from_branches
+
     opening_qty = _coerce_measure(raw.get('openingQty'))
     purchases_qty = _coerce_measure(raw.get('purchasesQty'))
     receipts_qty = _coerce_measure(raw.get('receiptsQty'))
@@ -495,6 +513,8 @@ def _add_issues_amounts(raw: dict[str, float | None]) -> dict[str, float | None]
             raw[amt_key] = 0.0
             continue
         raw[amt_key] = float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+    issues_total_amt = _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
+    raw['issuesTotalAmt'] = issues_total_amt
     return raw
 
 
@@ -506,14 +526,8 @@ _ISSUE_QTY_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_qty(raw: Mapping[str, float | None]) -> float | None:
-    """Use Issues Total Qty when present; otherwise sum the three issue qty columns."""
-    existing = _coerce_measure(raw.get('issuesTotalQty'))
-    if existing is not None:
-        return existing
-    parts = [_coerce_measure(raw.get(key)) for key in _ISSUE_QTY_KEYS]
-    if all(part is None for part in parts):
-        return None
-    return float(sum(Decimal(str(part or 0)) for part in parts))
+    """Issues Total Qty = Internal + Banjara Hills + Kokapet."""
+    return _sum_qty_parts(raw, _ISSUE_QTY_KEYS)
 
 
 def _add_closing_stock(raw: dict[str, float | None]) -> dict[str, float | None]:
@@ -521,6 +535,7 @@ def _add_closing_stock(raw: dict[str, float | None]) -> dict[str, float | None]:
     total_qty = _coerce_measure(raw.get('totalQty'))
     sales_qty = _coerce_measure(raw.get('salesQty'))
     issues_total_qty = _issues_total_qty(raw)
+    raw['issuesTotalQty'] = issues_total_qty
     if total_qty is None and sales_qty is None and issues_total_qty is None:
         raw['closingStockQty'] = None
         raw['closingStockAmt'] = None
@@ -544,14 +559,8 @@ _ISSUE_AMT_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_amt(raw: Mapping[str, float | None]) -> float | None:
-    """Use Issues Total Amount when present; otherwise sum the three issue amount columns."""
-    existing = _coerce_measure(raw.get('issuesTotalAmt'))
-    if existing is not None:
-        return existing
-    parts = [_coerce_measure(raw.get(key)) for key in _ISSUE_AMT_KEYS]
-    if all(part is None for part in parts):
-        return None
-    return float(sum(Decimal(str(part or 0)) for part in parts))
+    """Issues Total Amount = Internal + Banjara Hills + Kokapet."""
+    return _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
 
 
 def _add_gross_profit(raw: dict[str, float | None]) -> dict[str, float | None]:
@@ -651,8 +660,11 @@ _MEASURE_KEYS = (
     'salesQty',
     'salesAmt',
     'receiptsInternalQty',
+    'receiptsInternalAmt',
     'receiptsJubileeHillsQty',
+    'receiptsJubileeHillsAmt',
     'receiptsKokapetQty',
+    'receiptsKokapetAmt',
     'receiptsQty',
     'receiptsAmt',
     'totalQty',
@@ -663,6 +675,8 @@ _MEASURE_KEYS = (
     'issuesBanjaraHillsAmt',
     'issuesKokapetQty',
     'issuesKokapetAmt',
+    'issuesTotalQty',
+    'issuesTotalAmt',
     'closingStockQty',
     'closingStockAmt',
     'grossProfitAmt',
@@ -673,10 +687,11 @@ def _total_measures_from_raw(
     raw_rows: Sequence[Mapping[str, float | None]],
 ) -> dict[str, float | None]:
     """
-    TOTAL / GRAND TOTAL from original unrounded pivot values.
+    TOTAL / GRAND TOTAL: each column is SUM of product rows in that group.
 
     Amounts: ROUND(SUM(unrounded)) — never sum of already-rounded product cells.
     Quantity: SUM(unrounded) with no rounding.
+    Average Rate stays Total Amt / Total Qty (not a sum of rates).
     """
     totals: dict[str, float] = {}
     present: set[str] = set()
