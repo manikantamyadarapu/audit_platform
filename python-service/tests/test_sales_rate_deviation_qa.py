@@ -7,8 +7,7 @@ from app.engines.sales_engine.engine.record_dedup import dedupe_invalid_records_
 from app.engines.sales_engine.services.metal_rate_store import save_rule_book
 from app.engines.sales_engine.validators.sales_audit_messages import (
     MSG_PRODUCT_MAPPING,
-    MSG_RATE_ABOVE,
-    MSG_RATE_BELOW,
+    MSG_RATE_OUTSIDE,
     MSG_UNIT_RATE_MISSING,
 )
 from tests.test_sales_audit_processor import _row, _wb_bytes
@@ -54,7 +53,7 @@ def test_rate_below_minimum_message():
     assert out['errorRows'] == 1
     rec = out['records'][0]
     assert rec['issues'] == ['INVALID_RATE_DEVIATION']
-    assert MSG_RATE_BELOW in rec['messages']
+    assert MSG_RATE_OUTSIDE in rec['messages']
     assert rec['minAllowedRate'] == 7650
     assert rec['maxAllowedRate'] == 10350
     assert rec['currentMarketRate'] == 9000
@@ -76,7 +75,7 @@ def test_rate_above_maximum_message():
     )
     assert out['errorRows'] == 1
     rec = out['records'][0]
-    assert MSG_RATE_ABOVE in rec['messages']
+    assert MSG_RATE_OUTSIDE in rec['messages']
 
 
 def test_product_mapping_mismatch_message():
@@ -172,7 +171,7 @@ def test_duplicate_invalid_rows_merged_to_one_per_excel_row():
             'product': 'Gold Ornaments 22K',
             'unitRate': 5800,
             'issues': ['INVALID_RATE_DEVIATION'],
-            'messages': [MSG_RATE_BELOW],
+            'messages': [MSG_RATE_OUTSIDE],
         },
         {
             'rowNumber': 5,

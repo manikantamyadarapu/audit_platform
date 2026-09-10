@@ -357,26 +357,12 @@ export default function Profile() {
                 {canEdit ? (
                   <>
                     You can update your name, email, and password from this page. Role changes still
-                    require an administrator on the{' '}
-                    <Link
-                      to="/users"
-                      className="font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                    >
-                      Users
-                    </Link>{' '}
-                    page.
+                    require an administrator.
                   </>
                 ) : (
                   <>
-                    Your role controls which scrutiny modules and admin tools you can use. Contact an
-                    administrator on the{' '}
-                    <Link
-                      to="/users"
-                      className="font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                    >
-                      Users
-                    </Link>{' '}
-                    page if you need a role or password change.
+                    Your role controls which scrutiny modules and admin tools you can use. Use the
+                    Users page to manage roles and passwords for other accounts.
                   </>
                 )}
               </p>

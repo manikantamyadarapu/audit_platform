@@ -288,6 +288,11 @@ async def export_closing_stock_template(
         company_name=payload.companyName,
         address=payload.address,
         financial_year=payload.financialYear or 'AY 2025-26',
+        sales_pivot=[row.model_dump() for row in payload.salesPivot],
+        purchases_pivot=[row.model_dump() for row in payload.purchasesPivot],
+        opening_pivot=[row.model_dump() for row in payload.openingPivot],
+        mr_pivots=_dump_location_pivots(payload.mrPivots),
+        dc_pivots=_dump_location_pivots(payload.dcPivots),
     )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'Closing-Stock-Jewels-{timestamp}.xlsx'
