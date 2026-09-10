@@ -1,4 +1,4 @@
-"""Blank Trading T-account sheet (structure only — no values or formulas)."""
+"""Trading T-account sheet: Gold/Silver source lines plus gemstone T-accounts."""
 
 from __future__ import annotations
 
@@ -7,6 +7,15 @@ from typing import Any, Mapping, Sequence
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.metal_trading import (
+    aggregate_metal_trading_totals,
+    from_head_office_qty,
+    metal_closing_amt,
+    metal_closing_qty,
+    metal_gross_profit_amt,
+    to_head_office_amt,
+    to_head_office_qty,
+)
 from app.utils.indian_number_format import apply_indian_number_format
 
 TRADING_SHEET_NAME = 'Trading'
@@ -25,6 +34,112 @@ _GROSS_PROFIT_LABEL = 'To Gross Profit'
 _FROM_HEAD_OFFICE = 'To Transfer from Head Office'
 _TO_HEAD_OFFICE = 'By Transfer to Head Office'
 _QTY_EPS = 1e-12
+
+# Blank Gold/Silver T-accounts rendered above the existing gemstone Trading block.
+TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
+    {
+        'title': 'GOLD ACCOUNT - 24K',
+        'qty_header': 'Qty (Grms)',
+        'left': (
+            'To Opening Stock',
+            'To Purchases',
+            'Less: Purchase Returns',
+            'Difference',
+            'To Gross Profit',
+            'Total',
+        ),
+        'right': (
+            'By Sales',
+            'Less: Sales Returns',
+            'Difference',
+            'By Transfer to Head Office',
+            'By Closing stock',
+            'Total',
+        ),
+    },
+    {
+        'title': 'GOLD ORNAMENTS ACCOUNT - 22K',
+        'qty_header': 'Qty (Grms)',
+        'left': (
+            'To Opening Stock',
+            'To Purchases',
+            'Less: Purchase Returns',
+            'Difference',
+            'To Transfer from Head Office',
+            'To Making Charges',
+            'To Gross Profit',
+            'Total',
+        ),
+        'right': (
+            'By Sales',
+            'Less: Sales Returns',
+            'Difference',
+            'By Closing stock',
+            'Total',
+        ),
+    },
+    {
+        'title': 'GOLD ORNAMENTS ACCOUNT - 18K',
+        'qty_header': 'Qty (Grms)',
+        'left': (
+            'To Opening Stock',
+            'To Purchases',
+            'Less: Returns',
+            'Difference',
+            'To Transfer from Head Office',
+            'To Making Charges',
+            'To Gross Profit',
+            'Total',
+        ),
+        'right': (
+            'By Sales',
+            'Less: Returns',
+            'Difference',
+            'By Closing stock',
+            'Total',
+        ),
+    },
+    {
+        'title': 'GOLD ORNAMENTS ACCOUNT - 14K',
+        'qty_header': 'Qty (Grms)',
+        'left': (
+            'To Opening Stock',
+            'To Purchases',
+            'Less: Purchase Returns',
+            'Difference',
+            'To Transfer from Head Office',
+            'To Gross Profit',
+            'Total',
+        ),
+        'right': (
+            'By Sales',
+            'Less: Sales Returns',
+            'Difference',
+            'By Closing stock',
+            'Total',
+        ),
+    },
+    {
+        'title': 'SILVER ACCOUNT',
+        'qty_header': 'Qty (Grms)',
+        'left': (
+            'To Opening Stock',
+            'To Purchases',
+            'Less: Returns',
+            'Difference',
+            'To Transfer from Head Office',
+            'To Gross Profit',
+            'Total',
+        ),
+        'right': (
+            'By Sales',
+            'Less: Sales Returns',
+            'Difference',
+            'By Closing stock',
+            'Total',
+        ),
+    },
+)
 
 TRADING_ACCOUNT_SOURCE_CATEGORY: dict[str, str] = {
     'DIAMONDS ACCOUNT': 'Diamond',
@@ -142,6 +257,13 @@ TRADING_ACCOUNTS: tuple[dict[str, object], ...] = (
 )
 
 
+def _account_block_height(account: Mapping[str, object]) -> int:
+    left_body = len(tuple(account['left'])) - 1
+    right_body = len(tuple(account['right'])) - 1
+    body_rows = max(left_body, right_body)
+    return 1 + 1 + body_rows + 1 + _BLANK_ROWS_BETWEEN_ACCOUNTS
+
+
 def _grand_total_from_layout(layout_rows: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
     for row in reversed(list(layout_rows or [])):
         if str(row.get('kind') or '') == 'grand_total':
@@ -162,7 +284,7 @@ def _coerce_measure(value: Any) -> float | None:
 
 
 def _head_office_transfer(grand_total: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    """Qty sign picks the side; Amount is always ABS(Receipts Amt − Issues Amt)."""
+    """Qty sign picks the side. From HO amount stays blank; To HO Amt = ABS(Receipts − Issues)."""
     totals = grand_total or {}
     qty = (_coerce_measure(totals.get('receiptsJubileeHillsQty')) or 0.0) - (
         _coerce_measure(totals.get('issuesBanjaraHillsQty')) or 0.0
@@ -179,7 +301,7 @@ def _head_office_transfer(grand_total: Mapping[str, Any] | None) -> dict[str, An
             'side': 'left',
             'label': _FROM_HEAD_OFFICE,
             'qty': qty,
-            'amt': amt,
+            'amt': None,
         }
     return {
         'side': 'right',
@@ -246,6 +368,33 @@ def _account_computed(
     }
 
 
+_SKIP_IN_METAL_TOTAL = frozenset({'Total', 'Difference'})
+
+
+def _metal_side_total(
+    labels: Sequence[str | None],
+    totals: Mapping[str, Any],
+    transfer: Mapping[str, Any] | None,
+    side: str,
+    computed: Mapping[str, float] | None = None,
+) -> tuple[Any, Any]:
+    """Sum displayed Qty/Amt on one T-account side. Difference is a subtotal (not added again)."""
+    qty_total: float | None = None
+    amt_total: float | None = None
+    for label in labels:
+        if not label or label in _SKIP_IN_METAL_TOTAL:
+            continue
+        qty, amt = _line_values(
+            label, totals, transfer, computed, side=side, metal_source=True
+        )
+        sign = -1 if str(label).startswith('Less:') else 1
+        if qty is not None:
+            qty_total = (0.0 if qty_total is None else qty_total) + sign * float(qty)
+        if amt is not None:
+            amt_total = (0.0 if amt_total is None else amt_total) + sign * float(amt)
+    return qty_total, amt_total
+
+
 def _line_values(
     label: str | None,
     grand_total: Mapping[str, Any],
@@ -253,6 +402,7 @@ def _line_values(
     computed: Mapping[str, float] | None = None,
     *,
     side: str = 'left',
+    metal_source: bool = False,
 ) -> tuple[Any, Any]:
     if not label:
         return None, None
@@ -263,8 +413,19 @@ def _line_values(
         if side == 'right':
             return calc.get('rightQty'), calc.get('rightAmt')
         return calc.get('leftQty'), calc.get('leftAmt')
+    if metal_source and label == _FROM_HEAD_OFFICE:
+        return from_head_office_qty(grand_total), None
+    if metal_source and label == _TO_HEAD_OFFICE:
+        qty = to_head_office_qty(grand_total)
+        return qty, to_head_office_amt(grand_total)
     if transfer and label == transfer.get('label'):
         return transfer.get('qty'), transfer.get('amt')
+    if label == 'Difference':
+        if side == 'right':
+            return grand_total.get('netSalesQty'), grand_total.get('netSalesAmt')
+        return grand_total.get('netPurchasesQty'), grand_total.get('netPurchasesAmt')
+    if metal_source and label == 'By Closing stock':
+        return metal_closing_qty(grand_total), metal_closing_amt(grand_total)
     keys = _LINE_MEASURES.get(label)
     if not keys:
         return None, None
@@ -351,12 +512,27 @@ def _write_t_account(
     start_row: int,
     account: dict[str, object],
     grand_total: Mapping[str, Any] | None = None,
+    *,
+    structure_only: bool = False,
+    fill_source_lines: bool = False,
 ) -> int:
     title = str(account['title'])
     qty_header = str(account['qty_header'])
     totals = grand_total or {}
-    left_lines, right_lines, transfer = _resolved_lines(totals)
-    computed = _account_computed(totals, transfer)
+    if structure_only:
+        left_lines = [str(label) for label in account['left']]
+        right_lines = [str(label) for label in account['right']]
+        transfer = None
+        computed = None
+    elif fill_source_lines:
+        left_lines = [str(label) for label in account['left']]
+        right_lines = [str(label) for label in account['right']]
+        transfer = _head_office_transfer(totals)
+        computed = None
+    else:
+        left_lines, right_lines, transfer = _resolved_lines(totals)
+        computed = _account_computed(totals, transfer)
+    write_values = fill_source_lines or not structure_only
 
     ws.merge_cells(
         start_row=start_row,
@@ -399,16 +575,42 @@ def _write_t_account(
     body_rows = max(len(left_body), len(right_body))
     first_line_row = header_row + 1
 
+    left_total_qty, left_total_amt = (None, None)
+    right_total_qty, right_total_amt = (None, None)
+    if fill_source_lines:
+        right_total_qty, right_total_amt = _metal_side_total(
+            right_body, totals, transfer, 'right'
+        )
+        computed = {
+            'grossProfitAmt': metal_gross_profit_amt(totals, right_total_amt),
+        }
+        left_total_qty, left_total_amt = _metal_side_total(
+            left_body, totals, transfer, 'left', computed
+        )
+
     for offset in range(body_rows):
         row = first_line_row + offset
         left_label = left_body[offset] if offset < len(left_body) else None
         right_label = right_body[offset] if offset < len(right_body) else None
-        left_qty, left_amt = _line_values(
-            left_label, totals, transfer, computed, side='left'
-        )
-        right_qty, right_amt = _line_values(
-            right_label, totals, transfer, computed, side='right'
-        )
+        left_qty, left_amt = (None, None)
+        right_qty, right_amt = (None, None)
+        if write_values:
+            left_qty, left_amt = _line_values(
+                left_label,
+                totals,
+                transfer,
+                computed,
+                side='left',
+                metal_source=fill_source_lines,
+            )
+            right_qty, right_amt = _line_values(
+                right_label,
+                totals,
+                transfer,
+                computed,
+                side='right',
+                metal_source=fill_source_lines,
+            )
         _write_line(
             ws,
             row,
@@ -434,12 +636,13 @@ def _write_t_account(
             amt_value=right_amt,
         )
 
-    left_total_qty, left_total_amt = _line_values(
-        'Total', totals, transfer, computed, side='left'
-    )
-    right_total_qty, right_total_amt = _line_values(
-        'Total', totals, transfer, computed, side='right'
-    )
+    if write_values and not fill_source_lines:
+        left_total_qty, left_total_amt = _line_values(
+            'Total', totals, transfer, computed, side='left'
+        )
+        right_total_qty, right_total_amt = _line_values(
+            'Total', totals, transfer, computed, side='right'
+        )
     total_row = first_line_row + body_rows
     _write_line(
         ws,
@@ -472,9 +675,22 @@ def _write_t_account(
 def write_trading_sheet(
     ws: Worksheet,
     layout_by_category: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    *,
+    sales_pivot: Sequence[Mapping[str, Any]] | None = None,
+    purchases_pivot: Sequence[Mapping[str, Any]] | None = None,
+    opening_pivot: Sequence[Mapping[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> None:
-    """Write the five T-accounts. Opening/Purchases/Sales/Closing copy GRAND TOTAL values."""
+    """Write Gold/Silver T-accounts first, then the existing gemstone T-accounts."""
     layouts = layout_by_category or {}
+    metal_totals = aggregate_metal_trading_totals(
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
     ws.title = TRADING_SHEET_NAME
     ws.sheet_state = 'visible'
     ws.sheet_properties.tabColor = '0F766E'
@@ -493,6 +709,15 @@ def write_trading_sheet(
     ws.column_dimensions['G'].width = 16
 
     row = 1
+    for account in TRADING_METAL_ACCOUNTS:
+        title = str(account['title'])
+        row = _write_t_account(
+            ws,
+            row,
+            account,
+            metal_totals.get(title) or {},
+            fill_source_lines=True,
+        )
     for account in TRADING_ACCOUNTS:
         category = TRADING_ACCOUNT_SOURCE_CATEGORY[str(account['title'])]
         grand_total = _grand_total_from_layout(layouts.get(category))

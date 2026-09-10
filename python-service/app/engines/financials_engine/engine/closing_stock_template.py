@@ -517,6 +517,11 @@ def build_closing_stock_template_bytes(
     address: str = '',
     financial_year: str = 'AY 2025-26',
     categories: Sequence[str] | None = None,
+    sales_pivot: Sequence[dict[str, Any]] | None = None,
+    purchases_pivot: Sequence[dict[str, Any]] | None = None,
+    opening_pivot: Sequence[dict[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[dict[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[dict[str, Any]]] | None = None,
 ) -> bytes:
     """
     Build a blank Closing Stock workbook with one sheet per jewel category.
@@ -565,6 +570,11 @@ def build_closing_stock_template_bytes(
     write_trading_sheet(
         wb.create_sheet(title=TRADING_SHEET_NAME),
         layout_by_category=layouts,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
     )
 
     buffer = BytesIO()

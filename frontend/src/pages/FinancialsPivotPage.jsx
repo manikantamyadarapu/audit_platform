@@ -1153,7 +1153,14 @@ export default function FinancialsPivotPage() {
             </CardHeader>
             <CardBody>
               {activeCategory === TRADING_SHEET_NAME ? (
-                <TradingAccountPreview layoutByCategory={layoutByCategory} />
+                <TradingAccountPreview
+                  layoutByCategory={layoutByCategory}
+                  salesPivot={salesPivot}
+                  purchasesPivot={purchasesPivot}
+                  openingPivot={openingPivot}
+                  mrPivots={mrPivots}
+                  dcPivots={dcPivots}
+                />
               ) : (
                 <ClosingStockPreviewTable
                   category={activeCategory}

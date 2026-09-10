@@ -309,6 +309,7 @@ def map_opening_stock_from_product_sheets(
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
 ) -> dict[str, Any]:
@@ -318,6 +319,7 @@ def map_opening_stock_from_product_sheets(
     - Opening Qty = Quantity file Opening Balance (authority).
     - Opening Amount = previous-year Closing Balance Amount for that product (exact name first).
     - Unmatched products may resolve via Rule Book subcategory fallback (renamed/combined).
+    - Gold/Silver products use the previous-year Trading sheet Closing Stock when present.
     - Missing product or Closing Amt → amount blank, logged with product + reason.
     """
     logger = log or get_logger()
@@ -376,6 +378,7 @@ def map_opening_stock_from_product_sheets(
             subcategory_products=subcategory_products,
             sheet_products=sheet_products,
             dedicated_product_sheets=dedicated_product_sheets,
+            trading_sheet_products=trading_sheet_products,
             rule_book=rule_book,
             log=logger,
             claimed_prev_keys=claimed_prev_keys,
@@ -528,6 +531,13 @@ def map_opening_stock_from_product_sheets(
             'sku': qty_row.get('sku'),
         }
 
+        if trading_sheet_products:
+            from app.engines.financials_engine.engine.metal_trading import metal_opening_group
+
+            if metal_opening_group(product) is not None:
+                if _apply_fallback(entry_base, primary_reason='previous_year_trading_sheet'):
+                    continue
+
         if sheet is None:
             if _apply_fallback(entry_base, primary_reason='product_sheet_not_found'):
                 continue
@@ -658,6 +668,7 @@ def validate_opening_stock(
     | None = None,
     sheet_products: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dedicated_product_sheets: Sequence[Mapping[str, Any]] | None = None,
+    trading_sheet_products: Sequence[Mapping[str, Any]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
     **_ignored: Any,
@@ -687,6 +698,7 @@ def validate_opening_stock(
         subcategory_products=subcategory_products,
         sheet_products=sheet_products,
         dedicated_product_sheets=dedicated_product_sheets,
+        trading_sheet_products=trading_sheet_products,
         rule_book=rule_book,
         log=log,
     )

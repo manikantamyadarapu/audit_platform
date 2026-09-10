@@ -1,11 +1,16 @@
+import { useMemo } from 'react';
 import { formatClosingStockMeasure } from '../../config/closingStockLayout';
 import {
   TRADING_ACCOUNTS,
+  TRADING_METAL_ACCOUNTS,
   TRADING_ACCOUNT_SOURCE_CATEGORY,
   grandTotalFromLayout,
+  metalTradingAccountRows,
+  metalTradingLineValues,
   tradingAccountRows,
   tradingLineValues,
 } from '../../config/tradingAccountLayout';
+import { aggregateMetalTradingTotals } from '../../utils/metalTradingTotals';
 import { cn } from '../../utils/cn';
 
 const HEADER_CELL =
@@ -21,7 +26,7 @@ function displayMeasure(value) {
   return formatClosingStockMeasure(value).replace(/\u00a0/g, '').trim();
 }
 
-function SideTable({ qtyHeader, rows, side, grandTotal }) {
+function SideTable({ qtyHeader, rows, side, grandTotal, sourceLinesOnly = false, account }) {
   return (
     <table className="w-full min-w-[18rem] border-collapse bg-white dark:bg-slate-950">
       <thead>
@@ -36,7 +41,9 @@ function SideTable({ qtyHeader, rows, side, grandTotal }) {
           const label = side === 'left' ? row.left : row.right;
           const isGp = label === 'To Gross Profit';
           const isTotal = label === 'Total';
-          const values = tradingLineValues(label, grandTotal, side);
+          const values = sourceLinesOnly
+            ? metalTradingLineValues(label, grandTotal, side, account)
+            : tradingLineValues(label, grandTotal, side);
           return (
             <tr
               key={`${side}-${idx}`}
@@ -60,11 +67,67 @@ function SideTable({ qtyHeader, rows, side, grandTotal }) {
 /**
  * On-screen preview of the Trading T-account sheet.
  * Opening/Purchases/Sales/Closing/HO transfer copy GRAND TOTAL from the category sheet.
- * @param {{ layoutByCategory?: Record<string, object[]> }} props
+ * @param {{
+ *   layoutByCategory?: Record<string, object[]>,
+ *   salesPivot?: object[],
+ *   purchasesPivot?: object[],
+ *   openingPivot?: object[],
+ * }} props
  */
-export function TradingAccountPreview({ layoutByCategory = {} }) {
+export function TradingAccountPreview({
+  layoutByCategory = {},
+  salesPivot = [],
+  purchasesPivot = [],
+  openingPivot = [],
+  mrPivots = {},
+  dcPivots = {},
+}) {
+  const metalTotals = useMemo(
+    () =>
+      aggregateMetalTradingTotals({
+        salesPivot,
+        purchasesPivot,
+        openingPivot,
+        mrPivots,
+        dcPivots,
+      }),
+    [salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots]
+  );
   return (
     <div className="space-y-8 overflow-x-auto">
+      {TRADING_METAL_ACCOUNTS.map((account) => {
+        const rows = metalTradingAccountRows(account);
+        const totals = metalTotals[account.title];
+        return (
+          <section key={account.title} className="space-y-2">
+            <h4 className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100">
+              {account.title}
+            </h4>
+            <div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-stretch">
+              <SideTable
+                qtyHeader={account.qtyHeader}
+                rows={rows}
+                side="left"
+                grandTotal={totals}
+                sourceLinesOnly
+                account={account}
+              />
+              <div
+                className="hidden w-px bg-slate-800 dark:bg-slate-200 lg:block"
+                aria-hidden="true"
+              />
+              <SideTable
+                qtyHeader={account.qtyHeader}
+                rows={rows}
+                side="right"
+                grandTotal={totals}
+                sourceLinesOnly
+                account={account}
+              />
+            </div>
+          </section>
+        );
+      })}
       {TRADING_ACCOUNTS.map((account) => {
         const category = TRADING_ACCOUNT_SOURCE_CATEGORY[account.title];
         const grandTotal = grandTotalFromLayout(layoutByCategory?.[category]);

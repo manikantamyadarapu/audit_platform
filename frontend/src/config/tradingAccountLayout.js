@@ -1,4 +1,5 @@
 import { buildClosingStockPreviewRows } from './closingStockLayout';
+import { metalClosingAmt, metalClosingQty, metalGrossProfitAmt, fromHeadOfficeQty, toHeadOfficeAmt, toHeadOfficeQty } from '../utils/metalTradingTotals';
 
 export const TRADING_SHEET_NAME = 'Trading';
 
@@ -22,9 +23,8 @@ function coerceMeasure(value) {
 }
 
 /**
- * Qty sign picks the side. Amount is always ABS(Receipts Amt − Issues Amt).
- * @param {object|null|undefined} grandTotal
- * @returns {{ side: 'left'|'right', label: string, qty: number, amt: number }|null}
+ * Qty sign picks the side. From HO amount stays blank.
+ * To HO Amount is ABS(Receipts Amt − Issues Amt).
  */
 export function headOfficeTransfer(grandTotal) {
   const qty =
@@ -37,7 +37,7 @@ export function headOfficeTransfer(grandTotal) {
   const amt = Math.abs(receiptsAmt - issuesAmt);
 
   if (qty > 0) {
-    return { side: 'left', label: FROM_HEAD_OFFICE, qty, amt };
+    return { side: 'left', label: FROM_HEAD_OFFICE, qty, amt: null };
   }
   return {
     side: 'right',
@@ -129,6 +129,177 @@ export function tradingLineValues(label, grandTotal, side = 'left') {
   return tradingSourceValues(label, grandTotal);
 }
 
+/**
+ * Gold/Silver: Opening, Purchases, Sales, Closing, Difference, HO qty, GP amt.
+ * HO amounts, returns, making charges, and GP qty stay blank.
+ */
+export function metalTradingLineValues(label, totals, side = 'left', account) {
+  const sideLabels = side === 'right' ? account?.right : account?.left;
+  if (label === 'Total') {
+    return metalTradingSideTotal(sideLabels, totals, side, account);
+  }
+  if (label === 'To Gross Profit') {
+    const rightAmt = metalTradingSideTotal(account?.right, totals, 'right', account).amt;
+    return { qty: null, amt: metalGrossProfitAmt(totals, rightAmt) };
+  }
+  if (label === FROM_HEAD_OFFICE) {
+    return { qty: fromHeadOfficeQty(totals), amt: null };
+  }
+  if (label === TO_HEAD_OFFICE) {
+    return { qty: toHeadOfficeQty(totals), amt: toHeadOfficeAmt(totals) };
+  }
+  const transfer = headOfficeTransfer(totals);
+  if (transfer && label === transfer.label) {
+    return { qty: transfer.qty, amt: transfer.amt };
+  }
+  if (label === 'Difference') {
+    if (!totals) return { qty: null, amt: null };
+    if (side === 'right') {
+      return {
+        qty: coerceMeasure(totals.netSalesQty),
+        amt: coerceMeasure(totals.netSalesAmt),
+      };
+    }
+    return {
+      qty: coerceMeasure(totals.netPurchasesQty),
+      amt: coerceMeasure(totals.netPurchasesAmt),
+    };
+  }
+  if (label === 'By Closing stock') {
+    return {
+      qty: metalClosingQty(totals),
+      amt: metalClosingAmt(totals),
+    };
+  }
+  const keys = LINE_MEASURES[label];
+  if (!keys || !totals) return { qty: null, amt: null };
+  const [qtyKey, amtKey] = keys;
+  return {
+    qty: coerceMeasure(totals[qtyKey]),
+    amt: coerceMeasure(totals[amtKey]),
+  };
+}
+
+const METAL_TOTAL_SKIP = new Set(['Total', 'Difference', '']);
+
+export function metalTradingSideTotal(labels, totals, side, account) {
+  let qty = null;
+  let amt = null;
+  (Array.isArray(labels) ? labels : []).forEach((label) => {
+    if (!label || METAL_TOTAL_SKIP.has(label)) return;
+    const values = metalTradingLineValues(label, totals, side, account);
+    const sign = String(label).startsWith('Less:') ? -1 : 1;
+    if (values.qty != null) qty = (qty == null ? 0 : qty) + sign * values.qty;
+    if (values.amt != null) amt = (amt == null ? 0 : amt) + sign * values.amt;
+  });
+  return { qty, amt };
+}
+
+export const TRADING_METAL_ACCOUNTS = Object.freeze([
+  {
+    title: 'GOLD ACCOUNT - 24K',
+    qtyHeader: 'Qty (Grms)',
+    left: [
+      'To Opening Stock',
+      'To Purchases',
+      'Less: Purchase Returns',
+      'Difference',
+      'To Gross Profit',
+      'Total',
+    ],
+    right: [
+      'By Sales',
+      'Less: Sales Returns',
+      'Difference',
+      'By Transfer to Head Office',
+      'By Closing stock',
+      'Total',
+    ],
+  },
+  {
+    title: 'GOLD ORNAMENTS ACCOUNT - 22K',
+    qtyHeader: 'Qty (Grms)',
+    left: [
+      'To Opening Stock',
+      'To Purchases',
+      'Less: Purchase Returns',
+      'Difference',
+      'To Transfer from Head Office',
+      'To Making Charges',
+      'To Gross Profit',
+      'Total',
+    ],
+    right: [
+      'By Sales',
+      'Less: Sales Returns',
+      'Difference',
+      'By Closing stock',
+      'Total',
+    ],
+  },
+  {
+    title: 'GOLD ORNAMENTS ACCOUNT - 18K',
+    qtyHeader: 'Qty (Grms)',
+    left: [
+      'To Opening Stock',
+      'To Purchases',
+      'Less: Returns',
+      'Difference',
+      'To Transfer from Head Office',
+      'To Making Charges',
+      'To Gross Profit',
+      'Total',
+    ],
+    right: [
+      'By Sales',
+      'Less: Returns',
+      'Difference',
+      'By Closing stock',
+      'Total',
+    ],
+  },
+  {
+    title: 'GOLD ORNAMENTS ACCOUNT - 14K',
+    qtyHeader: 'Qty (Grms)',
+    left: [
+      'To Opening Stock',
+      'To Purchases',
+      'Less: Purchase Returns',
+      'Difference',
+      'To Transfer from Head Office',
+      'To Gross Profit',
+      'Total',
+    ],
+    right: [
+      'By Sales',
+      'Less: Sales Returns',
+      'Difference',
+      'By Closing stock',
+      'Total',
+    ],
+  },
+  {
+    title: 'SILVER ACCOUNT',
+    qtyHeader: 'Qty (Grms)',
+    left: [
+      'To Opening Stock',
+      'To Purchases',
+      'Less: Returns',
+      'Difference',
+      'To Transfer from Head Office',
+      'To Gross Profit',
+      'Total',
+    ],
+    right: [
+      'By Sales',
+      'Less: Sales Returns',
+      'Difference',
+      'By Closing stock',
+      'Total',
+    ],
+  },
+]);
+
 export const TRADING_ACCOUNTS = Object.freeze([
   {
     title: 'DIAMONDS ACCOUNT',
@@ -179,6 +350,27 @@ export function tradingAccountRows(account, grandTotal) {
 
   const leftBody = left.slice(0, -1);
   const rightBody = right.slice(0, -1);
+  const bodyRows = Math.max(leftBody.length, rightBody.length);
+  const rows = [];
+  for (let i = 0; i < bodyRows; i += 1) {
+    rows.push({
+      left: leftBody[i] || '',
+      right: rightBody[i] || '',
+      isTotal: false,
+      amountOnly: leftBody[i] === 'To Gross Profit',
+    });
+  }
+  rows.push({ left: 'Total', right: 'Total', isTotal: true, amountOnly: false });
+  return rows;
+}
+
+/**
+ * Fixed Gold/Silver T-account rows. No values and no Head Office hiding.
+ * @param {{ left: string[], right: string[] }} account
+ */
+export function metalTradingAccountRows(account) {
+  const leftBody = account.left.slice(0, -1);
+  const rightBody = account.right.slice(0, -1);
   const bodyRows = Math.max(leftBody.length, rightBody.length);
   const rows = [];
   for (let i = 0; i < bodyRows; i += 1) {
