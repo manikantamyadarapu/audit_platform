@@ -239,6 +239,7 @@ export default function LedgerAuditPage({ config }) {
     activeFilter,
     exportFilteredColumnOrder,
     result?.exportColumns,
+    result?.columnDisplayHeaders,
     exportFilePrefix,
   ]);
 

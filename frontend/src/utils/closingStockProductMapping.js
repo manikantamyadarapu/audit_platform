@@ -3,7 +3,7 @@
  * Do not bundle a static Rule Book JSON in the frontend.
  */
 
-import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
+import { CLOSING_STOCK_CATEGORIES, TRANSFER_QTY_FIELDS } from '../config/closingStockLayout';
 
 const SHEET_KEY_ALIASES = {
   Precious: 'Precious and Semi Precious',
@@ -112,6 +112,174 @@ function subcategoryTotalLabel(category, subcategory) {
   return 'TOTAL';
 }
 
+const CATEGORY_PREFIXES = [
+  'emeralds ',
+  'emerald ',
+  'rubies ',
+  'ruby ',
+  'pearls ',
+  'pearl ',
+  'diamonds ',
+  'diamond ',
+  'semi precious ',
+  'semiprecious ',
+  'precious ',
+  'synthetic ',
+  'synthetics ',
+  'sythetic ',
+  'sythetics ',
+  'precious stones ',
+];
+
+function stripCategoryPrefix(normName) {
+  for (const prefix of CATEGORY_PREFIXES) {
+    if (normName.startsWith(prefix)) {
+      return normName.slice(prefix.length).trim();
+    }
+  }
+  return normName;
+}
+
+/** Opening Stock name keys — mirrors Python product_sheet_lookup_keys (no Rule Book). */
+function openingProductLookupKeys(product) {
+  const name = String(product || '').trim();
+  const keys = [];
+  const seen = new Set();
+  const add = (key) => {
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+  };
+
+  const primary = normProduct(name);
+  add(primary);
+  add(matchKey(name));
+
+  const stripped = stripCategoryPrefix(primary);
+  if (stripped !== primary) {
+    add(stripped);
+    add(matchKey(stripped));
+  }
+
+  const truncated = name.slice(0, 31);
+  add(normProduct(truncated));
+  add(matchKey(truncated));
+  return keys;
+}
+
+/** Map Opening pivot onto layout labels by product name keys only (no Rule Book). */
+function aggregateOpeningByNameMatch(rows, layoutProductNames) {
+  const skuOwners = {};
+  for (const layoutName of layoutProductNames || []) {
+    const display = String(layoutName || '').trim();
+    const sku = coreSkuKey(display);
+    if (!sku) continue;
+    if (!skuOwners[sku]) skuOwners[sku] = [];
+    skuOwners[sku].push(display);
+  }
+  const uniqueSkus = new Set(
+    Object.entries(skuOwners)
+      .filter(([, owners]) => owners.length === 1)
+      .map(([sku]) => sku)
+  );
+
+  const keysFor = (name) => {
+    const keys = openingProductLookupKeys(name);
+    const sku = coreSkuKey(name);
+    if (sku && uniqueSkus.has(sku) && !keys.includes(sku)) keys.push(sku);
+    return keys;
+  };
+
+  const pivotIndex = {};
+  const pivotProducts = [];
+
+  for (const row of rows || []) {
+    const product = String(row?.product || '').trim();
+    if (!product) continue;
+    const measures = {
+      sumOfQuantity: coerceMeasure(row?.sumOfQuantity),
+      sumOfGross: coerceMeasure(row?.sumOfGross),
+    };
+    const aliasNames = [product];
+    const ruleBookProduct = String(row?.ruleBookProduct || '').trim();
+    if (ruleBookProduct && !aliasNames.includes(ruleBookProduct)) {
+      aliasNames.push(ruleBookProduct);
+    }
+    const keys = [];
+    for (const alias of aliasNames) {
+      for (const key of keysFor(alias)) {
+        if (!keys.includes(key)) keys.push(key);
+      }
+    }
+    pivotProducts.push({ product, keys });
+    for (const key of keys) {
+      if (!pivotIndex[key]) pivotIndex[key] = measures;
+    }
+  }
+
+  const byDisplay = {};
+  const claimedKeys = new Set();
+  for (const layoutName of layoutProductNames || []) {
+    const display = String(layoutName || '').trim();
+    if (!display) continue;
+    for (const key of keysFor(display)) {
+      if (pivotIndex[key]) {
+        byDisplay[display] = pivotIndex[key];
+        claimedKeys.add(key);
+        break;
+      }
+    }
+  }
+
+  const unmappedRows = [];
+  for (const { product, keys } of pivotProducts) {
+    if (keys.some((key) => claimedKeys.has(key))) continue;
+    unmappedRows.push({
+      product,
+      sumOfQuantity: keys.length ? pivotIndex[keys[0]]?.sumOfQuantity ?? null : null,
+      sumOfGross: keys.length ? pivotIndex[keys[0]]?.sumOfGross ?? null : null,
+    });
+  }
+
+  return { byDisplay, unmappedRows };
+}
+
+/** Write fallback-matched Opening onto layout rows by ruleBookProduct + category/subcategory. */
+function applyFallbackOpeningToLayout(byDisplay, rows, book, unmappedRows = []) {
+  const displayLocations = {};
+  for (const { category, subcategory, product } of iterRuleBookProducts(book)) {
+    displayLocations[product] = { category, subcategory };
+  }
+  const normSub = (name) => (name ? normProduct(name) : null);
+  const fallbackQtyNames = new Set();
+
+  for (const row of rows || []) {
+    if (row?.status !== 'matched_fallback') continue;
+    const target = String(row?.ruleBookProduct || '').trim();
+    if (!target || !displayLocations[target]) continue;
+    const loc = displayLocations[target];
+    if (row?.category && row.category !== loc.category) continue;
+    if (
+      row?.subcategory != null &&
+      normSub(row.subcategory) !== normSub(loc.subcategory)
+    ) {
+      continue;
+    }
+    const qty = coerceMeasure(row?.sumOfQuantity);
+    const gross = coerceMeasure(row?.sumOfGross);
+    if (qty === null && gross === null) continue;
+    byDisplay[target] = { sumOfQuantity: qty, sumOfGross: gross };
+    fallbackQtyNames.add(String(row?.product || '').trim());
+  }
+
+  const filteredUnmapped =
+    fallbackQtyNames.size > 0
+      ? unmappedRows.filter((row) => !fallbackQtyNames.has(String(row?.product || '').trim()))
+      : unmappedRows;
+  return { byDisplay, unmappedRows: filteredUnmapped };
+}
+
 function emptyMeasures() {
   return { sumOfQuantity: null, sumOfGross: null };
 }
@@ -196,29 +364,269 @@ function aggregatePivotByRuleBook(rows, lookup) {
   return { byDisplay, unmappedRows };
 }
 
-function rawProductMeasures(ruleBookProduct, salesByDisplay, purchasesByDisplay, openingByDisplay = {}) {
+function emptyTransferQty() {
+  return Object.fromEntries(TRANSFER_QTY_FIELDS.map((key) => [key, null]));
+}
+
+const LOCATION_NET_FIELDS = [
+  ['jubileeHills', 'receiptsJubileeHillsQty', 'issuesBanjaraHillsQty'],
+  ['kokapet', 'receiptsKokapetQty', 'issuesKokapetQty'],
+  ['internalBasheerbagh', 'receiptsInternalQty', 'issuesInternalQty'],
+];
+
+function exactRuleBookLookup(book) {
+  const lookup = {};
+  for (const { product: displayName } of iterRuleBookProducts(book)) {
+    const key = normProduct(displayName);
+    if (key && !lookup[key]) lookup[key] = displayName;
+  }
+  return lookup;
+}
+
+function qtyByNorm(rows) {
+  const totals = {};
+  for (const row of rows || []) {
+    const productName = String(row?.product || '').trim();
+    if (!productName) continue;
+    const key = normProduct(productName);
+    if (!key) continue;
+    const qty = coerceMeasure(row?.sumOfQuantity) ?? 0;
+    totals[key] = (totals[key] ?? 0) + qty;
+  }
+  return totals;
+}
+
+/** Net = MR Qty − DC Qty per branch; exact normalized product match only. */
+function mapMrDcQtyToRuleBook(mrPivots, dcPivots, book) {
+  const lookup = exactRuleBookLookup(book);
+  const byDisplay = {};
+  const mrTree = mrPivots && typeof mrPivots === 'object' ? mrPivots : {};
+  const dcTree = dcPivots && typeof dcPivots === 'object' ? dcPivots : {};
+
+  for (const [location, receiptsKey, issuesKey] of LOCATION_NET_FIELDS) {
+    const mrQty = qtyByNorm(mrTree[location]);
+    const dcQty = qtyByNorm(dcTree[location]);
+    const keys = new Set([...Object.keys(mrQty), ...Object.keys(dcQty)]);
+    for (const key of keys) {
+      const net = (mrQty[key] ?? 0) - (dcQty[key] ?? 0);
+      if (Math.abs(net) < 1e-12) continue;
+      const displayName = lookup[key];
+      if (!displayName) continue;
+      if (!byDisplay[displayName]) byDisplay[displayName] = {};
+      if (net > 0) {
+        byDisplay[displayName][receiptsKey] = (byDisplay[displayName][receiptsKey] ?? 0) + net;
+      } else {
+        byDisplay[displayName][issuesKey] = (byDisplay[displayName][issuesKey] ?? 0) + Math.abs(net);
+      }
+    }
+  }
+  return byDisplay;
+}
+
+function rawProductMeasures(
+  ruleBookProduct,
+  salesByDisplay,
+  purchasesByDisplay,
+  openingByDisplay = {},
+  transferQtyByDisplay = {}
+) {
   const sales = salesByDisplay[ruleBookProduct] || {};
   const purchases = purchasesByDisplay[ruleBookProduct] || {};
   const opening = openingByDisplay[ruleBookProduct] || {};
-  return {
+  const transfer = transferQtyByDisplay[ruleBookProduct] || {};
+  const raw = {
     openingQty: opening.sumOfQuantity ?? null,
     openingAmt: opening.sumOfGross ?? null,
     purchasesQty: purchases.sumOfQuantity ?? null,
     purchasesAmt: purchases.sumOfGross ?? null,
     salesQty: sales.sumOfQuantity ?? null,
     salesAmt: sales.sumOfGross ?? null,
+    receiptsQty: null,
+    receiptsAmt: null,
+    ...emptyTransferQty(),
+    ...Object.fromEntries(
+      TRANSFER_QTY_FIELDS.map((key) => [key, transfer[key] ?? null])
+    ),
   };
+  return addStockSectionTotals(raw);
+}
+
+const RECEIPT_QTY_KEYS = [
+  'receiptsInternalQty',
+  'receiptsJubileeHillsQty',
+  'receiptsKokapetQty',
+];
+
+const ISSUE_QTY_KEYS = [
+  'issuesInternalQty',
+  'issuesBanjaraHillsQty',
+  'issuesKokapetQty',
+];
+
+const ISSUE_AMT_KEYS = [
+  'issuesInternalAmt',
+  'issuesBanjaraHillsAmt',
+  'issuesKokapetAmt',
+];
+
+function sumQtyParts(raw, keys) {
+  const parts = keys.map((key) => coerceMeasure(raw[key]));
+  if (parts.every((part) => part === null)) return null;
+  return parts.reduce((sum, part) => sum + (part ?? 0), 0);
+}
+
+function addStockSectionTotals(raw) {
+  const receiptsFromBranches = sumQtyParts(raw, RECEIPT_QTY_KEYS);
+  if (receiptsFromBranches !== null) {
+    raw.receiptsQty = receiptsFromBranches;
+  }
+  const openingQty = coerceMeasure(raw.openingQty);
+  const purchasesQty = coerceMeasure(raw.purchasesQty);
+  const receiptsQty = coerceMeasure(raw.receiptsQty);
+  const openingAmt = coerceMeasure(raw.openingAmt);
+  const purchasesAmt = coerceMeasure(raw.purchasesAmt);
+  const receiptsAmt = coerceMeasure(raw.receiptsAmt);
+
+  if (openingQty === null && purchasesQty === null && receiptsQty === null) {
+    raw.totalQty = null;
+  } else {
+    raw.totalQty = (openingQty ?? 0) + (purchasesQty ?? 0) + (receiptsQty ?? 0);
+  }
+  if (openingAmt === null && purchasesAmt === null && receiptsAmt === null) {
+    raw.totalAmt = null;
+  } else {
+    raw.totalAmt = (openingAmt ?? 0) + (purchasesAmt ?? 0) + (receiptsAmt ?? 0);
+  }
+  return addGrossProfitPct(addGrossProfit(addClosingStock(addIssuesAmounts(addAverageRate(raw)))));
+}
+
+function addAverageRate(raw) {
+  const totalQty = coerceMeasure(raw.totalQty);
+  const totalAmt = coerceMeasure(raw.totalAmt);
+  if (totalQty === null && totalAmt === null) {
+    raw.averageRateAmt = null;
+    return raw;
+  }
+  if (totalQty === null || totalQty === 0) {
+    raw.averageRateAmt = 0;
+    return raw;
+  }
+  raw.averageRateAmt = (totalAmt ?? 0) / totalQty;
+  return raw;
+}
+
+const ISSUE_AMT_BY_QTY = [
+  ['issuesInternalQty', 'issuesInternalAmt'],
+  ['issuesBanjaraHillsQty', 'issuesBanjaraHillsAmt'],
+  ['issuesKokapetQty', 'issuesKokapetAmt'],
+];
+
+function addIssuesAmounts(raw) {
+  const rate = coerceMeasure(raw.averageRateAmt);
+  for (const [qtyKey, amtKey] of ISSUE_AMT_BY_QTY) {
+    const qty = coerceMeasure(raw[qtyKey]);
+    if (qty === null) {
+      raw[amtKey] = null;
+      continue;
+    }
+    if (qty === 0) {
+      raw[amtKey] = 0;
+      continue;
+    }
+    raw[amtKey] = qty * (rate ?? 0);
+  }
+  raw.issuesTotalAmt = sumQtyParts(raw, ISSUE_AMT_KEYS);
+  return raw;
+}
+
+function issuesTotalQty(raw) {
+  return sumQtyParts(raw, ISSUE_QTY_KEYS);
+}
+
+function addClosingStock(raw) {
+  const totalQty = coerceMeasure(raw.totalQty);
+  const salesQty = coerceMeasure(raw.salesQty);
+  const issuesQty = issuesTotalQty(raw);
+  raw.issuesTotalQty = issuesQty;
+  if (totalQty === null && salesQty === null && issuesQty === null) {
+    raw.closingStockQty = null;
+    raw.closingStockAmt = null;
+    return raw;
+  }
+  const qty = (totalQty ?? 0) - (salesQty ?? 0) - (issuesQty ?? 0);
+  raw.closingStockQty = qty;
+  const rate = coerceMeasure(raw.averageRateAmt);
+  raw.closingStockAmt = qty * (rate ?? 0);
+  return raw;
+}
+
+function issuesTotalAmt(raw) {
+  return sumQtyParts(raw, ISSUE_AMT_KEYS);
+}
+
+function addGrossProfit(raw) {
+  const closingAmt = coerceMeasure(raw.closingStockAmt);
+  const salesAmt = coerceMeasure(raw.salesAmt);
+  const issuesAmt = issuesTotalAmt(raw);
+  const totalAmt = coerceMeasure(raw.totalAmt);
+  if (
+    closingAmt === null &&
+    salesAmt === null &&
+    issuesAmt === null &&
+    totalAmt === null
+  ) {
+    raw.grossProfitAmt = null;
+    return raw;
+  }
+  raw.grossProfitAmt = (closingAmt ?? 0) + (salesAmt ?? 0) + (issuesAmt ?? 0) - (totalAmt ?? 0);
+  return raw;
+}
+
+function addGrossProfitPct(raw) {
+  const gpAmt = coerceMeasure(raw.grossProfitAmt);
+  if (gpAmt === null) {
+    raw.grossProfitPct = null;
+    return raw;
+  }
+  const salesAmt = coerceMeasure(raw.salesAmt);
+  if (gpAmt > 0 && salesAmt !== null && salesAmt !== 0) {
+    raw.grossProfitPct = gpAmt / salesAmt;
+    return raw;
+  }
+  raw.grossProfitPct = 0;
+  return raw;
 }
 
 function displayProductMeasures(raw) {
-  return {
+  const display = {
     openingQty: raw.openingQty ?? null,
     openingAmt: roundClosingStockAmount(raw.openingAmt),
     purchasesQty: raw.purchasesQty ?? null,
     purchasesAmt: roundClosingStockAmount(raw.purchasesAmt),
     salesQty: raw.salesQty ?? null,
     salesAmt: roundClosingStockAmount(raw.salesAmt),
+    receiptsQty: raw.receiptsQty ?? null,
+    receiptsAmt: roundClosingStockAmount(raw.receiptsAmt),
+    receiptsInternalAmt: roundClosingStockAmount(raw.receiptsInternalAmt),
+    receiptsJubileeHillsAmt: roundClosingStockAmount(raw.receiptsJubileeHillsAmt),
+    receiptsKokapetAmt: roundClosingStockAmount(raw.receiptsKokapetAmt),
+    totalQty: raw.totalQty ?? null,
+    totalAmt: roundClosingStockAmount(raw.totalAmt),
+    averageRateAmt: raw.averageRateAmt ?? null,
+    issuesInternalAmt: roundClosingStockAmount(raw.issuesInternalAmt),
+    issuesBanjaraHillsAmt: roundClosingStockAmount(raw.issuesBanjaraHillsAmt),
+    issuesKokapetAmt: roundClosingStockAmount(raw.issuesKokapetAmt),
+    issuesTotalQty: raw.issuesTotalQty ?? null,
+    issuesTotalAmt: roundClosingStockAmount(raw.issuesTotalAmt),
+    closingStockQty: raw.closingStockQty ?? null,
+    closingStockAmt: roundClosingStockAmount(raw.closingStockAmt),
+    grossProfitAmt: roundClosingStockAmount(raw.grossProfitAmt),
+    grossProfitPct: raw.grossProfitPct ?? null,
   };
+  for (const key of TRANSFER_QTY_FIELDS) {
+    display[key] = raw[key] ?? null;
+  }
+  return display;
 }
 
 /** TOTAL from unrounded originals: Amt = ROUND(SUM); Qty = SUM with no rounding. */
@@ -233,6 +641,22 @@ function totalMeasuresFromRaw(rawRows) {
       'purchasesAmt',
       'salesQty',
       'salesAmt',
+      'receiptsQty',
+      'receiptsAmt',
+      'receiptsInternalAmt',
+      'receiptsJubileeHillsAmt',
+      'receiptsKokapetAmt',
+      'totalQty',
+      'totalAmt',
+      'issuesInternalAmt',
+      'issuesBanjaraHillsAmt',
+      'issuesKokapetAmt',
+      'issuesTotalQty',
+      'issuesTotalAmt',
+      'closingStockQty',
+      'closingStockAmt',
+      'grossProfitAmt',
+      ...TRANSFER_QTY_FIELDS,
     ]) {
       const value = coerceMeasure(raw?.[key]);
       if (value === null) continue;
@@ -240,14 +664,51 @@ function totalMeasuresFromRaw(rawRows) {
       present.add(key);
     }
   }
-  return {
+  const rounded = {
     openingQty: present.has('openingQty') ? totals.openingQty : null,
     openingAmt: present.has('openingAmt') ? roundClosingStockAmount(totals.openingAmt) : null,
     purchasesQty: present.has('purchasesQty') ? totals.purchasesQty : null,
     purchasesAmt: present.has('purchasesAmt') ? roundClosingStockAmount(totals.purchasesAmt) : null,
     salesQty: present.has('salesQty') ? totals.salesQty : null,
     salesAmt: present.has('salesAmt') ? roundClosingStockAmount(totals.salesAmt) : null,
+    receiptsQty: present.has('receiptsQty') ? totals.receiptsQty : null,
+    receiptsAmt: present.has('receiptsAmt') ? roundClosingStockAmount(totals.receiptsAmt) : null,
+    receiptsInternalAmt: present.has('receiptsInternalAmt')
+      ? roundClosingStockAmount(totals.receiptsInternalAmt)
+      : null,
+    receiptsJubileeHillsAmt: present.has('receiptsJubileeHillsAmt')
+      ? roundClosingStockAmount(totals.receiptsJubileeHillsAmt)
+      : null,
+    receiptsKokapetAmt: present.has('receiptsKokapetAmt')
+      ? roundClosingStockAmount(totals.receiptsKokapetAmt)
+      : null,
+    totalQty: present.has('totalQty') ? totals.totalQty : null,
+    totalAmt: present.has('totalAmt') ? roundClosingStockAmount(totals.totalAmt) : null,
+    issuesInternalAmt: present.has('issuesInternalAmt')
+      ? roundClosingStockAmount(totals.issuesInternalAmt)
+      : null,
+    issuesBanjaraHillsAmt: present.has('issuesBanjaraHillsAmt')
+      ? roundClosingStockAmount(totals.issuesBanjaraHillsAmt)
+      : null,
+    issuesKokapetAmt: present.has('issuesKokapetAmt')
+      ? roundClosingStockAmount(totals.issuesKokapetAmt)
+      : null,
+    issuesTotalQty: present.has('issuesTotalQty') ? totals.issuesTotalQty : null,
+    issuesTotalAmt: present.has('issuesTotalAmt')
+      ? roundClosingStockAmount(totals.issuesTotalAmt)
+      : null,
+    closingStockQty: present.has('closingStockQty') ? totals.closingStockQty : null,
+    closingStockAmt: present.has('closingStockAmt')
+      ? roundClosingStockAmount(totals.closingStockAmt)
+      : null,
+    grossProfitAmt: present.has('grossProfitAmt')
+      ? roundClosingStockAmount(totals.grossProfitAmt)
+      : null,
   };
+  for (const key of TRANSFER_QTY_FIELDS) {
+    rounded[key] = present.has(key) ? totals[key] : null;
+  }
+  return addGrossProfitPct(addAverageRate(rounded));
 }
 
 function buildLayoutFromRuleBook(
@@ -255,7 +716,8 @@ function buildLayoutFromRuleBook(
   ruleSection,
   salesByDisplay,
   purchasesByDisplay,
-  openingByDisplay = {}
+  openingByDisplay = {},
+  transferQtyByDisplay = {}
 ) {
   const layout = [];
   const flatProducts = [];
@@ -272,7 +734,8 @@ function buildLayoutFromRuleBook(
           product,
           salesByDisplay,
           purchasesByDisplay,
-          openingByDisplay
+          openingByDisplay,
+          transferQtyByDisplay
         );
         const display = displayProductMeasures(raw);
         layout.push({
@@ -298,7 +761,8 @@ function buildLayoutFromRuleBook(
         product,
         salesByDisplay,
         purchasesByDisplay,
-        openingByDisplay
+        openingByDisplay,
+        transferQtyByDisplay
       );
       const display = displayProductMeasures(raw);
       layout.push({
@@ -330,6 +794,8 @@ export function mapPivotsWithRuleBook({
   salesPivot = [],
   purchasesPivot = [],
   openingPivot = [],
+  mrPivots = {},
+  dcPivots = {},
   ruleBook,
   ruleBookMeta = {},
 }) {
@@ -341,8 +807,13 @@ export function mapPivotsWithRuleBook({
   );
   const { byDisplay: purchasesByDisplay, unmappedRows: unmappedPurchasesRows } =
     aggregatePivotByRuleBook(purchasesPivot, matchLookup);
-  const { byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
-    aggregatePivotByRuleBook(openingPivot, matchLookup);
+  const layoutProductNames = iterRuleBookProducts(book).map((row) => row.product);
+  let { byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
+    aggregateOpeningByNameMatch(openingPivot, layoutProductNames);
+  ({ byDisplay: openingByDisplay, unmappedRows: unmappedOpeningRows } =
+    applyFallbackOpeningToLayout(openingByDisplay, openingPivot, book, unmappedOpeningRows));
+
+  const transferQtyByDisplay = mapMrDcQtyToRuleBook(mrPivots, dcPivots, book);
 
   const unmappedProducts = [];
   const unmappedProductDetails = [];
@@ -372,7 +843,8 @@ export function mapPivotsWithRuleBook({
       book[category],
       salesByDisplay,
       purchasesByDisplay,
-      openingByDisplay
+      openingByDisplay,
+      transferQtyByDisplay
     );
     layoutByCategory[category] = layout;
     productsByCategory[category] = flatProducts;

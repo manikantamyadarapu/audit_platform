@@ -673,7 +673,7 @@ def test_sales_dedupe_merges_duplicate_row_numbers_in_api_output():
         {
             'rowNumber': 29,
             'issues': ['INVALID_RATE_DEVIATION'],
-            'messages': ['Unit rate below allowed range.'],
+            'messages': ['Unit rates outside the range'],
             'auditStatus': 'INVALID_RATE_DEVIATION',
         },
     ]

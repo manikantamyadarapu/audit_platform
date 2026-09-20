@@ -14,6 +14,10 @@ from app.engines.financials_engine.engine.closing_stock_template import (
     CLOSING_STOCK_CATEGORIES,
     subcategory_total_label,
 )
+from app.engines.financials_engine.engine.opening_stock import (
+    apply_fallback_opening_to_layout,
+    build_opening_measures_for_layout,
+)
 from app.utils.logger import get_logger
 
 _RULE_BOOK_PATH = Path(__file__).resolve().parent / 'closing_stock_product_rule_book.json'
@@ -402,6 +406,17 @@ def _resolve_rule_book_display_name(
     return None
 
 
+def resolve_rule_book_display_name(
+    product: str,
+    *,
+    rule_book: Mapping[str, Any] | None = None,
+) -> str | None:
+    """Public helper — map a product label to its Rule Book display name."""
+    book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
+    lookup = _build_rule_book_match_lookup(book)
+    return _resolve_rule_book_display_name(product, lookup=lookup)
+
+
 def _aggregate_pivot_by_rule_book(
     rows: Sequence[Mapping[str, Any]] | None,
     *,
@@ -433,37 +448,235 @@ def _aggregate_pivot_by_rule_book(
     return by_display, unmapped_rows
 
 
+_RECEIPT_QTY_KEYS: tuple[str, ...] = (
+    'receiptsInternalQty',
+    'receiptsJubileeHillsQty',
+    'receiptsKokapetQty',
+)
+
+
+def _sum_qty_parts(raw: Mapping[str, float | None], keys: Sequence[str]) -> float | None:
+    parts = [_coerce_measure(raw.get(key)) for key in keys]
+    if all(part is None for part in parts):
+        return None
+    return float(sum(Decimal(str(part or 0)) for part in parts))
+
+
+def _add_stock_section_totals(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """
+    Total Qty/Amt = Opening + Purchases + Receipts Total.
+
+    Receipts Total Qty = Internal + Jubilee Hills + Kokapet when those columns
+    have values. Missing components count as 0.
+    """
+    receipts_from_branches = _sum_qty_parts(raw, _RECEIPT_QTY_KEYS)
+    if receipts_from_branches is not None:
+        raw['receiptsQty'] = receipts_from_branches
+
+    opening_qty = _coerce_measure(raw.get('openingQty'))
+    purchases_qty = _coerce_measure(raw.get('purchasesQty'))
+    receipts_qty = _coerce_measure(raw.get('receiptsQty'))
+    opening_amt = _coerce_measure(raw.get('openingAmt'))
+    purchases_amt = _coerce_measure(raw.get('purchasesAmt'))
+    receipts_amt = _coerce_measure(raw.get('receiptsAmt'))
+
+    if all(value is None for value in (opening_qty, purchases_qty, receipts_qty)):
+        raw['totalQty'] = None
+    else:
+        raw['totalQty'] = float(
+            Decimal(str(opening_qty or 0))
+            + Decimal(str(purchases_qty or 0))
+            + Decimal(str(receipts_qty or 0))
+        )
+
+    if all(value is None for value in (opening_amt, purchases_amt, receipts_amt)):
+        raw['totalAmt'] = None
+    else:
+        raw['totalAmt'] = float(
+            Decimal(str(opening_amt or 0))
+            + Decimal(str(purchases_amt or 0))
+            + Decimal(str(receipts_amt or 0))
+        )
+    return _add_gross_profit_pct(
+        _add_gross_profit(_add_closing_stock(_add_issues_amounts(_add_average_rate(raw))))
+    )
+
+
+def _add_average_rate(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Average Rate Amount = Total Amount / Total Qty. Qty 0 → 0. Does not change Totals."""
+    total_qty = _coerce_measure(raw.get('totalQty'))
+    total_amt = _coerce_measure(raw.get('totalAmt'))
+    if total_qty is None and total_amt is None:
+        raw['averageRateAmt'] = None
+        return raw
+    if total_qty is None or total_qty == 0:
+        raw['averageRateAmt'] = 0.0
+        return raw
+    raw['averageRateAmt'] = float(
+        (Decimal(str(total_amt or 0)) / Decimal(str(total_qty))).quantize(
+            Decimal('0.0001'),
+            rounding=ROUND_HALF_UP,
+        )
+    )
+    return raw
+
+
+_ISSUE_AMT_BY_QTY: tuple[tuple[str, str], ...] = (
+    ('issuesInternalQty', 'issuesInternalAmt'),
+    ('issuesBanjaraHillsQty', 'issuesBanjaraHillsAmt'),
+    ('issuesKokapetQty', 'issuesKokapetAmt'),
+)
+
+
+def _add_issues_amounts(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Issue Amount = Issue Qty × Average Rate. Qty 0 → 0. Does not change Issue Qty."""
+    rate = _coerce_measure(raw.get('averageRateAmt'))
+    for qty_key, amt_key in _ISSUE_AMT_BY_QTY:
+        qty = _coerce_measure(raw.get(qty_key))
+        if qty is None:
+            raw[amt_key] = None
+            continue
+        if qty == 0:
+            raw[amt_key] = 0.0
+            continue
+        raw[amt_key] = float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+    issues_total_amt = _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
+    raw['issuesTotalAmt'] = issues_total_amt
+    return raw
+
+
+_ISSUE_QTY_KEYS: tuple[str, ...] = (
+    'issuesInternalQty',
+    'issuesBanjaraHillsQty',
+    'issuesKokapetQty',
+)
+
+
+def _issues_total_qty(raw: Mapping[str, float | None]) -> float | None:
+    """Issues Total Qty = Internal + Banjara Hills + Kokapet."""
+    return _sum_qty_parts(raw, _ISSUE_QTY_KEYS)
+
+
+def _add_closing_stock(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Closing Stock Qty = Total Qty − Sales Qty − Issues Total Qty; Amt = Qty × Average Rate."""
+    total_qty = _coerce_measure(raw.get('totalQty'))
+    sales_qty = _coerce_measure(raw.get('salesQty'))
+    issues_total_qty = _issues_total_qty(raw)
+    raw['issuesTotalQty'] = issues_total_qty
+    if total_qty is None and sales_qty is None and issues_total_qty is None:
+        raw['closingStockQty'] = None
+        raw['closingStockAmt'] = None
+        return raw
+    qty = float(
+        Decimal(str(total_qty or 0))
+        - Decimal(str(sales_qty or 0))
+        - Decimal(str(issues_total_qty or 0))
+    )
+    raw['closingStockQty'] = qty
+    rate = _coerce_measure(raw.get('averageRateAmt'))
+    raw['closingStockAmt'] = float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+    return raw
+
+
+_ISSUE_AMT_KEYS: tuple[str, ...] = (
+    'issuesInternalAmt',
+    'issuesBanjaraHillsAmt',
+    'issuesKokapetAmt',
+)
+
+
+def _issues_total_amt(raw: Mapping[str, float | None]) -> float | None:
+    """Issues Total Amount = Internal + Banjara Hills + Kokapet."""
+    return _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
+
+
+def _add_gross_profit(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Gross Profit Amt = Closing Stock Amt + Sales Amt + Issues Total Amt − Total Amt."""
+    closing_amt = _coerce_measure(raw.get('closingStockAmt'))
+    sales_amt = _coerce_measure(raw.get('salesAmt'))
+    issues_total_amt = _issues_total_amt(raw)
+    total_amt = _coerce_measure(raw.get('totalAmt'))
+    if (
+        closing_amt is None
+        and sales_amt is None
+        and issues_total_amt is None
+        and total_amt is None
+    ):
+        raw['grossProfitAmt'] = None
+        return raw
+    raw['grossProfitAmt'] = float(
+        Decimal(str(closing_amt or 0))
+        + Decimal(str(sales_amt or 0))
+        + Decimal(str(issues_total_amt or 0))
+        - Decimal(str(total_amt or 0))
+    )
+    return raw
+
+
+def _add_gross_profit_pct(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Gross Profit % = GP Amt / Sales Amt when GP Amt > 0; else 0. Does not change GP Amt."""
+    gp_amt = _coerce_measure(raw.get('grossProfitAmt'))
+    if gp_amt is None:
+        raw['grossProfitPct'] = None
+        return raw
+    sales_amt = _coerce_measure(raw.get('salesAmt'))
+    if gp_amt > 0 and sales_amt is not None and sales_amt != 0:
+        raw['grossProfitPct'] = float(
+            (Decimal(str(gp_amt)) / Decimal(str(sales_amt))).quantize(
+                Decimal('0.0001'),
+                rounding=ROUND_HALF_UP,
+            )
+        )
+        return raw
+    raw['grossProfitPct'] = 0.0
+    return raw
+
+
 def _raw_product_measures(
     rule_book_product: str,
     *,
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    transfer_qty_by_display: Mapping[str, Mapping[str, float]] | None = None,
 ) -> dict[str, float | None]:
     """Original (unrounded) pivot measures for one Rule Book product."""
     sales = sales_by_display.get(rule_book_product, {})
     purchases = purchases_by_display.get(rule_book_product, {})
     opening = (opening_by_display or {}).get(rule_book_product, {})
-    return {
+    transfer = (transfer_qty_by_display or {}).get(rule_book_product, {})
+    raw = {
         'openingQty': opening.get('sumOfQuantity'),
         'openingAmt': opening.get('sumOfGross'),
         'purchasesQty': purchases.get('sumOfQuantity'),
         'purchasesAmt': purchases.get('sumOfGross'),
         'salesQty': sales.get('sumOfQuantity'),
         'salesAmt': sales.get('sumOfGross'),
+        'receiptsInternalQty': transfer.get('receiptsInternalQty'),
+        'receiptsJubileeHillsQty': transfer.get('receiptsJubileeHillsQty'),
+        'receiptsKokapetQty': transfer.get('receiptsKokapetQty'),
+        'receiptsQty': None,
+        'receiptsAmt': None,
+        'issuesInternalQty': transfer.get('issuesInternalQty'),
+        'issuesBanjaraHillsQty': transfer.get('issuesBanjaraHillsQty'),
+        'issuesKokapetQty': transfer.get('issuesKokapetQty'),
     }
+    return _add_stock_section_totals(raw)
 
 
 def _display_product_measures(raw: Mapping[str, float | None]) -> dict[str, float | None]:
     """Product-level display: round Amounts only; Quantity stays exact."""
-    return {
-        'openingQty': raw.get('openingQty'),
-        'openingAmt': _round_closing_stock_measure(raw.get('openingAmt')),
-        'purchasesQty': raw.get('purchasesQty'),
-        'purchasesAmt': _round_closing_stock_measure(raw.get('purchasesAmt')),
-        'salesQty': raw.get('salesQty'),
-        'salesAmt': _round_closing_stock_measure(raw.get('salesAmt')),
+    display = {
+        key: (
+            _round_closing_stock_measure(raw.get(key))
+            if key.endswith('Amt')
+            else raw.get(key)
+        )
+        for key in _MEASURE_KEYS
     }
+    display['averageRateAmt'] = raw.get('averageRateAmt')
+    display['grossProfitPct'] = raw.get('grossProfitPct')
+    return display
 
 
 _MEASURE_KEYS = (
@@ -473,6 +686,27 @@ _MEASURE_KEYS = (
     'purchasesAmt',
     'salesQty',
     'salesAmt',
+    'receiptsInternalQty',
+    'receiptsInternalAmt',
+    'receiptsJubileeHillsQty',
+    'receiptsJubileeHillsAmt',
+    'receiptsKokapetQty',
+    'receiptsKokapetAmt',
+    'receiptsQty',
+    'receiptsAmt',
+    'totalQty',
+    'totalAmt',
+    'issuesInternalQty',
+    'issuesInternalAmt',
+    'issuesBanjaraHillsQty',
+    'issuesBanjaraHillsAmt',
+    'issuesKokapetQty',
+    'issuesKokapetAmt',
+    'issuesTotalQty',
+    'issuesTotalAmt',
+    'closingStockQty',
+    'closingStockAmt',
+    'grossProfitAmt',
 )
 
 
@@ -480,10 +714,11 @@ def _total_measures_from_raw(
     raw_rows: Sequence[Mapping[str, float | None]],
 ) -> dict[str, float | None]:
     """
-    TOTAL / GRAND TOTAL from original unrounded pivot values.
+    TOTAL / GRAND TOTAL: each column is SUM of product rows in that group.
 
     Amounts: ROUND(SUM(unrounded)) — never sum of already-rounded product cells.
     Quantity: SUM(unrounded) with no rounding.
+    Average Rate stays Total Amt / Total Qty (not a sum of rates).
     """
     totals: dict[str, float] = {}
     present: set[str] = set()
@@ -502,7 +737,7 @@ def _total_measures_from_raw(
             return _round_closing_stock_measure(totals[key])
         return totals[key]
 
-    return {key: _finalize(key) for key in _MEASURE_KEYS}
+    return _add_gross_profit_pct(_add_average_rate({key: _finalize(key) for key in _MEASURE_KEYS}))
 
 
 def _product_measures_from_maps(
@@ -511,12 +746,14 @@ def _product_measures_from_maps(
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    transfer_qty_by_display: Mapping[str, Mapping[str, float]] | None = None,
 ) -> dict[str, float | None]:
     raw = _raw_product_measures(
         rule_book_product,
         sales_by_display=sales_by_display,
         purchases_by_display=purchases_by_display,
         opening_by_display=opening_by_display,
+        transfer_qty_by_display=transfer_qty_by_display,
     )
     return _display_product_measures(raw)
 
@@ -528,6 +765,7 @@ def _build_layout_for_category(
     sales_by_display: Mapping[str, dict[str, float | None]],
     purchases_by_display: Mapping[str, dict[str, float | None]],
     opening_by_display: Mapping[str, dict[str, float | None]] | None = None,
+    transfer_qty_by_display: Mapping[str, Mapping[str, float]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """
     Build sheet layout from the Rule Book master list.
@@ -539,6 +777,7 @@ def _build_layout_for_category(
     flat_products: list[str] = []
     sheet_raw: list[dict[str, float | None]] = []
     opening_map = opening_by_display or {}
+    transfer_map = transfer_qty_by_display or {}
 
     def _append_product(product: str, subcategory: str | None) -> None:
         raw = _raw_product_measures(
@@ -546,6 +785,7 @@ def _build_layout_for_category(
             sales_by_display=sales_by_display,
             purchases_by_display=purchases_by_display,
             opening_by_display=opening_map,
+            transfer_qty_by_display=transfer_map,
         )
         display = _display_product_measures(raw)
         layout.append(
@@ -553,7 +793,7 @@ def _build_layout_for_category(
                 'kind': 'product',
                 'label': product,
                 'subcategory': subcategory,
-                **{key: display[key] for key in _MEASURE_KEYS},
+                **display,
             }
         )
         flat_products.append(product)
@@ -578,6 +818,7 @@ def _build_layout_for_category(
                     sales_by_display=sales_by_display,
                     purchases_by_display=purchases_by_display,
                     opening_by_display=opening_map,
+                    transfer_qty_by_display=transfer_map,
                 )
                 display = _display_product_measures(raw)
                 layout.append(
@@ -585,7 +826,7 @@ def _build_layout_for_category(
                         'kind': 'product',
                         'label': product,
                         'subcategory': subcategory,
-                        **{key: display[key] for key in _MEASURE_KEYS},
+                        **display,
                     }
                 )
                 flat_products.append(product)
@@ -816,6 +1057,8 @@ def map_pivots_to_closing_stock_categories(
     sales_pivot: Sequence[Mapping[str, Any]] | None = None,
     purchases_pivot: Sequence[Mapping[str, Any]] | None = None,
     opening_pivot: Sequence[Mapping[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
@@ -850,9 +1093,24 @@ def map_pivots_to_closing_stock_categories(
         purchases_pivot,
         lookup=match_lookup,
     )
-    opening_by_display, unmapped_opening_rows = _aggregate_pivot_by_rule_book(
+    layout_product_names = [display for _cat, _sub, display in _iter_rule_book_products(book)]
+    opening_by_display, unmapped_opening_rows = build_opening_measures_for_layout(
         opening_pivot,
-        lookup=match_lookup,
+        layout_product_names,
+    )
+    opening_by_display, unmapped_opening_rows = apply_fallback_opening_to_layout(
+        opening_by_display,
+        opening_pivot,
+        rule_book=book,
+        unmapped_rows=unmapped_opening_rows,
+    )
+
+    from app.engines.financials_engine.engine.mr_dc_closing_qty import map_mr_dc_qty_to_rule_book
+
+    transfer_qty_by_display = map_mr_dc_qty_to_rule_book(
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+        rule_book=book,
     )
 
     unmapped: list[str] = []
@@ -888,6 +1146,7 @@ def map_pivots_to_closing_stock_categories(
             sales_by_display=sales_by_display,
             purchases_by_display=purchases_by_display,
             opening_by_display=opening_by_display,
+            transfer_qty_by_display=transfer_qty_by_display,
         )
         layout_by_category[category] = layout
         products_by_category[category] = flat

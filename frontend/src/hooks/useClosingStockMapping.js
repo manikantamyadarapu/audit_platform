@@ -36,19 +36,29 @@ export function useClosingStockMapping(result, onSynced) {
     const salesPivot = Array.isArray(current.salesPivot) ? current.salesPivot : [];
     const purchasesPivot = Array.isArray(current.purchasesPivot) ? current.purchasesPivot : [];
     const openingPivot = Array.isArray(current.openingPivot) ? current.openingPivot : [];
+    const mrPivots = current.mrPivots && typeof current.mrPivots === 'object' ? current.mrPivots : {};
+    const dcPivots = current.dcPivots && typeof current.dcPivots === 'object' ? current.dcPivots : {};
     const prevFingerprint = resultRuleBookFingerprint(current);
 
     setRefreshing(true);
     try {
       let remapped;
       if (salesPivot.length || purchasesPivot.length || openingPivot.length) {
-        remapped = await remapClosingStockFromPivots({ salesPivot, purchasesPivot, openingPivot });
+        remapped = await remapClosingStockFromPivots({
+          salesPivot,
+          purchasesPivot,
+          openingPivot,
+          mrPivots,
+          dcPivots,
+        });
       } else {
         const live = await fetchClosingStockRuleBook();
         const local = mapPivotsWithRuleBook({
           salesPivot: [],
           purchasesPivot: [],
           openingPivot: [],
+          mrPivots,
+          dcPivots,
           ruleBook: live.ruleBook,
           ruleBookMeta: live,
         });
@@ -75,7 +85,7 @@ export function useClosingStockMapping(result, onSynced) {
         onSyncedRef.current?.(updated);
       }
       return updated;
-    } catch (err) {
+    } catch {
       // Fallback: client-side map using freshly fetched Rule Book JSON.
       try {
         const live = await fetchClosingStockRuleBook();
@@ -83,6 +93,8 @@ export function useClosingStockMapping(result, onSynced) {
           salesPivot,
           purchasesPivot,
           openingPivot,
+          mrPivots,
+          dcPivots,
           ruleBook: live.ruleBook,
           ruleBookMeta: live,
         });
@@ -109,9 +121,8 @@ export function useClosingStockMapping(result, onSynced) {
           onSyncedRef.current?.(updated);
         }
         return updated;
-      } catch {
-        // eslint-disable-next-line no-console
-        console.error('Closing Stock Rule Book sync failed', err);
+      } catch (syncErr) {
+        console.error('Closing Stock Rule Book sync failed', syncErr);
         setMappedResult(current);
         return current;
       }

@@ -1,9 +1,8 @@
-"""Closing Stock calculation rules (framework stubs).
+"""Closing Stock measure helpers.
 
-Business / Rule Book column calculations are intentionally not implemented yet.
-These helpers define the extension points so Opening / Purchases / Receipts /
-Issues / Sales / Average Rate / Closing / GP / Deviation can be plugged in later
-without reshaping the audit pipeline.
+Opening / Purchases / Sales remain owned by the Rule Book join.
+MR/DC location pivots are owned by ``mr_dc_pivots`` + ``mr_dc_closing_qty``.
+Closing Stock valuation, Average Rate, COGS, and Gross Profit stay unimplemented here.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from typing import Any
 
 
 class ClosingStockRulesNotImplementedError(NotImplementedError):
-    """Raised when Closing Stock measure logic is invoked before it is wired."""
+    """Raised when unimplemented Closing Stock valuation measures are requested."""
 
 
 def apply_closing_stock_measures(
@@ -20,22 +19,15 @@ def apply_closing_stock_measures(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """
-    Placeholder for future Closing Stock qty/amount column population.
+    Placeholder for Closing Stock *valuation* columns (Closing Qty/Amt, Avg Rate, GP).
 
-    Expected future inputs (not enforced yet):
-    - products_by_category / layout_by_category from the product Rule Book
-    - sales_by_category / purchases_by_category pivot totals
-    - opening stock, receipts, issues (and other source ledgers)
-
-    Returns:
-        Structure that closing_stock_template / UI preview can consume.
-
-    Raises:
-        ClosingStockRulesNotImplementedError: always, until Rule Book calcs land.
+    Receipts/Issues quantities from MR/DC are populated via ``mr_dc_pivots`` and
+    ``mr_dc_closing_qty`` during the Rule Book join.
     """
     raise ClosingStockRulesNotImplementedError(
-        'Closing Stock measure calculations are not implemented yet. '
-        'Template layout and product mapping are available; qty/amt columns stay blank.'
+        'Closing Stock valuation measures (Closing Qty/Amt, Average Rate, Gross Profit, '
+        'Deviation) are not implemented yet. MR/DC location pivots are handled by '
+        'mr_dc_pivots + mr_dc_closing_qty.'
     )
 
 

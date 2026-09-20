@@ -10,6 +10,14 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.abstract_template import (
+    ABSTRACT_SHEET_NAME,
+    write_abstract_sheet,
+)
+from app.engines.financials_engine.engine.trading_template import (
+    TRADING_SHEET_NAME,
+    write_trading_sheet,
+)
 from app.utils.indian_number_format import apply_indian_number_format
 
 # Category sheets in workbook order — reused later for per-category calculations.
@@ -48,8 +56,31 @@ CLOSING_STOCK_MEASURE_PATHS: dict[str, tuple[str | None, str | None, str]] = {
     'openingAmt': ('Opening Stock', None, 'Amt.'),
     'purchasesQty': ('Purchases', None, 'Qty'),
     'purchasesAmt': ('Purchases', None, 'Amt.'),
+    'receiptsInternalQty': ('Receipts', 'Internal Stock Transfer', 'Qty'),
+    'receiptsInternalAmt': ('Receipts', 'Internal Stock Transfer', 'Amt.'),
+    'receiptsJubileeHillsQty': ('Receipts', 'Jubilee Hills', 'Qty'),
+    'receiptsJubileeHillsAmt': ('Receipts', 'Jubilee Hills', 'Amt.'),
+    'receiptsKokapetQty': ('Receipts', 'Kokapet', 'Qty'),
+    'receiptsKokapetAmt': ('Receipts', 'Kokapet', 'Amt.'),
+    'receiptsQty': ('Receipts', 'Receipts', 'Qty'),
+    'receiptsAmt': ('Receipts', 'Receipts', 'Amt.'),
+    'totalQty': ('Total', None, 'Qty'),
+    'totalAmt': ('Total', None, 'Amt.'),
+    'averageRateAmt': ('Average Rate', None, 'Amt.'),
+    'issuesInternalQty': ('Issues', 'Internal Stock Transfer', 'Qty'),
+    'issuesInternalAmt': ('Issues', 'Internal Stock Transfer', 'Amt.'),
+    'issuesBanjaraHillsQty': ('Issues', 'Banjara Hills', 'Qty'),
+    'issuesBanjaraHillsAmt': ('Issues', 'Banjara Hills', 'Amt.'),
+    'issuesKokapetQty': ('Issues', 'Kokapet', 'Qty'),
+    'issuesKokapetAmt': ('Issues', 'Kokapet', 'Amt.'),
+    'issuesTotalQty': ('Issues', 'Total', 'Qty'),
+    'issuesTotalAmt': ('Issues', 'Total', 'Amt.'),
     'salesQty': ('Sales', None, 'Qty'),
     'salesAmt': ('Sales', None, 'Amt.'),
+    'closingStockQty': ('Closing Stock', None, 'Qty'),
+    'closingStockAmt': ('Closing Stock', None, 'Amt.'),
+    'grossProfitAmt': ('Gross Profit', None, 'Amt.'),
+    'grossProfitPct': ('Gross Profit', None, '%'),
 }
 
 LEAF_COLUMNS: tuple[tuple[tuple[str | None, str | None, str], str], ...] = (
@@ -63,27 +94,30 @@ LEAF_COLUMNS: tuple[tuple[tuple[str | None, str | None, str], str], ...] = (
     (('Receipts', 'Jubilee Hills', 'Amt.'), '8'),
     (('Receipts', 'Kokapet', 'Qty'), '9'),
     (('Receipts', 'Kokapet', 'Amt.'), '10'),
-    (('Receipts', 'Total', 'Qty'), '11'),
-    (('Receipts', 'Total', 'Amt.'), '12'),
-    (('Average Rate', None, 'Amt.'), '13'),
-    (('Issues', 'Internal Stock Transfer', 'Qty'), '14'),
-    (('Issues', 'Internal Stock Transfer', 'Amt.'), '15'),
-    (('Issues', 'Banjara Hills', 'Qty'), '16'),
-    (('Issues', 'Banjara Hills', 'Amt.'), '17'),
-    (('Issues', 'Kokapet', 'Qty'), '18'),
-    (('Issues', 'Kokapet', 'Amt.'), '19'),
-    (('Issues', 'Total', 'Qty'), '20'),
-    (('Issues', 'Total', 'Amt.'), '21'),
-    (('Sales', None, 'Qty'), '22'),
-    (('Sales', None, 'Amt.'), '23'),
-    (('Closing Stock', None, 'Qty'), '24'),
-    (('Closing Stock', None, 'Amt.'), '25'),
-    (('Gross Profit', None, 'Amt.'), '26'),
-    (('GP AY 2025-26', None, 'Qty'), '27'),
-    (('GP AY 2025-26', None, 'Amt.'), '28'),
-    (('Deviation', None, 'Qty'), '29'),
-    (('Deviation', None, 'Amt.'), '30'),
-    (('Deviation', None, '%'), '31'),
+    (('Receipts', 'Receipts', 'Qty'), '11'),
+    (('Receipts', 'Receipts', 'Amt.'), '12'),
+    (('Total', None, 'Qty'), '13'),
+    (('Total', None, 'Amt.'), '14'),
+    (('Average Rate', None, 'Amt.'), '15'),
+    (('Issues', 'Internal Stock Transfer', 'Qty'), '16'),
+    (('Issues', 'Internal Stock Transfer', 'Amt.'), '17'),
+    (('Issues', 'Banjara Hills', 'Qty'), '18'),
+    (('Issues', 'Banjara Hills', 'Amt.'), '19'),
+    (('Issues', 'Kokapet', 'Qty'), '20'),
+    (('Issues', 'Kokapet', 'Amt.'), '21'),
+    (('Issues', 'Total', 'Qty'), '22'),
+    (('Issues', 'Total', 'Amt.'), '23'),
+    (('Sales', None, 'Qty'), '24'),
+    (('Sales', None, 'Amt.'), '25'),
+    (('Closing Stock', None, 'Qty'), '26'),
+    (('Closing Stock', None, 'Amt.'), '27'),
+    (('Gross Profit', None, 'Amt.'), '28'),
+    (('Gross Profit', None, '%'), '29'),
+    (('GP AY 2025-26', None, 'Qty'), '30'),
+    (('GP AY 2025-26', None, 'Amt.'), '31'),
+    (('Deviation', None, 'Qty'), '32'),
+    (('Deviation', None, 'Amt.'), '33'),
+    (('Deviation', None, '%'), '34'),
 )
 
 
@@ -181,13 +215,26 @@ def _write_grouped_row(
 
 
 def _is_summable_leaf(path: tuple[str | None, str | None, str]) -> bool:
-    """Numeric columns that TOTAL/GRAND TOTAL may SUM. Skip Average Rate and %."""
+    """Numeric columns that TOTAL/GRAND TOTAL may SUM. Skip Average Rate, Total, and %."""
     level1, _level2, leaf = path
     if leaf == '%':
         return False
-    if level1 == 'Average Rate':
+    if level1 in ('Average Rate', 'Total'):
         return False
     return True
+
+
+PERCENT_NUMBER_FORMAT = '0.00%'
+
+
+def _apply_closing_stock_cell_format(
+    cell,
+    path: tuple[str | None, str | None, str],
+) -> None:
+    if path[2] == '%':
+        cell.number_format = PERCENT_NUMBER_FORMAT
+    else:
+        apply_indian_number_format(cell)
 
 
 def _leaf_excel_column(leaf_idx: int) -> int:
@@ -206,7 +253,7 @@ def _write_product_sales_purchases(
             continue
         leaf_idx = leaf_index_for_measure(measure_key)
         cell = ws.cell(row=row, column=_leaf_excel_column(leaf_idx), value=value)
-        apply_indian_number_format(cell)
+        _apply_closing_stock_cell_format(cell, CLOSING_STOCK_MEASURE_PATHS[measure_key])
         cell.alignment = CENTER
 
 
@@ -251,14 +298,14 @@ def _write_sum_formulas(
         if measure_key and entry is not None and entry.get(measure_key) is not None:
             cell.value = entry.get(measure_key)
             cell.font = TOTAL_FONT
-            apply_indian_number_format(cell)
+            _apply_closing_stock_cell_format(cell, path)
             continue
 
         if _is_summable_leaf(path) and first is not None and last is not None and first <= last:
             letter = get_column_letter(col)
             cell.value = f'=SUM({letter}{first}:{letter}{last})'
             cell.font = TOTAL_FONT
-            apply_indian_number_format(cell)
+            _apply_closing_stock_cell_format(cell, path)
         else:
             cell.value = None
 
@@ -474,6 +521,11 @@ def build_closing_stock_template_bytes(
     address: str = '',
     financial_year: str = 'AY 2025-26',
     categories: Sequence[str] | None = None,
+    sales_pivot: Sequence[dict[str, Any]] | None = None,
+    purchases_pivot: Sequence[dict[str, Any]] | None = None,
+    opening_pivot: Sequence[dict[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[dict[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[dict[str, Any]]] | None = None,
 ) -> bytes:
     """
     Build a blank Closing Stock workbook with one sheet per jewel category.
@@ -518,6 +570,25 @@ def build_closing_stock_template_bytes(
             address=address,
             financial_year=financial_year,
         )
+
+    write_trading_sheet(
+        wb.create_sheet(title=TRADING_SHEET_NAME),
+        layout_by_category=layouts,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
+    write_abstract_sheet(
+        wb.create_sheet(title=ABSTRACT_SHEET_NAME),
+        layout_by_category=layouts,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
 
     buffer = BytesIO()
     wb.save(buffer)

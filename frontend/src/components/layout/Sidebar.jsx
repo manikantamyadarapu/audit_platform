@@ -65,7 +65,7 @@ const tdsItems = [
 ];
 
 const financialsItems = [
-  { to: '/financials/closing-stock', label: 'Closing Stock', icon: Gem },
+  { to: '/financials/closing-stock', label: 'Stock Reconciliation', icon: Gem },
 ];
 
 const vouchingItems = [
@@ -79,7 +79,8 @@ const navIdle =
   'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]';
 
 function isAdminRole(role) {
-  return String(role || '').toUpperCase() === 'ADMIN';
+  const r = String(role || '').toUpperCase();
+  return r === 'ADMIN' || r === 'SUPER_ADMIN';
 }
 
 function isAdminOnlyBadge(badge) {
@@ -491,7 +492,9 @@ export function Sidebar() {
             </NavGroup>
           ) : null}
 
-          <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
+          {isAdmin ? (
+            <NavItem to="/users" label="Users" icon={UserCircle} collapsed={sidebarCollapsed} />
+          ) : null}
           <NavItem to="/settings" label="Settings" icon={Settings} collapsed={sidebarCollapsed} />
         </div>
       </nav>

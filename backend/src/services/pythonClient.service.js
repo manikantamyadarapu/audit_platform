@@ -595,6 +595,8 @@ async function postFinancialsPivot(
   purchasesFile,
   openingQtyFile,
   previousYearFile,
+  mrFile,
+  dcFile,
   options = {}
 ) {
   const form = new FormData();
@@ -620,6 +622,16 @@ async function postFinancialsPivot(
     contentType:
       previousYearFile.mimetype ||
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('mr_file', mrFile.buffer, {
+    filename: mrFile.originalname || 'mr.xlsx',
+    contentType:
+      mrFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('dc_file', dcFile.buffer, {
+    filename: dcFile.originalname || 'dc.xlsx',
+    contentType:
+      dcFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 
   const headers = { ...form.getHeaders() };

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default='INFO', alias='LOG_LEVEL')
     chunk_size: int = Field(default=2500, alias='CHUNK_SIZE')
     gross_weight_tolerance: float = Field(default=0.5, alias='GROSS_WEIGHT_TOLERANCE')
-    gross_weight_match_epsilon: float = Field(default=0.001, alias='GROSS_WEIGHT_MATCH_EPSILON')
+    gross_weight_match_epsilon: float = Field(default=0.0, alias='GROSS_WEIGHT_MATCH_EPSILON')
     sales_debug_export: bool = Field(default=False, alias='SALES_DEBUG_EXPORT')
     audit_debug_export: bool = Field(default=False, alias='AUDIT_DEBUG_EXPORT')
 

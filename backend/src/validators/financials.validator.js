@@ -17,6 +17,35 @@ function validatePivotArray(value, field) {
   return { ok: true, rows: value };
 }
 
+function validateLocationPivots(value, field) {
+  if (value == null) {
+    return {
+      ok: true,
+      tree: { jubileeHills: [], kokapet: [], internalBasheerbagh: [] },
+    };
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, detail: `"${field}" must be an object` };
+  }
+  const jubilee = validatePivotArray(value.jubileeHills, `${field}.jubileeHills`);
+  if (!jubilee.ok) return jubilee;
+  const kokapet = validatePivotArray(value.kokapet, `${field}.kokapet`);
+  if (!kokapet.ok) return kokapet;
+  const internal = validatePivotArray(
+    value.internalBasheerbagh,
+    `${field}.internalBasheerbagh`
+  );
+  if (!internal.ok) return internal;
+  return {
+    ok: true,
+    tree: {
+      jubileeHills: jubilee.rows,
+      kokapet: kokapet.rows,
+      internalBasheerbagh: internal.rows,
+    },
+  };
+}
+
 /**
  * @param {unknown} body
  * @returns {{
@@ -24,6 +53,8 @@ function validatePivotArray(value, field) {
  *   salesPivot: object[],
  *   purchasesPivot: object[],
  *   openingPivot: object[],
+ *   mrPivots: object,
+ *   dcPivots: object,
  * } | { ok: false, detail: string }}
  */
 function validateFinancialsExportPivotsBody(body) {
@@ -37,12 +68,18 @@ function validateFinancialsExportPivotsBody(body) {
   if (!purchases.ok) return purchases;
   const opening = validatePivotArray(body.openingPivot, 'openingPivot');
   if (!opening.ok) return opening;
+  const mrPivots = validateLocationPivots(body.mrPivots, 'mrPivots');
+  if (!mrPivots.ok) return mrPivots;
+  const dcPivots = validateLocationPivots(body.dcPivots, 'dcPivots');
+  if (!dcPivots.ok) return dcPivots;
 
   return {
     ok: true,
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
     openingPivot: opening.rows,
+    mrPivots: mrPivots.tree,
+    dcPivots: dcPivots.tree,
   };
 }
 
@@ -74,6 +111,10 @@ function validateClosingStockExportBody(body) {
   if (!purchases.ok) return purchases;
   const opening = validatePivotArray(body.openingPivot, 'openingPivot');
   if (!opening.ok) return opening;
+  const mrPivots = validateLocationPivots(body.mrPivots, 'mrPivots');
+  if (!mrPivots.ok) return mrPivots;
+  const dcPivots = validateLocationPivots(body.dcPivots, 'dcPivots');
+  if (!dcPivots.ok) return dcPivots;
 
   const companyName = body.companyName == null ? '' : String(body.companyName);
   const address = body.address == null ? '' : String(body.address);
@@ -88,6 +129,8 @@ function validateClosingStockExportBody(body) {
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
     openingPivot: opening.rows,
+    mrPivots: mrPivots.tree,
+    dcPivots: dcPivots.tree,
     companyName,
     address,
     financialYear,

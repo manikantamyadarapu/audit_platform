@@ -2,11 +2,13 @@ import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 
 /**
- * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing.
+ * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing, MR, DC.
  * @param {File} salesFile
  * @param {File} purchasesFile
  * @param {File} openingQtyFile
  * @param {File} previousYearFile
+ * @param {File} mrFile
+ * @param {File} dcFile
  * @param {AbortSignal} [signal]
  */
 export async function processFinancialsPivot(
@@ -14,6 +16,8 @@ export async function processFinancialsPivot(
   purchasesFile,
   openingQtyFile,
   previousYearFile,
+  mrFile,
+  dcFile,
   signal
 ) {
   const form = new FormData();
@@ -21,6 +25,8 @@ export async function processFinancialsPivot(
   form.append('purchasesFile', purchasesFile);
   form.append('openingQtyFile', openingQtyFile);
   form.append('previousYearFile', previousYearFile);
+  form.append('mrFile', mrFile);
+  form.append('dcFile', dcFile);
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate', form, {
       headers: { 'Content-Type': 'multipart/form-data' },

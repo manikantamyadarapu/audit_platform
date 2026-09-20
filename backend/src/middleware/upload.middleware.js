@@ -51,7 +51,7 @@ const upload = multer({
 
 const financialsUpload = multer({
   storage,
-  limits: { fileSize: UPLOAD_MAX_BYTES, files: 4 },
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 6 },
   fileFilter: financialsFileFilter,
 });
 
@@ -90,6 +90,8 @@ const financialsPivotFiles = financialsUpload.fields([
   { name: 'purchasesFile', maxCount: 1 },
   { name: 'openingQtyFile', maxCount: 1 },
   { name: 'previousYearFile', maxCount: 1 },
+  { name: 'mrFile', maxCount: 1 },
+  { name: 'dcFile', maxCount: 1 },
 ]);
 
 function handleMulterError(err, req, res, next) {

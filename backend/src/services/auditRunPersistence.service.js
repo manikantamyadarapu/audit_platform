@@ -30,6 +30,10 @@ const SUMMARY_ISSUE_FIELDS = [
   { key: 'mismatchCount', code: 'GROSS_WEIGHT_MISMATCH', name: 'gross weight mismatch' },
   { key: 'weightMismatch', code: 'GROSS_WEIGHT_MISMATCH', name: 'gross weight mismatch' },
   { key: 'negativeValueViolations', code: 'NEGATIVE_GROSS_WEIGHT', name: 'Negative Gross Weight' },
+  { key: 'unmappedProductCount', code: 'UNMAPPED_PRODUCT', name: 'Unmapped Product' },
+  { key: 'openingUnmatchedCount', code: 'OPENING_UNMATCHED', name: 'Opening Unmatched' },
+  { key: 'mrUnclassifiedRows', code: 'MR_UNCLASSIFIED', name: 'MR Unclassified' },
+  { key: 'dcUnclassifiedRows', code: 'DC_UNCLASSIFIED', name: 'DC Unclassified' },
 ];
 
 /**
@@ -135,6 +139,13 @@ async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonRe
     resultSummary.duplicatePanCount = summary.duplicatePanCount || 0;
     resultSummary.duplicateAadharCount = summary.duplicateAadharCount || 0;
     resultSummary.missingIdCount = summary.missingIdCount || 0;
+  } else if (auditCode === 'FINANCIALS_PIVOT' || auditCode === 'CLOSING_STOCK') {
+    resultSummary.unmappedProductCount = summary.unmappedProductCount || 0;
+    resultSummary.openingUnmatchedCount = summary.openingUnmatchedCount || 0;
+    resultSummary.mrUnclassifiedRows = summary.mrUnclassifiedRows || 0;
+    resultSummary.dcUnclassifiedRows = summary.dcUnclassifiedRows || 0;
+    resultSummary.mrClassifiedRows = summary.mrClassifiedRows || 0;
+    resultSummary.dcClassifiedRows = summary.dcClassifiedRows || 0;
   }
 
   const auditRun = await auditRunRepository.createAuditRun({

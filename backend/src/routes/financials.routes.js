@@ -3,15 +3,28 @@ const financialsController = require('../controllers/financials.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/role.middleware');
 const { PROCESS_ROLES } = require('../constants/roles');
-const { financialsPivotFiles } = require('../middleware/upload.middleware');
+const { financialsPivotFiles,handleMulterError } = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
+
 
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize(PROCESS_ROLES));
 
-router.post('/validate', financialsPivotFiles, financialsController.processFinancialsPivot);
+/**
+ * Full paths (mounted under /api/v1):
+ * POST /api/v1/process/financials/validate  (sales/purchases/opening/previousYear + required mr/dc)
+ * POST /api/v1/process/financials/export-pivots
+ * POST /api/v1/process/financials/export-closing-stock
+ * GET  /api/v1/process/financials/closing-stock-rule-book
+ * POST /api/v1/process/financials/remap-closing-stock
+ */
+router.post(
+  '/validate',
+  financialsPivotFiles,
+  handleMulterError,
+  financialsController.processFinancialsPivot
+);
 router.post(
   '/export-pivots',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
