@@ -86,11 +86,16 @@ function parseListQuery(query = {}) {
  * @returns {Promise<number | null>}
  */
 async function persistSalesAuditProductAverages({ userId, fileName, pythonResult }) {
-  if (!userId) return null;
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
 
   const productAverages = pythonResult?.productAverages ?? [];
   const auditRun = await salesRepository.createAuditRunWithProductAverages({
-    uploadedBy: userId,
+    uploadedBy: resolvedUserId,
     fileName,
     totalRows: pythonResult?.totalRows ?? 0,
     invalidRows: pythonResult?.errorRows ?? 0,

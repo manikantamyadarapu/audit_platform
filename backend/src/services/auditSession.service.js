@@ -56,11 +56,18 @@ async function resolveAuditType({ auditTypeId, auditCode }) {
  * @param {{ auditTypeId?: number, auditCode?: string }} query
  */
 async function restoreSession(userId, query) {
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   const auditType = await resolveAuditType(query);
 
   // One active session per user per audit type — never cross-audit
   const session = await auditSessionRepository.findActiveSessionByAuditType(
-    userId,
+    resolvedUserId,
     auditType.id
   );
   if (!session) {
@@ -95,8 +102,15 @@ async function restoreSession(userId, query) {
  * @param {object} body
  */
 async function saveSession(userId, body) {
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   const auditType = await resolveAuditType(body);
-  const sessionKey = buildSessionKey(userId, auditType.auditCode);
+  const sessionKey = buildSessionKey(resolvedUserId, auditType.auditCode);
 
   const sessionData = body.sessionData ?? body.results ?? null;
   const fileName =
@@ -108,7 +122,7 @@ async function saveSession(userId, body) {
   const status = body.status ?? inferStatus(sessionData);
 
   const session = await auditSessionRepository.upsertSession({
-    userId,
+    userId: resolvedUserId,
     auditTypeId: auditType.id,
     sessionKey,
     pageRoute: body.pageRoute || '',
@@ -135,8 +149,15 @@ async function saveSession(userId, body) {
  * @param {{ auditTypeId?: number, auditCode?: string }} query
  */
 async function clearSession(userId, query) {
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   const auditType = await resolveAuditType(query);
-  await auditSessionRepository.deactivateSessionsByAuditType(userId, auditType.id);
+  await auditSessionRepository.deactivateSessionsByAuditType(resolvedUserId, auditType.id);
   return { cleared: true, auditTypeId: auditType.id };
 }
 

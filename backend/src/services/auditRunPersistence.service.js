@@ -36,6 +36,19 @@ const SUMMARY_ISSUE_FIELDS = [
   { key: 'dcUnclassifiedRows', code: 'DC_UNCLASSIFIED', name: 'DC Unclassified' },
 ];
 
+function requireAuthenticatedUserId(req) {
+  const rawUserId = req?.user?.id ?? req?.user?.userId;
+  const userId = Number(rawUserId);
+
+  if (!Number.isFinite(userId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  return userId;
+}
+
 /**
  * @param {Record<string, unknown>} pythonResult
  */
@@ -104,7 +117,12 @@ function extractIssueCounts(pythonResult) {
  * @returns {Promise<number | null>}
  */
 async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonResult, fileMetadata, performanceMetrics }) {
-  if (!userId) return null;
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
 
   const auditTypeId = await auditRunRepository.resolveAuditTypeId(auditCode);
   if (!auditTypeId) {
@@ -150,7 +168,7 @@ async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonRe
 
   const auditRun = await auditRunRepository.createAuditRun({
     auditTypeId,
-    uploadedBy: userId,
+    uploadedBy: resolvedUserId,
     fileName,
     totalRows,
     invalidRows,
@@ -171,11 +189,11 @@ async function persistAuditRunFromResult({ userId, auditCode, fileName, pythonRe
  * @param {object} performanceMetrics
  */
 async function tryPersistAuditRun(req, auditCode, fileName, pythonResult, fileMetadata, performanceMetrics) {
-  if (!req.user?.id) return null;
+  const userId = requireAuthenticatedUserId(req);
 
   try {
     return await persistAuditRunFromResult({
-      userId: req.user.id,
+      userId,
       auditCode,
       fileName,
       pythonResult,
@@ -185,10 +203,13 @@ async function tryPersistAuditRun(req, auditCode, fileName, pythonResult, fileMe
   } catch (err) {
     logger.error('Audit run persist failed', {
       requestId: req.requestId,
-      userId: req.user.id,
+      userId,
       auditCode,
       message: err.message,
     });
+    if (err.statusCode === 401) {
+      throw err;
+    }
     return null;
   }
 }
@@ -196,6 +217,7 @@ async function tryPersistAuditRun(req, auditCode, fileName, pythonResult, fileMe
 module.exports = {
   persistAuditRunFromResult,
   tryPersistAuditRun,
+  requireAuthenticatedUserId,
   extractMetrics,
   extractIssueCounts,
 };
