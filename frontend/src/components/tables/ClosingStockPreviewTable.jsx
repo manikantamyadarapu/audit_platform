@@ -72,6 +72,7 @@ function rowStyles(kind) {
  *   financialYear?: string,
  *   companyName?: string,
  *   address?: string,
+ *   showLegend?: boolean,
  * }} props
  */
 export function ClosingStockPreviewTable({
@@ -81,6 +82,7 @@ export function ClosingStockPreviewTable({
   financialYear = 'AY 2025-26',
   companyName = '',
   address = '',
+  showLegend = true,
 }) {
   const { level1, level2, leaves, numbers } = getClosingStockHeaderRows();
   const level1Cells = buildGroupedHeaderCells(level1);
@@ -101,7 +103,6 @@ export function ClosingStockPreviewTable({
           row.purchasesQty != null ||
           row.purchasesAmt != null)
     );
-    // eslint-disable-next-line no-console
     console.debug('[ClosingStockPreview]', {
       category,
       sample: sample
@@ -181,11 +182,12 @@ export function ClosingStockPreviewTable({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500">
-        Every Rule Book product stays in the sheet even when all columns are blank. Purchases
-        (cols 3–4) and Sales (cols 22–23) fill from pivots when matched; other columns stay blank
-        until calculations are added. TOTAL / GRAND TOTAL rows sum filled measures.
-      </p>
+      {showLegend ? (
+        <p className="text-xs text-slate-500">
+          Only products from this branch’s Sales, Purchases, and Opening Stock are listed.
+          TOTAL / GRAND TOTAL rows sum those products.
+        </p>
+      ) : null}
     </div>
   );
 }

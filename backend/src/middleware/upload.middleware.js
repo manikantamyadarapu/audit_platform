@@ -94,6 +94,20 @@ const financialsPivotFiles = financialsUpload.fields([
   { name: 'dcFile', maxCount: 1 },
 ]);
 
+const financialsSalesPurchasesFiles = financialsUpload.fields([
+  { name: 'salesFile', maxCount: 1 },
+  { name: 'purchasesFile', maxCount: 1 },
+  { name: 'openingQtyFile', maxCount: 1 },
+  { name: 'previousYearFile', maxCount: 1 },
+]);
+
+const financialsSalesPurchasesPivotFiles = financialsUpload.fields([
+  { name: 'salesFile', maxCount: 1 },
+  { name: 'purchasesFile', maxCount: 1 },
+  { name: 'openingQtyFile', maxCount: 1 },
+  { name: 'previousYearFile', maxCount: 1 },
+]);
+
 function handleMulterError(err, req, res, next) {
   if (!err) {
     return next();
@@ -120,5 +134,7 @@ module.exports = {
   section44abFiles,
   financialsFileFilter,
   financialsPivotFiles,
+  financialsSalesPurchasesFiles,
+  financialsSalesPurchasesPivotFiles,
   handleMulterError,
 };

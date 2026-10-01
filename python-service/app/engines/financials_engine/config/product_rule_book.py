@@ -6,11 +6,13 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections import OrderedDict
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from app.engines.financials_engine.engine.closing_stock_template import (
+    CATEGORIES_WITH_SUBCATEGORIES,
     CLOSING_STOCK_CATEGORIES,
     subcategory_total_label,
 )
@@ -24,6 +26,26 @@ _RULE_BOOK_PATH = Path(__file__).resolve().parent / 'closing_stock_product_rule_
 
 _SHEET_KEY_ALIASES: dict[str, str] = {
     'Precious': 'Precious and Semi Precious',
+}
+
+# Exact sheet labels from Sales/Purchases Category and previous-year tabs. Not fuzzy.
+_SHEET_NORM_ALIASES: dict[str, str] = {
+    'diamond': 'Diamond',
+    'diamonds': 'Diamond',
+    'dia': 'Diamond',
+    'emerald': 'Emerald',
+    'emeralds': 'Emerald',
+    'eme': 'Emerald',
+    'pearls': 'Pearls',
+    'pearl': 'Pearls',
+    'prls': 'Pearls',
+    'rubie': 'Rubie',
+    'rubies': 'Rubie',
+    'ruby': 'Rubie',
+    'rubi': 'Rubie',
+    'precious and semi precious': 'Precious and Semi Precious',
+    'precious': 'Precious and Semi Precious',
+    'prec': 'Precious and Semi Precious',
 }
 
 _UNICODE_WS = re.compile(
@@ -50,17 +72,31 @@ def _match_key(name: str) -> str:
     return _NON_ALNUM.sub('', _norm_product(name))
 
 
+_SYNTHETIC_WORDS = frozenset({'synthetic', 'sythetic'})
+
+
+def _cleaned_product_tokens(name: str) -> list[str]:
+    tokens = _norm_product(name).replace('.', ' ').split()
+    cleaned = [_NON_ALNUM.sub('', token) for token in tokens]
+    return [token for token in cleaned if token]
+
+
+def _canonical_code_tokens(tokens: list[str]) -> list[str]:
+    """SYN and JSY are one Synthetic Stones code: Synthetic SYN 100 → JSY 100."""
+    if not any(token in _SYNTHETIC_WORDS for token in tokens):
+        return tokens
+    return ['jsy' if token == 'syn' else token for token in tokens]
+
+
 def _core_sku_key(name: str) -> str:
     """
     Trailing product-code key used when Rule Book adds a category prefix.
 
     "Pearls JPS 1000" / "JPS 1000" → jps1000
-    "Synthetic JSY 100" / "JSY 100" → jsy100
+    "Synthetic JSY 100" / "Synthetic SYN 100" / "JSY 100" → jsy100
     "Flat polki FP 1" / "FP 1" / "FP1" → fp1
     """
-    tokens = _norm_product(name).replace('.', ' ').split()
-    cleaned = [_NON_ALNUM.sub('', t) for t in tokens]
-    cleaned = [t for t in cleaned if t]
+    cleaned = _canonical_code_tokens(_cleaned_product_tokens(name))
     if not cleaned:
         return ''
     digit_idx = None
@@ -83,6 +119,13 @@ def _coerce_measure(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _opening_balance_blank_or_zero(row: Mapping[str, Any]) -> bool:
+    qty = _coerce_measure(
+        row.get('sumOfQuantity') if row.get('sumOfQuantity') is not None else row.get('openingQty')
+    )
+    return qty is None or qty == 0
 
 
 def _round_closing_stock_measure(value: float | None) -> float | None:
@@ -388,6 +431,418 @@ def resolve_rule_book_display_name(
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
     lookup = _build_rule_book_match_lookup(book)
     return _resolve_rule_book_display_name(product, lookup=lookup)
+
+
+def _row_text(row: Mapping[str, Any], key: str) -> str:
+    return str(row.get(key) or '').strip()
+
+
+def _resolve_closing_stock_sheet(label: str) -> str | None:
+    text = str(label or '').strip()
+    if not text:
+        return None
+    if text in CLOSING_STOCK_CATEGORIES:
+        return text
+    aliased = _SHEET_KEY_ALIASES.get(text)
+    if aliased in CLOSING_STOCK_CATEGORIES:
+        return aliased
+    return _SHEET_NORM_ALIASES.get(_norm_product(text))
+
+
+def _unique_subcategory_location(
+    label: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str] | None:
+    key = _norm_product(label)
+    if not key:
+        return None
+    hits: list[tuple[str, str]] = []
+    for category in CLOSING_STOCK_CATEGORIES:
+        section = rule_book.get(category)
+        if not isinstance(section, dict):
+            continue
+        for subcategory in section:
+            sub_label = str(subcategory or '').strip()
+            if sub_label and _norm_product(sub_label) == key:
+                hits.append((category, sub_label))
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def _location_from_file_labels(
+    category_label: str,
+    subcategory_label: str | None,
+    *,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    sub = str(subcategory_label or '').strip() or None
+    sheet = _resolve_closing_stock_sheet(category_label)
+    if sheet:
+        return sheet, sub
+    unique = _unique_subcategory_location(category_label, rule_book)
+    if unique is None:
+        return None
+    if sub is None:
+        return unique
+    return unique[0], sub
+
+
+def _product_family_key(name: str) -> str:
+    """Product line without the trailing size number. Display names are unchanged."""
+    cleaned = _canonical_code_tokens(_cleaned_product_tokens(name))
+    while cleaned and cleaned[-1].isdigit():
+        cleaned.pop()
+    return ''.join(cleaned)
+
+
+def _unique_locations(
+    hits: Sequence[tuple[str, str | None]],
+) -> tuple[str, str | None] | None:
+    unique = set(hits)
+    if len(unique) == 1:
+        return unique.pop()
+    return None
+
+
+def _location_from_existing_product_family(
+    product: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    """
+    Place a file product on the sheet already used by that product line.
+
+    "Emeralds JEM 5300" follows "Emeralds JEM 100". Names with no existing line stay unplaced.
+    """
+    family = _product_family_key(product)
+    if len(family) < 3:
+        return None
+    hits = [
+        (category, subcategory)
+        for category, subcategory, display in _iter_rule_book_products(rule_book)
+        if _product_family_key(display) == family
+    ]
+    return _unique_locations(hits)
+
+
+def _prefix_product_line(
+    product: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None, str] | None:
+    """Longest unique Rule Book prefix, e.g. "Chakri a" → Chakri."""
+    norm = _norm_product(product)
+    if not norm:
+        return None
+    best_len = 0
+    hits: list[tuple[str, str | None, str]] = []
+    for category, subcategory, display in _iter_rule_book_products(rule_book):
+        label = _norm_product(display)
+        if not label or not norm.startswith(f'{label} '):
+            continue
+        if len(label) > best_len:
+            best_len = len(label)
+            hits = [(category, subcategory, display)]
+        elif len(label) == best_len:
+            hits.append((category, subcategory, display))
+    locations = {(category, subcategory) for category, subcategory, _display in hits}
+    if len(locations) != 1:
+        return None
+    if len(hits) == 1:
+        return hits[0]
+    category, subcategory = locations.pop()
+    return category, subcategory, str(product).strip()
+
+
+def _location_from_rule_book_name_prefix(
+    product: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    """Place "Chakri a" with "Chakri" when that Rule Book name is a unique prefix."""
+    line = _prefix_product_line(product, rule_book)
+    if line is None:
+        norm = _norm_product(product)
+        if not norm:
+            return None
+        hits = [
+            (category, subcategory)
+            for category, subcategory, display in _iter_rule_book_products(rule_book)
+            if _norm_product(display) == norm
+        ]
+        return _unique_locations(hits)
+    return line[0], line[1]
+
+
+def resolve_known_product_line(
+    product: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None, str] | None:
+    """
+    Basheerbagh placement for a name that is not an exact Rule Book entry.
+
+    Prefix wins ("Chakri a" → Chakri). Otherwise the family location is used and
+    the quantity-file name stays the display name ("Flat polki FP 16").
+    """
+    prefix = _prefix_product_line(product, rule_book)
+    if prefix is not None:
+        return prefix
+    location = _location_from_existing_product_family(product, rule_book)
+    if location is None:
+        return None
+    return location[0], location[1], str(product).strip()
+
+
+def _location_from_known_product_line(
+    product: str,
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    return _location_from_existing_product_family(
+        product, rule_book
+    ) or _location_from_rule_book_name_prefix(product, rule_book)
+
+
+def _sales_purchases_location(
+    product: str,
+    row: Mapping[str, Any],
+    *,
+    location_index: Mapping[str, tuple[str, str | None]],
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    loc = _location_from_file_labels(
+        _row_text(row, 'category'),
+        _row_text(row, 'subcategory') or None,
+        rule_book=rule_book,
+    )
+    if loc is not None:
+        return loc
+    loc = resolve_product_location(product, index=location_index)
+    if loc is not None:
+        return loc
+    return _location_from_known_product_line(product, rule_book)
+
+
+def _opening_only_location(
+    product: str,
+    row: Mapping[str, Any],
+    *,
+    location_index: Mapping[str, tuple[str, str | None]],
+    rule_book: Mapping[str, Any],
+) -> tuple[str, str | None] | None:
+    loc = _location_from_file_labels(
+        _row_text(row, 'category'),
+        _row_text(row, 'subcategory') or None,
+        rule_book=rule_book,
+    )
+    if loc is not None:
+        return loc
+    loc = _location_from_file_labels(
+        _row_text(row, 'sheetName'),
+        None,
+        rule_book=rule_book,
+    )
+    if loc is not None:
+        return loc
+    loc = resolve_product_location(product, index=location_index)
+    if loc is not None:
+        return loc
+    return _location_from_known_product_line(product, rule_book)
+
+
+def _lookup_from_entries(
+    entries: Sequence[tuple[str, str, str | None]],
+) -> dict[str, str]:
+    book: dict[str, Any] = {category: [] for category in CLOSING_STOCK_CATEGORIES}
+    for name, category, _sub in entries:
+        if category in book:
+            book[category].append(name)
+    return _build_rule_book_match_lookup(book)
+
+
+def _catalog_to_rule_book(
+    entries: Sequence[tuple[str, str, str | None]],
+) -> dict[str, Any]:
+    grouped: dict[str, OrderedDict[str, list[str]]] = {
+        category: OrderedDict() for category in CLOSING_STOCK_CATEGORIES
+    }
+    plains: dict[str, list[str]] = {category: [] for category in CLOSING_STOCK_CATEGORIES}
+    for name, category, subcategory in entries:
+        if category not in grouped:
+            continue
+        sub = str(subcategory or '').strip()
+        if sub:
+            grouped[category].setdefault(sub, []).append(name)
+        else:
+            plains[category].append(name)
+
+    book: dict[str, Any] = {}
+    for category in CLOSING_STOCK_CATEGORIES:
+        has_groups = bool(grouped[category])
+        has_plain = bool(plains[category])
+        if has_groups and not has_plain:
+            book[category] = dict(grouped[category])
+        elif has_plain and not has_groups:
+            book[category] = plains[category]
+        elif has_groups and has_plain:
+            section = OrderedDict(grouped[category])
+            section[''] = plains[category]
+            book[category] = dict(section)
+        elif category in CATEGORIES_WITH_SUBCATEGORIES:
+            book[category] = {}
+        else:
+            book[category] = []
+    return book
+
+
+def _catalog_display_for(name: str, lookup: Mapping[str, str]) -> str | None:
+    text = str(name or '').strip()
+    if not text:
+        return None
+    if text in lookup.values():
+        return text
+    return _resolve_rule_book_display_name(text, lookup=lookup)
+
+
+def _try_add_opening_row(
+    row: Mapping[str, Any],
+    *,
+    entries: list[tuple[str, str, str | None]],
+    unplaced: list[dict[str, Any]],
+    location_index: Mapping[str, tuple[str, str | None]],
+    rule_book: Mapping[str, Any],
+) -> None:
+    """
+    Add an Opening Quantity product that is not already in Sales/Purchases.
+
+    A confirmed manual/fallback mapping keeps a single row on ruleBookProduct.
+    If that mapped product is already in the catalog, the quantity-file label is not added.
+    """
+    product = _row_text(row, 'product')
+    mapped_name = ''
+    if row.get('status') == 'matched_fallback':
+        mapped_name = _row_text(row, 'ruleBookProduct')
+    if not product and not mapped_name:
+        return
+
+    lookup = _lookup_from_entries(entries)
+    if product and _catalog_display_for(product, lookup):
+        return
+    if mapped_name and _catalog_display_for(mapped_name, lookup):
+        return
+
+    opening_qty = _coerce_measure(
+        row.get('sumOfQuantity') if row.get('sumOfQuantity') is not None else row.get('openingQty')
+    )
+    if opening_qty is None or opening_qty == 0:
+        return
+
+    display = mapped_name or product
+    loc = _opening_only_location(
+        display, row, location_index=location_index, rule_book=rule_book
+    )
+    if loc is None and display != product and product:
+        loc = _opening_only_location(
+            product, row, location_index=location_index, rule_book=rule_book
+        )
+    if loc is None:
+        unplaced.append(
+            {
+                'product': display,
+                'source': 'Opening',
+                'sumOfQuantity': _coerce_measure(
+                    row.get('sumOfQuantity')
+                    if row.get('sumOfQuantity') is not None
+                    else row.get('openingQty')
+                ),
+                'sumOfGross': _coerce_measure(
+                    row.get('sumOfGross') if row.get('sumOfGross') is not None else row.get('openingAmt')
+                ),
+            }
+        )
+        return
+    _append_unique_catalog_product(entries, product=display, location=loc)
+
+
+def _append_unique_catalog_product(
+    entries: list[tuple[str, str, str | None]],
+    *,
+    product: str,
+    location: tuple[str, str | None],
+) -> None:
+    category, subcategory = location
+    entries.append((product, category, subcategory))
+
+
+def _build_financials_product_catalog(
+    *,
+    sales_pivot: Sequence[Mapping[str, Any]] | None,
+    purchases_pivot: Sequence[Mapping[str, Any]] | None,
+    opening_pivot: Sequence[Mapping[str, Any]] | None,
+    location_index: Mapping[str, tuple[str, str | None]],
+    rule_book: Mapping[str, Any],
+) -> tuple[list[tuple[str, str, str | None]], list[dict[str, Any]]]:
+    """
+    Sales + Purchases (deduped), then Opening Quantity products absent from that list.
+
+    Opening-only products with a zero or blank Opening Balance are omitted.
+    Category: Sales/Purchases file first; Opening-only uses previous-year labels.
+    """
+    entries: list[tuple[str, str, str | None]] = []
+    unplaced: list[dict[str, Any]] = []
+
+    def _try_add_from_row(
+        row: Mapping[str, Any],
+        *,
+        source: str,
+        locate,
+    ) -> None:
+        product = _row_text(row, 'product')
+        if not product:
+            return
+        lookup = _lookup_from_entries(entries)
+        existing = _resolve_rule_book_display_name(product, lookup=lookup)
+        if existing is not None:
+            return
+        loc = locate(product, row)
+        if loc is None:
+            unplaced.append(
+                {
+                    'product': product,
+                    'source': source,
+                    'sumOfQuantity': _coerce_measure(
+                        row.get('sumOfQuantity') if row.get('sumOfQuantity') is not None else row.get('openingQty')
+                    ),
+                    'sumOfGross': _coerce_measure(
+                        row.get('sumOfGross') if row.get('sumOfGross') is not None else row.get('openingAmt')
+                    ),
+                }
+            )
+            return
+        _append_unique_catalog_product(entries, product=product, location=loc)
+
+    for row in sales_pivot or ():
+        _try_add_from_row(
+            row,
+            source='Sales',
+            locate=lambda product, row: _sales_purchases_location(
+                product, row, location_index=location_index, rule_book=rule_book
+            ),
+        )
+    for row in purchases_pivot or ():
+        _try_add_from_row(
+            row,
+            source='Purchases',
+            locate=lambda product, row: _sales_purchases_location(
+                product, row, location_index=location_index, rule_book=rule_book
+            ),
+        )
+    for row in opening_pivot or ():
+        _try_add_opening_row(
+            row,
+            entries=entries,
+            unplaced=unplaced,
+            location_index=location_index,
+            rule_book=rule_book,
+        )
+    return entries, unplaced
 
 
 def _aggregate_pivot_by_rule_book(
@@ -731,6 +1186,24 @@ def _product_measures_from_maps(
     return _display_product_measures(raw)
 
 
+def _product_name_sort_key(name: str) -> tuple:
+    """Case-insensitive natural order: RA 2, RA 10, RA 100."""
+    parts = re.split(r'(\d+)', str(name or '').casefold())
+    key: list[tuple[int, int | str]] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part))
+    return tuple(key)
+
+
+def _sorted_product_names(names: Sequence[str]) -> list[str]:
+    return sorted((str(name) for name in names if str(name or '').strip()), key=_product_name_sort_key)
+
+
 def _build_layout_for_category(
     category: str,
     *,
@@ -741,9 +1214,9 @@ def _build_layout_for_category(
     transfer_qty_by_display: Mapping[str, Mapping[str, float]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """
-    Build sheet layout from the Rule Book master list.
+    Build one category sheet from the Sales, Purchases, and Opening catalog.
 
-    Every Rule Book product is included even when measures are blank/null.
+    Rule Book names that are not in those files are not listed.
     Product Amounts are rounded for display; TOTAL Amounts use ROUND(SUM(unrounded)).
     """
     layout: list[dict[str, Any]] = []
@@ -773,17 +1246,22 @@ def _build_layout_for_category(
         sheet_raw.append(raw)
 
     if isinstance(rule_section, dict):
-        for subcategory, rule_products in rule_section.items():
-            products = list(rule_products or [])
+        sections = sorted(
+            rule_section.items(),
+            key=lambda pair: _product_name_sort_key(str(pair[0] or '')),
+        )
+        for subcategory, rule_products in sections:
+            products = _sorted_product_names(list(rule_products or []))
             if not products:
                 continue
-            layout.append(
-                {
-                    'kind': 'subcategory',
-                    'label': subcategory,
-                    'subcategory': subcategory,
-                }
-            )
+            if str(subcategory or '').strip():
+                layout.append(
+                    {
+                        'kind': 'subcategory',
+                        'label': subcategory,
+                        'subcategory': subcategory,
+                    }
+                )
             subcategory_raw: list[dict[str, float | None]] = []
             for product in products:
                 raw = _raw_product_measures(
@@ -814,7 +1292,7 @@ def _build_layout_for_category(
                 }
             )
     elif isinstance(rule_section, list):
-        for product in rule_section:
+        for product in _sorted_product_names(list(rule_section)):
             _append_product(product, None)
 
     if flat_products:
@@ -1035,10 +1513,10 @@ def map_pivots_to_closing_stock_categories(
     rule_book: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
-    Build Closing Stock from the Rule Book (master list) and LEFT JOIN pivot values.
+    Build Closing Stock rows from Sales + Purchases, then Opening Quantity-only products.
 
-    Display names always come from the Rule Book. Sales/Purchases/Opening Qty/Amt are
-    the SUM of matching pivot rows (normalized / alphanumeric / unique core SKU).
+    Display names come from those files. Matching uses normalized / alphanumeric / unique
+    core SKU keys. Sales/Purchases categories are never replaced by Opening Stock categories.
     """
     log = get_logger('closing-stock-rule-book')
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
@@ -1046,7 +1524,6 @@ def map_pivots_to_closing_stock_categories(
     location_index = build_product_location_index(book)
     rule_counts = count_rule_book_products(book)
     total_rule_products = sum(rule_counts.values())
-    match_lookup = _build_rule_book_match_lookup(book)
 
     log.info(
         'Rule Book loaded from disk: path={} mtime={} total_products={} fingerprint={}',
@@ -1058,6 +1535,16 @@ def map_pivots_to_closing_stock_categories(
     for category in CLOSING_STOCK_CATEGORIES:
         log.info('Rule Book products — {}: {}', category, rule_counts.get(category, 0))
 
+    catalog_entries, _unplaced_catalog = _build_financials_product_catalog(
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        location_index=location_index,
+        rule_book=book,
+    )
+    layout_book = _catalog_to_rule_book(catalog_entries)
+    match_lookup = _build_rule_book_match_lookup(layout_book)
+
     sales_by_display, unmapped_sales_rows = _aggregate_pivot_by_rule_book(
         sales_pivot,
         lookup=match_lookup,
@@ -1066,7 +1553,7 @@ def map_pivots_to_closing_stock_categories(
         purchases_pivot,
         lookup=match_lookup,
     )
-    layout_product_names = [display for _cat, _sub, display in _iter_rule_book_products(book)]
+    layout_product_names = [display for _cat, _sub, display in _iter_rule_book_products(layout_book)]
     opening_by_display, unmapped_opening_rows = build_opening_measures_for_layout(
         opening_pivot,
         layout_product_names,
@@ -1074,16 +1561,19 @@ def map_pivots_to_closing_stock_categories(
     opening_by_display, unmapped_opening_rows = apply_fallback_opening_to_layout(
         opening_by_display,
         opening_pivot,
-        rule_book=book,
+        rule_book=layout_book,
         unmapped_rows=unmapped_opening_rows,
     )
+    unmapped_opening_rows = [
+        row for row in unmapped_opening_rows if not _opening_balance_blank_or_zero(row)
+    ]
 
     from app.engines.financials_engine.engine.mr_dc_closing_qty import map_mr_dc_qty_to_rule_book
 
     transfer_qty_by_display = map_mr_dc_qty_to_rule_book(
         mr_pivots=mr_pivots,
         dc_pivots=dc_pivots,
-        rule_book=book,
+        rule_book=layout_book,
     )
 
     unmapped: list[str] = []
@@ -1104,10 +1594,11 @@ def map_pivots_to_closing_stock_categories(
             unmapped_details.append({'product': product_name, 'source': source})
             log.warning('Unmapped pivot product: {} Source: {}', product_name, source)
 
+    layout_location_index = build_product_location_index(layout_book)
     sales_by_category, purchases_by_category = _build_category_pivot_lists(
         sales_by_display=sales_by_display,
         purchases_by_display=purchases_by_display,
-        location_index=location_index,
+        location_index=layout_location_index,
     )
 
     products_by_category: dict[str, list[str]] = {}
@@ -1115,7 +1606,7 @@ def map_pivots_to_closing_stock_categories(
     for category in CLOSING_STOCK_CATEGORIES:
         layout, flat = _build_layout_for_category(
             category,
-            rule_section=book.get(category),
+            rule_section=layout_book.get(category),
             sales_by_display=sales_by_display,
             purchases_by_display=purchases_by_display,
             opening_by_display=opening_by_display,
@@ -1145,21 +1636,15 @@ def map_pivots_to_closing_stock_categories(
     ]
 
     log.info(
-        'Closing Stock fill — rule_book={} displayed={} with_sales={} with_purchases={} '
+        'Closing Stock fill — catalog={} displayed={} with_sales={} with_purchases={} '
         'with_opening={} pivot_unmapped={}',
-        total_rule_products,
+        len(catalog_entries),
         mapped_count,
         products_with_sales,
         products_with_purchases,
         products_with_opening,
         len(unmapped),
     )
-    if mapped_count != total_rule_products:
-        log.error(
-            'Rule Book product count mismatch: expected {} displayed {}',
-            total_rule_products,
-            mapped_count,
-        )
 
     reconciliation = _build_reconciliation(
         sales_pivot=sales_pivot,

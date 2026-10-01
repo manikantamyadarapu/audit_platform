@@ -170,6 +170,24 @@ class TestWorkbookLoader:
         )
         assert rows[0]['grossAmount'] == 1430000.39
 
+    def test_optional_category_column_is_carried_when_present(self):
+        file_bytes = _excel_bytes(
+            [
+                {
+                    'Product': 'Gold Ring',
+                    'Quantity': 1,
+                    'Gross Amount': 100,
+                    'Category': 'Diamond',
+                    'Subcategory': 'Diamonds - Beads',
+                }
+            ]
+        )
+        rows, _ = load_financials_workbook(
+            file_bytes, 'sales.xlsx', source_label='Sales'
+        )
+        assert rows[0]['category'] == 'Diamond'
+        assert rows[0]['subcategory'] == 'Diamonds - Beads'
+
     def test_missing_gross_amount_clear_error(self):
         file_bytes = _excel_bytes([{'Product': 'X', 'Quantity': 1}])
         with pytest.raises(SheetValidationError) as caught:
@@ -229,6 +247,59 @@ class TestFinancialsPivotAudit:
         assert result['fileType'] == 'closing_stock'
         assert result['auditKey'] == 'FINANCIALS_PIVOT'
         assert result['errorRows'] == result['summary']['unmappedProductCount']
+
+    def test_sales_purchases_only_skips_opening_and_transfers(self):
+        sales_bytes = _excel_bytes(
+            [{'Product': 'Gold Ring', 'Quantity': 2, 'Gross Amount': 20000}],
+        )
+        purchases_bytes = _excel_bytes(
+            [{'Product': 'Gold Ring', 'Quantity': 1, 'Gross Amount': 9000}],
+        )
+        result = FinancialsPivotAudit().process(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+        )
+        assert result['salesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 2.0, 'sumOfGross': 20000.0},
+        ]
+        assert result['purchasesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 1.0, 'sumOfGross': 9000.0},
+        ]
+        assert result['openingPivot'] == []
+        assert result['summary']['openingProductCount'] == 0
+        assert result['summary']['mrClassifiedRows'] == 0
+        assert result['summary']['dcClassifiedRows'] == 0
+
+    def test_sales_purchases_pivot_endpoint_shape_has_no_closing_stock(self):
+        sales_bytes = _excel_bytes(
+            [
+                {'Product': 'Gold Ring', 'Quantity': 2, 'Gross Amount': 10},
+                {'Product': 'Gold Ring', 'Quantity': 3, 'Gross Amount': 5.5},
+            ]
+        )
+        purchases_bytes = _excel_bytes(
+            [{'Product': 'Silver Coin', 'Quantity': 4, 'Gross Amount': 8}],
+        )
+        result = FinancialsPivotAudit().process_sales_purchases_pivots(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+        )
+        assert result['salesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 5.0, 'sumOfGross': 15.5},
+        ]
+        assert result['purchasesPivot'] == [
+            {'product': 'Silver Coin', 'sumOfQuantity': 4.0, 'sumOfGross': 8.0},
+        ]
+        assert result['summary']['salesTotalQuantity'] == 5.0
+        assert result['summary']['purchasesTotalGross'] == 8.0
+        assert 'openingPivot' not in result
+        assert 'layoutByCategory' not in result
+        assert 'mrPivots' not in result
+        assert 'dcPivots' not in result
 
 
 class TestClosingStockFramework:

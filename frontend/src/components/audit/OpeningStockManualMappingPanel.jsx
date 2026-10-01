@@ -8,6 +8,21 @@ import { cn } from '../../utils/cn';
 
 const QTY_EPS = 1e-4;
 
+const ADDRESS_PHRASE =
+  /kokapet|jubilee|banjara|gachibowli|kondapur|madhapur|secunderabad|telangana|ranga\s*reddy|gandipet|narsingi|road\s*no|rd\s*no|plot\s*no|h\.?\s*no|house\s*no|survey\s*no|door\s*no|flat\s*no|sy\.?\s*no|pin\s*code|pincode|financial\s*year|for\s+the\s+year|year\s+ended|jewellers|hyderabad|basheerbagh|details\s+of\s+jewels/i;
+const ADDRESS_TOKEN =
+  /\b(colony|nagar|village|mandal|district|address|phone|mobile|email)\b/i;
+const DOOR_NUMBER = /\d+\s*[-/]\s*\d+\s*[-/]\s*\d+/;
+
+function isAddressLikeLabel(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (ADDRESS_PHRASE.test(text) || ADDRESS_TOKEN.test(text) || DOOR_NUMBER.test(text)) {
+    return true;
+  }
+  return /,/.test(text) && /(?<!\d)\d{6}(?!\d)/.test(text);
+}
+
 function coerceNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
@@ -190,9 +205,11 @@ function MappingModal({
   const current = products[productIndex] || null;
   const openingQty = coerceNumber(current?.openingQty);
   const [selected, setSelected] = useState(() => new Set());
+  const [differenceWarning, setDifferenceWarning] = useState(false);
 
   useEffect(() => {
     setSelected(new Set());
+    setDifferenceWarning(false);
   }, [current?.product, group?.key]);
 
   useEffect(() => {
@@ -208,7 +225,7 @@ function MappingModal({
     const raw = Array.isArray(current?.candidateProducts) ? current.candidateProducts : [];
     return raw.filter((c) => {
       const name = String(c.product || c.sheetName || '').trim();
-      return name && !claimedPrevNames.has(name);
+      return name && !isAddressLikeLabel(name) && !claimedPrevNames.has(name);
     });
   }, [current, claimedPrevNames]);
 
@@ -220,13 +237,16 @@ function MappingModal({
   const selectedAmt = selectedRows.reduce((sum, c) => sum + (candidateAmt(c) || 0), 0);
   const difference =
     openingQty === null ? null : Math.round((openingQty - selectedQty) * 1e6) / 1e6;
-  const canConfirm = selectedRows.length > 0 && qtyEqual(openingQty, selectedQty);
+  const qtyMatches = qtyEqual(openingQty, selectedQty);
+  const canConfirm = selectedRows.length > 0 && qtyMatches;
+  const canMapWithDifference = selectedRows.length > 0 && !qtyMatches;
 
   if (!open || !current || !group) return null;
 
   function toggle(name) {
     const key = String(name || '').trim();
     if (!key) return;
+    setDifferenceWarning(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -235,11 +255,7 @@ function MappingModal({
     });
   }
 
-  function handleConfirm() {
-    if (!canConfirm) {
-      auditToastError('Selected Closing Qty must exactly equal current Opening Qty.');
-      return;
-    }
+  function submitMapping() {
     onConfirm({
       product: current.product,
       ruleBookProduct: current.ruleBookProduct || current.product,
@@ -249,6 +265,19 @@ function MappingModal({
       openingAmt: selectedAmt,
       previousYearProducts: selectedRows.map((c) => c.product),
     });
+  }
+
+  function handleConfirm() {
+    if (!canConfirm) {
+      auditToastError('Selected Closing Qty must exactly equal current Opening Qty.');
+      return;
+    }
+    submitMapping();
+  }
+
+  function handleMapWithDifference() {
+    if (!canMapWithDifference) return;
+    setDifferenceWarning(true);
   }
 
   return createPortal(
@@ -296,7 +325,7 @@ function MappingModal({
             Previous-year products
           </p>
           <p className="text-xs text-slate-500">
-            Select one or more from this subcategory. Confirm when Selected Qty equals Opening Qty.
+            Select one or more from this subcategory. Confirm Mapping requires Selected Qty to equal Opening Qty.
           </p>
           {candidates.length ? (
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
@@ -344,7 +373,7 @@ function MappingModal({
           <div
             className={cn(
               'rounded-lg px-2.5 py-2',
-              canConfirm
+              qtyMatches
                 ? 'bg-emerald-50 dark:bg-emerald-950/30'
                 : 'bg-rose-50 dark:bg-rose-950/30'
             )}
@@ -358,10 +387,27 @@ function MappingModal({
           </div>
         </div>
 
+        {differenceWarning ? (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            Selected Qty does not equal Opening Qty. Difference is {formatNumber(difference ?? 0, 4)}.
+            Mapping still keeps the current opening quantity and uses the selected previous-year amount.
+          </div>
+        ) : null}
+
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
           <Button type="button" size="sm" variant="secondary" onClick={onClose}>
             Close
           </Button>
+          {canMapWithDifference ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={differenceWarning ? submitMapping : handleMapWithDifference}
+            >
+              {differenceWarning ? 'Continue mapping' : 'Map with Difference'}
+            </Button>
+          ) : null}
           <Button type="button" size="sm" disabled={!canConfirm} onClick={handleConfirm}>
             Confirm Mapping
           </Button>
@@ -383,7 +429,12 @@ export function OpeningStockManualMappingPanel({ rows, onConfirmMapping }) {
     () =>
       items.filter((row) => {
         const name = String(row?.product || '').trim();
-        return name && !resolvedProducts.has(name) && hasNonZeroQty(row.openingQty);
+        return (
+          name &&
+          !isAddressLikeLabel(name) &&
+          !resolvedProducts.has(name) &&
+          hasNonZeroQty(row.openingQty)
+        );
       }),
     [items, resolvedProducts]
   );

@@ -1,120 +1,75 @@
-import { useCallback, useMemo, useState } from 'react';
-import {
-  ArrowLeftRight,
-  ChevronRight,
-  Download,
-  FileSpreadsheet,
-  Gem,
-  Package,
-  ShoppingCart,
-  Table2,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FileSpreadsheet, Gem } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
-import { FileUploadZone } from '../components/upload/FileUploadZone';
+import { FolderUploadZone } from '../components/upload/FolderUploadZone';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { AuditSummaryWidget } from '../components/cards/AuditSummaryWidget';
-import { AuditSummaryGrid } from '../components/audit/AuditSummaryGrid';
 import { EmptyState } from '../components/ui/EmptyState';
-import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
-import { AbstractPreviewTable } from '../components/tables/AbstractPreviewTable';
-import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
-import { ABSTRACT_SHEET_NAME } from '../config/abstractLayout';
-import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
+import { FinancialsBranchResults } from '../components/audit/FinancialsBranchResults';
 import { WatchDemoButton } from '../components/demo/WatchDemoButton';
-import {
-  OpeningStockManualMappingPanel,
-  applyManualOpeningMapping,
-} from '../components/audit/OpeningStockManualMappingPanel';
 import { Input } from '../components/ui/Input';
-import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
 import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
-import { formatNumber } from '../utils/format';
+import {
+  BASHEERBAGH_FOLDER_SLOTS,
+  KOKAPET_FOLDER_SLOTS,
+  classifyBasheerbaghFolderFiles,
+  classifyKokapetFolderFiles,
+} from '../config/basheerbaghFolderFiles';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
-import { useClosingStockMapping } from '../hooks/useClosingStockMapping';
 import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
-const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
 
-const TRANSFER_PIVOT_LOCATIONS = [
-  { key: 'jubileeHills', title: 'Jubilee Hills' },
-  { key: 'kokapet', title: 'Kokapet' },
-  { key: 'internalBasheerbagh', title: 'Internal / Basheerbagh' },
-];
-
-function TransferLocationPivots({ heading, sourceLabel, tree }) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-base font-bold text-emerald-700">{heading}</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          {sourceLabel} stays separate. Each location is Product, Sum of Quantity, Sum of Gross
-          Amount.
-        </p>
-      </CardHeader>
-      <CardBody>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {TRANSFER_PIVOT_LOCATIONS.map(({ key, title }) => {
-            const rows = Array.isArray(tree?.[key]) ? tree[key] : [];
-            return (
-              <div
-                key={`${sourceLabel}-${key}`}
-                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:border-slate-700 dark:bg-slate-900/30"
-              >
-                <div className="border-b border-slate-200/80 px-3 py-2 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    {sourceLabel} – {title}
-                  </p>
-                  <p className="text-xs text-slate-500">{formatNumber(rows.length)} products</p>
-                </div>
-                <div className="max-h-72 overflow-auto">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold">Product</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Quantity</th>
-                        <th className="px-3 py-2 font-semibold">Sum of Gross Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length ? (
-                        rows.map((row) => (
-                          <tr
-                            key={`${sourceLabel}-${key}-${row.product}`}
-                            className="border-t border-slate-100 dark:border-slate-800"
-                          >
-                            <td className="px-3 py-1.5">{row.product}</td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfQuantity ?? 0, 4)}
-                            </td>
-                            <td className="px-3 py-1.5 tabular-nums">
-                              {formatNumber(row.sumOfGross ?? 0, 2)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="px-3 py-3 text-slate-500" colSpan={3}>
-                            No rows for this location.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardBody>
-    </Card>
+function assignedSixReady(assigned) {
+  return Boolean(
+    assigned?.sales &&
+      assigned?.purchases &&
+      assigned?.quantity &&
+      assigned?.previousYear &&
+      assigned?.mr &&
+      assigned?.dc
   );
+}
+
+function missingSlotLabels(assigned, slots) {
+  return slots
+    .filter((slot) => !assigned?.[slot.key])
+    .map((slot) => slot.label);
+}
+
+function toastClosingStockOutcome(data, branch = '') {
+  const mapped = data?.summary?.mappedProductCount ?? data?.summary?.productsDisplayed ?? 0;
+  const unmapped = data?.summary?.unmappedProductCount ?? 0;
+  const openingMatched = data?.openingStockReport?.matchedCount
+    ?? data?.openingStockReport?.quantityMatchedCount
+    ?? 0;
+  const mrClassified = data?.summary?.mrClassifiedRows
+    ?? data?.mrReport?.classifiedRowCount
+    ?? 0;
+  const dcClassified = data?.summary?.dcClassifiedRows
+    ?? data?.dcReport?.classifiedRowCount
+    ?? 0;
+  if (mapped > 0) {
+    const label = branch ? `${branch} Closing Stock` : 'Closing Stock';
+    auditToastSuccess(
+      `${label} ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
+        (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
+        ` · MR ${mrClassified} / DC ${dcClassified} classified` +
+        (unmapped ? ` (${unmapped} unmapped)` : '')
+    );
+  } else {
+    const label = branch ? `${branch} Closing Stock` : 'Closing Stock';
+    auditToastError(
+      unmapped
+        ? `${label}: no products matched the Rule Book (${unmapped} unmapped). Check product names.`
+        : `${label} ready but no products were mapped.`
+    );
+  }
 }
 
 function slimSnapshot(data) {
@@ -142,6 +97,8 @@ export default function FinancialsPivotPage() {
   const [previousYearFile, setPreviousYearFile] = useState(null);
   const [mrFile, setMrFile] = useState(null);
   const [dcFile, setDcFile] = useState(null);
+  const [basheerbaghFolderFiles, setBasheerbaghFolderFiles] = useState([]);
+  const [kokapetFolderFiles, setKokapetFolderFiles] = useState([]);
   const [restoredSalesName, setRestoredSalesName] = useState(
     () => initialSession.data?.salesFileName ?? null
   );
@@ -161,11 +118,10 @@ export default function FinancialsPivotPage() {
     () => initialSession.data?.dcFileName ?? null
   );
   const [loading, setLoading] = useState(false);
-  const [exportingPivots, setExportingPivots] = useState(false);
-  const [exportingClosing, setExportingClosing] = useState(false);
   const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
-  const [activeCategory, setActiveCategory] = useState(CLOSING_STOCK_CATEGORIES[0]);
+  const [kokapetResult, setKokapetResult] = useState(null);
+  const [kokapetSheetError, setKokapetSheetError] = useState(null);
   const [companyName, setCompanyName] = useState(() => initialSession.data?.companyName ?? '');
   const [address, setAddress] = useState(() => initialSession.data?.address ?? '');
   const [financialYear, setFinancialYear] = useState(
@@ -190,7 +146,16 @@ export default function FinancialsPivotPage() {
     setPreviousYearFile(null);
     setMrFile(null);
     setDcFile(null);
+    setBasheerbaghFolderFiles([]);
+    setKokapetFolderFiles([]);
+    setKokapetResult(null);
+    setKokapetSheetError(null);
   }, []);
+
+  const kokapetIdentification = useMemo(() => {
+    if (!kokapetFolderFiles.length) return null;
+    return classifyKokapetFolderFiles(kokapetFolderFiles, { financialYear });
+  }, [kokapetFolderFiles, financialYear]);
 
   const sessionSnapshot = useMemo(
     () => ({
@@ -245,242 +210,261 @@ export default function FinancialsPivotPage() {
     previousYearFile ?? (restoredPreviousYearName ? { name: restoredPreviousYearName } : null);
   const displayMr = mrFile ?? (restoredMrName ? { name: restoredMrName } : null);
   const displayDc = dcFile ?? (restoredDcName ? { name: restoredDcName } : null);
-  const allReady = Boolean(
+  const canProcess = Boolean(
     salesFile && purchasesFile && openingQtyFile && previousYearFile && mrFile && dcFile
   );
 
-  const resetResults = useCallback(() => {
-    setSheetError(null);
-    setResult(null);
+  const applyBasheerbaghFolder = useCallback((files) => {
+    const list = Array.isArray(files) ? files : [];
+    setBasheerbaghFolderFiles(list);
+    setRestoredSalesName(null);
+    setRestoredPurchasesName(null);
+    setRestoredOpeningQtyName(null);
+    setRestoredPreviousYearName(null);
+    setRestoredMrName(null);
+    setRestoredDcName(null);
+    if (!list.length) {
+      setSalesFile(null);
+      setPurchasesFile(null);
+      setOpeningQtyFile(null);
+      setPreviousYearFile(null);
+      setMrFile(null);
+      setDcFile(null);
+    }
   }, []);
 
+  useEffect(() => {
+    if (!basheerbaghFolderFiles.length) return;
+    const assigned = classifyBasheerbaghFolderFiles(basheerbaghFolderFiles, { financialYear });
+    setSalesFile(assigned.sales);
+    setPurchasesFile(assigned.purchases);
+    setOpeningQtyFile(assigned.quantity);
+    setPreviousYearFile(assigned.previousYear);
+    setMrFile(assigned.mr);
+    setDcFile(assigned.dc);
+  }, [basheerbaghFolderFiles, financialYear]);
+
+  const workspaceRef = useRef(sessionSnapshot);
+  workspaceRef.current = sessionSnapshot;
+  const persistWorkspace = useCallback(
+    (patch, options = { notifyOnFailure: true, force: true }) => {
+      persist({ ...workspaceRef.current, ...patch }, options);
+    },
+    [persist]
+  );
+
   const runProcess = useCallback(async () => {
-    if (!salesFile || !purchasesFile || !openingQtyFile || !previousYearFile || !mrFile || !dcFile) {
-      auditToastError(
-        'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC files before processing.'
-      );
+    let bhSales = salesFile;
+    let bhPurchases = purchasesFile;
+    let bhOpeningQty = openingQtyFile;
+    let bhPreviousYear = previousYearFile;
+    let bhMr = mrFile;
+    let bhDc = dcFile;
+    if (basheerbaghFolderFiles.length) {
+      const assigned = classifyBasheerbaghFolderFiles(basheerbaghFolderFiles, { financialYear });
+      bhSales = assigned.sales;
+      bhPurchases = assigned.purchases;
+      bhOpeningQty = assigned.quantity;
+      bhPreviousYear = assigned.previousYear;
+      bhMr = assigned.mr;
+      bhDc = assigned.dc;
+      setSalesFile(assigned.sales);
+      setPurchasesFile(assigned.purchases);
+      setOpeningQtyFile(assigned.quantity);
+      setPreviousYearFile(assigned.previousYear);
+      setMrFile(assigned.mr);
+      setDcFile(assigned.dc);
+    }
+    const bhReady = assignedSixReady({
+      sales: bhSales,
+      purchases: bhPurchases,
+      quantity: bhOpeningQty,
+      previousYear: bhPreviousYear,
+      mr: bhMr,
+      dc: bhDc,
+    });
+
+    if (!bhReady) {
+      if (basheerbaghFolderFiles.length) {
+        const missing = missingSlotLabels(
+          {
+            sales: bhSales,
+            purchases: bhPurchases,
+            quantity: bhOpeningQty,
+            previousYear: bhPreviousYear,
+            mr: bhMr,
+            dc: bhDc,
+          },
+          BASHEERBAGH_FOLDER_SLOTS
+        );
+        auditToastError(
+          `Basheerbagh is missing ${missing.join(', ')}. Closing Stock runs only when all six files are identified.`
+        );
+      } else {
+        auditToastError(
+          'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC files before processing.'
+        );
+      }
       return;
     }
+
     setLoading(true);
     try {
       const data = await CLOSING_STOCK_AUDIT_CONFIG.process(
-        salesFile,
-        purchasesFile,
-        openingQtyFile,
-        previousYearFile,
-        mrFile,
-        dcFile
+        bhSales,
+        bhPurchases,
+        bhOpeningQty,
+        bhPreviousYear,
+        bhMr,
+        bhDc
       );
       if (data && data.success === false) {
         auditToastError(data.detail || 'Processing failed');
         setSheetError(typeof data.error === 'object' ? data : { ...data });
         setResult(null);
-        return;
-      }
-      setResult(data);
-      setSheetError(null);
-      setActiveCategory(CLOSING_STOCK_CATEGORIES[0]);
-      const saved = persist(
-        {
-          result: data,
-          sheetError: null,
-          salesFileName: salesFile.name,
-          purchasesFileName: purchasesFile.name,
-          openingQtyFileName: openingQtyFile.name,
-          previousYearFileName: previousYearFile.name,
-          mrFileName: mrFile.name,
-          dcFileName: dcFile.name,
-          companyName,
-          address,
-          financialYear,
-        },
-        { notifyOnFailure: true, force: true }
-      );
-      if (saved === false) {
-        auditToastError('Results loaded but could not be saved for later.');
-      }
-      const mapped = data?.summary?.mappedProductCount ?? data?.summary?.productsDisplayed ?? 0;
-      const unmapped = data?.summary?.unmappedProductCount ?? 0;
-      const openingMatched = data?.openingStockReport?.matchedCount
-        ?? data?.openingStockReport?.quantityMatchedCount
-        ?? 0;
-      const mrClassified = data?.summary?.mrClassifiedRows
-        ?? data?.mrReport?.classifiedRowCount
-        ?? 0;
-      const dcClassified = data?.summary?.dcClassifiedRows
-        ?? data?.dcReport?.classifiedRowCount
-        ?? 0;
-      if (mapped > 0) {
-        auditToastSuccess(
-          `Closing Stock ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
-            (openingMatched ? ` · ${openingMatched} Opening matched` : '') +
-            ` · MR ${mrClassified} / DC ${dcClassified} classified` +
-            (unmapped ? ` (${unmapped} unmapped)` : '')
+        persistWorkspace(
+          {
+            result: null,
+            sheetError: typeof data.error === 'object' ? data : { ...data },
+            salesFileName: bhSales?.name ?? restoredSalesName ?? null,
+            purchasesFileName: bhPurchases?.name ?? restoredPurchasesName ?? null,
+            openingQtyFileName: bhOpeningQty?.name ?? restoredOpeningQtyName ?? null,
+            previousYearFileName: bhPreviousYear?.name ?? restoredPreviousYearName ?? null,
+            mrFileName: bhMr?.name ?? restoredMrName ?? null,
+            dcFileName: bhDc?.name ?? restoredDcName ?? null,
+            companyName,
+            address,
+            financialYear,
+          },
+          { notifyOnFailure: true, force: true }
         );
       } else {
-        auditToastError(
-          unmapped
-            ? `No products matched the Rule Book (${unmapped} unmapped). Check product names.`
-            : 'Closing Stock ready but no products were mapped.'
+        setResult(data);
+        setSheetError(null);
+        requestAnimationFrame(() => {
+          document.getElementById('basheerbagh-results')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        });
+        toastClosingStockOutcome(data);
+        persistWorkspace(
+          {
+            result: data,
+            sheetError: null,
+            salesFileName: bhSales?.name ?? restoredSalesName ?? null,
+            purchasesFileName: bhPurchases?.name ?? restoredPurchasesName ?? null,
+            openingQtyFileName: bhOpeningQty?.name ?? restoredOpeningQtyName ?? null,
+            previousYearFileName: bhPreviousYear?.name ?? restoredPreviousYearName ?? null,
+            mrFileName: bhMr?.name ?? restoredMrName ?? null,
+            dcFileName: bhDc?.name ?? restoredDcName ?? null,
+            companyName,
+            address,
+            financialYear,
+          },
+          { notifyOnFailure: true, force: true }
         );
       }
     } catch (e) {
       setSheetError(e.details ?? null);
       setResult(null);
       auditToastError(e.message || 'Processing failed');
+      persistWorkspace(
+        {
+          result: null,
+          sheetError: e.details ?? null,
+          salesFileName: bhSales?.name ?? restoredSalesName ?? null,
+          purchasesFileName: bhPurchases?.name ?? restoredPurchasesName ?? null,
+          openingQtyFileName: bhOpeningQty?.name ?? restoredOpeningQtyName ?? null,
+          previousYearFileName: bhPreviousYear?.name ?? restoredPreviousYearName ?? null,
+          mrFileName: bhMr?.name ?? restoredMrName ?? null,
+          dcFileName: bhDc?.name ?? restoredDcName ?? null,
+          companyName,
+          address,
+          financialYear,
+        },
+        { notifyOnFailure: true, force: true }
+      );
     } finally {
       setLoading(false);
     }
   }, [
+    basheerbaghFolderFiles,
     salesFile,
     purchasesFile,
     openingQtyFile,
     previousYearFile,
     mrFile,
     dcFile,
-    persist,
+    persistWorkspace,
+    restoredSalesName,
+    restoredPurchasesName,
+    restoredOpeningQtyName,
+    restoredPreviousYearName,
+    restoredMrName,
+    restoredDcName,
     companyName,
     address,
     financialYear,
   ]);
 
-  const salesPivot = useMemo(
-    () => (Array.isArray(result?.salesPivot) ? result.salesPivot : []),
-    [result]
-  );
-  const purchasesPivot = useMemo(
-    () => (Array.isArray(result?.purchasesPivot) ? result.purchasesPivot : []),
-    [result]
-  );
-  const openingPivot = useMemo(
-    () => (Array.isArray(result?.openingPivot) ? result.openingPivot : []),
-    [result]
-  );
-  const mrPivots = useMemo(
-    () => (result?.mrPivots && typeof result.mrPivots === 'object' ? result.mrPivots : {}),
-    [result]
-  );
-  const dcPivots = useMemo(
-    () => (result?.dcPivots && typeof result.dcPivots === 'object' ? result.dcPivots : {}),
-    [result]
-  );
-  const handleRuleBookSynced = useCallback((updated) => {
-    setResult(updated);
-  }, []);
+  const canProcessKokapet = Boolean(kokapetIdentification?.ready);
 
-  const { mappedResult, refreshing: remappingRuleBook } = useClosingStockMapping(
-    result,
-    handleRuleBookSynced
-  );
-  const openingStockReport = useMemo(() => {
-    const base =
-      mappedResult?.openingStockReport ||
-      result?.openingStockReport ||
-      mappedResult?.summary?.openingStockReport ||
-      result?.summary?.openingStockReport ||
-      {};
-    const mappedCount =
-      mappedResult?.summary?.productsWithOpeningData ??
-      base.mappedToClosingStockCount ??
-      (Array.isArray(mappedResult?.mappedOpeningProducts)
-        ? mappedResult.mappedOpeningProducts.length
-        : undefined);
-    if (mappedCount == null) return base;
-    return { ...base, mappedToClosingStockCount: mappedCount };
-  }, [mappedResult, result]);
-  const summary = mappedResult?.summary ?? {};
-  const productsByCategory = useMemo(() => {
-    const mapped = mappedResult?.productsByCategory;
-    if (mapped && typeof mapped === 'object') {
-      return mapped;
-    }
-    return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  }, [mappedResult]);
-  const layoutByCategory = useMemo(() => {
-    const mapped = mappedResult?.layoutByCategory || result?.layoutByCategory;
-    if (mapped && typeof mapped === 'object') {
-      return mapped;
-    }
-    return Object.fromEntries(CLOSING_STOCK_CATEGORIES.map((c) => [c, []]));
-  }, [mappedResult, result]);
-  const unmappedProducts = useMemo(
-    () =>
-      Array.isArray(mappedResult?.unmappedProducts) ? mappedResult.unmappedProducts : [],
-    [mappedResult]
-  );
-  const activeCategoryProducts = useMemo(
-    () =>
-      Array.isArray(productsByCategory[activeCategory])
-        ? productsByCategory[activeCategory]
-        : [],
-    [productsByCategory, activeCategory]
-  );
-  const activeCategoryLayout = useMemo(
-    () =>
-      Array.isArray(layoutByCategory[activeCategory]) ? layoutByCategory[activeCategory] : [],
-    [layoutByCategory, activeCategory]
-  );
-  const mappedProductCount = useMemo(
-    () =>
-      CLOSING_STOCK_CATEGORIES.reduce(
-        (total, category) =>
-          total +
-          (Array.isArray(productsByCategory[category]) ? productsByCategory[category].length : 0),
-        0
-      ),
-    [productsByCategory]
-  );
-
-  const handleDownloadPivots = useCallback(async () => {
-    if (!salesPivot.length && !purchasesPivot.length) {
-      auditToastError('No pivot rows to download.');
+  const runKokapetProcess = useCallback(async () => {
+    const identified = classifyKokapetFolderFiles(kokapetFolderFiles, { financialYear });
+    if (!identified.ready) {
+      if (identified.issues?.length) {
+        auditToastError(identified.issues.map((issue) => issue.message).join(' '));
+      } else if (identified.missing?.length) {
+        auditToastError(
+          `Kokapet is missing ${identified.missing.join(', ')}. Closing Stock runs only when all six files are identified.`
+        );
+      } else {
+        auditToastError('Upload a Kokapet folder with the six required files before processing.');
+      }
       return;
     }
-    setExportingPivots(true);
-    try {
-      await CLOSING_STOCK_AUDIT_CONFIG.downloadPivots({
-        salesPivot,
-        purchasesPivot,
-      });
-      auditToastSuccess('Pivots workbook downloaded');
-    } catch (e) {
-      auditToastError(e.message || 'Pivot download failed');
-    } finally {
-      setExportingPivots(false);
-    }
-  }, [salesPivot, purchasesPivot]);
 
-  const handleDownloadClosingStock = useCallback(async () => {
-    if (!result) {
-      auditToastError('Process all six input files first.');
-      return;
-    }
-    setExportingClosing(true);
-    try {
-      await CLOSING_STOCK_AUDIT_CONFIG.downloadClosingStock({
-        salesPivot,
-        purchasesPivot,
-        openingPivot,
-        mrPivots,
-        dcPivots,
-        companyName: companyName.trim(),
-        address: address.trim(),
-        financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
-      });
-      auditToastSuccess('Closing Stock workbook downloaded');
-    } catch (e) {
-      auditToastError(e.message || 'Closing Stock download failed');
-    } finally {
-      setExportingClosing(false);
-    }
-  }, [result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear]);
+    const kpSales = identified.files.sales;
+    const kpPurchases = identified.files.purchases;
+    const kpOpeningQty = identified.files.quantity;
+    const kpPreviousYear = identified.files.previousYear;
+    const kpMr = identified.files.mr;
+    const kpDc = identified.files.dc;
 
-  const handleConfirmManualOpeningMapping = useCallback((mapping) => {
-    setResult((prev) => {
-      if (!prev) return prev;
-      return applyManualOpeningMapping(prev, mapping);
-    });
-  }, []);
+    setLoading(true);
+    try {
+      const data = await CLOSING_STOCK_AUDIT_CONFIG.process(
+        kpSales,
+        kpPurchases,
+        kpOpeningQty,
+        kpPreviousYear,
+        kpMr,
+        kpDc
+      );
+      if (data && data.success === false) {
+        auditToastError(data.detail || 'Kokapet processing failed');
+        setKokapetSheetError(typeof data.error === 'object' ? data : { ...data });
+        setKokapetResult(null);
+      } else {
+        setKokapetResult(data);
+        setKokapetSheetError(null);
+        requestAnimationFrame(() => {
+          document.getElementById('kokapet-results')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        });
+        toastClosingStockOutcome(data, 'Kokapet');
+      }
+    } catch (e) {
+      setKokapetSheetError(e.details ?? null);
+      setKokapetResult(null);
+      auditToastError(e.message || 'Kokapet processing failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [kokapetFolderFiles, financialYear]);
 
   const handleStartNew = useCallback(() => {
     startNewAudit();
@@ -490,6 +474,10 @@ export default function FinancialsPivotPage() {
     setPreviousYearFile(null);
     setMrFile(null);
     setDcFile(null);
+    setBasheerbaghFolderFiles([]);
+    setKokapetFolderFiles([]);
+    setKokapetResult(null);
+    setKokapetSheetError(null);
     setRestoredSalesName(null);
     setRestoredPurchasesName(null);
     setRestoredOpeningQtyName(null);
@@ -501,7 +489,6 @@ export default function FinancialsPivotPage() {
     setFinancialYear(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
     setResult(null);
     setSheetError(null);
-    setActiveCategory(CLOSING_STOCK_CATEGORIES[0]);
   }, [startNewAudit]);
 
   return (
@@ -550,7 +537,7 @@ export default function FinancialsPivotPage() {
                 variant="primary"
                 size="md"
                 loading={loading}
-                disabled={loading || !allReady}
+                disabled={loading || !canProcess}
                 onClick={runProcess}
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -560,125 +547,130 @@ export default function FinancialsPivotPage() {
           </div>
         </CardHeader>
         <CardBody>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                Upload Sales File
-              </div>
-              <p className="text-xs text-slate-500">Required · Product, Quantity, Gross Amount</p>
-              <FileUploadZone
-                file={displaySales}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredSalesName(null);
-                  setSalesFile(file);
-                }}
+          <section className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/20">
+            <h3 className="text-base font-bold text-emerald-800 dark:text-emerald-300">Basheerbagh</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Upload one folder. Files are identified by name (Sales, Purchases, MR, DC, Quantity
+              File). Previous Year Financials is the spreadsheet whose name ends with the year (for
+              2025: 2024-2025, 2025, 2k24-2k25, or 2k25). Process still uses the same six-file flow.
+            </p>
+            <div className="mt-4">
+              <FolderUploadZone
+                files={basheerbaghFolderFiles}
                 disabled={loading}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
+                onFilesChange={applyBasheerbaghFolder}
               />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <ShoppingCart className="h-4 w-4 text-violet-600" />
-                Upload Purchases File
+            <ul className="mt-4 divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:divide-slate-700 dark:border-slate-700 dark:bg-[var(--color-surface-elevated)]/80">
+              {BASHEERBAGH_FOLDER_SLOTS.map((slot) => {
+                const shown = {
+                  sales: displaySales,
+                  purchases: displayPurchases,
+                  quantity: displayOpeningQty,
+                  previousYear: displayPreviousYear,
+                  mr: displayMr,
+                  dc: displayDc,
+                }[slot.key];
+                return (
+                  <li key={slot.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {slot.label}
+                    </span>
+                    <span
+                      className={cn(
+                        'min-w-0 truncate text-xs',
+                        shown?.name ? 'text-slate-500' : 'font-medium text-rose-600'
+                      )}
+                    >
+                      {shown?.name || 'Not found in folder'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-base font-bold text-emerald-800 dark:text-emerald-300">Kokapet</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Upload one Kokapet folder. Process uses the same six-file Financials flow as
+                  Basheerbagh: Sales, Purchases, Opening Quantity, Previous Year Financials, MR,
+                  and DC. Sales Return and Purchase Return are not inputs.
+                </p>
               </div>
-              <p className="text-xs text-slate-500">Required · Product, Quantity, Gross Amount</p>
-              <FileUploadZone
-                file={displayPurchases}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredPurchasesName(null);
-                  setPurchasesFile(file);
-                }}
+              <Button
+                variant="primary"
+                size="md"
+                loading={loading}
+                disabled={loading || !canProcessKokapet}
+                onClick={runKokapetProcess}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {CLOSING_STOCK_AUDIT_CONFIG.processLabel}
+              </Button>
+            </div>
+            <div className="mt-4">
+              <FolderUploadZone
+                files={kokapetFolderFiles}
                 disabled={loading}
+                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
+                onFilesChange={(files) => {
+                  setKokapetFolderFiles(files);
+                  setKokapetResult(null);
+                  setKokapetSheetError(null);
+                }}
               />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Package className="h-4 w-4 text-amber-600" />
-                Current Year Opening Quantity
-              </div>
-              <p className="text-xs text-slate-500">
-                Required · Product, SKU, Opening Balance, Receipts, Issues, Closing Balance
+            {kokapetIdentification?.missing.length ? (
+              <p className="mt-4 text-sm font-medium text-rose-700 dark:text-rose-300">
+                Missing: {kokapetIdentification.missing.join(', ')}. All six Kokapet files are
+                required.
               </p>
-              <FileUploadZone
-                file={displayOpeningQty}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredOpeningQtyName(null);
-                  setOpeningQtyFile(file);
-                }}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Table2 className="h-4 w-4 text-sky-600" />
-                Previous Year Closing Stock
-              </div>
-              <p className="text-xs text-slate-500">
-                Required · Closing Stock sheets (Dia / Eme / Prls / Rubi / Prec) with product
-                Closing stock Amt
+            ) : null}
+            {kokapetIdentification?.issues.length ? (
+              <ul className="mt-3 space-y-1 text-sm font-medium text-amber-800 dark:text-amber-200">
+                {kokapetIdentification.issues.map((issue) => (
+                  <li key={issue.key}>{issue.message}</li>
+                ))}
+              </ul>
+            ) : null}
+            {kokapetIdentification?.ready ? (
+              <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                All six Kokapet files are identified.
               </p>
-              <FileUploadZone
-                file={displayPreviousYear}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredPreviousYearName(null);
-                  setPreviousYearFile(file);
-                }}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <ArrowLeftRight className="h-4 w-4 text-teal-600" />
-                Material Receipts (MR)
-              </div>
-              <p className="text-xs text-slate-500">
-                Required · Product, Quantity, Gross Amount, Branch. Other columns optional.
-              </p>
-              <FileUploadZone
-                file={displayMr}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredMrName(null);
-                  setMrFile(file);
-                }}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <ArrowLeftRight className="h-4 w-4 text-indigo-600" />
-                Delivery Challans (DC)
-              </div>
-              <p className="text-xs text-slate-500">
-                Required · Product, Quantity, Gross Amount, Branch. Other columns optional.
-              </p>
-              <FileUploadZone
-                file={displayDc}
-                accept={CLOSING_STOCK_AUDIT_CONFIG.fileAccept}
-                formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
-                onFileChange={(file) => {
-                  resetResults();
-                  setRestoredDcName(null);
-                  setDcFile(file);
-                }}
-                disabled={loading}
-              />
-            </div>
-          </div>
+            ) : null}
+            <ul className="mt-4 divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:divide-slate-700 dark:border-slate-700 dark:bg-[var(--color-surface-elevated)]/80">
+              {KOKAPET_FOLDER_SLOTS.map((slot) => {
+                const shown = kokapetIdentification?.files?.[slot.key];
+                const ambiguous = kokapetIdentification?.issues.some((issue) => issue.key === slot.key);
+                const waiting = !kokapetIdentification;
+                let status = 'Waiting for folder';
+                let statusClass = 'text-slate-400';
+                if (!waiting && shown?.name) {
+                  status = shown.name;
+                  statusClass = 'text-slate-500';
+                } else if (ambiguous) {
+                  status = 'Not selected — more than one file matched';
+                  statusClass = 'font-medium text-amber-700 dark:text-amber-300';
+                } else if (!waiting) {
+                  status = 'Missing';
+                  statusClass = 'font-medium text-rose-600';
+                }
+                return (
+                  <li key={slot.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {slot.label}
+                    </span>
+                    <span className={cn('min-w-0 truncate text-xs', statusClass)}>{status}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <label className="block space-y-1.5 text-sm">
               <span className="font-semibold text-slate-700 dark:text-slate-200">Company name</span>
@@ -708,9 +700,9 @@ export default function FinancialsPivotPage() {
               />
             </label>
           </div>
-          {!allReady ? (
+          {!canProcess ? (
             <p className="mt-4 text-sm text-slate-500">
-              Select all six Excel files to enable Process.
+              Upload a Basheerbagh folder with the six required files to enable Process.
             </p>
           ) : null}
         </CardBody>
@@ -734,461 +726,51 @@ export default function FinancialsPivotPage() {
       ) : null}
 
       {result ? (
-        <>
-          <section>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
-              Audit intelligence summary
-            </h3>
-            <AuditSummaryGrid>
-              <AuditSummaryWidget
-                label="Sales products"
-                value={formatNumber(summary.salesProductCount ?? salesPivot.length)}
-                icon={Package}
-                accent="emerald"
-              />
-              <AuditSummaryWidget
-                label="Sales quantity"
-                value={formatNumber(summary.salesTotalQuantity ?? 0, 2)}
-                icon={Table2}
-                accent="blue"
-              />
-              <AuditSummaryWidget
-                label="Sales gross"
-                value={formatNumber(summary.salesTotalGross ?? 0, 2)}
-                icon={FileSpreadsheet}
-                accent="violet"
-              />
-              <AuditSummaryWidget
-                label="Purchases products"
-                value={formatNumber(summary.purchasesProductCount ?? purchasesPivot.length)}
-                icon={ShoppingCart}
-                accent="amber"
-              />
-              <AuditSummaryWidget
-                label="Purchases quantity"
-                value={formatNumber(summary.purchasesTotalQuantity ?? 0, 2)}
-                icon={Table2}
-                accent="blue"
-              />
-              <AuditSummaryWidget
-                label="Purchases gross"
-                value={formatNumber(summary.purchasesTotalGross ?? 0, 2)}
-                icon={FileSpreadsheet}
-                accent="rose"
-              />
-              <AuditSummaryWidget
-                label="Opening matched"
-                value={formatNumber(
-                  openingStockReport.matchedCount ?? openingStockReport.quantityMatchedCount ?? 0
-                )}
-                icon={Package}
-                accent="emerald"
-              />
-              <AuditSummaryWidget
-                label="Opening unmatched"
-                value={formatNumber(
-                  openingStockReport.unmatchedCount
-                    ?? openingStockReport.missingFromPreviousYearFileCount
-                    ?? 0
-                )}
-                icon={Package}
-                accent="rose"
-              />
-              <AuditSummaryWidget
-                label="Opening qty total"
-                value={formatNumber(
-                  openingStockReport.totalOpeningQty ?? summary.openingTotalQuantity ?? 0,
-                  2
-                )}
-                icon={Table2}
-                accent="amber"
-              />
-              <AuditSummaryWidget
-                label="Opening amount total"
-                value={formatNumber(
-                  openingStockReport.totalOpeningAmount ?? summary.openingTotalAmount ?? 0,
-                  2
-                )}
-                icon={FileSpreadsheet}
-                accent="violet"
-              />
-              <AuditSummaryWidget
-                label="MR classified"
-                value={formatNumber(
-                  summary.mrClassifiedRows
-                    ?? mappedResult?.mrReport?.classifiedRowCount
-                    ?? result?.mrReport?.classifiedRowCount
-                    ?? 0
-                )}
-                icon={Package}
-                accent="emerald"
-              />
-              <AuditSummaryWidget
-                label="MR unclassified"
-                value={formatNumber(
-                  summary.mrUnclassifiedRows
-                    ?? mappedResult?.mrReport?.unclassifiedCount
-                    ?? result?.mrReport?.unclassifiedCount
-                    ?? 0
-                )}
-                icon={Package}
-                accent="rose"
-              />
-              <AuditSummaryWidget
-                label="DC classified"
-                value={formatNumber(
-                  summary.dcClassifiedRows
-                    ?? mappedResult?.dcReport?.classifiedRowCount
-                    ?? result?.dcReport?.classifiedRowCount
-                    ?? 0
-                )}
-                icon={ShoppingCart}
-                accent="amber"
-              />
-              <AuditSummaryWidget
-                label="DC unclassified"
-                value={formatNumber(
-                  summary.dcUnclassifiedRows
-                    ?? mappedResult?.dcReport?.unclassifiedCount
-                    ?? result?.dcReport?.unclassifiedCount
-                    ?? 0
-                )}
-                icon={ShoppingCart}
-                accent="rose"
-              />
-            </AuditSummaryGrid>
-          </section>
-
-          <TransferLocationPivots
-            heading="MR pivots"
-            sourceLabel="MR"
-            tree={mrPivots}
-          />
-          <TransferLocationPivots
-            heading="DC pivots"
-            sourceLabel="DC"
-            tree={dcPivots}
-          />
-
-          <Card className="border-sky-200/80 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20">
-            <CardHeader>
-              <h3 className="text-base font-semibold text-sky-950 dark:text-sky-100">
-                Opening Stock mapping
-              </h3>
-              <p className="mt-1 text-sm text-sky-900/80 dark:text-sky-200/80">
-                Qty from the Quantity file Opening Balance. Amount from that product&apos;s
-                Closing stock Amt on the previous-year Closing Stock sheets (not TOTAL rows).
-              </p>
-            </CardHeader>
-            <CardBody className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                {[
-                  [
-                    'Exact matched',
-                    openingStockReport.exactMatchedCount ?? openingStockReport.matchedCount ?? 0,
-                  ],
-                  [
-                    'Fallback matched',
-                    openingStockReport.fallbackMatchedCount ?? 0,
-                  ],
-                  [
-                    'Manual mapping required',
-                    openingStockReport.manualMappingRequiredCount
-                      ?? openingStockReport.previousYearMappingRequiredCount
-                      ?? 0,
-                  ],
-                  [
-                    'Other unmatched',
-                    (openingStockReport.unmatched || []).length,
-                  ],
-                  [
-                    'Mapped to Closing Stock',
-                    openingStockReport.mappedToClosingStockCount
-                      ?? summary.productsWithOpeningData
-                      ?? 0,
-                  ],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-sky-200/70 bg-white/80 px-3 py-2.5 dark:border-sky-900/50 dark:bg-slate-900/40"
-                  >
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-                    <p className="mt-1 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">
-                      {formatNumber(value)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-4 text-sm text-slate-700 dark:text-slate-300">
-                <span>
-                  Total Opening Qty:{' '}
-                  <strong className="tabular-nums">
-                    {formatNumber(
-                      openingStockReport.totalOpeningQty ?? summary.openingTotalQuantity ?? 0,
-                      2
-                    )}
-                  </strong>
-                </span>
-                <span>
-                  Total Opening Amount:{' '}
-                  <strong className="tabular-nums">
-                    {formatNumber(
-                      openingStockReport.totalOpeningAmount ?? summary.openingTotalAmount ?? 0,
-                      2
-                    )}
-                  </strong>
-                </span>
-              </div>
-              {(openingStockReport.fallbackMatched || []).length ? (
-                <details className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                  <summary className="cursor-pointer text-sm font-semibold text-emerald-950 dark:text-emerald-100">
-                    Fallback matched (
-                    {formatNumber(openingStockReport.fallbackMatchedCount ?? 0)})
-                  </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
-                    {(openingStockReport.fallbackMatched || [])
-                      .map(
-                        (row) =>
-                          `${row.product} ← [${(row.previousYearProducts || []).join(' + ')}] qty=${row.openingQty} amt=${row.openingAmt}`
-                      )
-                      .join('\n')}
-                  </pre>
-                </details>
-              ) : null}
-              <OpeningStockManualMappingPanel
-                rows={openingStockReport.manualMappingRequired || []}
-                onConfirmMapping={handleConfirmManualOpeningMapping}
-              />
-              {(openingStockReport.quantityMismatch || []).length ? (
-                <details className="rounded-xl border border-rose-200/70 bg-rose-50/50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
-                  <summary className="cursor-pointer text-sm font-semibold text-rose-950 dark:text-rose-100">
-                    Quantity mismatches (
-                    {formatNumber(openingStockReport.quantityMismatchCount ?? 0)})
-                  </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
-                    {(openingStockReport.quantityMismatch || [])
-                      .map(
-                        (row) =>
-                          `${row.product}: Opening ${row.openingQty} ≠ Previous ${row.previousClosingQty}`
-                      )
-                      .join('\n')}
-                  </pre>
-                </details>
-              ) : null}
-              {(openingStockReport.unmatched || openingStockReport.missingFromPreviousYearFile || [])
-                .length ? (
-                <details className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-                  <summary className="cursor-pointer text-sm font-semibold text-amber-950 dark:text-amber-100">
-                    Unmatched products (
-                    {formatNumber(
-                      openingStockReport.unmatchedCount
-                        ?? openingStockReport.missingFromPreviousYearFileCount
-                        ?? 0
-                    )}
-                    )
-                  </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-slate-800 dark:text-slate-200">
-                    {(
-                      openingStockReport.unmatched
-                      || openingStockReport.missingFromPreviousYearFile
-                      || []
-                    )
-                      .map(
-                        (row) =>
-                          `${row.product}: ${row.reason || 'unmatched'}${
-                            row.sheetName ? ` (sheet: ${row.sheetName})` : ''
-                          }`
-                      )
-                      .join('\n')}
-                  </pre>
-                </details>
-              ) : null}
-            </CardBody>
-          </Card>
-
-          {unmappedProducts.length ? (
-            <Card className="border-amber-200/80 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
-              <CardHeader>
-                <h3 className="text-base font-semibold text-amber-950 dark:text-amber-100">
-                  Unmapped products ({formatNumber(unmappedProducts.length)})
-                </h3>
-                <p className="mt-1 text-sm text-amber-900/80 dark:text-amber-200/80">
-                  These pivot products were not found in the Closing Stock Rule Book and are not shown
-                  on any sheet. Add them to the Rule Book JSON if they belong in Closing Stock.
-                </p>
-              </CardHeader>
-              <CardBody>
-                <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-3 font-mono text-xs text-[var(--color-text-primary)]">
-                  {unmappedProducts.join('\n')}
-                </pre>
-              </CardBody>
-            </Card>
-          ) : null}
-
-          <Card className="border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white shadow-md dark:from-emerald-950/20 dark:to-[var(--color-surface-elevated)]">
-            <CardHeader>
-              <h3 className="text-base font-bold text-emerald-800 dark:text-emerald-300">
-                Downloads
-              </h3>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Download the Closing Stock workbook (five category sheets plus Trading and
-                Abstract) or supporting pivot sheets for verification.
-              </p>
-            </CardHeader>
-            <CardBody className="space-y-4">
-              <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-white/80 p-4 dark:border-emerald-900/40 dark:bg-[var(--color-surface-elevated)]/80 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                    Download Closing Stock
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    One workbook with sheets: {CLOSING_STOCK_CATEGORIES.join(', ')},{' '}
-                    {TRADING_SHEET_NAME}, {ABSTRACT_SHEET_NAME}. Products are placed by the Rule Book (
-                    {formatNumber(mappedProductCount)} mapped particular
-                    {mappedProductCount === 1 ? '' : 's'}).
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={exportingClosing}
-                  disabled={exportingClosing || !result}
-                  onClick={handleDownloadClosingStock}
-                >
-                  <Gem className="h-4 w-4" />
-                  Download Closing Stock
-                </Button>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/20">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                      Download Pivots
-                    </h4>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Supporting intermediate data — Excel workbook with two sheets:
-                    </p>
-                    <ul className="mt-2 space-y-1 text-xs text-slate-700 dark:text-slate-300">
-                      <li className="flex items-center gap-1.5">
-                        <ChevronRight className="h-3 w-3 text-emerald-600" />
-                        Sales Pivot
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <ChevronRight className="h-3 w-3 text-emerald-600" />
-                        Purchases Pivot
-                      </li>
-                    </ul>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    loading={exportingPivots}
-                    disabled={exportingPivots || (!salesPivot.length && !purchasesPivot.length)}
-                    onClick={handleDownloadPivots}
-                  >
-                    <Download className="h-4 w-4" />
-                    Download Pivots → Excel Workbook
-                  </Button>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-bold text-emerald-700">Closing Stock preview</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Select a category to inspect its Closing Stock sheet, Trading for the
-                    T-account layout, or Abstract for the Trading Account Abstract. Every Rule Book
-                    product is listed even when Opening/Sales/Purchases measures are blank.
-                    {remappingRuleBook ? ' Refreshing Rule Book…' : ''}
-                  </p>
-                  {summary.ruleBookProductTotal ? (
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      Rule Book: {formatNumber(summary.ruleBookProductTotal)} products · With
-                      Opening: {formatNumber(summary.productsWithOpeningData ?? 0)} · With Sales:{' '}
-                      {formatNumber(summary.productsWithSalesData ?? 0)} · With Purchases:{' '}
-                      {formatNumber(summary.productsWithPurchaseData ?? 0)} · Displayed:{' '}
-                      {formatNumber(summary.productsDisplayed ?? mappedProductCount)}
-                    </p>
-                  ) : null}
-                </div>
-                <div
-                  className="flex flex-wrap gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 dark:border-slate-700 dark:bg-slate-900/30"
-                  role="tablist"
-                  aria-label="Closing Stock category"
-                >
-                  {PREVIEW_SHEETS.map((category) => {
-                    const selected = category === activeCategory;
-                    const isNonCategory =
-                      category === TRADING_SHEET_NAME || category === ABSTRACT_SHEET_NAME;
-                    const count = Array.isArray(productsByCategory[category])
-                      ? productsByCategory[category].length
-                      : 0;
-                    return (
-                      <button
-                        key={category}
-                        type="button"
-                        role="tab"
-                        aria-selected={selected}
-                        onClick={() => setActiveCategory(category)}
-                        className={cn(
-                          'rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors',
-                          selected
-                            ? 'bg-emerald-700 text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-white hover:text-emerald-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-emerald-200'
-                        )}
-                      >
-                        {category}
-                        {isNonCategory ? null : (
-                          <span className={cn('ml-1.5 text-xs font-medium', selected ? 'text-emerald-100' : 'text-slate-400')}>
-                            ({count})
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </CardHeader>
-            <CardBody>
-              {activeCategory === TRADING_SHEET_NAME ? (
-                <TradingAccountPreview
-                  layoutByCategory={layoutByCategory}
-                  salesPivot={salesPivot}
-                  purchasesPivot={purchasesPivot}
-                  openingPivot={openingPivot}
-                  mrPivots={mrPivots}
-                  dcPivots={dcPivots}
-                />
-              ) : activeCategory === ABSTRACT_SHEET_NAME ? (
-                <AbstractPreviewTable
-                  layoutByCategory={layoutByCategory}
-                  salesPivot={salesPivot}
-                  purchasesPivot={purchasesPivot}
-                  openingPivot={openingPivot}
-                  mrPivots={mrPivots}
-                  dcPivots={dcPivots}
-                />
-              ) : (
-                <ClosingStockPreviewTable
-                  category={activeCategory}
-                  products={activeCategoryProducts}
-                  layoutRows={activeCategoryLayout}
-                  financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
-                />
-              )}
-            </CardBody>
-          </Card>
-        </>
+        <FinancialsBranchResults
+          key={`bh-${result.auditRunId || result.requestId || 'current'}`}
+          result={result}
+          onResultUpdate={setResult}
+          resultsId="basheerbagh-results"
+          branchHeading="Basheerbagh Financials"
+          financialYear={financialYear}
+          companyName={companyName}
+          address={address}
+        />
       ) : !sheetError ? (
         <EmptyState
           icon={Gem}
           title="Awaiting process"
-          description="Upload Sales, Purchases, Opening Quantity, and Previous Year Closing files, then Process."
+          description="Upload a Basheerbagh folder with the six required files, then Process."
+        />
+      ) : null}
+
+      {kokapetSheetError ? (
+        <Card className="border-rose-200/80 bg-rose-50/40 shadow-md">
+          <CardHeader>
+            <h3 className="text-base font-semibold text-rose-950">Unable to process Kokapet workbook</h3>
+            <p className="mt-1 text-sm text-rose-900/80">
+              Headers are detected by column name (Product, Quantity, Gross Amount) — order and
+              capitalization do not matter.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-4 font-mono text-xs text-[var(--color-text-primary)] shadow-inner">
+              {formatProcessingErrorHuman(kokapetSheetError)}
+            </pre>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {kokapetResult ? (
+        <FinancialsBranchResults
+          key={`kp-${kokapetResult.auditRunId || kokapetResult.requestId || 'current'}`}
+          result={kokapetResult}
+          onResultUpdate={setKokapetResult}
+          resultsId="kokapet-results"
+          branchHeading="Kokapet Financials"
+          financialYear={financialYear}
+          companyName={companyName}
+          address={address}
         />
       ) : null}
     </div>

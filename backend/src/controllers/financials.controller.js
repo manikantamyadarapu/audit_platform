@@ -94,6 +94,113 @@ async function processFinancialsPivot(req, res, next) {
   }
 }
 
+async function processFinancialsSalesPurchases(req, res, next) {
+  try {
+    const salesFile = req.files?.salesFile?.[0];
+    const purchasesFile = req.files?.purchasesFile?.[0];
+
+    const openingQtyFile = req.files?.openingQtyFile?.[0];
+    const previousYearFile = req.files?.previousYearFile?.[0];
+
+    if (!salesFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "salesFile"',
+        requestId: req.requestId,
+      });
+    }
+    if (!purchasesFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "purchasesFile"',
+        requestId: req.requestId,
+      });
+    }
+    if (!openingQtyFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "openingQtyFile"',
+        requestId: req.requestId,
+      });
+    }
+    if (!previousYearFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "previousYearFile"',
+        requestId: req.requestId,
+      });
+    }
+
+    logger.info('Financials sales/purchases/opening pivot: forwarding to Python', {
+      requestId: req.requestId,
+      salesFile: salesFile.originalname,
+      purchasesFile: purchasesFile.originalname,
+      openingQtyFile: openingQtyFile.originalname,
+      previousYearFile: previousYearFile.originalname,
+    });
+
+    const { data, auditRunId } = await financialsService.processFinancialsSalesPurchases(
+      req,
+      salesFile,
+      purchasesFile,
+      openingQtyFile,
+      previousYearFile
+    );
+    return res.json({ ...data, auditRunId });
+  } catch (err) {
+    financialsService.notifyFinancialsPivotFailure(req, err);
+    return next(err);
+  }
+}
+
+async function processSalesPurchasesPivots(req, res, next) {
+  try {
+    const salesFile = req.files?.salesFile?.[0];
+    const purchasesFile = req.files?.purchasesFile?.[0];
+    if (!salesFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "salesFile"',
+        requestId: req.requestId,
+      });
+    }
+    if (!purchasesFile?.buffer) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Missing file field "purchasesFile"',
+        requestId: req.requestId,
+      });
+    }
+    const openingQtyFile = req.files?.openingQtyFile?.[0];
+    const previousYearFile = req.files?.previousYearFile?.[0];
+    if (Boolean(openingQtyFile?.buffer) !== Boolean(previousYearFile?.buffer)) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Opening Stock needs both the Opening Quantity file and Previous Year Financials.',
+        requestId: req.requestId,
+      });
+    }
+    logger.info('Sales/Purchases pivots: forwarding to Python', {
+      requestId: req.requestId,
+      salesFile: salesFile.originalname,
+      purchasesFile: purchasesFile.originalname,
+      openingQtyFile: openingQtyFile?.originalname,
+      previousYearFile: previousYearFile?.originalname,
+    });
+    const { data, auditRunId } = await financialsService.processSalesPurchasesPivots(
+      req,
+      salesFile,
+      purchasesFile,
+      openingQtyFile,
+      previousYearFile
+    );
+    return res.json({ ...data, auditRunId });
+  } catch (err) {
+    financialsService.notifyFinancialsPivotFailure(req, err);
+    return next(err);
+  }
+}
+
 async function exportFinancialsPivots(req, res, next) {
   try {
     const parsed = validateFinancialsExportPivotsBody(req.body);
@@ -192,6 +299,8 @@ async function remapClosingStock(req, res, next) {
 
 module.exports = {
   processFinancialsPivot,
+  processFinancialsSalesPurchases,
+  processSalesPurchasesPivots,
   exportFinancialsPivots,
   exportClosingStockTemplate,
   getClosingStockRuleBook,

@@ -291,32 +291,34 @@ function aggregateOpeningByNameMatch(rows, layoutProductNames) {
   return { byDisplay, unmappedRows };
 }
 
-/** Write fallback-matched Opening onto layout rows by ruleBookProduct + category/subcategory. */
+/** Write a confirmed manual/fallback Opening amount onto the mapped layout product. */
 function applyFallbackOpeningToLayout(byDisplay, rows, book, unmappedRows = []) {
   const displayLocations = {};
   for (const { category, subcategory, product } of iterRuleBookProducts(book)) {
     displayLocations[product] = { category, subcategory };
   }
-  const normSub = (name) => (name ? normProduct(name) : null);
+  const layoutLookup = buildRuleBookMatchLookup(book);
+  const layoutDisplayFor = (name) => {
+    const text = String(name || '').trim();
+    if (!text) return null;
+    if (displayLocations[text]) return text;
+    return resolveRuleBookDisplayName(text, layoutLookup);
+  };
   const fallbackQtyNames = new Set();
 
   for (const row of rows || []) {
     if (row?.status !== 'matched_fallback') continue;
-    const target = String(row?.ruleBookProduct || '').trim();
-    if (!target || !displayLocations[target]) continue;
-    const loc = displayLocations[target];
-    if (row?.category && row.category !== loc.category) continue;
-    if (
-      row?.subcategory != null &&
-      normSub(row.subcategory) !== normSub(loc.subcategory)
-    ) {
-      continue;
-    }
-    const qty = coerceMeasure(row?.sumOfQuantity);
-    const gross = coerceMeasure(row?.sumOfGross);
+    const ruleName = String(row?.ruleBookProduct || '').trim();
+    const qtyName = String(row?.product || '').trim();
+    const target = layoutDisplayFor(ruleName) || layoutDisplayFor(qtyName);
+    if (!target) continue;
+    const qty = coerceMeasure(
+      row?.sumOfQuantity != null ? row.sumOfQuantity : row?.openingQty
+    );
+    const gross = coerceMeasure(row?.sumOfGross != null ? row.sumOfGross : row?.openingAmt);
     if (qty === null && gross === null) continue;
     byDisplay[target] = { sumOfQuantity: qty, sumOfGross: gross };
-    fallbackQtyNames.add(String(row?.product || '').trim());
+    if (qtyName) fallbackQtyNames.add(qtyName);
   }
 
   const filteredUnmapped =
@@ -770,10 +772,16 @@ function buildLayoutFromRuleBook(
   const sheetRaw = [];
 
   if (ruleSection && typeof ruleSection === 'object' && !Array.isArray(ruleSection)) {
-    for (const [subcategory, ruleProducts] of Object.entries(ruleSection)) {
-      const products = Array.isArray(ruleProducts) ? ruleProducts : [];
+    for (const [subcategory, ruleProducts] of Object.entries(ruleSection).sort((a, b) =>
+      compareProductNames(a[0], b[0])
+    )) {
+      const products = (Array.isArray(ruleProducts) ? ruleProducts : [])
+        .slice()
+        .sort(compareProductNames);
       if (!products.length) continue;
-      layout.push({ kind: 'subcategory', label: subcategory, subcategory });
+      if (String(subcategory || '').trim()) {
+        layout.push({ kind: 'subcategory', label: subcategory, subcategory });
+      }
       const subcategoryRaw = [];
       for (const product of products) {
         const raw = rawProductMeasures(
@@ -802,7 +810,7 @@ function buildLayoutFromRuleBook(
       });
     }
   } else if (Array.isArray(ruleSection)) {
-    for (const product of ruleSection) {
+    for (const product of ruleSection.slice().sort(compareProductNames)) {
       const raw = rawProductMeasures(
         product,
         salesByDisplay,
@@ -833,8 +841,146 @@ function buildLayoutFromRuleBook(
   return { layout, flatProducts };
 }
 
+function ruleBookFromActivityLayout(layoutByCategory) {
+  const book = {};
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const layout = Array.isArray(layoutByCategory?.[category]) ? layoutByCategory[category] : [];
+    const groups = new Map();
+    const plain = [];
+    for (const row of layout) {
+      if (row?.kind !== 'product') continue;
+      const label = String(row.label || '').trim();
+      if (!label) continue;
+      const subcategory = String(row.subcategory || '').trim();
+      if (!subcategory) {
+        plain.push(label);
+        continue;
+      }
+      if (!groups.has(subcategory)) groups.set(subcategory, []);
+      groups.get(subcategory).push(label);
+    }
+    if (groups.size && plain.length) {
+      book[category] = Object.fromEntries(groups);
+      book[category][''] = plain;
+    } else if (groups.size) {
+      book[category] = Object.fromEntries(groups);
+    } else {
+      book[category] = plain;
+    }
+  }
+  return book;
+}
+
+function compareProductNames(left, right) {
+  const chunks = (name) =>
+    String(name || '')
+      .toLowerCase()
+      .split(/(\d+)/)
+      .filter(Boolean)
+      .map((part) => (/^\d+$/.test(part) ? { type: 'num', value: Number(part) } : { type: 'text', value: part }));
+  const a = chunks(left);
+  const b = chunks(right);
+  const count = Math.max(a.length, b.length);
+  for (let i = 0; i < count; i += 1) {
+    if (!a[i]) return -1;
+    if (!b[i]) return 1;
+    if (a[i].type !== b[i].type) return a[i].type === 'num' ? -1 : 1;
+    if (a[i].value !== b[i].value) {
+      if (a[i].type === 'num') return a[i].value - b[i].value;
+      return a[i].value < b[i].value ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+function activityNameKeys(name) {
+  const text = String(name || '').trim();
+  if (!text) return [];
+  return [normProduct(text), matchKey(text), coreSkuKey(text)].filter(Boolean);
+}
+
+/**
+ * Keep only product rows that belong to this branch's Sales, Purchases, or Opening Stock.
+ * Subcategory and grand-total rows stay when at least one of those products remains.
+ */
+export function filterSheetsToBranchActivity(
+  productsByCategory,
+  layoutByCategory,
+  { salesPivot = [], purchasesPivot = [], openingPivot = [] } = {}
+) {
+  const allowed = new Set();
+  const salesPurchaseKeys = new Set();
+  const add = (name, target = allowed) => {
+    for (const key of activityNameKeys(name)) target.add(key);
+  };
+  for (const row of salesPivot || []) {
+    add(row?.product);
+    add(row?.product, salesPurchaseKeys);
+  }
+  for (const row of purchasesPivot || []) {
+    add(row?.product);
+    add(row?.product, salesPurchaseKeys);
+  }
+  for (const row of openingPivot || []) {
+    const names = [row?.product, row?.ruleBookProduct];
+    const onSalesOrPurchases = names.some((name) =>
+      activityNameKeys(name).some((key) => salesPurchaseKeys.has(key))
+    );
+    const openingQty = coerceMeasure(row?.sumOfQuantity ?? row?.openingQty);
+    if (!onSalesOrPurchases && (openingQty === null || openingQty === 0)) continue;
+    add(row?.product);
+    add(row?.ruleBookProduct);
+  }
+
+  const allows = (label) => activityNameKeys(label).some((key) => allowed.has(key));
+  const nextProducts = {};
+  const nextLayout = {};
+
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const products = Array.isArray(productsByCategory?.[category]) ? productsByCategory[category] : [];
+    nextProducts[category] = products.filter((name) => allows(name));
+
+    const layout = Array.isArray(layoutByCategory?.[category]) ? layoutByCategory[category] : [];
+    const kept = [];
+    let header = null;
+    let groupProducts = [];
+    let groupTotal = null;
+    const flush = () => {
+      if (groupProducts.length) {
+        if (header) kept.push(header);
+        kept.push(...groupProducts);
+        if (groupTotal) kept.push(groupTotal);
+      }
+      header = null;
+      groupProducts = [];
+      groupTotal = null;
+    };
+    let grand = null;
+    for (const row of layout) {
+      const kind = row?.kind || 'product';
+      if (kind === 'subcategory') {
+        flush();
+        header = row;
+      } else if (kind === 'subcategory_total') {
+        groupTotal = row;
+        flush();
+      } else if (kind === 'grand_total') {
+        grand = row;
+      } else if (kind === 'product' && allows(row?.label)) {
+        groupProducts.push(row);
+      }
+    }
+    flush();
+    if (grand && kept.some((row) => row.kind === 'product')) kept.push(grand);
+    nextLayout[category] = kept;
+  }
+
+  return { productsByCategory: nextProducts, layoutByCategory: nextLayout };
+}
+
 /**
  * Map pivots using a Rule Book object from the API (never a bundled static copy).
+ * Sheet rows are only products present in Sales, Purchases, or Opening Stock.
  */
 export function mapPivotsWithRuleBook({
   salesPivot = [],
@@ -845,7 +991,11 @@ export function mapPivotsWithRuleBook({
   ruleBook,
   ruleBookMeta = {},
 }) {
-  const book = normalizeRuleBookFromApi(ruleBook);
+  const activity = buildSalesPurchasesOnlyLayout(
+    { salesPivot, purchasesPivot, openingPivot },
+    ruleBook
+  );
+  const book = ruleBookFromActivityLayout(activity.layoutByCategory);
   const matchLookup = buildRuleBookMatchLookup(book);
   const { byDisplay: salesByDisplay, unmappedRows: unmappedSalesRows } = aggregatePivotByRuleBook(
     salesPivot,
@@ -990,5 +1140,393 @@ export function mergeRemapIntoResult(result, remapPayload) {
         ? remapPayload.unmappedProducts.length
         : remapPayload.summary?.unmappedProductCount,
     },
+  };
+}
+
+const FILE_SHEET_NORM_ALIASES = {
+  diamond: 'Diamond',
+  diamonds: 'Diamond',
+  dia: 'Diamond',
+  emerald: 'Emerald',
+  emeralds: 'Emerald',
+  eme: 'Emerald',
+  pearls: 'Pearls',
+  pearl: 'Pearls',
+  prls: 'Pearls',
+  rubie: 'Rubie',
+  rubies: 'Rubie',
+  ruby: 'Rubie',
+  rubi: 'Rubie',
+  'precious and semi precious': 'Precious and Semi Precious',
+  precious: 'Precious and Semi Precious',
+  prec: 'Precious and Semi Precious',
+};
+
+function resolveFileCategorySheet(label) {
+  const text = String(label || '').trim();
+  if (!text) return null;
+  if (CLOSING_STOCK_CATEGORIES.includes(text)) return text;
+  const aliased = SHEET_KEY_ALIASES[text];
+  if (aliased && CLOSING_STOCK_CATEGORIES.includes(aliased)) return aliased;
+  return FILE_SHEET_NORM_ALIASES[normProduct(text)] || null;
+}
+
+function emptySalesPurchasesMeasures() {
+  return { qty: null, amt: null };
+}
+
+function addSalesPurchasesMeasure(bucket, qty, amt) {
+  if (qty !== null) bucket.qty = (bucket.qty ?? 0) + qty;
+  if (amt !== null) bucket.amt = (bucket.amt ?? 0) + amt;
+}
+
+function sheetMeasureFields(sales, purchases, opening = emptySalesPurchasesMeasures()) {
+  const fields = {
+    openingQty: opening.qty,
+    openingAmt: roundClosingStockAmount(opening.amt),
+    purchasesQty: purchases.qty,
+    purchasesAmt: roundClosingStockAmount(purchases.amt),
+    salesQty: sales.qty,
+    salesAmt: roundClosingStockAmount(sales.amt),
+    receiptsQty: null,
+    receiptsAmt: null,
+    receiptsInternalAmt: null,
+    receiptsJubileeHillsAmt: null,
+    receiptsKokapetAmt: null,
+    totalQty: null,
+    totalAmt: null,
+    averageRateAmt: null,
+    issuesInternalAmt: null,
+    issuesBanjaraHillsAmt: null,
+    issuesKokapetAmt: null,
+    issuesTotalQty: null,
+    issuesTotalAmt: null,
+    closingStockQty: null,
+    closingStockAmt: null,
+    grossProfitAmt: null,
+    grossProfitPct: null,
+  };
+  for (const key of TRANSFER_QTY_FIELDS) {
+    fields[key] = null;
+  }
+  return fields;
+}
+
+function salesPurchasesLookup(entries) {
+  const lookup = new Map();
+  const coreOwners = new Map();
+  for (const entry of entries) {
+    for (const key of [normProduct(entry.display), matchKey(entry.display)]) {
+      if (key && !lookup.has(key)) lookup.set(key, entry.display);
+    }
+    const core = coreSkuKey(entry.display);
+    if (!core) continue;
+    if (!coreOwners.has(core)) coreOwners.set(core, new Set());
+    coreOwners.get(core).add(entry.display);
+  }
+  for (const [core, owners] of coreOwners) {
+    if (owners.size === 1 && !lookup.has(core)) lookup.set(core, [...owners][0]);
+  }
+  return lookup;
+}
+
+function resolveSalesPurchasesProduct(product, entries) {
+  const lookup = salesPurchasesLookup(entries);
+  for (const key of [normProduct(product), matchKey(product), coreSkuKey(product)]) {
+    if (key && lookup.has(key)) {
+      const display = lookup.get(key);
+      return entries.find((entry) => entry.display === display) || null;
+    }
+  }
+  return null;
+}
+
+function productFamilyKey(name) {
+  const tokens = normProduct(name)
+    .replace(/\./g, ' ')
+    .split(/\s+/)
+    .map((token) => token.replace(/[^a-z0-9]+/g, ''))
+    .filter(Boolean);
+  while (tokens.length && /^\d+$/.test(tokens[tokens.length - 1])) tokens.pop();
+  return tokens.join('');
+}
+
+function uniqueBookLocation(hits) {
+  const keys = new Set(hits.map((hit) => `${hit.category}\0${hit.subcategory || ''}`));
+  if (keys.size !== 1 || !hits.length) return null;
+  return { category: hits[0].category, subcategory: hits[0].subcategory || null };
+}
+
+function locationFromProductFamily(product, bookEntries) {
+  const family = productFamilyKey(product);
+  if (family.length < 3) return null;
+  return uniqueBookLocation(bookEntries.filter((entry) => productFamilyKey(entry.product) === family));
+}
+
+function locationFromNamePrefix(product, bookEntries) {
+  const norm = normProduct(product);
+  if (!norm) return null;
+  let bestLength = 0;
+  let hits = [];
+  for (const entry of bookEntries) {
+    const label = normProduct(entry.product);
+    if (!label || !(norm === label || norm.startsWith(`${label} `))) continue;
+    if (label.length > bestLength) {
+      bestLength = label.length;
+      hits = [entry];
+    } else if (label.length === bestLength) {
+      hits.push(entry);
+    }
+  }
+  return uniqueBookLocation(hits);
+}
+
+function ruleBookProductEntries(ruleBook) {
+  if (!ruleBook) return [];
+  const book = normalizeRuleBookFromApi(ruleBook);
+  const entries = [];
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const section = book[category];
+    if (Array.isArray(section)) {
+      for (const product of section) entries.push({ product, category, subcategory: null });
+    } else if (section && typeof section === 'object') {
+      for (const [subcategory, products] of Object.entries(section)) {
+        for (const product of products || []) {
+          entries.push({ product, category, subcategory });
+        }
+      }
+    }
+  }
+  return entries;
+}
+
+function locateSalesPurchasesSheet(row, bookIndex, bookEntries) {
+  const fileSheet = resolveFileCategorySheet(row?.category);
+  if (fileSheet) {
+    return {
+      category: fileSheet,
+      subcategory: String(row?.subcategory || '').trim() || null,
+    };
+  }
+  if (!bookIndex) return null;
+  const product = String(row?.product || '').trim();
+  return (
+    resolveLocation(product, bookIndex)
+    || locationFromProductFamily(product, bookEntries)
+    || locationFromNamePrefix(product, bookEntries)
+  );
+}
+
+function pivotSideTotals(rows) {
+  const bucket = emptySalesPurchasesMeasures();
+  for (const row of rows || []) {
+    addSalesPurchasesMeasure(bucket, coerceMeasure(row?.sumOfQuantity), coerceMeasure(row?.sumOfGross));
+  }
+  return bucket;
+}
+
+/**
+ * Kokapet Financials rows from Sales and Purchases pivots only.
+ * File category wins when it names a sheet. Otherwise the product is placed on the
+ * sheet already used by that same product or product line.
+ * Sales and Purchase columns are the only measures filled.
+ * @param {{ salesPivot?: object[], purchasesPivot?: object[] }|null|undefined} result
+ * @param {object|null|undefined} [ruleBook]
+ */
+export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
+  const salesPivot = Array.isArray(result?.salesPivot) ? result.salesPivot : [];
+  const purchasesPivot = Array.isArray(result?.purchasesPivot) ? result.purchasesPivot : [];
+  const bookEntries = ruleBookProductEntries(ruleBook);
+  const bookIndex = bookEntries.length ? buildLocationIndex(normalizeRuleBookFromApi(ruleBook)) : null;
+  const entries = [];
+  const unmappedProducts = [];
+  const unmappedSeen = new Set();
+
+  function rememberUnmapped(product) {
+    const name = String(product || '').trim();
+    const key = normProduct(name);
+    if (!name || !key || unmappedSeen.has(key)) return;
+    unmappedSeen.add(key);
+    unmappedProducts.push(name);
+  }
+
+  function placeRow(row, side) {
+    const product = String(row?.product || '').trim();
+    if (!product) return;
+    const qty = coerceMeasure(row?.sumOfQuantity);
+    const amt = coerceMeasure(row?.sumOfGross);
+    const existing = resolveSalesPurchasesProduct(product, entries);
+    if (existing) {
+      addSalesPurchasesMeasure(existing[side], qty, amt);
+      return;
+    }
+    const located = locateSalesPurchasesSheet(row, bookIndex, bookEntries);
+    if (!located?.category) {
+      rememberUnmapped(product);
+      return;
+    }
+    const { category } = located;
+    const subcategory = located.subcategory || null;
+    const entry = {
+      display: product,
+      category,
+      subcategory,
+      sales: emptySalesPurchasesMeasures(),
+      purchases: emptySalesPurchasesMeasures(),
+      opening: emptySalesPurchasesMeasures(),
+    };
+    addSalesPurchasesMeasure(entry[side], qty, amt);
+    entries.push(entry);
+  }
+
+  for (const row of salesPivot) placeRow(row, 'sales');
+  for (const row of purchasesPivot) placeRow(row, 'purchases');
+
+  const openingPivot = Array.isArray(result?.openingPivot) ? result.openingPivot : [];
+  for (const row of openingPivot) {
+    const qty = coerceMeasure(row?.sumOfQuantity ?? row?.openingQty);
+    const amt = coerceMeasure(row?.sumOfGross ?? row?.openingAmt);
+    if (qty === null && amt === null) continue;
+    const sourceName = String(row?.product || '').trim();
+    const mappedName =
+      row?.status === 'matched_fallback' ? String(row?.ruleBookProduct || '').trim() : '';
+    const targetName = mappedName || sourceName;
+    if (!targetName) continue;
+    const existing =
+      resolveSalesPurchasesProduct(targetName, entries) ||
+      (sourceName && sourceName !== targetName
+        ? resolveSalesPurchasesProduct(sourceName, entries)
+        : null);
+    if (!existing && (qty === null || qty === 0)) continue;
+    if (existing) {
+      addSalesPurchasesMeasure(existing.opening, qty, amt);
+      continue;
+    }
+    const located = locateSalesPurchasesSheet(
+      {
+        product: targetName,
+        category: row?.category || row?.sheetName,
+        subcategory: row?.subcategory,
+      },
+      bookIndex,
+      bookEntries
+    );
+    if (!located?.category) {
+      rememberUnmapped(targetName);
+      continue;
+    }
+    const entry = {
+      display: targetName,
+      category: located.category,
+      subcategory: located.subcategory || null,
+      sales: emptySalesPurchasesMeasures(),
+      purchases: emptySalesPurchasesMeasures(),
+      opening: emptySalesPurchasesMeasures(),
+    };
+    addSalesPurchasesMeasure(entry.opening, qty, amt);
+    entries.push(entry);
+  }
+
+  const productsByCategory = {};
+  const layoutByCategory = {};
+  for (const category of CLOSING_STOCK_CATEGORIES) {
+    const sourceEntries = entries.filter((entry) => entry.category === category);
+    const layout = [];
+    const groups = [];
+    const plain = [];
+    for (const entry of sourceEntries) {
+      if (!entry.subcategory) {
+        plain.push(entry);
+        continue;
+      }
+      let group = groups.find((item) => item.subcategory === entry.subcategory);
+      if (!group) {
+        group = { subcategory: entry.subcategory, entries: [] };
+        groups.push(group);
+      }
+      group.entries.push(entry);
+    }
+    groups.sort((a, b) => compareProductNames(a.subcategory, b.subcategory));
+    for (const group of groups) {
+      group.entries.sort((a, b) => compareProductNames(a.display, b.display));
+    }
+    plain.sort((a, b) => compareProductNames(a.display, b.display));
+    const categoryEntries = [...groups.flatMap((group) => group.entries), ...plain];
+    productsByCategory[category] = categoryEntries.map((entry) => entry.display);
+    const pushProducts = (productEntries, subcategory) => {
+      for (const entry of productEntries) {
+        layout.push({
+          kind: 'product',
+          label: entry.display,
+          subcategory,
+          ...sheetMeasureFields(entry.sales, entry.purchases, entry.opening),
+        });
+      }
+    };
+    const summed = (productEntries) => {
+      const sales = emptySalesPurchasesMeasures();
+      const purchases = emptySalesPurchasesMeasures();
+      const opening = emptySalesPurchasesMeasures();
+      for (const entry of productEntries) {
+        addSalesPurchasesMeasure(sales, entry.sales.qty, entry.sales.amt);
+        addSalesPurchasesMeasure(purchases, entry.purchases.qty, entry.purchases.amt);
+        addSalesPurchasesMeasure(opening, entry.opening?.qty, entry.opening?.amt);
+      }
+      return sheetMeasureFields(sales, purchases, opening);
+    };
+    for (const group of groups) {
+      layout.push({ kind: 'subcategory', label: group.subcategory, subcategory: group.subcategory });
+      pushProducts(group.entries, group.subcategory);
+      layout.push({
+        kind: 'subcategory_total',
+        label: subcategoryTotalLabel(category, group.subcategory),
+        subcategory: group.subcategory,
+        ...summed(group.entries),
+      });
+    }
+    pushProducts(plain, null);
+    if (categoryEntries.length) {
+      layout.push({
+        kind: 'grand_total',
+        label: 'GRAND TOTAL',
+        subcategory: null,
+        ...summed(categoryEntries),
+      });
+    }
+    layoutByCategory[category] = layout;
+  }
+
+  const salesTotals = pivotSideTotals(salesPivot);
+  const purchasesTotals = pivotSideTotals(purchasesPivot);
+  const openingReport = result?.openingStockReport || {};
+  const withSales = entries.filter((entry) => entry.sales.qty !== null || entry.sales.amt !== null).length;
+  const withPurchases = entries.filter(
+    (entry) => entry.purchases.qty !== null || entry.purchases.amt !== null
+  ).length;
+
+  return {
+    productsByCategory,
+    layoutByCategory,
+    unmappedProducts,
+    summary: {
+      salesProductCount: salesPivot.length,
+      purchasesProductCount: purchasesPivot.length,
+      salesTotalQuantity: salesTotals.qty ?? 0,
+      salesTotalGross: salesTotals.amt ?? 0,
+      purchasesTotalQuantity: purchasesTotals.qty ?? 0,
+      purchasesTotalGross: purchasesTotals.amt ?? 0,
+      productsDisplayed: entries.length,
+      mappedProductCount: entries.length,
+      productsWithSalesData: withSales,
+      productsWithPurchaseData: withPurchases,
+      productsWithOpeningData: entries.filter(
+        (entry) => entry.opening?.qty !== null || entry.opening?.amt !== null
+      ).length,
+      openingProductCount: openingPivot.length,
+      openingTotalQuantity: openingReport.totalOpeningQty ?? 0,
+      openingTotalAmount: openingReport.totalOpeningAmount ?? 0,
+      unmappedProductCount: unmappedProducts.length,
+    },
+    openingStockReport: openingReport,
   };
 }

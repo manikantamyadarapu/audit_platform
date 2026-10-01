@@ -649,6 +649,97 @@ async function postFinancialsPivot(
   }
 }
 
+async function postFinancialsSalesPurchases(
+  salesFile,
+  purchasesFile,
+  openingQtyFile,
+  previousYearFile,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('sales_file', salesFile.buffer, {
+    filename: salesFile.originalname || 'sales.xlsx',
+    contentType:
+      salesFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('purchases_file', purchasesFile.buffer, {
+    filename: purchasesFile.originalname || 'purchases.xlsx',
+    contentType:
+      purchasesFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('opening_qty_file', openingQtyFile.buffer, {
+    filename: openingQtyFile.originalname || 'opening-quantity.xlsx',
+    contentType:
+      openingQtyFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('previous_year_file', previousYearFile.buffer, {
+    filename: previousYearFile.originalname || 'previous-year-closing.xlsx',
+    contentType:
+      previousYearFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/financials/sales-purchases', form, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
+function appendWorkbook(form, field, file, fallbackName) {
+  if (!file?.buffer) return;
+  form.append(field, file.buffer, {
+    filename: file.originalname || fallbackName,
+    contentType:
+      file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+async function postFinancialsSalesPurchasesPivots(
+  salesFile,
+  purchasesFile,
+  openingQtyFile,
+  previousYearFile,
+  options = {}
+) {
+  const form = new FormData();
+  form.append('sales_file', salesFile.buffer, {
+    filename: salesFile.originalname || 'sales.xlsx',
+    contentType:
+      salesFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  form.append('purchases_file', purchasesFile.buffer, {
+    filename: purchasesFile.originalname || 'purchases.xlsx',
+    contentType:
+      purchasesFile.mimetype ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  appendWorkbook(form, 'opening_qty_file', openingQtyFile, 'opening-quantity.xlsx');
+  appendWorkbook(form, 'previous_year_file', previousYearFile, 'previous-year-closing.xlsx');
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+  try {
+    const { data } = await client.post('/api/process/financials/sales-purchases-pivots', form, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 /**
  * @param {object} payload
  * @param {{ requestId?: string }} [options]
@@ -799,6 +890,8 @@ module.exports = {
   postTdsRules,
   postSection44ABValidate,
   postFinancialsPivot,
+  postFinancialsSalesPurchases,
+  postFinancialsSalesPurchasesPivots,
   postFinancialsExportPivots,
   postFinancialsExportClosingStock,
   getClosingStockRuleBook,

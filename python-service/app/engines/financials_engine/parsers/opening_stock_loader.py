@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from typing import Any
 
@@ -115,7 +116,24 @@ NON_STOCK_SHEET_HINTS = frozenset(
 )
 # Category tabs that contain many products as rows (Eximp layout).
 CLOSING_STOCK_CATEGORY_TABS = frozenset(
-    {'dia', 'eme', 'prls', 'rubi', 'prec', 'diamond', 'emerald', 'pearls', 'rubie'}
+    {
+        'dia',
+        'diamond',
+        'diamonds',
+        'eme',
+        'emerald',
+        'emeralds',
+        'prls',
+        'pearls',
+        'pearl',
+        'rubi',
+        'rubie',
+        'rubies',
+        'ruby',
+        'prec',
+        'precious',
+        'precious and semi precious',
+    }
 )
 
 
@@ -229,7 +247,7 @@ def load_opening_quantity_workbook(
     for ridx in range(header_idx + 1, len(raw.index)):
         series = raw.iloc[ridx]
         product = _display_product_name(series.iloc[col_map['product']])
-        if not product:
+        if not product or _is_skip_product_label(product):
             continue
         entry: dict[str, Any] = {
             'product': product,
@@ -360,6 +378,65 @@ def _is_category_closing_tab(sheet_name: str) -> bool:
     return str(sheet_name or '').strip().casefold() in CLOSING_STOCK_CATEGORY_TABS
 
 
+# Report-header text that is not a stock particular. Matched on the normalized label.
+_ADDRESS_PHRASES = (
+    'kokapet',
+    'jubilee',
+    'banjara',
+    'gachibowli',
+    'kondapur',
+    'madhapur',
+    'secunderabad',
+    'telangana',
+    'ranga_reddy',
+    'gandipet',
+    'narsingi',
+    'road_no',
+    'rd_no',
+    'plot_no',
+    'h_no',
+    'house_no',
+    'survey_no',
+    'door_no',
+    'flat_no',
+    'sy_no',
+    'pin_code',
+    'pincode',
+    'financial_year',
+    'for_the_year',
+    'year_ended',
+)
+_ADDRESS_TOKENS = frozenset(
+    {
+        'colony',
+        'nagar',
+        'village',
+        'mandal',
+        'district',
+        'address',
+        'phone',
+        'mobile',
+        'email',
+    }
+)
+_DOOR_NUMBER_RE = re.compile(r'\d+\s*[-/]\s*\d+\s*[-/]\s*\d+')
+_PIN_RE = re.compile(r'(?<!\d)\d{6}(?!\d)')
+
+
+def _looks_like_address(product: str, key: str) -> bool:
+    """Company address, branch location, and other report-header lines."""
+    if any(phrase in key for phrase in _ADDRESS_PHRASES):
+        return True
+    if set(key.split('_')) & _ADDRESS_TOKENS:
+        return True
+    text = str(product or '')
+    if _DOOR_NUMBER_RE.search(text):
+        return True
+    if ',' in text and _PIN_RE.search(text):
+        return True
+    return False
+
+
 def _is_skip_product_label(product: str) -> bool:
     key = normalize_header(product)
     if not key:
@@ -379,6 +456,8 @@ def _is_skip_product_label(product: str) -> bool:
         'ay_',
     )
     if any(bit in key for bit in junk_bits):
+        return True
+    if _looks_like_address(product, key):
         return True
     return False
 
@@ -644,6 +723,9 @@ def load_previous_year_product_index(
                     category_sheet_hits.append(display_name)
                     for entry in extracted.values():
                         _register_product_keys(index, entry)
+                continue
+
+            if _is_skip_product_label(display_name):
                 continue
 
             product_entry = _extract_closing_balance_from_product_sheet(

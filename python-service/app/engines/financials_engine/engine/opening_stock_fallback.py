@@ -6,16 +6,21 @@ import re
 from typing import Any, Mapping, Sequence
 
 from app.engines.financials_engine.config.product_rule_book import (
+    _SHEET_NORM_ALIASES,
     _build_rule_book_match_lookup,
     _iter_rule_book_products,
     _norm_product,
     _resolve_rule_book_display_name,
     build_product_location_index,
     load_closing_stock_product_rule_book,
+    resolve_known_product_line,
     resolve_product_location,
 )
 from app.engines.financials_engine.engine.metal_trading import metal_opening_group
-from app.engines.financials_engine.engine.opening_stock import norm_opening_product_name
+from app.engines.financials_engine.engine.opening_stock import (
+    alnum_opening_product_key,
+    norm_opening_product_name,
+)
 from app.utils.logger import get_logger
 
 _QTY_EPS = 1e-4
@@ -30,6 +35,23 @@ _CATEGORY_SHEET_MAP: dict[str, str] = {
     'Rubie': 'Rubi',
     'Precious and Semi Precious': 'Prec',
 }
+
+
+def _category_sheet_names(category: str) -> set[str]:
+    """Workbook tab titles that belong to one Closing Stock category."""
+    names = {str(category or '').strip().casefold()}
+    primary = _CATEGORY_SHEET_MAP.get(category)
+    if primary:
+        names.add(primary.casefold())
+    for alias, canonical in _SHEET_NORM_ALIASES.items():
+        if canonical == category:
+            names.add(str(alias).casefold())
+    names.discard('')
+    return names
+
+
+def _sheet_in_category(sheet: str | None, category: str) -> bool:
+    return str(sheet or '').strip().casefold() in _category_sheet_names(category)
 
 REASON_MANUAL_MAPPING_REQUIRED = 'Manual Mapping Required'
 
@@ -104,6 +126,13 @@ def _sum_prev_qty(rows: Sequence[Mapping[str, Any]]) -> float:
 
 def _sum_prev_amt(rows: Sequence[Mapping[str, Any]]) -> float:
     return sum(_coerce_float(r.get('closingStockAmount')) or 0.0 for r in rows)
+
+
+def _same_opening_name(left: str, right: str) -> bool:
+    """DI. RA 150 and DI RA 150 are the same product. Not a fuzzy match."""
+    a = alnum_opening_product_key(left)
+    b = alnum_opening_product_key(right)
+    return bool(a) and a == b
 
 
 def _is_base_name_variant(prev_name: str, base_display_name: str) -> bool:
@@ -250,7 +279,7 @@ def _collect_subcategory_rows(
     for key, group in (subcategory_products or {}).items():
         sheet = key[0] if isinstance(key, tuple) and len(key) == 2 else None
         header = key[1] if isinstance(key, tuple) and len(key) == 2 else None
-        if sheet != sheet_name:
+        if not _sheet_in_category(str(sheet) if sheet is not None else None, category):
             continue
         if not _subcategory_labels_match(str(header) if header is not None else None, subcategory):
             continue
@@ -260,18 +289,21 @@ def _collect_subcategory_rows(
     if not rows:
         other_headers: set[str] = set()
         for key in subcategory_products or {}:
-            if isinstance(key, tuple) and len(key) == 2 and key[0] == sheet_name:
+            if isinstance(key, tuple) and len(key) == 2 and _sheet_in_category(str(key[0]), category):
                 header = _norm_subcategory(str(key[1] or ''))
                 if header and not _subcategory_labels_match(header, subcategory):
                     other_headers.add(header)
-        for row in (sheet_products or {}).get(sheet_name, ()):
-            row_sub = row.get('subcategory')
-            row_sub_norm = _norm_subcategory(str(row_sub) if row_sub is not None else None)
-            if row_sub_norm and row_sub_norm in other_headers:
+        for sheet_key, group in (sheet_products or {}).items():
+            if not _sheet_in_category(str(sheet_key), category):
                 continue
-            if row_sub_norm and not _subcategory_labels_match(row_sub, subcategory):
-                continue
-            _add(row)
+            for row in group or ():
+                row_sub = row.get('subcategory')
+                row_sub_norm = _norm_subcategory(str(row_sub) if row_sub is not None else None)
+                if row_sub_norm and row_sub_norm in other_headers:
+                    continue
+                if row_sub_norm and not _subcategory_labels_match(row_sub, subcategory):
+                    continue
+                _add(row)
 
     for sheet in dedicated_product_sheets or ():
         product = str(sheet.get('product') or sheet.get('sheetName') or '').strip()
@@ -296,6 +328,10 @@ def _list_subcategory_candidates(
     claimed_keys: set[str],
 ) -> list[dict[str, Any]]:
     """All previous-year product rows in the subcategory (for Manual Mapping UI)."""
+    from app.engines.financials_engine.parsers.opening_stock_loader import (
+        _is_skip_product_label,
+    )
+
     norm_sub = _norm_subcategory(subcategory)
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -304,7 +340,7 @@ def _list_subcategory_candidates(
         if not key or key in claimed_keys or key in seen:
             continue
         prev_name = str(row.get('product') or '').strip()
-        if not prev_name:
+        if not prev_name or _is_skip_product_label(prev_name):
             continue
         if norm_sub and _norm_product(prev_name) == norm_sub:
             continue
@@ -316,6 +352,7 @@ def _list_subcategory_candidates(
 def _identify_previous_year_products(
     candidates: Sequence[Mapping[str, Any]],
     *,
+    product: str,
     display_name: str,
     match_lookup: Mapping[str, str],
     subcategory_names: set[str],
@@ -347,7 +384,11 @@ def _identify_previous_year_products(
             lookup=match_lookup,
             subcategory_names=subcategory_names,
         )
-        if resolved == display_name:
+        if (
+            resolved == display_name
+            or _same_opening_name(prev_name, display_name)
+            or _same_opening_name(prev_name, product)
+        ):
             primary.append(dict(row))
 
     combined: dict[str, dict[str, Any]] = {}
@@ -598,6 +639,13 @@ def try_subcategory_fallback(
     display_name = _resolve_rule_book_display_name(product, lookup=match_lookup)
     location = resolve_product_location(product, index=location_index)
     if not display_name or not location:
+        known = resolve_known_product_line(product, book)
+        if known is not None:
+            if location is None:
+                location = (known[0], known[1])
+            if not display_name:
+                display_name = known[2]
+    if not display_name or not location:
         metal = _try_metal_opening_fallback(
             product=product,
             opening_qty=opening_qty,
@@ -674,6 +722,7 @@ def try_subcategory_fallback(
 
     matched_prev = _identify_previous_year_products(
         candidates,
+        product=product,
         display_name=display_name,
         match_lookup=match_lookup,
         subcategory_names=subcategory_names,
@@ -711,8 +760,13 @@ def try_subcategory_fallback(
         round(sum_amt, 4),
     )
 
-    if not qty_matches:
-        # Never auto-map amount when qty differs — user must resolve manually.
+    same_name_only = all(
+        _same_opening_name(str(row.get('product') or ''), product)
+        or _same_opening_name(str(row.get('product') or ''), display_name)
+        for row in matched_prev
+    )
+    if not qty_matches and not same_name_only:
+        # A different previous-year name still needs the user when qty differs.
         return _manual_mapping_result(
             category=category,
             subcategory=subcategory,
