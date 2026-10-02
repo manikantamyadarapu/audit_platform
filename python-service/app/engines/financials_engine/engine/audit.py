@@ -5,7 +5,10 @@ from __future__ import annotations
 from time import perf_counter
 from typing import Any
 
-from app.engines.financials_engine.engine.calculator import build_product_pivot
+from app.engines.financials_engine.engine.calculator import (
+    apply_same_product_adjustment,
+    build_product_pivot,
+)
 from app.engines.financials_engine.engine.mr_dc_pivots import build_mr_dc_pivot_payload
 from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
 from app.engines.financials_engine.engine.output import build_financials_pivot_response
@@ -262,3 +265,118 @@ class FinancialsPivotAudit:
             opening_qty_file_name=opening_qty_file_name or None,
             previous_year_file_name=previous_year_file_name or None,
         )
+
+    def _load_adjustment_pivot(
+        self,
+        file_bytes: bytes | None,
+        file_name: str,
+        source_label: str,
+    ) -> list[dict[str, Any]]:
+        if not file_bytes:
+            return []
+        rows, _headers = load_financials_workbook(
+            file_bytes,
+            file_name or f'{source_label}.xlsx',
+            source_label=source_label,
+        )
+        return build_product_pivot(rows)
+
+    def process_jubilee_hills(
+        self,
+        sales_file_name: str,
+        sales_bytes: bytes,
+        purchases_file_name: str,
+        purchases_bytes: bytes,
+        opening_qty_file_name: str = '',
+        opening_qty_bytes: bytes | None = None,
+        previous_year_file_name: str = '',
+        previous_year_bytes: bytes | None = None,
+        mr_file_name: str = '',
+        mr_bytes: bytes | None = None,
+        dc_file_name: str = '',
+        dc_bytes: bytes | None = None,
+        sales_return_file_name: str = '',
+        sales_return_bytes: bytes | None = None,
+        purchase_return_file_name: str = '',
+        purchase_return_bytes: bytes | None = None,
+        credit_note_file_name: str = '',
+        credit_note_bytes: bytes | None = None,
+        debit_note_file_name: str = '',
+        debit_note_bytes: bytes | None = None,
+    ) -> dict[str, Any]:
+        """Jubilee Hills only. Basheerbagh and Kokapet keep using process()."""
+        base = self.process(
+            sales_file_name,
+            sales_bytes,
+            purchases_file_name,
+            purchases_bytes,
+            opening_qty_file_name=opening_qty_file_name,
+            opening_qty_bytes=opening_qty_bytes,
+            previous_year_file_name=previous_year_file_name,
+            previous_year_bytes=previous_year_bytes,
+            mr_file_name=mr_file_name,
+            mr_bytes=mr_bytes,
+            dc_file_name=dc_file_name,
+            dc_bytes=dc_bytes,
+        )
+        sales_return_pivot = self._load_adjustment_pivot(
+            sales_return_bytes,
+            sales_return_file_name,
+            'Sales Return',
+        )
+        purchase_return_pivot = self._load_adjustment_pivot(
+            purchase_return_bytes,
+            purchase_return_file_name,
+            'Purchase Return',
+        )
+        credit_note_pivot = self._load_adjustment_pivot(
+            credit_note_bytes,
+            credit_note_file_name,
+            'Credit notes from suppliers',
+        )
+        debit_note_pivot = self._load_adjustment_pivot(
+            debit_note_bytes,
+            debit_note_file_name,
+            'Debit notes from suppliers',
+        )
+        sales_pivot = apply_same_product_adjustment(
+            list(base.get('salesPivot') or []),
+            [(sales_return_pivot, -1)],
+        )
+        purchases_pivot = apply_same_product_adjustment(
+            list(base.get('purchasesPivot') or []),
+            [
+                (purchase_return_pivot, -1),
+                (credit_note_pivot, -1),
+                (debit_note_pivot, 1),
+            ],
+        )
+        summary = dict(base.get('summary') or {})
+        rebuilt = build_financials_pivot_response(
+            sales_pivot=sales_pivot,
+            purchases_pivot=purchases_pivot,
+            sales_source_rows=int(summary.get('salesSourceRows') or 0),
+            purchases_source_rows=int(summary.get('purchasesSourceRows') or 0),
+            sales_file_name=sales_file_name,
+            purchases_file_name=purchases_file_name,
+            load_ms=float((base.get('executionTiming') or {}).get('loadMs') or 0),
+            opening_pivot=list(base.get('openingPivot') or []),
+            validated_opening=list(base.get('validatedOpening') or []),
+            opening_stock_report=dict(base.get('openingStockReport') or {}),
+            opening_qty_file_name=opening_qty_file_name or None,
+            previous_year_file_name=previous_year_file_name or None,
+            mr_pivots=base.get('mrPivots'),
+            dc_pivots=base.get('dcPivots'),
+            mr_report=base.get('mrReport'),
+            dc_report=base.get('dcReport'),
+            mr_file_name=mr_file_name or None,
+            dc_file_name=dc_file_name or None,
+            mr_source_rows=int(summary.get('mrSourceRows') or 0),
+            dc_source_rows=int(summary.get('dcSourceRows') or 0),
+        )
+        rebuilt['salesReturnPivot'] = sales_return_pivot
+        rebuilt['purchaseReturnPivot'] = purchase_return_pivot
+        rebuilt['supplierCreditNotePivot'] = credit_note_pivot
+        rebuilt['supplierDebitNotePivot'] = debit_note_pivot
+        rebuilt['branch'] = 'jubilee-hills'
+        return rebuilt

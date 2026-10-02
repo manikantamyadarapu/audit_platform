@@ -857,6 +857,39 @@ async function postFinancialsRemapClosingStock(payload, options = {}) {
   }
 }
 
+async function postJubileeHillsFinancials(files, options = {}) {
+  const form = new FormData();
+  const fields = [
+    ['sales_file', files.salesFile, 'sales.xlsx'],
+    ['purchases_file', files.purchasesFile, 'purchases.xlsx'],
+    ['opening_qty_file', files.openingQtyFile, 'opening-quantity.xlsx'],
+    ['previous_year_file', files.previousYearFile, 'previous-year-closing.xlsx'],
+    ['mr_file', files.mrFile, 'mr.xlsx'],
+    ['dc_file', files.dcFile, 'dc.xlsx'],
+    ['sales_return_file', files.salesReturnFile, 'sales-return.xlsx'],
+    ['purchase_return_file', files.purchaseReturnFile, 'purchase-return.xlsx'],
+    ['credit_note_file', files.creditNoteFile, 'credit-notes.xlsx'],
+    ['debit_note_file', files.debitNoteFile, 'debit-notes.xlsx'],
+  ];
+  for (const [field, file, fallbackName] of fields) {
+    appendWorkbook(form, field, file, fallbackName);
+  }
+
+  const headers = { ...form.getHeaders() };
+  if (options.requestId) {
+    headers['x-request-id'] = options.requestId;
+  }
+
+  try {
+    const { data } = await client.post('/api/process/financials/jubilee-hills', form, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 module.exports = {
   postPanValidate,
   postPanExportInvalid,
@@ -890,6 +923,7 @@ module.exports = {
   postTdsRules,
   postSection44ABValidate,
   postFinancialsPivot,
+  postJubileeHillsFinancials,
   postFinancialsSalesPurchases,
   postFinancialsSalesPurchasesPivots,
   postFinancialsExportPivots,

@@ -297,8 +297,54 @@ async function remapClosingStock(req, res, next) {
   }
 }
 
+async function processJubileeHillsFinancials(req, res, next) {
+  try {
+    const required = [
+      ['salesFile', 'salesFile'],
+      ['purchasesFile', 'purchasesFile'],
+      ['openingQtyFile', 'openingQtyFile'],
+      ['previousYearFile', 'previousYearFile'],
+      ['mrFile', 'mrFile'],
+      ['dcFile', 'dcFile'],
+      ['salesReturnFile', 'salesReturnFile'],
+      ['purchaseReturnFile', 'purchaseReturnFile'],
+      ['creditNoteFile', 'creditNoteFile'],
+      ['debitNoteFile', 'debitNoteFile'],
+    ];
+    const files = {};
+    for (const [key, field] of required) {
+      const file = req.files?.[field]?.[0];
+      if (!file?.buffer) {
+        return res.status(400).json({
+          success: false,
+          detail: `Missing file field "${field}"`,
+          requestId: req.requestId,
+        });
+      }
+      files[key] = file;
+    }
+
+    logger.info('Jubilee Hills financials: forwarding to Python', {
+      requestId: req.requestId,
+      salesFile: files.salesFile.originalname,
+      purchasesFile: files.purchasesFile.originalname,
+      salesReturnFile: files.salesReturnFile.originalname,
+      purchaseReturnFile: files.purchaseReturnFile.originalname,
+      creditNoteFile: files.creditNoteFile.originalname,
+      debitNoteFile: files.debitNoteFile.originalname,
+    });
+
+    const { data, auditRunId } = await financialsService.processJubileeHillsFinancials(req, files);
+    return res.json({ ...data, auditRunId });
+  } catch (err) {
+    financialsService.notifyFinancialsPivotFailure(req, err);
+    return next(err);
+  }
+}
+
 module.exports = {
   processFinancialsPivot,
+  processJubileeHillsFinancials,
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,
   exportFinancialsPivots,

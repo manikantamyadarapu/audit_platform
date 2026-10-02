@@ -108,6 +108,19 @@ const financialsSalesPurchasesPivotFiles = financialsUpload.fields([
   { name: 'previousYearFile', maxCount: 1 },
 ]);
 
+const financialsJubileeHillsFiles = financialsUpload.fields([
+  { name: 'salesFile', maxCount: 1 },
+  { name: 'purchasesFile', maxCount: 1 },
+  { name: 'openingQtyFile', maxCount: 1 },
+  { name: 'previousYearFile', maxCount: 1 },
+  { name: 'mrFile', maxCount: 1 },
+  { name: 'dcFile', maxCount: 1 },
+  { name: 'salesReturnFile', maxCount: 1 },
+  { name: 'purchaseReturnFile', maxCount: 1 },
+  { name: 'creditNoteFile', maxCount: 1 },
+  { name: 'debitNoteFile', maxCount: 1 },
+]);
+
 function handleMulterError(err, req, res, next) {
   if (!err) {
     return next();
@@ -136,5 +149,6 @@ module.exports = {
   financialsPivotFiles,
   financialsSalesPurchasesFiles,
   financialsSalesPurchasesPivotFiles,
+  financialsJubileeHillsFiles,
   handleMulterError,
 };

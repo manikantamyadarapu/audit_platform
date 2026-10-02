@@ -15,6 +15,7 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),
   '/financials': () => import('../pages/FinancialsHub'),
   '/financials/closing-stock': () => import('../pages/FinancialsPivotPage'),
+  '/financials/jubilee-hills': () => import('../pages/JubileeHillsFinancialsPage'),
   '/financials/first-audit': () => import('../pages/FinancialsPivotPage'),
 };
 

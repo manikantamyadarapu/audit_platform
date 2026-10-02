@@ -238,6 +238,85 @@ async def process_financials_pivot(
     )
 
 
+@router.post('/financials/jubilee-hills')
+@gateway_router.post('/financials/jubilee-hills')
+async def process_jubilee_hills_financials(
+    request: Request,
+    sales_file: UploadFile = File(...),
+    purchases_file: UploadFile = File(...),
+    opening_qty_file: UploadFile = File(...),
+    previous_year_file: UploadFile = File(...),
+    mr_file: UploadFile = File(...),
+    dc_file: UploadFile = File(...),
+    sales_return_file: UploadFile = File(...),
+    purchase_return_file: UploadFile = File(...),
+    credit_note_file: UploadFile = File(...),
+    debit_note_file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Jubilee Hills folder: the six Closing Stock files plus four adjustment files."""
+    request_id = _request_id(request)
+    log = get_logger(request_id)
+    uploads = (
+        ('Sales', sales_file),
+        ('Purchases', purchases_file),
+        ('Opening Quantity', opening_qty_file),
+        ('Previous Year Closing Stock', previous_year_file),
+        ('MR', mr_file),
+        ('DC', dc_file),
+        ('Sales Return', sales_return_file),
+        ('Purchase Return', purchase_return_file),
+        ('Credit notes from suppliers', credit_note_file),
+        ('Debit notes from suppliers', debit_note_file),
+    )
+    payloads: dict[str, bytes] = {}
+    for label, upload in uploads:
+        payloads[label] = await upload.read()
+        if not payloads[label]:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    'success': False,
+                    'detail': f'{label} file is empty',
+                    'requestId': request_id,
+                },
+            )
+    try:
+        response = processor.process_jubilee_hills(
+            sales_file.filename or 'sales.xlsx',
+            payloads['Sales'],
+            purchases_file.filename or 'purchases.xlsx',
+            payloads['Purchases'],
+            opening_qty_file_name=opening_qty_file.filename or 'opening-quantity.xlsx',
+            opening_qty_bytes=payloads['Opening Quantity'],
+            previous_year_file_name=previous_year_file.filename or 'previous-year-closing.xlsx',
+            previous_year_bytes=payloads['Previous Year Closing Stock'],
+            mr_file_name=mr_file.filename or 'mr.xlsx',
+            mr_bytes=payloads['MR'],
+            dc_file_name=dc_file.filename or 'dc.xlsx',
+            dc_bytes=payloads['DC'],
+            sales_return_file_name=sales_return_file.filename or 'sales-return.xlsx',
+            sales_return_bytes=payloads['Sales Return'],
+            purchase_return_file_name=purchase_return_file.filename or 'purchase-return.xlsx',
+            purchase_return_bytes=payloads['Purchase Return'],
+            credit_note_file_name=credit_note_file.filename or 'credit-notes.xlsx',
+            credit_note_bytes=payloads['Credit notes from suppliers'],
+            debit_note_file_name=debit_note_file.filename or 'debit-notes.xlsx',
+            debit_note_bytes=payloads['Debit notes from suppliers'],
+        )
+        response['requestId'] = request_id
+        return response
+    except SheetValidationError as exc:
+        content = exc.to_response()
+        content['requestId'] = request_id
+        return JSONResponse(status_code=422, content=content)
+    except Exception as exc:
+        log.error('Jubilee Hills financials failed: {}', exc)
+        return JSONResponse(
+            status_code=500,
+            content={'success': False, 'detail': str(exc), 'requestId': request_id},
+        )
+
+
 @router.post('/financials/sales-purchases')
 @gateway_router.post('/financials/validate-sales-purchases')
 async def process_financials_sales_purchases(

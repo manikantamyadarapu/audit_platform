@@ -29,6 +29,7 @@ const TITLE_MAP = [
   { test: /^\/scrutiny\/vendor-reconciliation/, title: 'Vendor Reconciliation' },
   { test: /^\/financials$/, title: 'Financials' },
   { test: /^\/financials\/closing-stock/, title: 'Closing Stock' },
+  { test: /^\/financials\/jubilee-hills/, title: 'Jubilee Hills Financials' },
   { test: /^\/financials\/first-audit/, title: 'Closing Stock' },
   { test: /^\/financials\//, title: 'Financials' },
   { test: /^\/vouching$/, title: 'Vouching' },

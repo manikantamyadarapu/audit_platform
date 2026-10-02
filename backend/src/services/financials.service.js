@@ -239,8 +239,53 @@ async function remapClosingStock(req, payload) {
   return pythonClient.postFinancialsRemapClosingStock(payload, { requestId: req.requestId });
 }
 
+async function processJubileeHillsFinancials(req, files) {
+  const { requestId, user } = req;
+  const data = await pythonClient.postJubileeHillsFinancials(files, { requestId });
+  const ordered = [
+    files.salesFile,
+    files.purchasesFile,
+    files.openingQtyFile,
+    files.previousYearFile,
+    files.mrFile,
+    files.dcFile,
+    files.salesReturnFile,
+    files.purchaseReturnFile,
+    files.creditNoteFile,
+    files.debitNoteFile,
+  ].filter(Boolean);
+  const fileNames = ordered.map((file) => file.originalname).filter(Boolean).join(', ');
+  const fileMetadata = {
+    originalName: fileNames,
+    storagePath: null,
+    fileHash: null,
+    fileSize: ordered.reduce((total, file) => total + (file.size || 0), 0),
+  };
+  const performanceMetrics = {
+    processingTimeMs: data.processingTimeMs || data.executionTiming?.loadMs || null,
+    memoryUsageMb: data.memoryUsageMb || null,
+    rowsPerSecond: data.rowsPerSecond || null,
+    cpuUsagePercent: data.cpuUsagePercent || null,
+  };
+  const auditRunId = await auditRunPersistence.tryPersistAuditRun(
+    req,
+    AUDIT_KEYS.FINANCIALS_PIVOT,
+    fileNames,
+    data,
+    fileMetadata,
+    performanceMetrics
+  );
+  if (user?.id) {
+    auditNotification
+      .notifyAuditCompleted(user.id, AUDIT_KEYS.FINANCIALS_PIVOT, fileNames, data)
+      .catch(() => {});
+  }
+  return { data, auditRunId };
+}
+
 module.exports = {
   processFinancialsPivot,
+  processJubileeHillsFinancials,
   notifyFinancialsPivotFailure,
   exportFinancialsPivots,
   exportClosingStockTemplate,

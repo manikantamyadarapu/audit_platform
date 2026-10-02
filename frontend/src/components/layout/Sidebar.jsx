@@ -66,6 +66,7 @@ const tdsItems = [
 
 const financialsItems = [
   { to: '/financials/closing-stock', label: 'Closing Stock', icon: Gem },
+  { to: '/financials/jubilee-hills', label: 'Jubilee Hills Financials', icon: Landmark },
 ];
 
 const vouchingItems = [

@@ -83,3 +83,10 @@ class FinancialsClosingStockProcessor:
         except Exception as exc:
             self._log.error('Sales/Purchases pivot processing failed: {}', exc)
             raise
+
+    def process_jubilee_hills(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        try:
+            return self.audit.process_jubilee_hills(*args, **kwargs)
+        except Exception as exc:
+            self._log.error('Jubilee Hills financials processing failed: {}', exc)
+            raise
