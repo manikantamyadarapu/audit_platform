@@ -14,7 +14,7 @@ export const SALES_ISSUE_MESSAGES = {
   INVALID_LEDGER_MAPPING: 'Invalid sales return ledger mapping.',
   MISSING_PRODUCT_CATEGORY_FOR_VALIDATION: 'Product mapping mismatch',
   PRODUCT_CATEGORY_DOES_NOT_MATCH_SALES_ACCOUNT: 'Product mapping mismatch',
-  INVALID_RATE_DEVIATION: 'Rate below allowed range',
+  INVALID_RATE_DEVIATION: 'Unit rates outside the range',
   INVALID_PRODUCT_PATTERN: 'Product pattern invalid',
   MISSING_UNIT_RATE: 'Unit rate missing',
   MISSING_RATE_RULE: 'Rate rule not configured',

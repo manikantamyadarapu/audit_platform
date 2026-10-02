@@ -262,7 +262,7 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
         ? resolveAuditColumnOrder(filteredExceptionRecords)
         : [];
     return buildExportColumnDefs(order, exportExceptionRows);
-  }, [exceptionColumnOrder, exportExceptionRows]);
+  }, [exceptionColumnOrder, exportExceptionRows, filteredExceptionRecords]);
   const exportProductComparisonExcel = useCallback(async () => {
     if (!filteredProductComparison.length) {
       auditToastError('No product averages to export.');
@@ -286,7 +286,14 @@ export default function SalesReturnPage({ config = SALES_RETURN_AUDIT_CONFIG }) 
     } finally {
       setExporting(false);
     }
-  }, [filteredProductComparison, activeFilter, productExportColumns, exportPrefix, config.higherRateSheetName]);
+  }, [
+    filteredProductComparison,
+    activeFilter,
+    productExportColumns,
+    exportPrefix,
+    config.higherRateSheetName,
+    exportRateComparisonApi,
+  ]);
   const exportProductComparisonPdf = useCallback(() => {
     if (!filteredProductComparison.length) {
       auditToastError('No product averages to export.');

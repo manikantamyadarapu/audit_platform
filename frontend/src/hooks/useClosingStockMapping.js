@@ -85,7 +85,7 @@ export function useClosingStockMapping(result, onSynced) {
         onSyncedRef.current?.(updated);
       }
       return updated;
-    } catch (err) {
+    } catch {
       // Fallback: client-side map using freshly fetched Rule Book JSON.
       try {
         const live = await fetchClosingStockRuleBook();
@@ -121,9 +121,8 @@ export function useClosingStockMapping(result, onSynced) {
           onSyncedRef.current?.(updated);
         }
         return updated;
-      } catch {
-        // eslint-disable-next-line no-console
-        console.error('Closing Stock Rule Book sync failed', err);
+      } catch (syncErr) {
+        console.error('Closing Stock Rule Book sync failed', syncErr);
         setMappedResult(current);
         return current;
       }

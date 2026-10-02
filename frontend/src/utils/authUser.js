@@ -223,6 +223,37 @@ export async function fetchCurrentUser() {
   return user;
 }
 
+/**
+ * Self-service profile update for the signed-in user.
+ * @param {{ name?: string, email?: string, password?: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function updateCurrentUser(payload) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Not signed in');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.detail || 'Failed to update profile');
+  }
+
+  const user = data.user ?? null;
+  if (user) persistUser(user);
+  return user;
+}
+
 export function formatRoleLabel(role) {
   if (!role) return '—';
   return String(role).replace(/_/g, ' ');
