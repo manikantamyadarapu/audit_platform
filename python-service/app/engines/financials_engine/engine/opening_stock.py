@@ -235,44 +235,40 @@ def apply_fallback_opening_to_layout(
     unmapped_rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, dict[str, float | None]], list[dict[str, Any]]]:
     """
-    Write fallback-matched Opening Stock onto Closing Stock layout rows.
+    Write a confirmed manual/fallback Opening Stock amount onto the mapped layout row.
 
-    Uses ruleBookProduct + category/subcategory from the fallback result so renamed/
-    combined products reach the correct Rule Book row even when name-key matching fails.
-    Does not touch exact-name matched rows (status != matched_fallback).
+    ruleBookProduct is the row that receives Qty and Amount. The quantity-file name is
+    used only when that mapped product is not on the layout. Sales/Purchases categories
+    are left as they are.
     """
     from app.engines.financials_engine.config.product_rule_book import (
+        _build_rule_book_match_lookup,
         _iter_rule_book_products,
-        _norm_product,
+        _resolve_rule_book_display_name,
     )
 
     display_locations: dict[str, tuple[str, str | None]] = {}
     for category, subcategory, display in _iter_rule_book_products(rule_book):
         display_locations[display] = (category, subcategory)
+    layout_lookup = _build_rule_book_match_lookup(rule_book)
 
-    def _norm_subcategory(name: str | None) -> str | None:
-        if name is None:
+    def _layout_display_for(name: str) -> str | None:
+        text = str(name or '').strip()
+        if not text:
             return None
-        normalized = _norm_product(name)
-        return normalized or None
+        if text in display_locations:
+            return text
+        return _resolve_rule_book_display_name(text, lookup=layout_lookup)
 
     fallback_qty_names: set[str] = set()
     for row in opening_pivot or ():
         if row.get('status') != 'matched_fallback':
             continue
 
-        target = str(row.get('ruleBookProduct') or '').strip()
-        if not target or target not in display_locations:
-            continue
-
-        loc_category, loc_subcategory = display_locations[target]
-        row_category = row.get('category')
-        row_subcategory = row.get('subcategory')
-        if row_category and row_category != loc_category:
-            continue
-        if row_subcategory is not None and _norm_subcategory(row_subcategory) != _norm_subcategory(
-            loc_subcategory
-        ):
+        rule_name = str(row.get('ruleBookProduct') or '').strip()
+        qty_name = str(row.get('product') or '').strip()
+        target = _layout_display_for(rule_name) or _layout_display_for(qty_name)
+        if not target:
             continue
 
         qty = _coerce_opening_measure(
@@ -288,7 +284,8 @@ def apply_fallback_opening_to_layout(
             'sumOfQuantity': qty,
             'sumOfGross': amt,
         }
-        fallback_qty_names.add(str(row.get('product') or '').strip())
+        if qty_name:
+            fallback_qty_names.add(qty_name)
 
     if unmapped_rows is not None and fallback_qty_names:
         filtered = [

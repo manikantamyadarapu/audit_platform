@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Gem } from 'lucide-react';
+import { Gem, Landmark } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
@@ -12,6 +12,14 @@ const modules = [
       'Reconcile opening stock, purchases, receipts, issues and sales. Download the working paper and supporting pivots as Excel.',
     path: '/financials/closing-stock',
     icon: Gem,
+    tone: 'emerald',
+  },
+  {
+    title: 'Jubilee Hills Financials',
+    description:
+      'Upload a Jubilee Hills folder of about ten files and download the same Closing Stock workbook.',
+    path: '/financials/jubilee-hills',
+    icon: Landmark,
     tone: 'emerald',
   },
 ];

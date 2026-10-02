@@ -13,6 +13,7 @@ const ScrutinyHub = lazy(() => import('../pages/ScrutinyHub'));
 const VouchingHub = lazy(() => import('../pages/VouchingHub'));
 const FinancialsHub = lazy(() => import('../pages/FinancialsHub'));
 const FinancialsPivotPage = lazy(() => import('../pages/FinancialsPivotPage'));
+const JubileeHillsFinancialsPage = lazy(() => import('../pages/JubileeHillsFinancialsPage'));
 const PanVerification = lazy(() => import('../pages/PanVerification'));
 const GrossWeight = lazy(() => import('../pages/GrossWeight'));
 const PurchaseGrossWeight = lazy(() => import('../pages/PurchaseGrossWeight'));
@@ -94,6 +95,7 @@ export function AppRoutes() {
           <Route path="/scrutiny/vendor-reconciliation" element={lazyPage(ModuleSoon)} />
 
           <Route path="/financials/closing-stock" element={lazyPage(FinancialsPivotPage)} />
+          <Route path="/financials/jubilee-hills" element={lazyPage(JubileeHillsFinancialsPage)} />
           <Route path="/financials/first-audit" element={<Navigate to="/financials/closing-stock" replace />} />
 
           <Route path="/vouching/voucher-matching" element={lazyPage(VouchingHold)} />

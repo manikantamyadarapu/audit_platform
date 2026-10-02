@@ -305,20 +305,14 @@ class TestMrDcClosingStockQty:
             rule_book=SAMPLE_RULE_BOOK,
         )
         product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
-        product_c = _product_row(result['layoutByCategory']['Emerald'], 'Product C')
-
         assert product_a['salesQty'] == 1
         assert product_a['receiptsJubileeHillsQty'] == 7
         assert product_a['issuesBanjaraHillsQty'] is None
         assert product_a['issuesKokapetQty'] == 3
         assert product_a['receiptsKokapetQty'] is None
         assert product_a.get('receiptsJubileeHillsAmt') is None
-        assert product_c['receiptsInternalQty'] == 7
-        assert product_c['issuesInternalQty'] is None
-
-        product_b = _product_row(result['layoutByCategory']['Diamond'], 'Product B')
-        assert product_b['receiptsJubileeHillsQty'] is None
-        assert product_b['issuesKokapetQty'] is None
+        assert 'Product C' not in result['productsByCategory']['Emerald']
+        assert 'Product B' not in result['productsByCategory']['Diamond']
 
         assert mr_pivots['jubileeHills'][0] == original_mr
 
@@ -355,7 +349,7 @@ class TestMrDcClosingStockQty:
         )
 
         result = map_pivots_to_closing_stock_categories(
-            sales_pivot=[],
+            sales_pivot=[{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
             purchases_pivot=[],
             mr_pivots={
                 'jubileeHills': [

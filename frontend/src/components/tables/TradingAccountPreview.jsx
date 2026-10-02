@@ -26,7 +26,15 @@ function displayMeasure(value) {
   return formatClosingStockMeasure(value).replace(/\u00a0/g, '').trim();
 }
 
-function SideTable({ qtyHeader, rows, side, grandTotal, sourceLinesOnly = false, account }) {
+function SideTable({
+  qtyHeader,
+  rows,
+  side,
+  grandTotal,
+  sourceLinesOnly = false,
+  account,
+  blankValues = false,
+}) {
   return (
     <table className="w-full min-w-[18rem] border-collapse bg-white dark:bg-slate-950">
       <thead>
@@ -41,9 +49,11 @@ function SideTable({ qtyHeader, rows, side, grandTotal, sourceLinesOnly = false,
           const label = side === 'left' ? row.left : row.right;
           const isGp = label === 'To Gross Profit';
           const isTotal = label === 'Total';
-          const values = sourceLinesOnly
-            ? metalTradingLineValues(label, grandTotal, side, account)
-            : tradingLineValues(label, grandTotal, side);
+          const values = blankValues
+            ? { qty: null, amt: null }
+            : sourceLinesOnly
+              ? metalTradingLineValues(label, grandTotal, side, account)
+              : tradingLineValues(label, grandTotal, side);
           return (
             <tr
               key={`${side}-${idx}`}
@@ -81,6 +91,7 @@ export function TradingAccountPreview({
   openingPivot = [],
   mrPivots = {},
   dcPivots = {},
+  blankValues = false,
 }) {
   const metalTotals = useMemo(
     () =>
@@ -111,6 +122,7 @@ export function TradingAccountPreview({
                 grandTotal={totals}
                 sourceLinesOnly
                 account={account}
+                blankValues={blankValues}
               />
               <div
                 className="hidden w-px bg-slate-800 dark:bg-slate-200 lg:block"
@@ -123,6 +135,7 @@ export function TradingAccountPreview({
                 grandTotal={totals}
                 sourceLinesOnly
                 account={account}
+                blankValues={blankValues}
               />
             </div>
           </section>
@@ -143,6 +156,7 @@ export function TradingAccountPreview({
                 rows={rows}
                 side="left"
                 grandTotal={grandTotal}
+                blankValues={blankValues}
               />
               <div
                 className="hidden w-px bg-slate-800 dark:bg-slate-200 lg:block"
@@ -153,6 +167,7 @@ export function TradingAccountPreview({
                 rows={rows}
                 side="right"
                 grandTotal={grandTotal}
+                blankValues={blankValues}
               />
             </div>
           </section>

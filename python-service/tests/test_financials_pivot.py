@@ -170,6 +170,24 @@ class TestWorkbookLoader:
         )
         assert rows[0]['grossAmount'] == 1430000.39
 
+    def test_optional_category_column_is_carried_when_present(self):
+        file_bytes = _excel_bytes(
+            [
+                {
+                    'Product': 'Gold Ring',
+                    'Quantity': 1,
+                    'Gross Amount': 100,
+                    'Category': 'Diamond',
+                    'Subcategory': 'Diamonds - Beads',
+                }
+            ]
+        )
+        rows, _ = load_financials_workbook(
+            file_bytes, 'sales.xlsx', source_label='Sales'
+        )
+        assert rows[0]['category'] == 'Diamond'
+        assert rows[0]['subcategory'] == 'Diamonds - Beads'
+
     def test_missing_gross_amount_clear_error(self):
         file_bytes = _excel_bytes([{'Product': 'X', 'Quantity': 1}])
         with pytest.raises(SheetValidationError) as caught:
@@ -229,6 +247,124 @@ class TestFinancialsPivotAudit:
         assert result['fileType'] == 'closing_stock'
         assert result['auditKey'] == 'FINANCIALS_PIVOT'
         assert result['errorRows'] == result['summary']['unmappedProductCount']
+
+    def test_sales_purchases_only_skips_opening_and_transfers(self):
+        sales_bytes = _excel_bytes(
+            [{'Product': 'Gold Ring', 'Quantity': 2, 'Gross Amount': 20000}],
+        )
+        purchases_bytes = _excel_bytes(
+            [{'Product': 'Gold Ring', 'Quantity': 1, 'Gross Amount': 9000}],
+        )
+        result = FinancialsPivotAudit().process(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+        )
+        assert result['salesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 2.0, 'sumOfGross': 20000.0},
+        ]
+        assert result['purchasesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 1.0, 'sumOfGross': 9000.0},
+        ]
+        assert result['openingPivot'] == []
+        assert result['summary']['openingProductCount'] == 0
+        assert result['summary']['mrClassifiedRows'] == 0
+        assert result['summary']['dcClassifiedRows'] == 0
+
+    def test_jubilee_hills_nets_same_products_only(self):
+        sales_bytes = _excel_bytes(
+            [
+                {'Product': 'Di. Beads', 'Quantity': 10, 'Gross Amount': 1000},
+                {'Product': 'Emeralds JEM 100', 'Quantity': 4, 'Gross Amount': 400},
+            ]
+        )
+        purchases_bytes = _excel_bytes(
+            [
+                {'Product': 'Di. Beads', 'Quantity': 8, 'Gross Amount': 800},
+                {'Product': 'Only Purchase', 'Quantity': 3, 'Gross Amount': 300},
+            ]
+        )
+        sales_return_bytes = _excel_bytes(
+            [
+                {'Product': 'Di. Beads', 'Quantity': 2, 'Gross Amount': 150},
+                {'Product': 'Return Only', 'Quantity': 9, 'Gross Amount': 90},
+            ]
+        )
+        purchase_return_bytes = _excel_bytes(
+            [{'Product': 'Di. Beads', 'Quantity': 1, 'Gross Amount': 50}]
+        )
+        credit_bytes = _excel_bytes(
+            [{'Product': 'Only Purchase', 'Quantity': 1, 'Gross Amount': 40}]
+        )
+        debit_bytes = _excel_bytes(
+            [
+                {'Product': 'Di. Beads', 'Quantity': 2, 'Gross Amount': 20},
+                {'Product': 'Debit Only', 'Quantity': 5, 'Gross Amount': 55},
+            ]
+        )
+        before = FinancialsPivotAudit().process(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+        )
+        result = FinancialsPivotAudit().process_jubilee_hills(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+            sales_return_file_name='sales return.xlsx',
+            sales_return_bytes=sales_return_bytes,
+            purchase_return_file_name='purchase return.xlsx',
+            purchase_return_bytes=purchase_return_bytes,
+            credit_note_file_name='credit notes from suppliers.xlsx',
+            credit_note_bytes=credit_bytes,
+            debit_note_file_name='debit notes from suppliers.xlsx',
+            debit_note_bytes=debit_bytes,
+        )
+        sales = {row['product']: row for row in result['salesPivot']}
+        purchases = {row['product']: row for row in result['purchasesPivot']}
+        assert sales['Di. Beads']['sumOfQuantity'] == 8.0
+        assert sales['Di. Beads']['sumOfGross'] == 850.0
+        assert sales['Emeralds JEM 100']['sumOfQuantity'] == 4.0
+        assert 'Return Only' not in sales
+        assert purchases['Di. Beads']['sumOfQuantity'] == 9.0
+        assert purchases['Di. Beads']['sumOfGross'] == 770.0
+        assert purchases['Only Purchase']['sumOfQuantity'] == 2.0
+        assert purchases['Only Purchase']['sumOfGross'] == 260.0
+        assert 'Debit Only' not in purchases
+        assert before['salesPivot'][0]['sumOfQuantity'] == 10.0
+        assert result['branch'] == 'jubilee-hills'
+
+    def test_sales_purchases_pivot_endpoint_shape_has_no_closing_stock(self):
+        sales_bytes = _excel_bytes(
+            [
+                {'Product': 'Gold Ring', 'Quantity': 2, 'Gross Amount': 10},
+                {'Product': 'Gold Ring', 'Quantity': 3, 'Gross Amount': 5.5},
+            ]
+        )
+        purchases_bytes = _excel_bytes(
+            [{'Product': 'Silver Coin', 'Quantity': 4, 'Gross Amount': 8}],
+        )
+        result = FinancialsPivotAudit().process_sales_purchases_pivots(
+            'sales.xlsx',
+            sales_bytes,
+            'purchases.xlsx',
+            purchases_bytes,
+        )
+        assert result['salesPivot'] == [
+            {'product': 'Gold Ring', 'sumOfQuantity': 5.0, 'sumOfGross': 15.5},
+        ]
+        assert result['purchasesPivot'] == [
+            {'product': 'Silver Coin', 'sumOfQuantity': 4.0, 'sumOfGross': 8.0},
+        ]
+        assert result['summary']['salesTotalQuantity'] == 5.0
+        assert result['summary']['purchasesTotalGross'] == 8.0
+        assert 'openingPivot' not in result
+        assert 'layoutByCategory' not in result
+        assert 'mrPivots' not in result
+        assert 'dcPivots' not in result
 
 
 class TestClosingStockFramework:

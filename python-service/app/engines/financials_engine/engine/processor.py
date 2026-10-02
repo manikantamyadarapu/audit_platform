@@ -57,3 +57,36 @@ class FinancialsClosingStockProcessor:
         except Exception as exc:
             self._log.error('Closing Stock processing failed: {}', exc)
             raise
+
+    def process_sales_purchases_pivots(
+        self,
+        sales_file_name: str,
+        sales_bytes: bytes,
+        purchases_file_name: str,
+        purchases_bytes: bytes,
+        opening_qty_file_name: str = '',
+        opening_qty_bytes: bytes | None = None,
+        previous_year_file_name: str = '',
+        previous_year_bytes: bytes | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return self.audit.process_sales_purchases_pivots(
+                sales_file_name,
+                sales_bytes,
+                purchases_file_name,
+                purchases_bytes,
+                opening_qty_file_name=opening_qty_file_name,
+                opening_qty_bytes=opening_qty_bytes,
+                previous_year_file_name=previous_year_file_name,
+                previous_year_bytes=previous_year_bytes,
+            )
+        except Exception as exc:
+            self._log.error('Sales/Purchases pivot processing failed: {}', exc)
+            raise
+
+    def process_jubilee_hills(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        try:
+            return self.audit.process_jubilee_hills(*args, **kwargs)
+        except Exception as exc:
+            self._log.error('Jubilee Hills financials processing failed: {}', exc)
+            raise

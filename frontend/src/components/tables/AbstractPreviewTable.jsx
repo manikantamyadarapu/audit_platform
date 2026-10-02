@@ -56,19 +56,22 @@ export function AbstractPreviewTable({
   openingPivot = [],
   mrPivots = {},
   dcPivots = {},
+  blankValues = false,
 }) {
   const lastCol = 1 + abstractColumnCount();
   const byLabel = useMemo(
     () =>
-      buildAbstractRowMeasures({
-        layoutByCategory,
-        salesPivot,
-        purchasesPivot,
-        openingPivot,
-        mrPivots,
-        dcPivots,
-      }),
-    [layoutByCategory, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots]
+      blankValues
+        ? {}
+        : buildAbstractRowMeasures({
+            layoutByCategory,
+            salesPivot,
+            purchasesPivot,
+            openingPivot,
+            mrPivots,
+            dcPivots,
+          }),
+    [blankValues, layoutByCategory, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots]
   );
   return (
     <div className="overflow-x-auto">

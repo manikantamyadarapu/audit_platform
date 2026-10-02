@@ -54,8 +54,9 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
       const notifyOnFailure = persistOptions.notifyOnFailure === true;
       const force = persistOptions.force === true;
 
-      // Only persist completed/failed audit workspaces — never filename-only snapshots.
-      if (!data?.result && !data?.sheetError) return false;
+      if (!data?.result && !data?.sheetError) {
+        return false;
+      }
 
       const transform = optionsRef.current.transform;
       const payloadToStore = transform ? transform(data) : data;

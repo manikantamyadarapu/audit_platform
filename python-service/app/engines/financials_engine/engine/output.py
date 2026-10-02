@@ -28,6 +28,67 @@ def _empty_transfer_report() -> dict[str, Any]:
     }
 
 
+def build_sales_purchases_pivot_response(
+    *,
+    sales_pivot: list[dict[str, Any]],
+    purchases_pivot: list[dict[str, Any]],
+    sales_source_rows: int,
+    purchases_source_rows: int,
+    sales_file_name: str,
+    purchases_file_name: str,
+    load_ms: float,
+    opening_pivot: list[dict[str, Any]] | None = None,
+    validated_opening: list[dict[str, Any]] | None = None,
+    opening_stock_report: dict[str, Any] | None = None,
+    opening_qty_file_name: str | None = None,
+    previous_year_file_name: str | None = None,
+) -> dict[str, Any]:
+    """Sales and Purchases pivots, plus Opening Stock when those files were sent.
+
+    Does not build MR, DC, Closing Stock, Trading, or Abstract.
+    """
+    sales_qty, sales_gross = _pivot_totals(sales_pivot)
+    purchases_qty, purchases_gross = _pivot_totals(purchases_pivot)
+    payload: dict[str, Any] = {
+        'success': True,
+        'salesPivot': sales_pivot,
+        'purchasesPivot': purchases_pivot,
+        'exportColumns': list(PIVOT_COLUMNS),
+        'columnDisplayHeaders': dict(PIVOT_DISPLAY_HEADERS),
+        'summary': {
+            'salesFileName': sales_file_name,
+            'purchasesFileName': purchases_file_name,
+            'salesSourceRows': sales_source_rows,
+            'purchasesSourceRows': purchases_source_rows,
+            'salesProductCount': len(sales_pivot),
+            'purchasesProductCount': len(purchases_pivot),
+            'salesTotalQuantity': sales_qty,
+            'salesTotalGross': sales_gross,
+            'purchasesTotalQuantity': purchases_qty,
+            'purchasesTotalGross': purchases_gross,
+        },
+        'totalRows': sales_source_rows + purchases_source_rows,
+        'errorRows': 0,
+        'fileType': 'financials_pivots',
+        'auditKey': 'FINANCIALS_PIVOT',
+        'executionTiming': {
+            'loadMs': load_ms,
+        },
+    }
+    if opening_stock_report is not None:
+        report = dict(opening_stock_report)
+        payload['openingPivot'] = list(opening_pivot or [])
+        payload['validatedOpening'] = list(validated_opening or [])
+        payload['openingStockReport'] = report
+        payload['summary']['openingQtyFileName'] = opening_qty_file_name
+        payload['summary']['previousYearFileName'] = previous_year_file_name
+        payload['summary']['openingProductCount'] = len(payload['openingPivot'])
+        payload['summary']['openingTotalQuantity'] = report.get('totalOpeningQty') or 0
+        payload['summary']['openingTotalAmount'] = report.get('totalOpeningAmount') or 0
+        payload['summary']['openingStockReport'] = report
+    return payload
+
+
 def build_financials_pivot_response(
     *,
     sales_pivot: list[dict[str, Any]],
