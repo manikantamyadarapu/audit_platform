@@ -41,6 +41,67 @@ export async function processFinancialsPivot(
   }
 }
 
+/**
+ * Jubilee Hills Financials — ten workbooks on a dedicated API.
+ * The download still uses the shared Closing Stock workbook.
+ */
+export async function processJubileeHillsFinancials(files, signal) {
+  const form = new FormData();
+  form.append('salesFile', files.sales);
+  form.append('purchasesFile', files.purchases);
+  form.append('openingQtyFile', files.quantity);
+  form.append('previousYearFile', files.previousYear);
+  form.append('mrFile', files.mr);
+  form.append('dcFile', files.dc);
+  form.append('salesReturnFile', files.salesReturn);
+  form.append('purchaseReturnFile', files.purchaseReturn);
+  form.append('creditNoteFile', files.creditNote);
+  form.append('debitNoteFile', files.debitNote);
+  try {
+    const { data } = await apiClient.post('/api/v1/process/financials/jubilee-hills', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      signal,
+    });
+    return data;
+  } catch (err) {
+    const error = new Error(getApiErrorMessage(err));
+    const payload = getProcessingErrorPayload(err);
+    if (payload) error.details = payload;
+    throw error;
+  }
+}
+
+/**
+ * Sales and Purchases product pivots, plus Opening Stock when both opening files are sent.
+ * @param {File} salesFile
+ * @param {File} purchasesFile
+ * @param {{ openingQtyFile?: File, previousYearFile?: File, signal?: AbortSignal }} [options]
+ */
+export async function processSalesPurchasesPivots(salesFile, purchasesFile, options = {}) {
+  const { openingQtyFile, previousYearFile, signal } = options;
+  const form = new FormData();
+  form.append('salesFile', salesFile);
+  form.append('purchasesFile', purchasesFile);
+  if (openingQtyFile) form.append('openingQtyFile', openingQtyFile);
+  if (previousYearFile) form.append('previousYearFile', previousYearFile);
+  try {
+    const { data } = await apiClient.post(
+      '/api/v1/process/financials/validate-sales-purchases-pivots',
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        signal,
+      }
+    );
+    return data;
+  } catch (err) {
+    const error = new Error(getApiErrorMessage(err));
+    const payload = getProcessingErrorPayload(err);
+    if (payload) error.details = payload;
+    throw error;
+  }
+}
+
 async function downloadBlobResponse(res, fallbackName) {
   const blob = res.data;
   const disposition = res.headers['content-disposition'];

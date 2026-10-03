@@ -10,126 +10,39 @@ import {
 } from '../../config/closingStockLayout';
 import { cn } from '../../utils/cn';
 
-/** Match python closing_stock_template fills / fonts as closely as CSS allows. */
-const EXCEL_FONT = "font-['Calibri','Candara','Segoe_UI',Tahoma,sans-serif]";
-const CELL_BORDER = 'border border-[#a6a6a6]';
-/** Stronger divider after each major level-1 group (Opening / Purchases / Receipts / …). */
-const GROUP_EDGE = 'border-r-[2px] border-r-[#595959]';
+const HEADER_CELL =
+  'border border-slate-300/80 bg-emerald-800 px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-white dark:border-slate-600';
+const SUBHEADER_CELL =
+  'border border-slate-300/80 bg-emerald-900/90 px-1.5 py-2 text-center text-[10px] font-semibold text-white dark:border-slate-600';
+const LEAF_CELL =
+  'border border-slate-300/80 bg-emerald-950/80 px-1 py-1.5 text-center text-[9px] font-semibold text-emerald-50 dark:border-slate-600';
+const NUMBER_CELL =
+  'border border-emerald-200/80 bg-emerald-50 px-1 py-1 text-center text-[9px] font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200';
+const BODY_CELL =
+  'border border-slate-200/90 px-2 py-1.5 text-center text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300';
+const PRODUCT_CELL =
+  'sticky left-0 z-[1] border border-slate-200/90 bg-[var(--color-surface-elevated)] px-3 py-1.5 text-left text-xs font-medium text-slate-800 dark:border-slate-700 dark:text-slate-100';
 
-const HEADER_CELL = cn(
-  CELL_BORDER,
-  'bg-[#0F766E] px-1 py-1 text-center text-[9px] font-bold leading-tight text-white align-middle'
-);
-const SUBHEADER_CELL = cn(
-  CELL_BORDER,
-  'bg-[#115E59] px-0.5 py-1 text-center text-[8px] font-bold leading-tight text-white align-middle'
-);
-const LEAF_CELL = cn(
-  CELL_BORDER,
-  'bg-[#134E4A] px-0.5 py-0.5 text-center text-[8px] font-bold leading-tight text-white align-middle'
-);
-const NUMBER_CELL = cn(
-  CELL_BORDER,
-  'bg-[#ECFDF5] px-0.5 py-0.5 text-center text-[8px] font-bold leading-none text-[#0F766E] align-middle'
-);
-const BODY_CELL = cn(
-  CELL_BORDER,
-  'px-1 py-[3px] text-right text-[10px] tabular-nums leading-tight text-[#0F172A] align-middle whitespace-nowrap'
-);
-const PRODUCT_CELL = cn(
-  CELL_BORDER,
-  'sticky left-0 z-[2] min-w-[14rem] w-[14rem] max-w-[16rem] bg-white px-2 py-[3px] text-left text-[10px] font-medium leading-tight text-[#0F172A] align-middle'
-);
-
-const MEASURE_COL =
-  'min-w-[3.75rem] w-[3.75rem] max-w-[4.5rem]';
-
-/** Header row sticky offsets (compact Excel-like header band). */
-const STICKY_TOP = {
-  l1: 'top-0',
-  l2: 'top-[1.65rem]',
-  leaf: 'top-[3.3rem]',
-  num: 'top-[4.7rem]',
-};
-
-/**
- * Leaf indices (0-based) that end a level-1 group — for thicker vertical rules.
- * @param {{ colSpan: number }[]} level1Cells
- */
-function groupEndLeafIndices(level1Cells) {
-  const ends = new Set();
-  let cursor = 0;
-  for (const cell of level1Cells) {
-    cursor += cell.colSpan;
-    ends.add(cursor - 1);
-  }
-  return ends;
-}
-
-function HeaderRow({ cells, className, stickyTop, cellGroupEnds }) {
+function HeaderRow({ cells, className }) {
   return (
     <tr>
       {cells.map((cell, idx) => (
-        <th
-          key={`${cell.label || 'blank'}-${idx}`}
-          colSpan={cell.colSpan}
-          className={cn(
-            className,
-            stickyTop,
-            'sticky z-[3]',
-            cellGroupEnds[idx] && GROUP_EDGE,
-            !cell.label && 'font-normal'
-          )}
-        >
-          {cell.label ? (
-            <span className="block whitespace-normal break-words px-0.5">{cell.label}</span>
-          ) : (
-            '\u00a0'
-          )}
+        <th key={`${cell.label}-${idx}`} colSpan={cell.colSpan} className={className}>
+          {cell.label}
         </th>
       ))}
     </tr>
   );
 }
 
-/**
- * @param {{ colSpan: number }[]} cells
- * @param {Set<number>} groupEnds
- * @returns {boolean[]}
- */
-function cellEndsAtGroupBoundary(cells, groupEnds) {
-  const flags = [];
-  let leafCursor = 0;
-  for (const cell of cells) {
-    const leafEnd = leafCursor + cell.colSpan - 1;
-    flags.push(groupEnds.has(leafEnd));
-    leafCursor = leafEnd + 1;
-  }
-  return flags;
-}
-
-/**
- * Zebra only among product rows (subcategory / totals keep solid fills).
- * @param {Array<{ kind?: string }>} rows
- * @returns {boolean[]}
- */
-function productZebraFlags(rows) {
-  let productCount = 0;
-  return rows.map((row) => {
-    if (row.kind !== 'product') return false;
-    productCount += 1;
-    return productCount % 2 === 0;
-  });
-}
-
 function CellTracePanel({ trace, onClose }) {
   if (!trace) return null;
   return (
-    <aside className="border border-[#7f7f7f] bg-white text-[11px] leading-snug text-[#0F172A]">
-      <div className="flex items-start justify-between gap-3 bg-[#0F766E] px-3 py-2 text-white">
+    <aside className="overflow-hidden rounded-xl border border-slate-200/80 bg-white text-xs leading-snug text-slate-800 shadow-sm dark:border-slate-700 dark:bg-[var(--color-surface-elevated)] dark:text-slate-100">
+      <div className="flex items-start justify-between gap-3 bg-emerald-800 px-3 py-2 text-white">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#CCFBF1]">Calculation</p>
-          <p className="text-[13px] font-bold">{trace.headerPath || 'Column'}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-100">Calculation</p>
+          <p className="text-sm font-bold">{trace.headerPath || 'Column'}</p>
         </div>
         <button
           type="button"
@@ -141,33 +54,33 @@ function CellTracePanel({ trace, onClose }) {
       </div>
       <dl className="grid gap-x-4 gap-y-1 px-3 py-2 sm:grid-cols-2">
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Product</dt>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Product</dt>
           <dd className="font-medium">{trace.productName}</dd>
         </div>
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Excel cell</dt>
-          <dd className="font-mono font-bold text-[#0F766E]">{trace.excelRef}</dd>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Excel cell</dt>
+          <dd className="font-mono font-bold text-emerald-800 dark:text-emerald-300">{trace.excelRef}</dd>
         </div>
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Column</dt>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Column</dt>
           <dd>{trace.businessColumn || '—'}</dd>
         </div>
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Stored result</dt>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Stored result</dt>
           <dd className="font-mono">{trace.storedRaw}</dd>
         </div>
       </dl>
-      <div className="space-y-2 border-t border-[#E2E8F0] px-3 py-2">
+      <div className="space-y-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
         {trace.formulaText ? <p>{trace.formulaText}</p> : null}
         {trace.excelFormula ? (
-          <p className="font-mono text-[12px] font-bold text-[#134E4A]">{trace.excelFormula}</p>
+          <p className="font-mono text-xs font-bold text-emerald-900 dark:text-emerald-200">{trace.excelFormula}</p>
         ) : null}
-        {trace.condition ? <p className="text-[#64748B]">{trace.condition}</p> : null}
+        {trace.condition ? <p className="text-slate-500">{trace.condition}</p> : null}
         {trace.sourceText ? <p>{trace.sourceText}</p> : null}
         {trace.operands.length ? (
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wide text-[#64748B]">
+              <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
                 <th className="py-1 pr-2 font-bold">Operand</th>
                 <th className="py-1 pr-2 font-bold">Cell</th>
                 <th className="py-1 font-bold">Raw value</th>
@@ -175,7 +88,7 @@ function CellTracePanel({ trace, onClose }) {
             </thead>
             <tbody>
               {trace.operands.map((operand) => (
-                <tr key={`${operand.label}-${operand.excelRef}`} className="border-t border-[#E2E8F0]">
+                <tr key={`${operand.label}-${operand.excelRef}`} className="border-t border-slate-200 dark:border-slate-700">
                   <td className="py-1 pr-2">{operand.label}</td>
                   <td className="py-1 pr-2 font-mono">{operand.excelRef}</td>
                   <td className="py-1 font-mono">{operand.raw}</td>
@@ -189,39 +102,37 @@ function CellTracePanel({ trace, onClose }) {
   );
 }
 
-function rowStyles(kind, zebra) {
+function rowStyles(kind) {
   if (kind === 'subcategory') {
     return {
-      tr: '',
-      label: cn(PRODUCT_CELL, 'bg-[#CCFBF1] font-bold text-[#0F766E]'),
-      cell: cn(BODY_CELL, 'bg-[#CCFBF1]'),
+      tr: 'bg-emerald-50/90 dark:bg-emerald-950/30',
+      label: cn(PRODUCT_CELL, 'font-bold text-emerald-800 dark:text-emerald-200'),
+      cell: cn(BODY_CELL, 'bg-emerald-50/90 dark:bg-emerald-950/30'),
     };
   }
   if (kind === 'subcategory_total') {
     return {
-      tr: '',
-      label: cn(PRODUCT_CELL, 'bg-[#FEF3C7] font-bold text-[#92400E]'),
-      cell: cn(BODY_CELL, 'bg-[#FEF3C7] font-bold text-[#92400E]'),
+      tr: 'bg-amber-50 dark:bg-amber-950/20',
+      label: cn(PRODUCT_CELL, 'font-bold text-amber-900 dark:text-amber-200'),
+      cell: cn(BODY_CELL, 'bg-amber-50 dark:bg-amber-950/20'),
     };
   }
   if (kind === 'grand_total') {
     return {
-      tr: '',
-      label: cn(PRODUCT_CELL, 'bg-[#FDE68A] font-bold text-[#78350F]'),
-      cell: cn(BODY_CELL, 'bg-[#FDE68A] font-bold text-[#78350F]'),
+      tr: 'bg-amber-100/90 dark:bg-amber-900/30',
+      label: cn(PRODUCT_CELL, 'font-bold text-amber-950 dark:text-amber-100'),
+      cell: cn(BODY_CELL, 'bg-amber-100/90 dark:bg-amber-900/30'),
     };
   }
-  const bg = zebra ? 'bg-[#F8FAFC]' : 'bg-white';
   return {
-    tr: '',
-    label: cn(PRODUCT_CELL, bg),
-    cell: cn(BODY_CELL, bg),
+    tr: 'odd:bg-white even:bg-slate-50/60 dark:odd:bg-[var(--color-surface-elevated)] dark:even:bg-slate-900/20',
+    label: PRODUCT_CELL,
+    cell: BODY_CELL,
   };
 }
 
 /**
  * On-screen preview of one Closing Stock category sheet.
- * Visual styling only — layout/header definitions come from closingStockLayout.js.
  * @param {{
  *   category?: string,
  *   products?: string[],
@@ -229,6 +140,7 @@ function rowStyles(kind, zebra) {
  *   financialYear?: string,
  *   companyName?: string,
  *   address?: string,
+ *   showLegend?: boolean,
  * }} props
  */
 export function ClosingStockPreviewTable({
@@ -238,15 +150,13 @@ export function ClosingStockPreviewTable({
   financialYear = 'AY 2025-26',
   companyName = '',
   address = '',
+  showLegend = true,
 }) {
   const { level1, level2, leaves, numbers } = getClosingStockHeaderRows();
   const level1Cells = buildGroupedHeaderCells(level1);
   const level2Cells = buildGroupedHeaderCells(level2);
   const rows = buildClosingStockPreviewRows(layoutRows, products);
   const reportTitle = closingStockReportTitle(category);
-  const groupEnds = groupEndLeafIndices(level1Cells);
-  const level2GroupEnds = cellEndsAtGroupBoundary(level2Cells, groupEnds);
-  const zebraByRow = productZebraFlags(rows);
   const rootRef = useRef(null);
   const [selection, setSelection] = useState(null);
 
@@ -284,112 +194,45 @@ export function ClosingStockPreviewTable({
     );
   }
 
-  // TEMP debug: confirm Opening/Sales/Purchases values reach product rows.
-  useEffect(() => {
-    const previewRows = buildClosingStockPreviewRows(layoutRows, products);
-    const sample = previewRows.find(
-      (row) =>
-        row.kind === 'product' &&
-        (row.openingQty != null ||
-          row.openingAmt != null ||
-          row.salesQty != null ||
-          row.salesAmt != null ||
-          row.purchasesQty != null ||
-          row.purchasesAmt != null)
-    );
-    console.debug('[ClosingStockPreview]', {
-      category,
-      sample: sample
-        ? {
-            label: sample.label,
-            openingQty: sample.openingQty,
-            openingAmt: sample.openingAmt,
-            col3: closingStockCellValue(sample, 2),
-            col4: closingStockCellValue(sample, 3),
-            col22: closingStockCellValue(sample, 21),
-            col23: closingStockCellValue(sample, 22),
-            openingQtyCell: closingStockCellValue(sample, 0),
-            openingAmtCell: closingStockCellValue(sample, 1),
-          }
-        : null,
-    });
-  }, [category, layoutRows, products]);
-
   return (
-    <div ref={rootRef} className={cn(EXCEL_FONT, 'space-y-2')}>
-      <div className="text-center leading-snug text-[#0F172A]">
+    <div ref={rootRef} className="space-y-3">
+      <div className="text-center">
         {companyName ? (
-          <p className="text-[13px] font-bold tracking-tight">{companyName}</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{companyName}</p>
         ) : null}
-        {address ? <p className="text-[11px] text-[#334155]">{address}</p> : null}
-        <p className="text-[11px] text-[#334155]">Financial Year: {financialYear}</p>
-        <h4 className="mt-1.5 text-[12px] font-bold tracking-wide text-[#0F766E]">{reportTitle}</h4>
+        {address ? <p className="text-xs text-slate-600 dark:text-slate-400">{address}</p> : null}
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          Financial Year: {financialYear}
+        </p>
+        <h4 className="mt-2 text-sm font-bold tracking-wide text-emerald-800 dark:text-emerald-300">
+          {reportTitle}
+        </h4>
       </div>
 
-      <div className="max-h-[min(70vh,760px)] overflow-auto border border-[#7f7f7f] bg-white shadow-none dark:border-slate-600">
-        <table className="w-max min-w-full border-collapse table-fixed text-[10px]">
-          <colgroup>
-            <col className="w-[14rem]" />
-            {leaves.map((_, idx) => (
-              <col key={`col-${idx}`} className="w-[3.75rem]" />
-            ))}
-          </colgroup>
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-sm dark:border-slate-700">
+        <table className="min-w-max w-full border-collapse text-xs">
           <thead>
             <tr>
-              <th
-                rowSpan={4}
-                className={cn(
-                  HEADER_CELL,
-                  'sticky left-0 top-0 z-[5] min-w-[14rem] w-[14rem] max-w-[16rem]',
-                  GROUP_EDGE
-                )}
-              >
-                <span className="block px-1 whitespace-normal">Particulars / Product</span>
+              <th rowSpan={4} className={`${HEADER_CELL} sticky left-0 z-[2] min-w-[11rem]`}>
+                Particulars / Product
               </th>
               {level1Cells.map((cell, idx) => (
-                <th
-                  key={`l1-${cell.label}-${idx}`}
-                  colSpan={cell.colSpan}
-                  className={cn(HEADER_CELL, 'sticky z-[4]', STICKY_TOP.l1, GROUP_EDGE)}
-                >
-                  <span className="block whitespace-normal break-words px-0.5">{cell.label}</span>
+                <th key={`l1-${cell.label}-${idx}`} colSpan={cell.colSpan} className={HEADER_CELL}>
+                  {cell.label}
                 </th>
               ))}
             </tr>
-            <HeaderRow
-              cells={level2Cells}
-              className={SUBHEADER_CELL}
-              stickyTop={STICKY_TOP.l2}
-              cellGroupEnds={level2GroupEnds}
-            />
+            <HeaderRow cells={level2Cells} className={SUBHEADER_CELL} />
             <tr>
               {leaves.map((leaf, idx) => (
-                <th
-                  key={`leaf-${idx}`}
-                  className={cn(
-                    LEAF_CELL,
-                    MEASURE_COL,
-                    'sticky z-[4]',
-                    STICKY_TOP.leaf,
-                    groupEnds.has(idx) && GROUP_EDGE
-                  )}
-                >
+                <th key={`leaf-${idx}`} className={LEAF_CELL}>
                   {leaf}
                 </th>
               ))}
             </tr>
             <tr>
               {numbers.map((num, idx) => (
-                <th
-                  key={`num-${idx}`}
-                  className={cn(
-                    NUMBER_CELL,
-                    MEASURE_COL,
-                    'sticky z-[4]',
-                    STICKY_TOP.num,
-                    groupEnds.has(idx) && GROUP_EDGE
-                  )}
-                >
+                <th key={`num-${idx}`} className={NUMBER_CELL}>
                   {num}
                 </th>
               ))}
@@ -397,11 +240,11 @@ export function ClosingStockPreviewTable({
           </thead>
           <tbody>
             {rows.map((row, rowIdx) => {
-              const styles = rowStyles(row.kind, zebraByRow[rowIdx]);
+              const styles = rowStyles(row.kind);
               return (
                 <tr key={`${row.kind}-${row.label}-${rowIdx}`} className={styles.tr}>
-                  <td className={cn(styles.label, GROUP_EDGE)} title={row.label}>
-                    <span className="line-clamp-2 break-words">{row.label}</span>
+                  <td className={styles.label} title={row.label}>
+                    {row.label}
                   </td>
                   {numbers.map((num, leafIdx) => {
                     const selected =
@@ -413,10 +256,8 @@ export function ClosingStockPreviewTable({
                         onClick={() => selectCell(rowIdx, leafIdx)}
                         className={cn(
                           styles.cell,
-                          MEASURE_COL,
                           'cursor-pointer',
-                          groupEnds.has(leafIdx) && GROUP_EDGE,
-                          selected && 'shadow-[inset_0_0_0_2px_#B45309] bg-[#FEF3C7]'
+                          selected && 'shadow-[inset_0_0_0_2px_#B45309]'
                         )}
                       >
                         {closingStockCellValue(row, leafIdx)}
@@ -430,10 +271,15 @@ export function ClosingStockPreviewTable({
         </table>
       </div>
       <CellTracePanel trace={trace} onClose={() => setSelection(null)} />
-      <p className="text-[11px] leading-snug text-[#64748B]">
-        Select a cell to see its source or formula. The stored result comes from the Financials
-        engine. Layout mirrors the Excel export.
+      <p className="text-xs text-slate-500">
+        Select a cell to see its source or formula. The stored result comes from the Financials engine.
       </p>
+      {showLegend ? (
+        <p className="text-xs text-slate-500">
+          Only products from this branch’s Sales, Purchases, and Opening Stock are listed.
+          TOTAL / GRAND TOTAL rows sum those products.
+        </p>
+      ) : null}
     </div>
   );
 }

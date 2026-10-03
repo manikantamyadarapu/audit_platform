@@ -8,9 +8,11 @@ from typing import Any
 import pandas as pd
 
 from app.engines.financials_engine.config.constants import (
+    CATEGORY_HEADER_ALIASES,
     HEADER_SCAN_LIMIT,
     REQUIRED_COLUMN_KEYS,
     REQUIRED_DISPLAY_COLUMNS,
+    SUBCATEGORY_HEADER_ALIASES,
 )
 from app.utils.header_cleaner import normalize_header
 from app.utils.sheet_validation_error import SheetValidationError
@@ -133,6 +135,21 @@ def _raise_missing_columns(
     raise SheetValidationError(detail, code='MISSING_COLUMNS', **context)
 
 
+def _resolve_optional_column(
+    columns: list[str],
+    aliases: frozenset[str],
+    *,
+    exclude: set[str] | None = None,
+) -> str | None:
+    skipped = exclude or set()
+    for col in columns:
+        if col in skipped:
+            continue
+        if normalize_header(col) in aliases:
+            return col
+    return None
+
+
 def _resolve_column_map(columns: list[str]) -> dict[str, str]:
     """
     Map required logical keys → actual dataframe column names by header name.
@@ -207,6 +224,10 @@ def load_financials_workbook(
     product_col = column_map['product']
     quantity_col = column_map['quantity']
     gross_col = column_map['gross_amount']
+    category_col = _resolve_optional_column(original_columns, CATEGORY_HEADER_ALIASES)
+    subcategory_col = _resolve_optional_column(
+        original_columns, SUBCATEGORY_HEADER_ALIASES, exclude={category_col or ''}
+    )
 
     rows: list[dict[str, Any]] = []
     for _, series in dataframe.iterrows():
@@ -214,12 +235,19 @@ def load_financials_workbook(
         # Skip blank Product (Round Off Type / Round Off Account and similar non-product rows).
         if not product:
             continue
-        rows.append(
-            {
-                'product': product,
-                'quantity': parse_numeric_value(series.get(quantity_col)),
-                'grossAmount': parse_numeric_value(series.get(gross_col)),
-            }
-        )
+        row: dict[str, Any] = {
+            'product': product,
+            'quantity': parse_numeric_value(series.get(quantity_col)),
+            'grossAmount': parse_numeric_value(series.get(gross_col)),
+        }
+        if category_col:
+            category = _display_product_name(series.get(category_col))
+            if category:
+                row['category'] = category
+        if subcategory_col:
+            subcategory = _display_product_name(series.get(subcategory_col))
+            if subcategory:
+                row['subcategory'] = subcategory
+        rows.append(row)
 
     return rows, header_row_index

@@ -105,8 +105,7 @@ class TestClosingStockProductRuleBook:
             'Product H',
         ]
 
-    def test_blank_products_always_kept_in_layout(self):
-        """Products with no Sales/Purchases values must still appear with blank measures."""
+    def test_sales_only_does_not_keep_rule_book_products_without_activity(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
                 {'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 100},
@@ -114,43 +113,27 @@ class TestClosingStockProductRuleBook:
             purchases_pivot=[],
             rule_book=SAMPLE_RULE_BOOK,
         )
-        assert result['productsDisplayed'] == 8
-        blank_labels = []
-        for layout in result['layoutByCategory'].values():
-            for row in layout:
-                if row.get('kind') != 'product':
-                    continue
-                if all(
-                    row.get(k) is None
-                    for k in ('salesQty', 'salesAmt', 'purchasesQty', 'purchasesAmt')
-                ):
-                    blank_labels.append(row['label'])
-        assert 'Product B' in blank_labels
-        assert 'Product C' in blank_labels
-        assert 'Product D' in blank_labels
-        assert 'Product E' in blank_labels
-        assert 'Product F' in blank_labels
-        assert 'Product G' in blank_labels
-        assert 'Product H' in blank_labels
-        assert 'Product A' not in blank_labels
+        assert result['productsDisplayed'] == 1
+        assert result['productsByCategory']['Diamond'] == ['Product A']
+        labels = [
+            row['label']
+            for layout in result['layoutByCategory'].values()
+            for row in layout
+            if row.get('kind') == 'product'
+        ]
+        assert labels == ['Product A']
 
-    def test_empty_pivots_still_include_all_rule_book_products(self):
+    def test_empty_pivots_have_no_catalog_products(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[],
             purchases_pivot=[],
             rule_book=SAMPLE_RULE_BOOK,
         )
-        assert result['productsDisplayed'] == 8
+        assert result['productsDisplayed'] == 0
         assert result['productsWithSalesData'] == 0
         assert result['productsWithPurchaseData'] == 0
         assert result['unmappedProducts'] == []
-
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
-        )
-        assert product_h['salesQty'] is None
-        assert product_h['purchasesQty'] is None
+        assert result['productsByCategory']['Precious and Semi Precious'] == []
 
     def test_attaches_sales_and_purchases_to_rule_book_products(self):
         result = map_pivots_to_closing_stock_categories(
@@ -168,7 +151,7 @@ class TestClosingStockProductRuleBook:
             rule_book=SAMPLE_RULE_BOOK,
         )
 
-        assert result['productsDisplayed'] == 8
+        assert result['productsDisplayed'] == 5
         assert result['productsWithSalesData'] == 3
         assert result['productsWithPurchaseData'] == 3
         assert result['unmappedProducts'] == ['Orphan']
@@ -198,15 +181,8 @@ class TestClosingStockProductRuleBook:
         assert product_b['salesQty'] is None
         assert product_b['purchasesQty'] == 3
 
-        product_d = _product_row(result['layoutByCategory']['Pearls'], 'Product D')
-        assert product_d['salesQty'] is None
-        assert product_d['purchasesQty'] is None
-
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
-        )
-        assert product_h['salesQty'] is None
+        assert 'Product D' not in result['productsByCategory']['Pearls']
+        assert 'Product H' not in result['productsByCategory']['Precious and Semi Precious']
 
     def test_case_insensitive_whitespace_match(self):
         result = map_pivots_to_closing_stock_categories(
@@ -226,7 +202,7 @@ class TestClosingStockProductRuleBook:
                 },
             },
         )
-        product = _product_row(result['layoutByCategory']['Emerald'], 'JEM 100')
+        product = _product_row(result['layoutByCategory']['Emerald'], 'jem 100')
         assert product['salesQty'] == 5
         assert product['salesAmt'] == 500
 
@@ -260,24 +236,18 @@ class TestClosingStockProductRuleBook:
         )
 
         pearls = result['productsByCategory']['Pearls']
-        assert pearls == ['Pearls JPS 100', 'Pearls JPS 1000']
-        assert 'JPS 1000' not in pearls
+        assert pearls == ['JPS 1000', 'Pearls JPS 100']
 
-        pearl_1000 = _product_row(result['layoutByCategory']['Pearls'], 'Pearls JPS 1000')
+        pearl_1000 = _product_row(result['layoutByCategory']['Pearls'], 'JPS 1000')
         assert pearl_1000['salesQty'] == 3
         assert pearl_1000['salesAmt'] == 30
 
         pearl_100 = _product_row(result['layoutByCategory']['Pearls'], 'Pearls JPS 100')
         assert pearl_100['purchasesQty'] == 5
 
-        flat = _product_row(result['layoutByCategory']['Diamond'], 'Flat polki FP 1')
+        flat = _product_row(result['layoutByCategory']['Diamond'], 'Flatpolki FP 1')
         assert flat['salesQty'] == 1
-        assert 'FP 1' not in [
-            row['label']
-            for row in result['layoutByCategory']['Diamond']
-            if row.get('kind') == 'product'
-        ]
-        assert 'Flatpolki FP 1' not in [
+        assert 'Flat polki FP 1' not in [
             row['label']
             for row in result['layoutByCategory']['Diamond']
             if row.get('kind') == 'product'
@@ -290,7 +260,7 @@ class TestClosingStockProductRuleBook:
         assert syn_100['salesQty'] == 2
         syn_150 = _product_row(
             result['layoutByCategory']['Precious and Semi Precious'],
-            'Synthetic JSY 150',
+            'JSY 150',
         )
         assert syn_150['salesQty'] == 4
         assert result['unmappedProducts'] == []
@@ -314,11 +284,29 @@ class TestClosingStockProductRuleBook:
                 },
             },
         )
-        r100 = _product_row(result['layoutByCategory']['Rubie'], 'Rubies JRU 100')
-        r1000 = _product_row(result['layoutByCategory']['Rubie'], 'Rubies JRU 1000')
+        r100 = _product_row(result['layoutByCategory']['Rubie'], 'JRU 100')
+        r1000 = _product_row(result['layoutByCategory']['Rubie'], 'JRU 1000')
         assert r100['salesQty'] == 1
         assert r1000['salesQty'] == 2
-        assert result['productsByCategory']['Rubie'] == ['Rubies JRU 100', 'Rubies JRU 1000']
+        assert result['productsByCategory']['Rubie'] == ['JRU 100', 'JRU 1000']
+
+    def test_sheet_products_are_sorted_by_name(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Di. RA 100', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Di. RA 2', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Di. RA 20', 'sumOfQuantity': 1, 'sumOfGross': 10},
+            ],
+            purchases_pivot=[],
+            rule_book={
+                'Diamond': {'Diamonds': ['Di. RA 2', 'Di. RA 20', 'Di. RA 100']},
+                'Emerald': [],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': {},
+            },
+        )
+        assert result['productsByCategory']['Diamond'] == ['Di. RA 2', 'Di. RA 20', 'Di. RA 100']
 
     def test_unrelated_orphan_pivot_stays_unmapped(self):
         result = map_pivots_to_closing_stock_categories(
@@ -342,6 +330,35 @@ class TestClosingStockProductRuleBook:
         product = _product_row(result['layoutByCategory']['Emerald'], 'Emeralds JEM 100')
         assert product['salesQty'] == 2
         assert result['unmappedProducts'] == ['Gold Ornaments 22K']
+
+    def test_same_product_line_is_mapped_onto_that_sheet(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Emeralds JEM 5300', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Flat polki FP 16', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Chakri a', 'sumOfQuantity': 2, 'sumOfGross': 20},
+            ],
+            purchases_pivot=[
+                {'product': 'Standard Gold 24K', 'sumOfQuantity': 9, 'sumOfGross': 90},
+            ],
+            rule_book={
+                'Diamond': {
+                    'Diamonds - Flat polki': ['Flat polki FP 1'],
+                    'Uncut - diamonds': ['Chakri'],
+                },
+                'Emerald': ['Emeralds JEM 100'],
+                'Pearls': [],
+                'Rubie': [],
+                'Precious and Semi Precious': [],
+            },
+        )
+        emerald = _product_row(result['layoutByCategory']['Emerald'], 'Emeralds JEM 5300')
+        flat = _product_row(result['layoutByCategory']['Diamond'], 'Flat polki FP 16')
+        chakri = _product_row(result['layoutByCategory']['Diamond'], 'Chakri a')
+        assert emerald['salesQty'] == 4
+        assert flat['salesQty'] == 1
+        assert chakri['salesQty'] == 2
+        assert result['unmappedProducts'] == ['Standard Gold 24K']
 
     def test_workbook_writes_sales_and_purchases_columns(self):
         mapped = map_pivots_to_closing_stock_categories(
@@ -410,9 +427,10 @@ class TestClosingStockProductRuleBook:
                 },
             },
         )
-        pearl = _product_row(result['layoutByCategory']['Pearls'], 'Pearls JPS 1000')
+        pearl = _product_row(result['layoutByCategory']['Pearls'], 'JPS 1000')
         assert pearl['salesQty'] == 5
         assert pearl['salesAmt'] == 50
+        assert result['productsByCategory']['Pearls'] == ['JPS 1000']
         recon = result['reconciliation']
         assert recon['mappedOutputMatch'] is True
         assert recon['pivotOutputMatch'] is True
@@ -485,11 +503,11 @@ class TestClosingStockProductRuleBook:
         counts = count_rule_book_products(book)
         total = sum(counts.values())
         mapped = map_pivots_to_closing_stock_categories(rule_book=book)
-        assert mapped['productsDisplayed'] == total
+        assert mapped['productsDisplayed'] == 0
         assert mapped['ruleBookProductTotal'] == total
         assert mapped['ruleBookFingerprint'] == compute_rule_book_fingerprint(book)
         for category in CLOSING_STOCK_CATEGORIES:
-            assert len(mapped['productsByCategory'][category]) == counts[category]
+            assert mapped['productsByCategory'][category] == []
 
     def test_renamed_product_uses_new_rule_book_name_not_old(self):
         old_name = 'OLD PRODUCT NAME'
@@ -577,15 +595,15 @@ class TestClosingStockProductRuleBook:
                 purchases_pivot=[],
             )
             assert second['ruleBookFingerprint'] != fp1
-            assert second['productsByCategory']['Diamond'] == ['RENAMED SKU']
+            assert second['productsByCategory']['Diamond'] == ['renamed sku']
             assert 'LEGACY SKU' not in second['productsByCategory']['Diamond']
             labels = [
                 row['label']
                 for row in second['layoutByCategory']['Diamond']
                 if row.get('kind') == 'product'
             ]
-            assert labels == ['RENAMED SKU']
-            renamed = _product_row(second['layoutByCategory']['Diamond'], 'RENAMED SKU')
+            assert labels == ['renamed sku']
+            renamed = _product_row(second['layoutByCategory']['Diamond'], 'renamed sku')
             assert renamed['salesQty'] == 2
             assert renamed['salesAmt'] == 20
             assert 'LEGACY SKU' in second['unmappedProducts']
@@ -627,13 +645,7 @@ class TestClosingStockProductRuleBook:
         assert product_a['totalQty'] == 4
         assert product_a['totalAmt'] == 40
         assert product_a['averageRateAmt'] == 10
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
-        )
-        assert product_h['totalQty'] is None
-        assert product_h['totalAmt'] is None
-        assert product_h['averageRateAmt'] is None
+        assert result['productsByCategory']['Precious and Semi Precious'] == []
 
     def test_average_rate_divides_total_amount_by_total_qty(self):
         rate = _add_average_rate({'totalQty': 4, 'totalAmt': 40})
@@ -767,12 +779,7 @@ class TestClosingStockProductRuleBook:
         assert product_a['closingStockQty'] == 0
         assert product_a['closingStockAmt'] == 0
         assert product_a['issuesTotalQty'] == 3
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
-        )
-        assert product_h['closingStockQty'] is None
-        assert product_h['closingStockAmt'] is None
+        assert result['productsByCategory']['Precious and Semi Precious'] == []
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
                 {'product': 'Product A', 'sumOfQuantity': 5, 'sumOfGross': 50},
@@ -898,11 +905,7 @@ class TestClosingStockProductRuleBook:
         assert product_a['issuesKokapetAmt'] == 10
         assert product_a['totalAmt'] == 40
         assert product_a['grossProfitAmt'] == 40
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
-        )
-        assert product_h['grossProfitAmt'] is None
+        assert result['productsByCategory']['Precious and Semi Precious'] == []
 
     def test_gross_profit_percent(self):
         ratio = _add_gross_profit_pct({'grossProfitAmt': 40, 'salesAmt': 50})
@@ -949,8 +952,92 @@ class TestClosingStockProductRuleBook:
         assert product_a['grossProfitAmt'] == 40
         assert product_a['salesAmt'] == 50
         assert product_a['grossProfitPct'] == 0.8
-        product_h = _product_row(
-            result['layoutByCategory']['Precious and Semi Precious'],
-            'Product H',
+        assert result['productsByCategory']['Precious and Semi Precious'] == []
+
+    def test_sales_and_purchases_union_dedupes_with_existing_matching(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {
+                    'product': 'JPS 1000',
+                    'sumOfQuantity': 1,
+                    'sumOfGross': 10,
+                    'category': 'Pearls',
+                }
+            ],
+            purchases_pivot=[
+                {
+                    'product': 'Pearls JPS 1000',
+                    'sumOfQuantity': 2,
+                    'sumOfGross': 20,
+                    'category': 'Diamond',
+                }
+            ],
+            rule_book=SAMPLE_RULE_BOOK,
         )
-        assert product_h['grossProfitPct'] is None
+        assert result['productsByCategory']['Pearls'] == ['JPS 1000']
+        assert result['productsByCategory']['Diamond'] == []
+        pearl = _product_row(result['layoutByCategory']['Pearls'], 'JPS 1000')
+        assert pearl['salesQty'] == 1
+        assert pearl['purchasesQty'] == 2
+
+    def test_opening_only_product_uses_previous_year_category(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {
+                    'product': 'Product A',
+                    'sumOfQuantity': 1,
+                    'sumOfGross': 10,
+                    'category': 'Diamond',
+                    'subcategory': 'Diamonds - Beads',
+                }
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {
+                    'product': 'Product A',
+                    'sumOfQuantity': 9,
+                    'sumOfGross': 90,
+                    'category': 'Emerald',
+                },
+                {
+                    'product': 'Opening Only SKU',
+                    'sumOfQuantity': 3,
+                    'sumOfGross': 30,
+                    'category': 'Emerald',
+                },
+            ],
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        assert result['productsByCategory']['Diamond'] == ['Product A']
+        assert result['productsByCategory']['Emerald'] == ['Opening Only SKU']
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        assert product_a['openingQty'] == 9
+        opening_only = _product_row(result['layoutByCategory']['Emerald'], 'Opening Only SKU')
+        assert opening_only['openingQty'] == 3
+        assert opening_only['salesQty'] is None
+
+    def test_opening_only_zero_or_blank_balance_is_omitted(self):
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+            ],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Product A', 'sumOfQuantity': 0, 'sumOfGross': None},
+                {'product': 'Zero Opening', 'sumOfQuantity': 0, 'sumOfGross': 12},
+                {'product': 'Blank Opening', 'sumOfQuantity': None, 'sumOfGross': 8},
+                {'product': 'Kept Opening', 'sumOfQuantity': 2, 'sumOfGross': 20, 'category': 'Emerald'},
+            ],
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        labels = [
+            row['label']
+            for layout in result['layoutByCategory'].values()
+            for row in layout
+            if row.get('kind') == 'product'
+        ]
+        assert 'Product A' in labels
+        assert 'Kept Opening' in labels
+        assert 'Zero Opening' not in labels
+        assert 'Blank Opening' not in labels
+        assert result['unmappedProducts'] == []

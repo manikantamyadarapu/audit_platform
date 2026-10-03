@@ -15,6 +15,26 @@ REQUIRED_COLUMN_KEYS: Final = {
 
 REQUIRED_DISPLAY_COLUMNS: Final = ('Product', 'Quantity', 'Gross Amount')
 
+# Optional Sales/Purchases headers — used when present; never required.
+CATEGORY_HEADER_ALIASES: Final = frozenset(
+    {
+        'category',
+        'stock_group',
+        'item_group',
+        'stock_item_group',
+        'stockgroup',
+    }
+)
+SUBCATEGORY_HEADER_ALIASES: Final = frozenset(
+    {
+        'subcategory',
+        'sub_category',
+        'sub_group',
+        'stock_category',
+        'stockcategory',
+    }
+)
+
 PIVOT_COLUMNS: Final = ('product', 'sumOfQuantity', 'sumOfGross')
 PIVOT_DISPLAY_HEADERS: Final = {
     'product': 'Product',
