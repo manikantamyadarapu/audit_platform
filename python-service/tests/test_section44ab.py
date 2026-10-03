@@ -43,9 +43,9 @@ class TestNumericParsing:
     """
 
     def test_blank_values(self):
-        assert _parse_numeric_value(None) == 0.0
-        assert _parse_numeric_value('') == 0.0
-        assert _parse_numeric_value(float('nan')) == 0.0
+        assert _parse_numeric_value(None) is None
+        assert _parse_numeric_value('') is None
+        assert _parse_numeric_value(float('nan')) is None
 
     def test_comma_formatted_values(self):
         assert _parse_numeric_value('11,233,145.00') == 11233145.0
@@ -59,8 +59,8 @@ class TestNumericParsing:
         assert _parse_numeric_value('1000.50') == 1000.50
 
     def test_invalid_strings(self):
-        assert _parse_numeric_value('invalid') == 0.0
-        assert _parse_numeric_value('abc123') == 0.0
+        assert _parse_numeric_value('invalid') is None
+        assert _parse_numeric_value('abc123') is None
 
 
 def create_test_excel(data, header_row=0):

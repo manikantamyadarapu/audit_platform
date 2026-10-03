@@ -98,10 +98,10 @@ async function updateUser(req, res, next) {
       }
     }
 
-    if (password && password.length < 6) {
+    if (password && password.length < 12) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters',
+        message: 'Password must be at least 12 characters',
       });
     }
 
@@ -139,10 +139,10 @@ async function changePassword(req, res, next) {
       });
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 12) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters',
+        message: 'Password must be at least 12 characters',
       });
     }
 

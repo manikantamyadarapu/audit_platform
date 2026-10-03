@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   flexRender,
   getCoreRowModel,
@@ -34,6 +34,11 @@ function formatDate(value) {
 }
 
 export default function ProductAverageRates() {
+  const [searchParams] = useSearchParams();
+  const auditType =
+    String(searchParams.get('auditType') || 'SALES').toUpperCase() === 'PURCHASE'
+      ? 'PURCHASE'
+      : 'SALES';
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +81,7 @@ export default function ProductAverageRates() {
         salesAccount: debouncedSalesAccount || undefined,
         sortBy,
         sortOrder,
+        auditType,
       });
       setRows(result.rows);
       setMeta(result.meta ?? null);
@@ -87,7 +93,7 @@ export default function ProductAverageRates() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, debouncedSalesAccount, sortBy, sortOrder]);
+  }, [page, debouncedSearch, debouncedSalesAccount, sortBy, sortOrder, auditType]);
 
   useEffect(() => {
     loadRows();
@@ -157,6 +163,7 @@ export default function ProductAverageRates() {
         salesAccount: debouncedSalesAccount || undefined,
         sortBy,
         sortOrder,
+        auditType,
       });
       toast.success('Export downloaded');
     } catch (error) {

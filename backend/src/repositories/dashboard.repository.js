@@ -22,12 +22,15 @@ function createdAtRange(startDate, endDate, exclusiveEnd = false) {
  * @param {boolean} [exclusiveEnd=false]
  * @returns {Promise<number>}
  */
-async function getTotalAudits(startDate, endDate, exclusiveEnd = false) {
-  const count = await prisma.auditRun.count({
-    where: {
-      createdAt: createdAtRange(startDate, endDate, exclusiveEnd),
-    },
-  });
+async function getTotalAudits(startDate, endDate, exclusiveEnd = false, uploadedBy) {
+  /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+  const where = {
+    createdAt: createdAtRange(startDate, endDate, exclusiveEnd),
+  };
+  if (uploadedBy != null) {
+    where.uploadedBy = Number(uploadedBy);
+  }
+  const count = await prisma.auditRun.count({ where });
   return count;
 }
 
@@ -35,13 +38,19 @@ async function getTotalAudits(startDate, endDate, exclusiveEnd = false) {
  * @param {Date} startDate
  * @param {Date} endDate
  * @param {boolean} [exclusiveEnd=false]
+ * @param {number} [uploadedBy]
  * @returns {Promise<number>}
  */
-async function getTotalRecords(startDate, endDate, exclusiveEnd = false) {
+async function getTotalRecords(startDate, endDate, exclusiveEnd = false, uploadedBy) {
+  /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+  const where = {
+    createdAt: createdAtRange(startDate, endDate, exclusiveEnd),
+  };
+  if (uploadedBy != null) {
+    where.uploadedBy = Number(uploadedBy);
+  }
   const result = await prisma.auditRun.aggregate({
-    where: {
-      createdAt: createdAtRange(startDate, endDate, exclusiveEnd),
-    },
+    where,
     _sum: {
       totalRows: true,
     },
@@ -55,15 +64,19 @@ async function getTotalRecords(startDate, endDate, exclusiveEnd = false) {
  * @param {Date} startDate
  * @param {Date} endDate
  * @param {boolean} [exclusiveEnd=false]
+ * @param {number} [uploadedBy]
  * @returns {Promise<number>}
  */
-async function getTotalIssues(startDate, endDate, exclusiveEnd = false) {
+async function getTotalIssues(startDate, endDate, exclusiveEnd = false, uploadedBy) {
   const dateFilter = createdAtRange(startDate, endDate, exclusiveEnd);
+  /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+  const where = { createdAt: dateFilter };
+  if (uploadedBy != null) {
+    where.uploadedBy = Number(uploadedBy);
+  }
 
   const auditRuns = await prisma.auditRun.findMany({
-    where: {
-      createdAt: dateFilter,
-    },
+    where,
     select: {
       resultSummary: true,
       invalidRows: true,
@@ -73,7 +86,6 @@ async function getTotalIssues(startDate, endDate, exclusiveEnd = false) {
   let totalIssues = 0;
   for (const run of auditRuns) {
     if (run.resultSummary && typeof run.resultSummary === 'object') {
-      // Extract issue counts from resultSummary JSON
       const summary = run.resultSummary;
       if (summary.issueCounts && Array.isArray(summary.issueCounts)) {
         totalIssues += summary.issueCounts.reduce((sum, issue) => sum + (issue.count || 0), 0);
@@ -83,7 +95,6 @@ async function getTotalIssues(startDate, endDate, exclusiveEnd = false) {
         totalIssues += summary.goldDeviationCount;
       }
     } else {
-      // Fallback to invalidRows
       totalIssues += run.invalidRows || 0;
     }
   }
@@ -205,7 +216,7 @@ async function getIssuesByCategory(startDate, endDate) {
  * @returns {Promise<{ runs: Array<{ id: number, fileName: string, totalRows: number, createdAt: Date, status: string, auditType: { auditName: string } }>, total: number }>}
  */
 async function getRecentAudits(filters) {
-  const { page, limit, status, auditType, search, startDate, endDate } = filters;
+  const { page, limit, status, auditType, search, startDate, endDate, uploadedBy } = filters;
   const skip = (page - 1) * limit;
 
   /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
@@ -228,6 +239,10 @@ async function getRecentAudits(filters) {
       contains: search,
       mode: 'insensitive',
     };
+  }
+
+  if (uploadedBy != null) {
+    where.uploadedBy = Number(uploadedBy);
   }
 
   const [runs, total] = await Promise.all([

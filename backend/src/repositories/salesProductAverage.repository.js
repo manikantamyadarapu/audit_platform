@@ -161,6 +161,8 @@ async function findProductAverageRates({
   search,
   salesAccount,
   auditRunId,
+  auditType = 'SALES',
+  uploadedBy,
   sortBy = 'createdAt',
   sortOrder = 'desc',
 }) {
@@ -168,6 +170,7 @@ async function findProductAverageRates({
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 25));
   const orderField = SORT_FIELDS[sortBy] || 'createdAt';
   const orderDir = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const code = String(auditType || 'SALES').trim().toUpperCase() === 'PURCHASE' ? 'PURCHASE' : 'SALES';
 
   let auditRunMeta = null;
   let productRates = [];
@@ -175,16 +178,35 @@ async function findProductAverageRates({
   if (auditRunId) {
     auditRunMeta = await prisma.auditRun.findUnique({
       where: { id: Number(auditRunId) },
-      select: { id: true, fileName: true, totalRows: true, createdAt: true, resultSummary: true },
+      select: {
+        id: true,
+        fileName: true,
+        totalRows: true,
+        createdAt: true,
+        resultSummary: true,
+        uploadedBy: true,
+      },
     });
+    if (
+      uploadedBy != null &&
+      auditRunMeta &&
+      Number(auditRunMeta.uploadedBy) !== Number(uploadedBy)
+    ) {
+      auditRunMeta = null;
+    }
     if (auditRunMeta?.resultSummary?.productRates) {
       productRates = auditRunMeta.resultSummary.productRates;
     }
   } else {
-    const auditTypeId = await findSalesAuditTypeId();
+    const auditTypeId = await auditRunRepository.resolveAuditTypeId(code);
+    /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+    const where = { auditTypeId, status: 'COMPLETED' };
+    if (uploadedBy != null) {
+      where.uploadedBy = Number(uploadedBy);
+    }
     auditRunMeta = auditTypeId
       ? await prisma.auditRun.findFirst({
-          where: { auditTypeId, status: 'COMPLETED' },
+          where,
           orderBy: { createdAt: 'desc' },
           select: { id: true, fileName: true, totalRows: true, createdAt: true, resultSummary: true },
         })
@@ -247,25 +269,31 @@ async function findProductAverageRates({
   };
 }
 
-async function findLatestSalesAuditProductAverages() {
-  return findLatestAuditProductAveragesByCode('SALES');
+async function findLatestSalesAuditProductAverages(uploadedBy) {
+  return findLatestAuditProductAveragesByCode('SALES', uploadedBy);
 }
 
-async function findLatestPurchaseAuditProductAverages() {
-  return findLatestAuditProductAveragesByCode('PURCHASE');
+async function findLatestPurchaseAuditProductAverages(uploadedBy) {
+  return findLatestAuditProductAveragesByCode('PURCHASE', uploadedBy);
 }
 
-async function findLatestAuditProductAveragesByCode(auditCode) {
+async function findLatestAuditProductAveragesByCode(auditCode, uploadedBy) {
   const auditTypeId = await auditRunRepository.resolveAuditTypeId(auditCode);
   if (!auditTypeId) {
     return { auditRun: null, rows: [] };
   }
 
+  /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+  const where = {
+    auditTypeId,
+    status: 'COMPLETED',
+  };
+  if (uploadedBy != null) {
+    where.uploadedBy = Number(uploadedBy);
+  }
+
   const latestRun = await prisma.auditRun.findFirst({
-    where: {
-      auditTypeId,
-      status: 'COMPLETED',
-    },
+    where,
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
@@ -294,9 +322,18 @@ async function findLatestAuditProductAveragesByCode(auditCode) {
 }
 
 async function findAllProductAverageRatesForExport(filters = {}) {
-  const { search, salesAccount, auditRunId, sortBy = 'createdAt', sortOrder = 'desc' } = filters;
+  const {
+    search,
+    salesAccount,
+    auditRunId,
+    auditType = 'SALES',
+    uploadedBy,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+  } = filters;
   const orderField = SORT_FIELDS[sortBy] || 'createdAt';
   const orderDir = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const code = String(auditType || 'SALES').trim().toUpperCase() === 'PURCHASE' ? 'PURCHASE' : 'SALES';
 
   let auditRunMeta = null;
   let productRates = [];
@@ -304,16 +341,28 @@ async function findAllProductAverageRatesForExport(filters = {}) {
   if (auditRunId) {
     auditRunMeta = await prisma.auditRun.findUnique({
       where: { id: Number(auditRunId) },
-      select: { id: true, fileName: true, resultSummary: true },
+      select: { id: true, fileName: true, resultSummary: true, uploadedBy: true },
     });
+    if (
+      uploadedBy != null &&
+      auditRunMeta &&
+      Number(auditRunMeta.uploadedBy) !== Number(uploadedBy)
+    ) {
+      auditRunMeta = null;
+    }
     if (auditRunMeta?.resultSummary?.productRates) {
       productRates = auditRunMeta.resultSummary.productRates;
     }
   } else {
-    const auditTypeId = await findSalesAuditTypeId();
+    const auditTypeId = await auditRunRepository.resolveAuditTypeId(code);
+    /** @type {import('@prisma/client').Prisma.AuditRunWhereInput} */
+    const where = { auditTypeId, status: 'COMPLETED' };
+    if (uploadedBy != null) {
+      where.uploadedBy = Number(uploadedBy);
+    }
     const latestRun = auditTypeId
       ? await prisma.auditRun.findFirst({
-          where: { auditTypeId, status: 'COMPLETED' },
+          where,
           orderBy: { createdAt: 'desc' },
           select: { id: true, fileName: true, resultSummary: true },
         })

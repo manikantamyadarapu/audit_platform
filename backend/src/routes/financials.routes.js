@@ -1,8 +1,15 @@
 const express = require('express');
 const financialsController = require('../controllers/financials.controller');
 const { authenticate } = require('../middleware/auth.middleware');
-const { financialsPivotFiles, financialsSalesPurchasesFiles, financialsSalesPurchasesPivotFiles, financialsJubileeHillsFiles, handleMulterError } = require('../middleware/upload.middleware');
+const {
+  financialsPivotFiles,
+  financialsSalesPurchasesFiles,
+  financialsSalesPurchasesPivotFiles,
+  financialsJubileeHillsFiles,
+  handleMulterError,
+} = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
+
 
 const router = express.Router();
 

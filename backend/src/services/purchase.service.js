@@ -68,11 +68,16 @@ async function exportInvalidPurchase(records, options = {}) {
 }
 
 async function persistPurchaseAuditProductAverages({ userId, fileName, pythonResult }) {
-  if (!userId) return null;
+  const resolvedUserId = Number(userId);
+  if (!Number.isFinite(resolvedUserId)) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
 
   const productAverages = pythonResult?.productAverages ?? [];
   const auditRun = await salesProductAverageRepository.createAuditRunWithProductAverages({
-    uploadedBy: userId,
+    uploadedBy: resolvedUserId,
     fileName,
     totalRows: pythonResult?.totalRows ?? 0,
     invalidRows: pythonResult?.errorRows ?? 0,

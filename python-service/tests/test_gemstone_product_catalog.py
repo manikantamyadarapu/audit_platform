@@ -13,6 +13,7 @@ from tests.test_sales_audit_processor import _row, _wb_bytes
 _CATALOG_PATH = (
     Path(__file__).resolve().parents[1]
     / 'app'
+    / 'engines'
     / 'sales_engine'
     / 'config'
     / 'gemstone_product_catalog.json'

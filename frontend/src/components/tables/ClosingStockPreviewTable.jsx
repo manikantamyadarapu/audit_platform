@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CLOSING_STOCK_CATEGORIES,
   buildClosingStockPreviewRows,
   buildGroupedHeaderCells,
   closingStockCellValue,
   closingStockReportTitle,
+  describeClosingStockCell,
   getClosingStockHeaderRows,
 } from '../../config/closingStockLayout';
 import { cn } from '../../utils/cn';
@@ -31,6 +32,73 @@ function HeaderRow({ cells, className }) {
         </th>
       ))}
     </tr>
+  );
+}
+
+function CellTracePanel({ trace, onClose }) {
+  if (!trace) return null;
+  return (
+    <aside className="overflow-hidden rounded-xl border border-slate-200/80 bg-white text-xs leading-snug text-slate-800 shadow-sm dark:border-slate-700 dark:bg-[var(--color-surface-elevated)] dark:text-slate-100">
+      <div className="flex items-start justify-between gap-3 bg-emerald-800 px-3 py-2 text-white">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-100">Calculation</p>
+          <p className="text-sm font-bold">{trace.headerPath || 'Column'}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 border border-white/40 px-2 py-0.5 text-[10px] font-bold tracking-wide hover:bg-white/10"
+        >
+          Close
+        </button>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1 px-3 py-2 sm:grid-cols-2">
+        <div>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Product</dt>
+          <dd className="font-medium">{trace.productName}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Excel cell</dt>
+          <dd className="font-mono font-bold text-emerald-800 dark:text-emerald-300">{trace.excelRef}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Column</dt>
+          <dd>{trace.businessColumn || '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Stored result</dt>
+          <dd className="font-mono">{trace.storedRaw}</dd>
+        </div>
+      </dl>
+      <div className="space-y-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
+        {trace.formulaText ? <p>{trace.formulaText}</p> : null}
+        {trace.excelFormula ? (
+          <p className="font-mono text-xs font-bold text-emerald-900 dark:text-emerald-200">{trace.excelFormula}</p>
+        ) : null}
+        {trace.condition ? <p className="text-slate-500">{trace.condition}</p> : null}
+        {trace.sourceText ? <p>{trace.sourceText}</p> : null}
+        {trace.operands.length ? (
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                <th className="py-1 pr-2 font-bold">Operand</th>
+                <th className="py-1 pr-2 font-bold">Cell</th>
+                <th className="py-1 font-bold">Raw value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trace.operands.map((operand) => (
+                <tr key={`${operand.label}-${operand.excelRef}`} className="border-t border-slate-200 dark:border-slate-700">
+                  <td className="py-1 pr-2">{operand.label}</td>
+                  <td className="py-1 pr-2 font-mono">{operand.excelRef}</td>
+                  <td className="py-1 font-mono">{operand.raw}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </div>
+    </aside>
   );
 }
 
@@ -89,40 +157,45 @@ export function ClosingStockPreviewTable({
   const level2Cells = buildGroupedHeaderCells(level2);
   const rows = buildClosingStockPreviewRows(layoutRows, products);
   const reportTitle = closingStockReportTitle(category);
+  const rootRef = useRef(null);
+  const [selection, setSelection] = useState(null);
 
-  // TEMP debug: confirm Opening/Sales/Purchases values reach product rows.
   useEffect(() => {
-    const previewRows = buildClosingStockPreviewRows(layoutRows, products);
-    const sample = previewRows.find(
-      (row) =>
-        row.kind === 'product' &&
-        (row.openingQty != null ||
-          row.openingAmt != null ||
-          row.salesQty != null ||
-          row.salesAmt != null ||
-          row.purchasesQty != null ||
-          row.purchasesAmt != null)
+    setSelection(null);
+  }, [layoutRows, products, category]);
+
+  useEffect(() => {
+    if (!selection) return undefined;
+    function onPointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) setSelection(null);
+    }
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setSelection(null);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [selection]);
+
+  const trace = selection
+    ? describeClosingStockCell({
+        rows,
+        rowIndex: selection.rowIndex,
+        leafIndex: selection.leafIndex,
+      })
+    : null;
+
+  function selectCell(rowIndex, leafIndex) {
+    setSelection((current) =>
+      current?.rowIndex === rowIndex && current?.leafIndex === leafIndex ? null : { rowIndex, leafIndex }
     );
-    console.debug('[ClosingStockPreview]', {
-      category,
-      sample: sample
-        ? {
-            label: sample.label,
-            openingQty: sample.openingQty,
-            openingAmt: sample.openingAmt,
-            col3: closingStockCellValue(sample, 2),
-            col4: closingStockCellValue(sample, 3),
-            col22: closingStockCellValue(sample, 21),
-            col23: closingStockCellValue(sample, 22),
-            openingQtyCell: closingStockCellValue(sample, 0),
-            openingAmtCell: closingStockCellValue(sample, 1),
-          }
-        : null,
-    });
-  }, [category, layoutRows, products]);
+  }
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       <div className="text-center">
         {companyName ? (
           <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{companyName}</p>
@@ -170,18 +243,37 @@ export function ClosingStockPreviewTable({
               const styles = rowStyles(row.kind);
               return (
                 <tr key={`${row.kind}-${row.label}-${rowIdx}`} className={styles.tr}>
-                  <td className={styles.label}>{row.label}</td>
-                  {numbers.map((num, leafIdx) => (
-                    <td key={`${rowIdx}-${num}`} className={styles.cell}>
-                      {closingStockCellValue(row, leafIdx)}
-                    </td>
-                  ))}
+                  <td className={styles.label} title={row.label}>
+                    {row.label}
+                  </td>
+                  {numbers.map((num, leafIdx) => {
+                    const selected =
+                      selection?.rowIndex === rowIdx && selection?.leafIndex === leafIdx;
+                    return (
+                      <td
+                        key={`${rowIdx}-${num}`}
+                        aria-pressed={selected}
+                        onClick={() => selectCell(rowIdx, leafIdx)}
+                        className={cn(
+                          styles.cell,
+                          'cursor-pointer',
+                          selected && 'shadow-[inset_0_0_0_2px_#B45309]'
+                        )}
+                      >
+                        {closingStockCellValue(row, leafIdx)}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      <CellTracePanel trace={trace} onClose={() => setSelection(null)} />
+      <p className="text-xs text-slate-500">
+        Select a cell to see its source or formula. The stored result comes from the Financials engine.
+      </p>
       {showLegend ? (
         <p className="text-xs text-slate-500">
           Only products from this branch’s Sales, Purchases, and Opening Stock are listed.

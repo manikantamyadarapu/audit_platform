@@ -1,18 +1,16 @@
 const express = require('express');
 const partyWiseTdsController = require('../controllers/partyWiseTds.controller');
 const { authenticate } = require('../middleware/auth.middleware');
+const { authorize } = require('../middleware/role.middleware');
+const { PROCESS_ROLES } = require('../constants/roles');
 const { dualPartyWiseTdsFiles } = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
 
 const router = express.Router();
 
 router.use(authenticate);
+router.use(authorize(PROCESS_ROLES));
 
-/**
- * Full paths (mounted under /api/v1):
- * POST /api/v1/process/party-wise-tds/validate
- * POST /api/v1/process/party-wise-tds/export
- */
 router.post('/validate', dualPartyWiseTdsFiles, partyWiseTdsController.validatePartyWiseTds);
 router.post(
   '/export',

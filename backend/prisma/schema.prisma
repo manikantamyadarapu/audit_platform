@@ -208,6 +208,7 @@ enum UserRole {
   ADMIN
   AUDITOR
   VIEWER
+  SUPER_ADMIN
 }
 
 enum TokenType {

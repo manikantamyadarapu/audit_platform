@@ -94,11 +94,14 @@ function buildAccuracyTrend(currentAccuracy, previousAccuracy) {
 async function getDashboardWidgets(query, user) {
   const { period } = validateWidgetsQuery(query);
   const ranges = getPeriodRanges(period);
+  const role = String(user?.role || '').toUpperCase();
+  const uploadedBy = ['ADMIN', 'SUPER_ADMIN'].includes(role) ? undefined : user?.id;
 
   logger.info('Fetching dashboard widgets', {
     userId: user?.id,
     role: user?.role,
     period,
+    scopedToUser: uploadedBy != null,
   });
 
   const [
@@ -109,12 +112,42 @@ async function getDashboardWidgets(query, user) {
     currentIssues,
     previousIssues,
   ] = await Promise.all([
-    dashboardRepository.getTotalAudits(ranges.current.startDate, ranges.current.endDate),
-    dashboardRepository.getTotalAudits(ranges.previous.startDate, ranges.previous.endDate, true),
-    dashboardRepository.getTotalRecords(ranges.current.startDate, ranges.current.endDate),
-    dashboardRepository.getTotalRecords(ranges.previous.startDate, ranges.previous.endDate, true),
-    dashboardRepository.getTotalIssues(ranges.current.startDate, ranges.current.endDate),
-    dashboardRepository.getTotalIssues(ranges.previous.startDate, ranges.previous.endDate, true),
+    dashboardRepository.getTotalAudits(
+      ranges.current.startDate,
+      ranges.current.endDate,
+      false,
+      uploadedBy
+    ),
+    dashboardRepository.getTotalAudits(
+      ranges.previous.startDate,
+      ranges.previous.endDate,
+      true,
+      uploadedBy
+    ),
+    dashboardRepository.getTotalRecords(
+      ranges.current.startDate,
+      ranges.current.endDate,
+      false,
+      uploadedBy
+    ),
+    dashboardRepository.getTotalRecords(
+      ranges.previous.startDate,
+      ranges.previous.endDate,
+      true,
+      uploadedBy
+    ),
+    dashboardRepository.getTotalIssues(
+      ranges.current.startDate,
+      ranges.current.endDate,
+      false,
+      uploadedBy
+    ),
+    dashboardRepository.getTotalIssues(
+      ranges.previous.startDate,
+      ranges.previous.endDate,
+      true,
+      uploadedBy
+    ),
   ]);
 
   const currentAccuracy = calculateAccuracy(currentRecords, currentIssues);
@@ -406,6 +439,8 @@ function mapRecentAuditRow(run) {
  */
 async function getRecentAudits(query, user) {
   const filters = validateRecentAuditsQuery(query);
+  const role = String(user?.role || '').toUpperCase();
+  const uploadedBy = ['ADMIN', 'SUPER_ADMIN'].includes(role) ? undefined : user?.id;
 
   logger.info('Fetching recent audit uploads', {
     userId: user?.id,
@@ -415,10 +450,12 @@ async function getRecentAudits(query, user) {
     status: filters.status,
     auditType: filters.auditType,
     search: filters.search,
+    scopedToUser: uploadedBy != null,
   });
 
   const { runs, total } = await dashboardRepository.getRecentAudits({
     ...filters,
+    uploadedBy,
     ...(filters.period
       ? {
           startDate: getPeriodRanges(filters.period).current.startDate,

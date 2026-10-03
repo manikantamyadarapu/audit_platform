@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 
 from app.config.settings import get_settings
 from app.utils.logger import get_logger
+from app.utils.request_id import REQUEST_ID_HEADER, resolve_request_id
+from app.utils.safe_errors import internal_error_body
 from app.routers.health_router import router as health_router
 from app.routers.cash_ledger_router import gateway_router as gateway_cash_ledger_router
 from app.routers.cash_ledger_router import router as cash_ledger_router
@@ -53,8 +55,19 @@ app.add_middleware(
     allow_origins=['*'],
     allow_methods=['GET', 'POST', 'OPTIONS'],
     allow_headers=['*'],
-    expose_headers=['Content-Disposition'],
+    expose_headers=['Content-Disposition', REQUEST_ID_HEADER],
 )
+
+
+@app.middleware('http')
+async def request_id_middleware(request: Request, call_next):
+    """Honor gateway ``x-request-id`` and echo it on every response."""
+    request_id = resolve_request_id(request)
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
 
 app.include_router(health_router)
 app.include_router(cash_ledger_router)
@@ -141,9 +154,10 @@ async def key_error_handler(_: Request, exc: KeyError):
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(_: Request, exc: Exception):
-    get_logger('api-error').exception('Unhandled exception')
+async def generic_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, 'request_id', None) or resolve_request_id(request)
+    get_logger(request_id).exception('Unhandled exception: {}', exc)
     return JSONResponse(
         status_code=500,
-        content={'success': False, 'message': 'Internal server error'},
+        content=internal_error_body(request_id=request_id),
     )

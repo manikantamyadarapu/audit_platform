@@ -91,6 +91,197 @@ export const CLOSING_STOCK_MEASURE_PATHS = Object.freeze({
   grossProfitPct: ['Gross Profit', null, '%'],
 });
 
+/**
+ * Explains a stored working-paper cell. Does not recalculate it.
+ * Excel letters are derived from the leaf index when the trace is built.
+ *
+ * kind:
+ * - source: value comes from an uploaded file or MR/DC net
+ * - calculated: product-row formula (operands are other fields on the same row)
+ * - blank: column is intentionally not calculated
+ */
+export const CLOSING_STOCK_FORMULA_CATALOG = Object.freeze({
+  openingQty: { kind: 'source', name: 'Opening Qty', source: 'Opening Quantity file' },
+  openingAmt: { kind: 'source', name: 'Opening Amt', source: 'Previous Year Closing' },
+  purchasesQty: { kind: 'source', name: 'Purchases Qty', source: 'Purchases pivot' },
+  purchasesAmt: { kind: 'source', name: 'Purchases Amt', source: 'Purchases pivot' },
+  receiptsInternalQty: {
+    kind: 'source',
+    name: 'Receipts Internal Qty',
+    source: 'MR/DC netting — Internal / Basheerbagh (receipt when net > 0)',
+  },
+  receiptsInternalAmt: { kind: 'blank', name: 'Receipts Internal Amt.' },
+  receiptsJubileeHillsQty: {
+    kind: 'source',
+    name: 'Receipts Jubilee Hills Qty',
+    source: 'MR/DC netting — Jubilee Hills (receipt when net > 0)',
+  },
+  receiptsJubileeHillsAmt: { kind: 'blank', name: 'Receipts Jubilee Hills Amt.' },
+  receiptsKokapetQty: {
+    kind: 'source',
+    name: 'Receipts Kokapet Qty',
+    source: 'MR/DC netting — Kokapet (receipt when net > 0)',
+  },
+  receiptsKokapetAmt: { kind: 'blank', name: 'Receipts Kokapet Amt.' },
+  receiptsQty: {
+    kind: 'calculated',
+    name: 'Receipts Qty',
+    description: 'Internal Qty + Jubilee Hills Qty + Kokapet Qty',
+    operands: [
+      { field: 'receiptsInternalQty' },
+      { field: 'receiptsJubileeHillsQty', op: '+' },
+      { field: 'receiptsKokapetQty', op: '+' },
+    ],
+  },
+  receiptsAmt: { kind: 'blank', name: 'Receipts Amt.' },
+  totalQty: {
+    kind: 'calculated',
+    name: 'Total Qty',
+    description: 'Opening Qty + Purchases Qty + Receipts Qty',
+    operands: [
+      { field: 'openingQty' },
+      { field: 'purchasesQty', op: '+' },
+      { field: 'receiptsQty', op: '+' },
+    ],
+  },
+  totalAmt: {
+    kind: 'calculated',
+    name: 'Total Amt',
+    description: 'Opening Amt + Purchases Amt + Receipts Amt',
+    operands: [
+      { field: 'openingAmt' },
+      { field: 'purchasesAmt', op: '+' },
+      { field: 'receiptsAmt', op: '+' },
+    ],
+  },
+  averageRateAmt: {
+    kind: 'calculated',
+    name: 'Average Rate',
+    description: 'Total Amt / Total Qty',
+    operands: [
+      { field: 'totalAmt' },
+      { field: 'totalQty', op: '/' },
+    ],
+  },
+  issuesInternalQty: {
+    kind: 'source',
+    name: 'Issues Internal Qty',
+    source: 'MR/DC netting — Internal / Basheerbagh (issue when net < 0)',
+  },
+  issuesInternalAmt: {
+    kind: 'calculated',
+    name: 'Issues Internal Amt',
+    description: 'Issues Internal Qty × Average Rate',
+    operands: [
+      { field: 'issuesInternalQty' },
+      { field: 'averageRateAmt', op: '×' },
+    ],
+  },
+  issuesBanjaraHillsQty: {
+    kind: 'source',
+    name: 'Issues Banjara Hills Qty',
+    source: 'MR/DC netting — Jubilee Hills (issue when net < 0)',
+  },
+  issuesBanjaraHillsAmt: {
+    kind: 'calculated',
+    name: 'Issues Banjara Hills Amt',
+    description: 'Issues Banjara Hills Qty × Average Rate',
+    operands: [
+      { field: 'issuesBanjaraHillsQty' },
+      { field: 'averageRateAmt', op: '×' },
+    ],
+  },
+  issuesKokapetQty: {
+    kind: 'source',
+    name: 'Issues Kokapet Qty',
+    source: 'MR/DC netting — Kokapet (issue when net < 0)',
+  },
+  issuesKokapetAmt: {
+    kind: 'calculated',
+    name: 'Issues Kokapet Amt',
+    description: 'Issues Kokapet Qty × Average Rate',
+    operands: [
+      { field: 'issuesKokapetQty' },
+      { field: 'averageRateAmt', op: '×' },
+    ],
+  },
+  issuesTotalQty: {
+    kind: 'calculated',
+    name: 'Issues Total Qty',
+    description: 'Issues Internal Qty + Issues Banjara Hills Qty + Issues Kokapet Qty',
+    operands: [
+      { field: 'issuesInternalQty' },
+      { field: 'issuesBanjaraHillsQty', op: '+' },
+      { field: 'issuesKokapetQty', op: '+' },
+    ],
+  },
+  issuesTotalAmt: {
+    kind: 'calculated',
+    name: 'Issues Total Amt',
+    description: 'Issues Internal Amt + Issues Banjara Hills Amt + Issues Kokapet Amt',
+    operands: [
+      { field: 'issuesInternalAmt' },
+      { field: 'issuesBanjaraHillsAmt', op: '+' },
+      { field: 'issuesKokapetAmt', op: '+' },
+    ],
+  },
+  salesQty: { kind: 'source', name: 'Sales Qty', source: 'Sales pivot' },
+  salesAmt: { kind: 'source', name: 'Sales Amt', source: 'Sales pivot' },
+  closingStockQty: {
+    kind: 'calculated',
+    name: 'Closing Qty',
+    description: 'Total Qty − Sales Qty − Issues Total Qty',
+    operands: [
+      { field: 'totalQty' },
+      { field: 'salesQty', op: '−' },
+      { field: 'issuesTotalQty', op: '−' },
+    ],
+  },
+  closingStockAmt: {
+    kind: 'calculated',
+    name: 'Closing Amt',
+    description: 'Closing Qty × Average Rate',
+    operands: [
+      { field: 'closingStockQty' },
+      { field: 'averageRateAmt', op: '×' },
+    ],
+  },
+  grossProfitAmt: {
+    kind: 'calculated',
+    name: 'Gross Profit Amt',
+    description: 'Closing Amt + Sales Amt + Issues Total Amt − Total Amt',
+    operands: [
+      { field: 'closingStockAmt' },
+      { field: 'salesAmt', op: '+' },
+      { field: 'issuesTotalAmt', op: '+' },
+      { field: 'totalAmt', op: '−' },
+    ],
+  },
+  grossProfitPct: {
+    kind: 'calculated',
+    name: 'Gross Profit %',
+    description: 'GP Amt / Sales Amt',
+    condition: 'GP Amt > 0 and Sales Amt ≠ 0; otherwise the stored result is 0',
+    operands: [
+      { field: 'grossProfitAmt' },
+      { field: 'salesAmt', op: '/' },
+    ],
+  },
+});
+
+const NOT_CALCULATED = 'Not calculated / no source value';
+
+/** Human operator → Excel operator. Letters are never stored here. */
+const EXCEL_OPERATOR = Object.freeze({
+  '+': '+',
+  '−': '-',
+  '×': '*',
+  '/': '/',
+});
+
+/** Fields whose TOTAL / GRAND TOTAL row is a ratio of that same row, not a SUM. */
+const TOTAL_RATIO_FIELDS = new Set(['averageRateAmt', 'grossProfitPct']);
+
 export const TRANSFER_QTY_FIELDS = Object.freeze([
   'receiptsInternalQty',
   'receiptsJubileeHillsQty',
@@ -365,4 +556,261 @@ export function getClosingStockHeaderRows() {
 /** @deprecated Use buildClosingStockPreviewRows — kept for backwards compatibility */
 export function buildClosingStockPreviewRowsLegacy(layoutRows, products = []) {
   return buildClosingStockPreviewRows(layoutRows, products);
+}
+
+/**
+ * Excel column for a measure leaf. Column A is Particulars, so the first leaf is B.
+ * Excel column number = leafIndex + 2.
+ * @param {number} leafIndex
+ * @returns {string}
+ */
+export function excelColumnLetterFromLeafIndex(leafIndex) {
+  let n = Number(leafIndex) + 2;
+  if (!Number.isInteger(n) || n < 1) return '';
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
+/**
+ * Excel row for a preview body row. Title and header rows occupy 1–9.
+ * Excel row = 10 + previewRowIndex.
+ * @param {number} previewRowIndex
+ * @returns {number}
+ */
+export function excelRowFromPreviewIndex(previewRowIndex) {
+  return 10 + Number(previewRowIndex);
+}
+
+/**
+ * @param {number} leafIndex
+ * @param {number} previewRowIndex
+ * @returns {string}
+ */
+export function excelCellRef(leafIndex, previewRowIndex) {
+  return `${excelColumnLetterFromLeafIndex(leafIndex)}${excelRowFromPreviewIndex(previewRowIndex)}`;
+}
+
+/**
+ * @param {number|null|undefined} value
+ * @returns {string}
+ */
+export function rawClosingStockValue(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  return String(value);
+}
+
+/**
+ * @param {number} leafIndex
+ * @returns {string}
+ */
+export function closingStockHeaderPath(leafIndex) {
+  const path = CLOSING_STOCK_LEAF_COLUMNS[leafIndex]?.[0];
+  if (!path) return '';
+  return path.filter(Boolean).join(' · ');
+}
+
+/**
+ * @param {number} leafIndex
+ * @returns {string}
+ */
+export function closingStockBusinessColumn(leafIndex) {
+  return CLOSING_STOCK_LEAF_COLUMNS[leafIndex]?.[1] || '';
+}
+
+/**
+ * Labeled product rows only — matches the Excel SUM set (blank labels are skipped).
+ * @param {Array<{ kind?: string, label?: string }>} rows
+ * @param {number} from
+ * @param {number} to
+ * @returns {number[]}
+ */
+function labeledProductIndexes(rows, from, to) {
+  const indexes = [];
+  const start = Math.max(0, from);
+  const end = Math.min(rows.length - 1, to);
+  for (let i = start; i <= end; i += 1) {
+    const row = rows[i];
+    if (row?.kind === 'product' && String(row.label || '').trim()) indexes.push(i);
+  }
+  return indexes;
+}
+
+/**
+ * Product rows that a TOTAL or GRAND TOTAL sums, from the preview structure.
+ * @param {Array<{ kind?: string, label?: string }>} rows
+ * @param {number} rowIndex
+ * @param {string} kind
+ * @returns {number[]}
+ */
+export function productRowsForTotal(rows, rowIndex, kind) {
+  if (kind === 'grand_total') {
+    return labeledProductIndexes(rows, 0, rowIndex - 1);
+  }
+  let start = 0;
+  for (let i = rowIndex - 1; i >= 0; i -= 1) {
+    const previous = rows[i]?.kind;
+    if (previous === 'subcategory' || previous === 'subcategory_total' || previous === 'grand_total') {
+      start = i + 1;
+      break;
+    }
+  }
+  return labeledProductIndexes(rows, start, rowIndex - 1);
+}
+
+/**
+ * @param {number} leafIndex
+ * @param {number[]} previewIndexes
+ * @returns {string}
+ */
+export function excelSumFormula(leafIndex, previewIndexes) {
+  if (!previewIndexes.length) return '=SUM()';
+  const letter = excelColumnLetterFromLeafIndex(leafIndex);
+  const excelRows = previewIndexes.map((index) => excelRowFromPreviewIndex(index));
+  const parts = [];
+  let rangeStart = excelRows[0];
+  let previous = excelRows[0];
+  for (let i = 1; i < excelRows.length; i += 1) {
+    if (excelRows[i] === previous + 1) {
+      previous = excelRows[i];
+      continue;
+    }
+    parts.push(rangeStart === previous ? `${letter}${rangeStart}` : `${letter}${rangeStart}:${letter}${previous}`);
+    rangeStart = excelRows[i];
+    previous = excelRows[i];
+  }
+  parts.push(rangeStart === previous ? `${letter}${rangeStart}` : `${letter}${rangeStart}:${letter}${previous}`);
+  return `=SUM(${parts.join(',')})`;
+}
+
+/**
+ * @param {Array<{ field: string, op?: string }>} operands
+ * @param {number} previewRowIndex
+ * @returns {string}
+ */
+function excelArithmeticFormula(operands, previewRowIndex) {
+  const body = operands
+    .map((operand, index) => {
+      const ref = excelCellRef(leafIndexForMeasure(operand.field), previewRowIndex);
+      if (index === 0) return ref;
+      const op = EXCEL_OPERATOR[operand.op] || operand.op || '+';
+      return `${op}${ref}`;
+    })
+    .join('');
+  return `=${body}`;
+}
+
+/**
+ * @param {object} row
+ * @param {Array<{ field: string, op?: string }>} operands
+ * @param {number} previewRowIndex
+ * @returns {Array<{ label: string, excelRef: string, raw: string }>}
+ */
+function operandTrace(row, operands, previewRowIndex) {
+  return operands.map((operand) => ({
+    label: CLOSING_STOCK_FORMULA_CATALOG[operand.field]?.name || operand.field,
+    excelRef: excelCellRef(leafIndexForMeasure(operand.field), previewRowIndex),
+    raw: rawClosingStockValue(row?.[operand.field]),
+  }));
+}
+
+/**
+ * Trace for one preview cell. Reads stored row fields only.
+ * @param {{
+ *   rows: Array<{ kind?: string, label?: string }>,
+ *   rowIndex: number,
+ *   leafIndex: number,
+ * }} params
+ */
+export function describeClosingStockCell({ rows, rowIndex, leafIndex }) {
+  const row = rows?.[rowIndex];
+  const field = MEASURE_FIELD_BY_LEAF[leafIndex];
+  const entry = field ? CLOSING_STOCK_FORMULA_CATALOG[field] : null;
+  const headerPath = closingStockHeaderPath(leafIndex);
+  const businessColumn = closingStockBusinessColumn(leafIndex);
+  const excelRef = excelCellRef(leafIndex, rowIndex);
+  const storedRaw = field ? rawClosingStockValue(row?.[field]) : '—';
+  const base = {
+    productName: String(row?.label || '').trim() || '—',
+    headerPath,
+    businessColumn,
+    excelRef,
+    storedRaw,
+    formulaText: '',
+    excelFormula: '',
+    condition: '',
+    sourceText: '',
+    operands: [],
+    mode: 'blank',
+  };
+
+  if (!row || row.kind === 'subcategory') {
+    return {
+      ...base,
+      mode: 'heading',
+      sourceText: 'Subcategory heading. This cell is not calculated.',
+    };
+  }
+
+  if (!field || !entry || entry.kind === 'blank') {
+    return {
+      ...base,
+      mode: 'blank',
+      sourceText: NOT_CALCULATED,
+    };
+  }
+
+  const isTotal = row.kind === 'subcategory_total' || row.kind === 'grand_total';
+  if (isTotal && TOTAL_RATIO_FIELDS.has(field)) {
+    const description =
+      field === 'averageRateAmt' ? 'Total Amount / Total Qty' : 'GP Amount / Sales Amount';
+    return {
+      ...base,
+      mode: 'ratio',
+      formulaText: description,
+      excelFormula: excelArithmeticFormula(entry.operands, rowIndex),
+      condition: entry.condition || '',
+      operands: operandTrace(row, entry.operands, rowIndex),
+    };
+  }
+
+  if (isTotal) {
+    const productIndexes = productRowsForTotal(rows, rowIndex, row.kind);
+    const scope =
+      row.kind === 'grand_total'
+        ? 'every product row on this sheet'
+        : 'the product rows in this group';
+    return {
+      ...base,
+      mode: 'sum',
+      formulaText: `Sum of ${entry.name} on ${scope}`,
+      excelFormula: excelSumFormula(leafIndex, productIndexes),
+      sourceText: productIndexes.length
+        ? 'Stored total from the Financials engine. This view does not re-sum the sheet.'
+        : 'No labeled product rows in this group.',
+    };
+  }
+
+  if (entry.kind === 'source') {
+    return {
+      ...base,
+      mode: 'source',
+      sourceText: entry.source,
+    };
+  }
+
+  return {
+    ...base,
+    mode: 'calculated',
+    formulaText: entry.description,
+    excelFormula: excelArithmeticFormula(entry.operands, rowIndex),
+    condition: entry.condition || '',
+    operands: operandTrace(row, entry.operands, rowIndex),
+  };
 }

@@ -47,16 +47,17 @@ class TestParseNumeric:
     def test_commas_and_blanks(self):
         assert parse_numeric_value('20,000') == 20000.0
         assert parse_numeric_value('30,000') == 30000.0
-        assert parse_numeric_value(None) == 0.0
-        assert parse_numeric_value('') == 0.0
+        assert parse_numeric_value(None) is None
+        assert parse_numeric_value('') is None
         assert parse_numeric_value(5) == 5.0
 
     def test_indian_grouping(self):
         assert parse_numeric_value('14,30,000.39') == 1430000.39
 
     def test_blank_and_dash(self):
-        assert parse_numeric_value('-') == 0.0
-        assert parse_numeric_value('  ') == 0.0
+        assert parse_numeric_value('-') is None
+        assert parse_numeric_value('  ') is None
+        assert parse_numeric_value('not-a-number') is None
 
 
 class TestProductPivot:

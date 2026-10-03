@@ -4,7 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { AuditSearchIllustration } from '../components/auth/AuditSearchIllustration';
 import { cn } from '../utils/cn';
-import { getRememberedEmail, getRememberMePreference, persistAuthSession } from '../utils/authUser';
+import { getRememberedEmail, getRememberMePreference, persistAuthSession, sanitizeAppRedirect } from '../utils/authUser';
 import { API_BASE_URL } from '../config/api';
 import '../styles/fonts.css';
 
@@ -144,10 +144,11 @@ export default function Login() {
           rememberMe,
           email: formData.email,
         });
-        const from =
+        const from = sanitizeAppRedirect(
           location.state?.from?.pathname ||
-          new URLSearchParams(location.search).get('redirect') ||
-          '/dashboard';
+            new URLSearchParams(location.search).get('redirect') ||
+            '/dashboard'
+        );
         navigate(from, { replace: true });
       } else {
         throw new Error(data.message || data.detail || 'Login failed');

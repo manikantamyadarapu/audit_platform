@@ -32,7 +32,7 @@ export default function FinancialsHub() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Financials</h2>
-          <Badge tone="emerald">Active division</Badge>
+          <Badge tone="amber">Partial — measures incomplete</Badge>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
           Financial statement workflows. Stock Reconciliation builds product pivots from Sales,
