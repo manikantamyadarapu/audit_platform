@@ -15,6 +15,16 @@ REQUIRED_COLUMN_KEYS: Final = {
 
 REQUIRED_DISPLAY_COLUMNS: Final = ('Product', 'Quantity', 'Gross Amount')
 
+# Jubilee Hills supplier notes. Only these headers are read.
+CREDIT_NOTE_COLUMN_KEYS: Final = {
+    'product': 'Product',
+    'credit_amount': 'Credit Amount',
+}
+DEBIT_NOTE_COLUMN_KEYS: Final = {
+    'product': 'Product',
+    'debit_amount': 'Debit Amount',
+}
+
 # Optional Sales/Purchases headers — used when present; never required.
 CATEGORY_HEADER_ALIASES: Final = frozenset(
     {

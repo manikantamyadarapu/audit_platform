@@ -165,7 +165,7 @@ class TestOpeningStockProductSheetMapping:
         opening_pivot = validated_opening_to_pivot(
             [
                 {
-                    'product': 'Di. beads',
+                    'product': 'Di. DB 1',
                     'openingQty': 263.03,
                     'openingAmt': 234713.15,
                     'status': 'matched',
@@ -200,7 +200,7 @@ class TestOpeningStockProductSheetMapping:
         beads = next(
             row
             for row in mapped['layoutByCategory']['Diamond']
-            if row.get('kind') == 'product' and row.get('label') == 'Di. beads'
+            if row.get('kind') == 'product' and row.get('label') == 'Di. DB 1'
         )
         jem = next(
             row

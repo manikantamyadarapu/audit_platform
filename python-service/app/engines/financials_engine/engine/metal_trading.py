@@ -79,9 +79,9 @@ def _empty_bucket() -> dict[str, float | None]:
 
 
 def _norm_product(name: str) -> str:
-    text = unicodedata.normalize('NFKC', str(name))
-    text = _UNICODE_WS.sub(' ', text).strip().casefold()
-    return ' '.join(text.split())
+    from app.engines.financials_engine.engine.opening_stock import norm_opening_product_name
+
+    return norm_opening_product_name(name)
 
 
 def _match_key(name: str) -> str:

@@ -4,6 +4,7 @@
  */
 
 import { CLOSING_STOCK_CATEGORIES, TRANSFER_QTY_FIELDS } from '../config/closingStockLayout';
+import { resolveMetalTradingAccount } from './metalTradingTotals';
 
 const SHEET_KEY_ALIASES = {
   Precious: 'Precious and Semi Precious',
@@ -847,6 +848,23 @@ function compareProductNames(left, right) {
   return 0;
 }
 
+function compareSubcategorySections(category, left, right) {
+  const order =
+    category === 'Diamond'
+      ? DIAMOND_SUBCATEGORY_ORDER
+      : category === 'Precious and Semi Precious'
+        ? PRECIOUS_SUBCATEGORY_ORDER
+        : null;
+  const leftIndex = order ? order.indexOf(left) : -1;
+  const rightIndex = order ? order.indexOf(right) : -1;
+  if (leftIndex !== -1 || rightIndex !== -1) {
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
+  }
+  return compareProductNames(left, right);
+}
+
 function activityNameKeys(name) {
   const text = String(name || '').trim();
   if (!text) return [];
@@ -860,7 +878,7 @@ function activityNameKeys(name) {
 export function filterSheetsToBranchActivity(
   productsByCategory,
   layoutByCategory,
-  { salesPivot = [], purchasesPivot = [], openingPivot = [] } = {}
+  { salesPivot = [], purchasesPivot = [], openingPivot = [], mrPivots = {}, dcPivots = {} } = {}
 ) {
   const allowed = new Set();
   const salesPurchaseKeys = new Set();
@@ -884,6 +902,12 @@ export function filterSheetsToBranchActivity(
     if (!onSalesOrPurchases && (openingQty === null || openingQty === 0)) continue;
     add(row?.product);
     add(row?.ruleBookProduct);
+  }
+  for (const tree of [mrPivots, dcPivots]) {
+    if (!tree || typeof tree !== 'object') continue;
+    for (const rows of Object.values(tree)) {
+      for (const row of rows || []) add(row?.product);
+    }
   }
 
   const allows = (label) => activityNameKeys(label).some((key) => allowed.has(key));
@@ -976,7 +1000,7 @@ export function mapPivotsWithRuleBook({
   ]) {
     for (const row of rows || []) {
       const productName = String(row?.product || '').trim();
-      if (!productName) continue;
+      if (!productName || resolveMetalTradingAccount(productName)) continue;
       const key = normProduct(productName);
       if (unmappedSeen.has(key)) continue;
       unmappedSeen.add(key);
@@ -1069,6 +1093,8 @@ export function mergeRemapIntoResult(result, remapPayload) {
     productsDisplayed:
       remapPayload.productsDisplayed ?? remapPayload.summary?.productsDisplayed,
     closingStockCategories: remapPayload.closingStockCategories,
+    receiptAmountReview: remapPayload.receiptAmountReview ?? result.receiptAmountReview ?? [],
+    productAverageRates: remapPayload.productAverageRates ?? result.productAverageRates ?? [],
     summary: {
       ...(result.summary || {}),
       ...(remapPayload.summary || {}),
@@ -1254,21 +1280,97 @@ function ruleBookProductEntries(ruleBook) {
   return entries;
 }
 
-function locateSalesPurchasesSheet(row, bookIndex, bookEntries) {
-  const fileSheet = resolveFileCategorySheet(row?.category);
-  if (fileSheet) {
-    return {
-      category: fileSheet,
-      subcategory: String(row?.subcategory || '').trim() || null,
-    };
+const DIAMOND_SUBCATEGORY_ORDER = [
+  'Uncut - Diamonds',
+  'Diamonds - Flat Polki',
+  'Diamonds - Black Diamonds',
+  'Diamonds - Beads',
+  'Diamonds - Rosecut Diamonds',
+  'Diamonds',
+];
+
+const PRECIOUS_SUBCATEGORY_ORDER = ['Precious Stones', 'Semi Precious', 'Synthetic Stones'];
+
+function codePattern(code) {
+  const body = String(code)
+    .split('')
+    .map((letter) => letter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('[\\s.\\-_]*');
+  return new RegExp(`(?<![A-Za-z])${body}(?![A-Za-z])`, 'i');
+}
+
+function wordPattern(word) {
+  const body = String(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![A-Za-z])${body}(?![A-Za-z])`, 'i');
+}
+
+const DI_BEADS_PATTERN = new RegExp(
+  '(?<![A-Za-z])Di[\\s.\\-_]*Beads(?![A-Za-z])',
+  'i'
+);
+
+const BLACK_DIAMONDS_PATTERN = new RegExp(
+  '(?<![A-Za-z])Black[\\s.\\-_]*Diamonds(?![A-Za-z])',
+  'i'
+);
+
+const PRECIOUS_CODE_RULES = [
+  [codePattern('JOS'), 'Precious Stones'],
+  [codePattern('JSP'), 'Semi Precious'],
+  [codePattern('JSY'), 'Synthetic Stones'],
+];
+
+const SHEET_CODE_RULES = [
+  [/(?<![A-Za-z])JEM/i, 'Emerald'],
+  [/(?<![A-Za-z])JPS/i, 'Pearls'],
+  [/(?<![A-Za-z])JRU/i, 'Rubie'],
+];
+
+function diamondSubcategory(product) {
+  const text = String(product || '');
+  for (const [pattern, subcategory] of [
+    [codePattern('DB'), 'Diamonds - Beads'],
+    [DI_BEADS_PATTERN, 'Diamonds - Beads'],
+    [codePattern('RC'), 'Diamonds - Rosecut Diamonds'],
+    [codePattern('FP'), 'Diamonds - Flat Polki'],
+    [codePattern('BD'), 'Diamonds - Black Diamonds'],
+    [BLACK_DIAMONDS_PATTERN, 'Diamonds - Black Diamonds'],
+    [codePattern('RA'), 'Diamonds'],
+    [codePattern('SD'), 'Diamonds'],
+    [wordPattern('Chakri'), 'Uncut - Diamonds'],
+    [wordPattern('Polki'), 'Uncut - Diamonds'],
+  ]) {
+    if (pattern.test(text)) return subcategory;
   }
-  if (!bookIndex) return null;
-  const product = String(row?.product || '').trim();
-  return (
-    resolveLocation(product, bookIndex)
-    || locationFromProductFamily(product, bookEntries)
-    || locationFromNamePrefix(product, bookEntries)
-  );
+  return null;
+}
+
+function locateCodeSheet(product) {
+  const text = String(product || '');
+  const diamond = diamondSubcategory(text);
+  if (diamond) return { category: 'Diamond', subcategory: diamond };
+  for (const [pattern, subcategory] of PRECIOUS_CODE_RULES) {
+    if (pattern.test(text)) {
+      return { category: 'Precious and Semi Precious', subcategory };
+    }
+  }
+  for (const [pattern, category] of SHEET_CODE_RULES) {
+    if (pattern.test(text)) return { category, subcategory: null };
+  }
+  return null;
+}
+
+function locateSalesPurchasesSheet(row, _bookIndex, _bookEntries, { openingOnly = false } = {}) {
+  const coded = locateCodeSheet(row?.product);
+  if (coded) return coded;
+  if (!openingOnly) return null;
+  const sheet =
+    resolveFileCategorySheet(row?.category) || resolveFileCategorySheet(row?.sheetName);
+  if (!sheet || sheet === 'Diamond') return null;
+  return {
+    category: sheet,
+    subcategory: String(row?.subcategory || '').trim() || null,
+  };
 }
 
 function pivotSideTotals(rows) {
@@ -1280,18 +1382,14 @@ function pivotSideTotals(rows) {
 }
 
 /**
- * Kokapet Financials rows from Sales and Purchases pivots only.
- * File category wins when it names a sheet. Otherwise the product is placed on the
- * sheet already used by that same product or product line.
+ * Basheerbagh and Kokapet rows use the same product codes as Jubilee Hills.
  * Sales and Purchase columns are the only measures filled.
  * @param {{ salesPivot?: object[], purchasesPivot?: object[] }|null|undefined} result
  * @param {object|null|undefined} [ruleBook]
  */
-export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
+export function buildSalesPurchasesOnlyLayout(result, _ruleBook) {
   const salesPivot = Array.isArray(result?.salesPivot) ? result.salesPivot : [];
   const purchasesPivot = Array.isArray(result?.purchasesPivot) ? result.purchasesPivot : [];
-  const bookEntries = ruleBookProductEntries(ruleBook);
-  const bookIndex = bookEntries.length ? buildLocationIndex(normalizeRuleBookFromApi(ruleBook)) : null;
   const entries = [];
   const unmappedProducts = [];
   const unmappedSeen = new Set();
@@ -1299,7 +1397,7 @@ export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
   function rememberUnmapped(product) {
     const name = String(product || '').trim();
     const key = normProduct(name);
-    if (!name || !key || unmappedSeen.has(key)) return;
+    if (!name || !key || unmappedSeen.has(key) || resolveMetalTradingAccount(name)) return;
     unmappedSeen.add(key);
     unmappedProducts.push(name);
   }
@@ -1314,7 +1412,7 @@ export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
       addSalesPurchasesMeasure(existing[side], qty, amt);
       return;
     }
-    const located = locateSalesPurchasesSheet(row, bookIndex, bookEntries);
+    const located = locateSalesPurchasesSheet(row);
     if (!located?.category) {
       rememberUnmapped(product);
       return;
@@ -1359,11 +1457,13 @@ export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
     const located = locateSalesPurchasesSheet(
       {
         product: targetName,
-        category: row?.category || row?.sheetName,
+        category: row?.category,
+        sheetName: row?.sheetName,
         subcategory: row?.subcategory,
       },
-      bookIndex,
-      bookEntries
+      null,
+      null,
+      { openingOnly: true }
     );
     if (!located?.category) {
       rememberUnmapped(targetName);
@@ -1400,7 +1500,7 @@ export function buildSalesPurchasesOnlyLayout(result, ruleBook) {
       }
       group.entries.push(entry);
     }
-    groups.sort((a, b) => compareProductNames(a.subcategory, b.subcategory));
+    groups.sort((a, b) => compareSubcategorySections(category, a.subcategory, b.subcategory));
     for (const group of groups) {
       group.entries.sort((a, b) => compareProductNames(a.display, b.display));
     }

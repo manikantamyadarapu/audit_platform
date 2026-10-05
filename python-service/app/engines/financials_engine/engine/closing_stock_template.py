@@ -317,6 +317,7 @@ def _write_title_and_headers(
     company_name: str,
     address: str,
     financial_year: str,
+    location_labels: dict[str, str] | None = None,
 ) -> tuple[int, int]:
     """Write title block + multi-level headers. Returns (data_start_row, last_col)."""
     leaf_count = len(LEAF_COLUMNS)
@@ -359,7 +360,8 @@ def _write_title_and_headers(
         cell.border = THIN
 
     level1 = [path[0] for path, _ in LEAF_COLUMNS]
-    level2 = [path[1] or '' for path, _ in LEAF_COLUMNS]
+    labels = location_labels or {}
+    level2 = [labels.get(path[1] or '', path[1] or '') for path, _ in LEAF_COLUMNS]
     leaves = [path[2] for path, _ in LEAF_COLUMNS]
     numbers = [num for _, num in LEAF_COLUMNS]
 
@@ -415,6 +417,7 @@ def _write_closing_stock_sheet(
     company_name: str,
     address: str,
     financial_year: str,
+    location_labels: dict[str, str] | None = None,
 ) -> None:
     """Apply the shared Closing Stock layout to one worksheet."""
     data_start, last_col = _write_title_and_headers(
@@ -423,6 +426,7 @@ def _write_closing_stock_sheet(
         company_name=company_name,
         address=address,
         financial_year=financial_year,
+        location_labels=location_labels,
     )
 
     rows = _normalize_layout_rows(layout_rows, products)

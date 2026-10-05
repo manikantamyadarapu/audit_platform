@@ -1,11 +1,12 @@
 """Financials Sales & Purchases pivot + Opening Stock + Closing Stock template HTTP routes."""
 
+import json
 import uuid
 from datetime import datetime
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,10 @@ from app.engines.financials_engine.engine.processor import FinancialsClosingStoc
 from app.engines.financials_engine.engine.closing_stock_template import (
     build_closing_stock_template_bytes,
     build_pivots_workbook_bytes,
+)
+from app.engines.financials_engine.engine.jubilee_hills_template import (
+    build_jubilee_hills_structure_bytes,
+    build_jubilee_hills_workbook_bytes,
 )
 from app.engines.financials_engine.config.product_rule_book import (
     format_closing_stock_mapping_response,
@@ -56,6 +61,24 @@ class ExportPivotsRequest(BaseModel):
     salesPivot: list[PivotRow] = Field(default_factory=list)
     purchasesPivot: list[PivotRow] = Field(default_factory=list)
     openingPivot: list[PivotRow] = Field(default_factory=list)
+    salesReturnPivot: list[PivotRow] = Field(default_factory=list)
+    purchaseReturnPivot: list[PivotRow] = Field(default_factory=list)
+    supplierDebitNotePivot: list[PivotRow] = Field(default_factory=list)
+    supplierCreditNotePivot: list[PivotRow] = Field(default_factory=list)
+    mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+    dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+    destinationBranch: str = ''
+    sourceAverageRates: dict[str, Any] = Field(default_factory=dict)
+
+
+class JubileeHillsTemplateRequest(BaseModel):
+    companyName: str = ''
+    address: str = ''
+    financialYear: str = 'AY 2025-26'
+    layoutByCategory: dict[str, list[dict[str, Any]]] | None = None
+    salesPivot: list[PivotRow] = Field(default_factory=list)
+    purchasesPivot: list[PivotRow] = Field(default_factory=list)
+    openingPivot: list[PivotRow] = Field(default_factory=list)
     mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
     dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
 
@@ -70,6 +93,16 @@ class ExportClosingStockRequest(BaseModel):
     companyName: str = ''
     address: str = ''
     financialYear: str = 'AY 2025-26'
+    destinationBranch: str = ''
+    sourceAverageRates: dict[str, Any] = Field(default_factory=dict)
+
+
+def _parse_source_average_rates(raw: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(raw or '{}')
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _dump_location_pivots(tree: LocationPivotTree) -> dict[str, list[dict[str, Any]]]:
@@ -88,6 +121,8 @@ async def _process_financials_pivot(
     request_id: str,
     mr_file: UploadFile,
     dc_file: UploadFile,
+    destination_branch: str | None = None,
+    source_average_rates: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     log = get_logger(request_id)
     log.info(
@@ -139,6 +174,8 @@ async def _process_financials_pivot(
             mr_bytes=mr_bytes,
             dc_file_name=dc_file.filename or 'dc.xlsx',
             dc_bytes=dc_bytes,
+            destination_branch=destination_branch,
+            source_average_rates=source_average_rates,
         )
         response['requestId'] = request_id
         return response
@@ -226,6 +263,8 @@ async def process_financials_pivot(
     previous_year_file: UploadFile = File(...),
     mr_file: UploadFile = File(...),
     dc_file: UploadFile = File(...),
+    destination_branch: str = Form('basheerbagh'),
+    source_average_rates: str = Form('{}'),
 ) -> dict[str, Any]:
     return await _process_financials_pivot(
         sales_file,
@@ -235,6 +274,8 @@ async def process_financials_pivot(
         _request_id(request),
         mr_file=mr_file,
         dc_file=dc_file,
+        destination_branch=destination_branch or 'basheerbagh',
+        source_average_rates=_parse_source_average_rates(source_average_rates),
     )
 
 
@@ -246,14 +287,16 @@ async def process_jubilee_hills_financials(
     purchases_file: UploadFile = File(...),
     opening_qty_file: UploadFile = File(...),
     previous_year_file: UploadFile = File(...),
-    mr_file: UploadFile = File(...),
-    dc_file: UploadFile = File(...),
     sales_return_file: UploadFile = File(...),
     purchase_return_file: UploadFile = File(...),
     credit_note_file: UploadFile = File(...),
     debit_note_file: UploadFile = File(...),
+    mr_file: UploadFile | None = File(None),
+    dc_file: UploadFile | None = File(None),
+    saved_opening_mappings: str = Form('[]'),
+    source_average_rates: str = Form('{}'),
 ) -> dict[str, Any]:
-    """Jubilee Hills folder: the six Closing Stock files plus four adjustment files."""
+    """Jubilee Hills: Sales, Purchases, Opening Quantity, returns, supplier notes, previous year, and optional MR/DC."""
     request_id = _request_id(request)
     log = get_logger(request_id)
     uploads = (
@@ -261,12 +304,10 @@ async def process_jubilee_hills_financials(
         ('Purchases', purchases_file),
         ('Opening Quantity', opening_qty_file),
         ('Previous Year Closing Stock', previous_year_file),
-        ('MR', mr_file),
-        ('DC', dc_file),
         ('Sales Return', sales_return_file),
         ('Purchase Return', purchase_return_file),
-        ('Credit notes from suppliers', credit_note_file),
-        ('Debit notes from suppliers', debit_note_file),
+        ('Credit Notes from Suppliers', credit_note_file),
+        ('Debit Notes from Suppliers', debit_note_file),
     )
     payloads: dict[str, bytes] = {}
     for label, upload in uploads:
@@ -281,6 +322,12 @@ async def process_jubilee_hills_financials(
                 },
             )
     try:
+        try:
+            saved_mappings = json.loads(saved_opening_mappings or '[]')
+        except json.JSONDecodeError:
+            saved_mappings = []
+        if not isinstance(saved_mappings, list):
+            saved_mappings = []
         response = processor.process_jubilee_hills(
             sales_file.filename or 'sales.xlsx',
             payloads['Sales'],
@@ -290,18 +337,20 @@ async def process_jubilee_hills_financials(
             opening_qty_bytes=payloads['Opening Quantity'],
             previous_year_file_name=previous_year_file.filename or 'previous-year-closing.xlsx',
             previous_year_bytes=payloads['Previous Year Closing Stock'],
-            mr_file_name=mr_file.filename or 'mr.xlsx',
-            mr_bytes=payloads['MR'],
-            dc_file_name=dc_file.filename or 'dc.xlsx',
-            dc_bytes=payloads['DC'],
             sales_return_file_name=sales_return_file.filename or 'sales-return.xlsx',
             sales_return_bytes=payloads['Sales Return'],
             purchase_return_file_name=purchase_return_file.filename or 'purchase-return.xlsx',
             purchase_return_bytes=payloads['Purchase Return'],
-            credit_note_file_name=credit_note_file.filename or 'credit-notes.xlsx',
-            credit_note_bytes=payloads['Credit notes from suppliers'],
-            debit_note_file_name=debit_note_file.filename or 'debit-notes.xlsx',
-            debit_note_bytes=payloads['Debit notes from suppliers'],
+            credit_note_file_name=credit_note_file.filename or 'credit-notes-from-suppliers.xlsx',
+            credit_note_bytes=payloads['Credit Notes from Suppliers'],
+            debit_note_file_name=debit_note_file.filename or 'debit-notes-from-suppliers.xlsx',
+            debit_note_bytes=payloads['Debit Notes from Suppliers'],
+            mr_file_name=mr_file.filename if mr_file is not None else '',
+            mr_bytes=await mr_file.read() if mr_file is not None else None,
+            dc_file_name=dc_file.filename if dc_file is not None else '',
+            dc_bytes=await dc_file.read() if dc_file is not None else None,
+            saved_opening_mappings=saved_mappings,
+            source_average_rates=_parse_source_average_rates(source_average_rates),
         )
         response['requestId'] = request_id
         return response
@@ -452,6 +501,8 @@ async def remap_closing_stock(
         opening_pivot=[row.model_dump() for row in payload.openingPivot],
         mr_pivots=_dump_location_pivots(payload.mrPivots),
         dc_pivots=_dump_location_pivots(payload.dcPivots),
+        destination_branch=payload.destinationBranch or None,
+        source_average_rates=payload.sourceAverageRates,
     )
     log.info(
         'Closing Stock remap: fingerprint={} products={}',
@@ -479,6 +530,88 @@ async def remap_closing_stock(
     }
 
 
+@router.post('/financials/jubilee-hills/place')
+@gateway_router.post('/financials/jubilee-hills/place')
+async def place_jubilee_hills_sheets(
+    request: Request,
+    payload: ExportPivotsRequest,
+) -> dict[str, Any]:
+    """Rebuild Jubilee Hills sheets after an opening amount is mapped."""
+    from app.engines.financials_engine.engine.jubilee_hills_placement import (
+        apply_jubilee_hills_placement,
+    )
+
+    from app.engines.financials_engine.engine.jubilee_sales_purchase_nets import (
+        build_jubilee_sales_purchase_nets,
+    )
+
+    sales_pivot = [row.model_dump() for row in payload.salesPivot]
+    purchases_pivot = [row.model_dump() for row in payload.purchasesPivot]
+    nets = build_jubilee_sales_purchase_nets(
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        sales_return_pivot=[row.model_dump() for row in payload.salesReturnPivot],
+        purchase_return_pivot=[row.model_dump() for row in payload.purchaseReturnPivot],
+        debit_note_pivot=[row.model_dump() for row in payload.supplierDebitNotePivot],
+        credit_note_pivot=[row.model_dump() for row in payload.supplierCreditNotePivot],
+    )
+    response = apply_jubilee_hills_placement(
+        {
+            'salesPivot': sales_pivot,
+            'purchasesPivot': purchases_pivot,
+            'openingPivot': [row.model_dump() for row in payload.openingPivot],
+            'summary': {},
+        },
+        sales_pivot=nets['netSalesPivot'],
+        purchases_pivot=nets['netPurchasesPivot'],
+        mr_pivots=_dump_location_pivots(payload.mrPivots),
+        dc_pivots=_dump_location_pivots(payload.dcPivots),
+        source_average_rates=payload.sourceAverageRates,
+    )
+    return {
+        'success': True,
+        'productsByCategory': response.get('productsByCategory'),
+        'layoutByCategory': response.get('layoutByCategory'),
+        'unmappedProducts': response.get('unmappedProducts'),
+        'unmappedProductDetails': response.get('unmappedProductDetails'),
+        'receiptAmountReview': response.get('receiptAmountReview') or [],
+        'productAverageRates': response.get('productAverageRates') or [],
+        'summary': response.get('summary'),
+        'requestId': _request_id(request),
+    }
+
+
+@router.post('/financials/jubilee-hills/template')
+@gateway_router.post('/financials/jubilee-hills/template')
+async def export_jubilee_hills_structure(
+    request: Request,
+    payload: JubileeHillsTemplateRequest,
+) -> StreamingResponse:
+    """Blank Jubilee Hills workbook. Does not read branch files or fill measures."""
+    request_id = _request_id(request)
+    excel_bytes = build_jubilee_hills_workbook_bytes(
+        company_name=payload.companyName,
+        address=payload.address,
+        financial_year=payload.financialYear or 'AY 2025-26',
+        layout_by_category=payload.layoutByCategory,
+        sales_pivot=[row.model_dump() for row in payload.salesPivot],
+        purchases_pivot=[row.model_dump() for row in payload.purchasesPivot],
+        opening_pivot=[row.model_dump() for row in payload.openingPivot],
+        mr_pivots=_dump_location_pivots(payload.mrPivots),
+        dc_pivots=_dump_location_pivots(payload.dcPivots),
+    )
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'Jubilee-Hills-Financials-{timestamp}.xlsx'
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
+    )
+
+
 @router.post('/financials/export-closing-stock')
 @gateway_router.post('/financials/export-closing-stock')
 async def export_closing_stock_template(
@@ -494,6 +627,8 @@ async def export_closing_stock_template(
         opening_pivot=[row.model_dump() for row in payload.openingPivot],
         mr_pivots=_dump_location_pivots(payload.mrPivots),
         dc_pivots=_dump_location_pivots(payload.dcPivots),
+        destination_branch=payload.destinationBranch or None,
+        source_average_rates=payload.sourceAverageRates,
     )
     products_by_category = mapped['productsByCategory']
     layout_by_category = mapped['layoutByCategory']

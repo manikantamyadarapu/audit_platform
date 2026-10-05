@@ -73,6 +73,7 @@ function rowStyles(kind) {
  *   companyName?: string,
  *   address?: string,
  *   showLegend?: boolean,
+ *   headerLabels?: Record<string, string> | null,
  * }} props
  */
 export function ClosingStockPreviewTable({
@@ -83,8 +84,9 @@ export function ClosingStockPreviewTable({
   companyName = '',
   address = '',
   showLegend = true,
+  headerLabels = null,
 }) {
-  const { level1, level2, leaves, numbers } = getClosingStockHeaderRows();
+  const { level1, level2, leaves, numbers } = getClosingStockHeaderRows(headerLabels);
   const level1Cells = buildGroupedHeaderCells(level1);
   const level2Cells = buildGroupedHeaderCells(level2);
   const rows = buildClosingStockPreviewRows(layoutRows, products);

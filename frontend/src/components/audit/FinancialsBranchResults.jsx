@@ -27,8 +27,33 @@ import { useFinancialsBranchView } from '../../hooks/useFinancialsBranchView';
 import { buildSalesPurchasesOnlyLayout } from '../../utils/closingStockProductMapping';
 import { fetchClosingStockRuleBook } from '../../services/financials.service';
 import { cn } from '../../utils/cn';
+import { readSourceAverageRates } from '../../utils/sourceAverageRates';
 
 const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
+
+function ReceiptAmountReview({ items }) {
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return null;
+  return (
+    <Card className="border-amber-200/80 bg-amber-50/70">
+      <CardHeader>
+        <h3 className="text-base font-bold text-amber-900">Receipt amounts to review</h3>
+        <p className="mt-1 text-sm text-amber-900/80">
+          These receipt quantities have no matching Average Rate on the source branch, so the amount was left blank.
+        </p>
+      </CardHeader>
+      <CardBody>
+        <ul className="space-y-1 text-sm text-amber-950">
+          {rows.map((row) => (
+            <li key={`${row.category}-${row.product}-${row.column}`}>
+              {row.product} — {row.column} needs {row.sourceBranchLabel} Average Rate
+            </li>
+          ))}
+        </ul>
+      </CardBody>
+    </Card>
+  );
+}
 
 const TRANSFER_PIVOT_LOCATIONS = [
   { key: 'jubileeHills', title: 'Jubilee Hills' },
@@ -121,6 +146,7 @@ export function FinancialsBranchResults({
   address,
   omitMrDc = false,
   salesPurchasesOnly = false,
+  destinationBranch = 'basheerbagh',
 }) {
   const [activeCategory, setActiveCategory] = useState(CLOSING_STOCK_CATEGORIES[0]);
   const [exportingPivots, setExportingPivots] = useState(false);
@@ -167,7 +193,8 @@ export function FinancialsBranchResults({
   );
   const { mappedResult, refreshing: remappingRuleBook } = useClosingStockMapping(
     salesPurchasesOnly ? null : sheetResult,
-    salesPurchasesOnly ? undefined : handleRuleBookSynced
+    salesPurchasesOnly ? undefined : handleRuleBookSynced,
+    destinationBranch
   );
   const {
     salesPivot,
@@ -234,6 +261,8 @@ export function FinancialsBranchResults({
         companyName: companyName.trim(),
         address: address.trim(),
         financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
+        destinationBranch,
+        sourceAverageRates: readSourceAverageRates(),
       });
       auditToastSuccess('Closing Stock workbook downloaded');
     } catch (e) {
@@ -241,7 +270,7 @@ export function FinancialsBranchResults({
     } finally {
       setExportingClosing(false);
     }
-  }, [salesPurchasesOnly, result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear]);
+  }, [salesPurchasesOnly, result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear, destinationBranch]);
 
   const handleConfirmManualOpeningMapping = useCallback(
     (mapping) => {
@@ -258,6 +287,7 @@ export function FinancialsBranchResults({
       {branchHeading ? (
         <h2 className="text-lg font-bold text-emerald-800 dark:text-emerald-300">{branchHeading}</h2>
       ) : null}
+      <ReceiptAmountReview items={mappedResult?.receiptAmountReview} />
       <section>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
           Audit intelligence summary

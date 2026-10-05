@@ -32,15 +32,15 @@ from app.engines.financials_engine.engine.closing_stock_template import (
 
 SAMPLE_RULE_BOOK = {
     'Diamond': {
-        'Diamonds - Beads': ['Product A'],
-        'Diamonds': ['Product B'],
+        'Diamonds - Beads': ['Beads DB A'],
+        'Diamonds': ['Loose RA B'],
     },
-    'Emerald': ['Product C'],
+    'Emerald': ['Stone JEM C'],
     'Pearls': ['Product D'],
     'Rubie': ['Product E'],
     'Precious and Semi Precious': {
-        'Precious Stones': ['Product F'],
-        'Semi Precious': ['Product G'],
+        'Precious Stones': ['Stone JOS F'],
+        'Semi Precious': ['Stone JSP G'],
         'Synthetic Stones': ['Product H'],
     },
 }
@@ -92,36 +92,36 @@ class TestClosingStockProductRuleBook:
 
     def test_maps_all_rule_book_products_regardless_of_pivot_input(self):
         mapped = map_product_names_to_categories(
-            ['Product A', 'Unknown'],
+            ['Beads DB A', 'Unknown'],
             rule_book=SAMPLE_RULE_BOOK,
         )
-        assert mapped['Diamond'] == ['Product A', 'Product B']
-        assert mapped['Emerald'] == ['Product C']
+        assert mapped['Diamond'] == ['Beads DB A', 'Loose RA B']
+        assert mapped['Emerald'] == ['Stone JEM C']
         assert mapped['Pearls'] == ['Product D']
         assert mapped['Rubie'] == ['Product E']
         assert mapped['Precious and Semi Precious'] == [
-            'Product F',
-            'Product G',
+            'Stone JOS F',
+            'Stone JSP G',
             'Product H',
         ]
 
     def test_sales_only_does_not_keep_rule_book_products_without_activity(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 100},
+                {'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 100},
             ],
             purchases_pivot=[],
             rule_book=SAMPLE_RULE_BOOK,
         )
         assert result['productsDisplayed'] == 1
-        assert result['productsByCategory']['Diamond'] == ['Product A']
+        assert result['productsByCategory']['Diamond'] == ['Beads DB A']
         labels = [
             row['label']
             for layout in result['layoutByCategory'].values()
             for row in layout
             if row.get('kind') == 'product'
         ]
-        assert labels == ['Product A']
+        assert labels == ['Beads DB A']
 
     def test_empty_pivots_have_no_catalog_products(self):
         result = map_pivots_to_closing_stock_categories(
@@ -138,15 +138,15 @@ class TestClosingStockProductRuleBook:
     def test_attaches_sales_and_purchases_to_rule_book_products(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 100},
-                {'product': 'Product C', 'sumOfQuantity': 1, 'sumOfGross': 50},
-                {'product': 'Product F', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 100},
+                {'product': 'Stone JEM C', 'sumOfQuantity': 1, 'sumOfGross': 50},
+                {'product': 'Stone JOS F', 'sumOfQuantity': 4, 'sumOfGross': 40},
                 {'product': 'Orphan', 'sumOfQuantity': 9, 'sumOfGross': 9},
             ],
             purchases_pivot=[
-                {'product': 'Product B', 'sumOfQuantity': 3, 'sumOfGross': 30},
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
-                {'product': 'Product G', 'sumOfQuantity': 2, 'sumOfGross': 20},
+                {'product': 'Loose RA B', 'sumOfQuantity': 3, 'sumOfGross': 30},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Stone JSP G', 'sumOfQuantity': 2, 'sumOfGross': 20},
             ],
             rule_book=SAMPLE_RULE_BOOK,
         )
@@ -156,7 +156,7 @@ class TestClosingStockProductRuleBook:
         assert result['productsWithPurchaseData'] == 3
         assert result['unmappedProducts'] == ['Orphan']
 
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['salesQty'] == 2
         assert product_a['salesAmt'] == 100
         assert product_a['purchasesQty'] == 1
@@ -177,7 +177,7 @@ class TestClosingStockProductRuleBook:
         assert recon['outputPurchasesQty'] == 6
         assert recon['outputPurchasesAmt'] == 60
 
-        product_b = _product_row(result['layoutByCategory']['Diamond'], 'Product B')
+        product_b = _product_row(result['layoutByCategory']['Diamond'], 'Loose RA B')
         assert product_b['salesQty'] is None
         assert product_b['purchasesQty'] == 3
 
@@ -313,6 +313,7 @@ class TestClosingStockProductRuleBook:
             sales_pivot=[
                 {'product': 'Emeralds JEM 100', 'sumOfQuantity': 2, 'sumOfGross': 20},
                 {'product': 'Gold Ornaments 22K', 'sumOfQuantity': 9, 'sumOfGross': 9},
+                {'product': 'Black beads', 'sumOfQuantity': 1, 'sumOfGross': 1},
             ],
             purchases_pivot=[],
             rule_book={
@@ -329,7 +330,8 @@ class TestClosingStockProductRuleBook:
         )
         product = _product_row(result['layoutByCategory']['Emerald'], 'Emeralds JEM 100')
         assert product['salesQty'] == 2
-        assert result['unmappedProducts'] == ['Gold Ornaments 22K']
+        assert 'Gold Ornaments 22K' not in result['unmappedProducts']
+        assert result['unmappedProducts'] == ['Black beads']
 
     def test_same_product_line_is_mapped_onto_that_sheet(self):
         result = map_pivots_to_closing_stock_categories(
@@ -358,17 +360,17 @@ class TestClosingStockProductRuleBook:
         assert emerald['salesQty'] == 4
         assert flat['salesQty'] == 1
         assert chakri['salesQty'] == 2
-        assert result['unmappedProducts'] == ['Standard Gold 24K']
+        assert result['unmappedProducts'] == []
 
     def test_workbook_writes_sales_and_purchases_columns(self):
         mapped = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 100},
-                {'product': 'Product C', 'sumOfQuantity': 1, 'sumOfGross': 50},
+                {'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 100},
+                {'product': 'Stone JEM C', 'sumOfQuantity': 1, 'sumOfGross': 50},
             ],
             purchases_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
-                {'product': 'Product B', 'sumOfQuantity': 3, 'sumOfGross': 30},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Loose RA B', 'sumOfQuantity': 3, 'sumOfGross': 30},
             ],
             rule_book=SAMPLE_RULE_BOOK,
         )
@@ -380,7 +382,7 @@ class TestClosingStockProductRuleBook:
         diamond = wb['Diamond']
 
         product_a_row = 11
-        assert diamond.cell(row=product_a_row, column=1).value == 'Product A'
+        assert diamond.cell(row=product_a_row, column=1).value == 'Beads DB A'
         assert diamond.cell(row=product_a_row, column=_leaf_col(PURCHASES_QTY_LEAF_IDX)).value == 1
         assert diamond.cell(row=product_a_row, column=_leaf_col(PURCHASES_AMT_LEAF_IDX)).value == 10
         assert diamond.cell(row=product_a_row, column=_leaf_col(SALES_QTY_LEAF_IDX)).value == 2
@@ -439,19 +441,19 @@ class TestClosingStockProductRuleBook:
     def test_product_rounds_amount_total_rounds_unrounded_amount_sum(self):
         """
         Qty is never rounded.
-        Product Amount = ROUND(each).
+        Beads DB Amount = ROUND(each).
         TOTAL Amount = ROUND(SUM(unrounded)), not SUM(rounded product amounts).
         """
         sales_pivot = [
-            {'product': 'Product X', 'sumOfQuantity': 100.49, 'sumOfGross': 100.49},
-            {'product': 'Product Y', 'sumOfQuantity': 200.49, 'sumOfGross': 200.49},
+            {'product': 'Stone JEM X', 'sumOfQuantity': 100.49, 'sumOfGross': 100.49},
+            {'product': 'Stone JEM Y', 'sumOfQuantity': 200.49, 'sumOfGross': 200.49},
         ]
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=sales_pivot,
             purchases_pivot=[],
             rule_book={
                 'Diamond': {'Diamonds': []},
-                'Emerald': ['Product X', 'Product Y'],
+                'Emerald': ['Stone JEM X', 'Stone JEM Y'],
                 'Pearls': [],
                 'Rubie': [],
                 'Precious and Semi Precious': {
@@ -465,8 +467,8 @@ class TestClosingStockProductRuleBook:
         assert sales_pivot[0]['sumOfQuantity'] == 100.49
         assert sales_pivot[1]['sumOfGross'] == 200.49
 
-        x = _product_row(result['layoutByCategory']['Emerald'], 'Product X')
-        y = _product_row(result['layoutByCategory']['Emerald'], 'Product Y')
+        x = _product_row(result['layoutByCategory']['Emerald'], 'Stone JEM X')
+        y = _product_row(result['layoutByCategory']['Emerald'], 'Stone JEM Y')
         assert x['salesQty'] == 100.49
         assert y['salesQty'] == 200.49
         assert x['salesAmt'] == 100
@@ -485,7 +487,7 @@ class TestClosingStockProductRuleBook:
     def test_reconciliation_with_unmapped_pivot_reduces_output_totals(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 100},
+                {'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 100},
                 {'product': 'Orphan', 'sumOfQuantity': 9, 'sumOfGross': 9},
             ],
             purchases_pivot=[],
@@ -511,7 +513,7 @@ class TestClosingStockProductRuleBook:
 
     def test_renamed_product_uses_new_rule_book_name_not_old(self):
         old_name = 'OLD PRODUCT NAME'
-        new_name = 'NEW PRODUCT NAME'
+        new_name = 'NEW PRODUCT RA'
         rule_v1 = {
             'Diamond': {'Diamonds': [old_name]},
             'Emerald': [],
@@ -579,31 +581,32 @@ class TestClosingStockProductRuleBook:
         try:
             prb._RULE_BOOK_PATH = Path(rule_path)
             first = map_pivots_to_closing_stock_categories(
-                sales_pivot=[{'product': 'LEGACY SKU', 'sumOfQuantity': 1, 'sumOfGross': 10}],
+                sales_pivot=[{'product': 'Chakri', 'sumOfQuantity': 1, 'sumOfGross': 10}],
                 purchases_pivot=[],
             )
-            assert first['productsByCategory']['Diamond'] == ['LEGACY SKU']
+            assert first['productsByCategory']['Diamond'] == ['Chakri']
             assert 'RENAMED SKU' not in first['productsByCategory']['Diamond']
             fp1 = first['ruleBookFingerprint']
 
             rule_path.write_text(json.dumps(book_v2), encoding='utf-8')
             second = map_pivots_to_closing_stock_categories(
                 sales_pivot=[
-                    {'product': 'renamed sku', 'sumOfQuantity': 2, 'sumOfGross': 20},
+                    {'product': 'Chakri', 'sumOfQuantity': 2, 'sumOfGross': 20},
                     {'product': 'LEGACY SKU', 'sumOfQuantity': 9, 'sumOfGross': 9},
                 ],
                 purchases_pivot=[],
             )
             assert second['ruleBookFingerprint'] != fp1
-            assert second['productsByCategory']['Diamond'] == ['renamed sku']
+            assert second['productsByCategory']['Diamond'] == ['Chakri']
             assert 'LEGACY SKU' not in second['productsByCategory']['Diamond']
+            assert 'RENAMED SKU' not in second['productsByCategory']['Diamond']
             labels = [
                 row['label']
                 for row in second['layoutByCategory']['Diamond']
                 if row.get('kind') == 'product'
             ]
-            assert labels == ['renamed sku']
-            renamed = _product_row(second['layoutByCategory']['Diamond'], 'renamed sku')
+            assert labels == ['Chakri']
+            renamed = _product_row(second['layoutByCategory']['Diamond'], 'Chakri')
             assert renamed['salesQty'] == 2
             assert renamed['salesAmt'] == 20
             assert 'LEGACY SKU' in second['unmappedProducts']
@@ -635,11 +638,11 @@ class TestClosingStockProductRuleBook:
             sales_pivot=[],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['openingQty'] == 4
         assert product_a['openingAmt'] == 40
         assert product_a['totalQty'] == 4
@@ -686,7 +689,7 @@ class TestClosingStockProductRuleBook:
             sales_pivot=[],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             mr_pivots={
                 'jubileeHills': [],
@@ -694,13 +697,13 @@ class TestClosingStockProductRuleBook:
                 'internalBasheerbagh': [],
             },
             dc_pivots={
-                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
-                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'jubileeHills': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
                 'internalBasheerbagh': [],
             },
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['issuesBanjaraHillsQty'] == 2
         assert product_a['issuesKokapetQty'] == 1
         assert product_a['averageRateAmt'] == 10
@@ -752,11 +755,11 @@ class TestClosingStockProductRuleBook:
 
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 50},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             mr_pivots={
                 'jubileeHills': [],
@@ -764,13 +767,13 @@ class TestClosingStockProductRuleBook:
                 'internalBasheerbagh': [],
             },
             dc_pivots={
-                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
-                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'jubileeHills': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
                 'internalBasheerbagh': [],
             },
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['totalQty'] == 4
         assert product_a['salesQty'] == 1
         assert product_a['issuesBanjaraHillsQty'] == 2
@@ -782,25 +785,25 @@ class TestClosingStockProductRuleBook:
         assert result['productsByCategory']['Precious and Semi Precious'] == []
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 5, 'sumOfGross': 50},
+                {'product': 'Beads DB A', 'sumOfQuantity': 5, 'sumOfGross': 50},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             mr_pivots={
-                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 10, 'sumOfGross': 1}],
+                'jubileeHills': [{'product': 'Beads DB A', 'sumOfQuantity': 10, 'sumOfGross': 1}],
                 'kokapet': [],
                 'internalBasheerbagh': [],
             },
             dc_pivots={
                 'jubileeHills': [],
-                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
                 'internalBasheerbagh': [],
             },
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         # Total = Opening 4 + Receipts 10 = 14; Issues = 2; Closing = 14 − 5 − 2 = 7
         assert product_a['receiptsQty'] == 10
         assert product_a['receiptsJubileeHillsQty'] == 10
@@ -821,19 +824,19 @@ class TestClosingStockProductRuleBook:
     def test_grand_total_sums_each_closing_stock_column(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
-                {'product': 'Product B', 'sumOfQuantity': 2, 'sumOfGross': 20},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Loose RA B', 'sumOfQuantity': 2, 'sumOfGross': 20},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
-                {'product': 'Product B', 'sumOfQuantity': 6, 'sumOfGross': 60},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Loose RA B', 'sumOfQuantity': 6, 'sumOfGross': 60},
             ],
             rule_book=SAMPLE_RULE_BOOK,
         )
         diamond = result['layoutByCategory']['Diamond']
-        product_a = _product_row(diamond, 'Product A')
-        product_b = _product_row(diamond, 'Product B')
+        product_a = _product_row(diamond, 'Beads DB A')
+        product_b = _product_row(diamond, 'Loose RA B')
         grand = next(row for row in diamond if row.get('kind') == 'grand_total')
         assert grand['openingQty'] == (product_a['openingQty'] or 0) + (product_b['openingQty'] or 0)
         assert grand['salesQty'] == (product_a['salesQty'] or 0) + (product_b['salesQty'] or 0)
@@ -880,11 +883,11 @@ class TestClosingStockProductRuleBook:
 
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 50},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             mr_pivots={
                 'jubileeHills': [],
@@ -892,13 +895,13 @@ class TestClosingStockProductRuleBook:
                 'internalBasheerbagh': [],
             },
             dc_pivots={
-                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
-                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'jubileeHills': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
                 'internalBasheerbagh': [],
             },
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['closingStockAmt'] == 0
         assert product_a['salesAmt'] == 50
         assert product_a['issuesBanjaraHillsAmt'] == 20
@@ -930,11 +933,11 @@ class TestClosingStockProductRuleBook:
 
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 50},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 50},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 4, 'sumOfGross': 40},
+                {'product': 'Beads DB A', 'sumOfQuantity': 4, 'sumOfGross': 40},
             ],
             mr_pivots={
                 'jubileeHills': [],
@@ -942,13 +945,13 @@ class TestClosingStockProductRuleBook:
                 'internalBasheerbagh': [],
             },
             dc_pivots={
-                'jubileeHills': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
-                'kokapet': [{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'jubileeHills': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 1}],
                 'internalBasheerbagh': [],
             },
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['grossProfitAmt'] == 40
         assert product_a['salesAmt'] == 50
         assert product_a['grossProfitPct'] == 0.8
@@ -984,7 +987,7 @@ class TestClosingStockProductRuleBook:
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
                 {
-                    'product': 'Product A',
+                    'product': 'Beads DB A',
                     'sumOfQuantity': 1,
                     'sumOfGross': 10,
                     'category': 'Diamond',
@@ -994,7 +997,7 @@ class TestClosingStockProductRuleBook:
             purchases_pivot=[],
             opening_pivot=[
                 {
-                    'product': 'Product A',
+                    'product': 'Beads DB A',
                     'sumOfQuantity': 9,
                     'sumOfGross': 90,
                     'category': 'Emerald',
@@ -1008,9 +1011,9 @@ class TestClosingStockProductRuleBook:
             ],
             rule_book=SAMPLE_RULE_BOOK,
         )
-        assert result['productsByCategory']['Diamond'] == ['Product A']
+        assert result['productsByCategory']['Diamond'] == ['Beads DB A']
         assert result['productsByCategory']['Emerald'] == ['Opening Only SKU']
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['openingQty'] == 9
         opening_only = _product_row(result['layoutByCategory']['Emerald'], 'Opening Only SKU')
         assert opening_only['openingQty'] == 3
@@ -1019,11 +1022,11 @@ class TestClosingStockProductRuleBook:
     def test_opening_only_zero_or_blank_balance_is_omitted(self):
         result = map_pivots_to_closing_stock_categories(
             sales_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10},
+                {'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10},
             ],
             purchases_pivot=[],
             opening_pivot=[
-                {'product': 'Product A', 'sumOfQuantity': 0, 'sumOfGross': None},
+                {'product': 'Beads DB A', 'sumOfQuantity': 0, 'sumOfGross': None},
                 {'product': 'Zero Opening', 'sumOfQuantity': 0, 'sumOfGross': 12},
                 {'product': 'Blank Opening', 'sumOfQuantity': None, 'sumOfGross': 8},
                 {'product': 'Kept Opening', 'sumOfQuantity': 2, 'sumOfGross': 20, 'category': 'Emerald'},
@@ -1036,7 +1039,7 @@ class TestClosingStockProductRuleBook:
             for row in layout
             if row.get('kind') == 'product'
         ]
-        assert 'Product A' in labels
+        assert 'Beads DB A' in labels
         assert 'Kept Opening' in labels
         assert 'Zero Opening' not in labels
         assert 'Blank Opening' not in labels

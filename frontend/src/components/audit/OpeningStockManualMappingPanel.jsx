@@ -198,6 +198,7 @@ function MappingModal({
   group,
   productIndex,
   claimedPrevNames,
+  candidateScope = 'subcategory',
   onClose,
   onConfirm,
 }) {
@@ -223,11 +224,16 @@ function MappingModal({
 
   const candidates = useMemo(() => {
     const raw = Array.isArray(current?.candidateProducts) ? current.candidateProducts : [];
+    const category = String(current?.category || '').trim();
     return raw.filter((c) => {
       const name = String(c.product || c.sheetName || '').trim();
+      const candidateCategory = String(c.category || '').trim();
+      if (candidateScope === 'category' && category && candidateCategory && candidateCategory !== category) {
+        return false;
+      }
       return name && !isAddressLikeLabel(name) && !claimedPrevNames.has(name);
     });
-  }, [current, claimedPrevNames]);
+  }, [candidateScope, current, claimedPrevNames]);
 
   const selectedRows = useMemo(
     () => candidates.filter((c) => selected.has(String(c.product || '').trim())),
@@ -325,7 +331,9 @@ function MappingModal({
             Previous-year products
           </p>
           <p className="text-xs text-slate-500">
-            Select one or more from this subcategory. Confirm Mapping requires Selected Qty to equal Opening Qty.
+            {candidateScope === 'category'
+              ? `Select one or more from ${current.category || 'this category'}. Confirm Mapping requires Selected Qty to equal Opening Qty.`
+              : 'Select one or more from this subcategory. Confirm Mapping requires Selected Qty to equal Opening Qty.'}
           </p>
           {candidates.length ? (
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
@@ -356,7 +364,9 @@ function MappingModal({
             </div>
           ) : (
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              No previous-year products left in this subcategory.
+              {candidateScope === 'category'
+                ? `No previous-year products left in ${current.category || 'this category'}.`
+                : 'No previous-year products left in this subcategory.'}
             </p>
           )}
         </div>
@@ -418,7 +428,11 @@ function MappingModal({
   );
 }
 
-export function OpeningStockManualMappingPanel({ rows, onConfirmMapping }) {
+export function OpeningStockManualMappingPanel({
+  rows,
+  onConfirmMapping,
+  candidateScope = 'subcategory',
+}) {
   const items = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const [activeKey, setActiveKey] = useState(null);
   const [productIndex, setProductIndex] = useState(0);
@@ -585,6 +599,7 @@ export function OpeningStockManualMappingPanel({ rows, onConfirmMapping }) {
         group={activeGroup}
         productIndex={Math.min(productIndex, Math.max((activeGroup?.products.length || 1) - 1, 0))}
         claimedPrevNames={claimedPrevNames}
+        candidateScope={candidateScope}
         onClose={() => {
           setActiveKey(null);
           setProductIndex(0);

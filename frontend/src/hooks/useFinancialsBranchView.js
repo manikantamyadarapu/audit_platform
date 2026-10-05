@@ -55,8 +55,10 @@ export function useFinancialsBranchView(result, mappedResult) {
       salesPivot,
       purchasesPivot,
       openingPivot,
+      mrPivots,
+      dcPivots,
     });
-  }, [mappedResult, result, salesPivot, purchasesPivot, openingPivot]);
+  }, [mappedResult, result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots]);
   const productsByCategory = sheets.productsByCategory;
   const layoutByCategory = sheets.layoutByCategory;
   const unmappedProducts = useMemo(

@@ -12,6 +12,7 @@ from openpyxl import load_workbook
 from app.engines.financials_engine.engine.metal_trading import metal_opening_group
 from app.engines.financials_engine.engine.opening_stock import (
     norm_opening_product_name,
+    product_identity_key,
     product_sheet_lookup_keys,
 )
 from app.engines.financials_engine.parsers.workbook_loader import parse_numeric_value
@@ -634,8 +635,24 @@ def _extract_products_from_category_sheet(
     return products
 
 
+def _add_closing_measure(target: dict[str, Any], source: Mapping[str, Any], field: str) -> None:
+    incoming = source.get(field)
+    if incoming is None:
+        return
+    try:
+        target[field] = float(target.get(field) or 0) + float(incoming)
+    except (TypeError, ValueError):
+        return
+
+
 def _register_product_keys(index: dict[str, dict[str, Any]], entry: dict[str, Any]) -> None:
     product = str(entry.get('product') or entry.get('sheetName') or '')
+    primary = product_identity_key(product) or norm_opening_product_name(product)
+    existing = index.get(primary) if primary else None
+    if existing is not None and existing is not entry:
+        for field in ('closingStockQty', 'closingStockAmount'):
+            _add_closing_measure(existing, entry, field)
+        return
     for key in product_sheet_lookup_keys(product):
         if key not in index:
             index[key] = entry

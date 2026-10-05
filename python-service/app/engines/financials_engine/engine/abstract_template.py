@@ -112,6 +112,7 @@ def write_abstract_sheet(
     opening_pivot: Sequence[Mapping[str, Any]] | None = None,
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    structure_only: bool = False,
 ) -> None:
     """Write the Abstract sheet: grouped Particulars filled from Trading sources."""
     ws.title = ABSTRACT_SHEET_NAME
@@ -188,7 +189,7 @@ def write_abstract_sheet(
     ws.row_dimensions[_GROUP_ROW].height = 24
     ws.row_dimensions[_SUB_ROW].height = 28
 
-    by_label = build_abstract_row_measures(
+    by_label = {} if structure_only else build_abstract_row_measures(
         layout_by_category,
         sales_pivot=sales_pivot,
         purchases_pivot=purchases_pivot,
@@ -199,6 +200,8 @@ def write_abstract_sheet(
     for offset, (kind, label) in enumerate(ABSTRACT_BODY_ROWS):
         measures = by_label.get(label or '') if kind not in {'spacer', 'section_heading', 'group_heading'} else None
         _write_body_row(ws, _FIRST_BODY_ROW + offset, kind, label, measures)
+        if structure_only and kind not in {'spacer', 'section_heading', 'group_heading'}:
+            _format_blank_abstract_row(ws, _FIRST_BODY_ROW + offset)
 
 
 def _write_body_row(
@@ -229,6 +232,21 @@ def _write_body_row(
                 _write_numeric(ws.cell(row=row, column=col), pair.get('amt'))
             col += span
     ws.row_dimensions[row].height = height
+
+
+def _format_blank_abstract_row(ws: Worksheet, row: int) -> None:
+    """Stamp the same number formats on empty Abstract measure cells."""
+    col = 2
+    for group in ABSTRACT_MEASURE_GROUPS:
+        span = abstract_column_span(group)
+        for offset in range(span):
+            cell = ws.cell(row=row, column=col + offset)
+            if cell.value is None:
+                if group == 'CY GP %':
+                    cell.number_format = '0.00%'
+                else:
+                    apply_indian_number_format(cell)
+        col += span
 
 
 def _write_numeric(cell, value: Any) -> None:

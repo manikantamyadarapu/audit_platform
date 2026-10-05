@@ -681,10 +681,11 @@ def write_trading_sheet(
     opening_pivot: Sequence[Mapping[str, Any]] | None = None,
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    structure_only: bool = False,
 ) -> None:
     """Write Gold/Silver T-accounts first, then the existing gemstone T-accounts."""
-    layouts = layout_by_category or {}
-    metal_totals = aggregate_metal_trading_totals(
+    layouts = {} if structure_only else (layout_by_category or {})
+    metal_totals = {} if structure_only else aggregate_metal_trading_totals(
         sales_pivot=sales_pivot,
         purchases_pivot=purchases_pivot,
         opening_pivot=opening_pivot,
@@ -715,10 +716,19 @@ def write_trading_sheet(
             ws,
             row,
             account,
-            metal_totals.get(title) or {},
-            fill_source_lines=True,
+            {} if structure_only else (metal_totals.get(title) or {}),
+            structure_only=structure_only,
+            fill_source_lines=not structure_only,
         )
     for account in TRADING_ACCOUNTS:
+        if structure_only:
+            row = _write_t_account(ws, row, account, structure_only=True)
+            continue
         category = TRADING_ACCOUNT_SOURCE_CATEGORY[str(account['title'])]
         grand_total = _grand_total_from_layout(layouts.get(category))
         row = _write_t_account(ws, row, account, grand_total)
+    if structure_only:
+        for sheet_row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=_RIGHT_AMT):
+            for cell in sheet_row:
+                if cell.column in (_LEFT_QTY, _LEFT_AMT, _RIGHT_QTY, _RIGHT_AMT) and cell.value is None:
+                    apply_indian_number_format(cell)

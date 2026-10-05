@@ -33,7 +33,11 @@ async function processFinancialsPivot(
     previousYearFile,
     mrFile,
     dcFile,
-    { requestId }
+    {
+      requestId,
+      destinationBranch: req.body?.destinationBranch || 'basheerbagh',
+      sourceAverageRates: req.body?.sourceAverageRates || '{}',
+    }
   );
 
   const fileNames = [
@@ -227,6 +231,10 @@ async function exportFinancialsPivots(req, payload) {
   return pythonClient.postFinancialsExportPivots(payload, { requestId: req.requestId });
 }
 
+async function exportJubileeHillsTemplate(req, payload) {
+  return pythonClient.postJubileeHillsTemplate(payload, { requestId: req.requestId });
+}
+
 async function exportClosingStockTemplate(req, payload) {
   return pythonClient.postFinancialsExportClosingStock(payload, { requestId: req.requestId });
 }
@@ -239,6 +247,10 @@ async function remapClosingStock(req, payload) {
   return pythonClient.postFinancialsRemapClosingStock(payload, { requestId: req.requestId });
 }
 
+async function placeJubileeHillsSheets(req, payload) {
+  return pythonClient.postJubileeHillsPlace(payload, { requestId: req.requestId });
+}
+
 async function processJubileeHillsFinancials(req, files) {
   const { requestId, user } = req;
   const data = await pythonClient.postJubileeHillsFinancials(files, { requestId });
@@ -247,12 +259,12 @@ async function processJubileeHillsFinancials(req, files) {
     files.purchasesFile,
     files.openingQtyFile,
     files.previousYearFile,
-    files.mrFile,
-    files.dcFile,
     files.salesReturnFile,
     files.purchaseReturnFile,
     files.creditNoteFile,
     files.debitNoteFile,
+    files.mrFile,
+    files.dcFile,
   ].filter(Boolean);
   const fileNames = ordered.map((file) => file.originalname).filter(Boolean).join(', ');
   const fileMetadata = {
@@ -288,9 +300,11 @@ module.exports = {
   processJubileeHillsFinancials,
   notifyFinancialsPivotFailure,
   exportFinancialsPivots,
+  exportJubileeHillsTemplate,
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,
+  placeJubileeHillsSheets,
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,
 };

@@ -55,6 +55,12 @@ const financialsUpload = multer({
   fileFilter: financialsFileFilter,
 });
 
+const financialsJubileeHillsUpload = multer({
+  storage,
+  limits: { fileSize: UPLOAD_MAX_BYTES, files: 10 },
+  fileFilter: financialsFileFilter,
+});
+
 /** Section 44AB allows many cash/bank ledgers in one request. */
 const section44abUpload = multer({
   storage,
@@ -108,7 +114,7 @@ const financialsSalesPurchasesPivotFiles = financialsUpload.fields([
   { name: 'previousYearFile', maxCount: 1 },
 ]);
 
-const financialsJubileeHillsFiles = financialsUpload.fields([
+const financialsJubileeHillsFiles = financialsJubileeHillsUpload.fields([
   { name: 'salesFile', maxCount: 1 },
   { name: 'purchasesFile', maxCount: 1 },
   { name: 'openingQtyFile', maxCount: 1 },

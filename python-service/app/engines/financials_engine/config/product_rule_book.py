@@ -19,6 +19,8 @@ from app.engines.financials_engine.engine.closing_stock_template import (
 from app.engines.financials_engine.engine.opening_stock import (
     apply_fallback_opening_to_layout,
     build_opening_measures_for_layout,
+    norm_opening_product_name,
+    product_identity_key,
 )
 from app.utils.logger import get_logger
 
@@ -57,9 +59,7 @@ _NON_ALNUM = re.compile(r'[^a-z0-9]+', re.IGNORECASE)
 
 def _norm_product(name: str) -> str:
     """Normalize for comparison only — display names stay as in the Rule Book."""
-    text = unicodedata.normalize('NFKC', str(name))
-    text = _UNICODE_WS.sub(' ', text).strip().casefold()
-    return ' '.join(text.split())
+    return norm_opening_product_name(name)
 
 
 def _match_key(name: str) -> str:
@@ -253,6 +253,8 @@ def format_closing_stock_mapping_response(category_mapping: Mapping[str, Any]) -
         'productsWithOpeningData': category_mapping.get('productsWithOpeningData', 0),
         'productsDisplayed': category_mapping.get('productsDisplayed', 0),
         'reconciliation': category_mapping.get('reconciliation', {}),
+        'receiptAmountReview': category_mapping.get('receiptAmountReview', []),
+        'productAverageRates': category_mapping.get('productAverageRates', []),
     }
 
 
@@ -398,7 +400,11 @@ def _build_rule_book_match_lookup(
 
     lookup: dict[str, str] = {}
     for _category, _subcategory, display_name in products:
-        for key in (_norm_product(display_name), _match_key(display_name)):
+        for key in (
+            _norm_product(display_name),
+            _match_key(display_name),
+            product_identity_key(display_name),
+        ):
             if key and key not in lookup:
                 lookup[key] = display_name
         core = _core_sku_key(display_name)
@@ -415,6 +421,7 @@ def _resolve_rule_book_display_name(
     for key in (
         _norm_product(pivot_product),
         _match_key(pivot_product),
+        product_identity_key(pivot_product),
         _core_sku_key(pivot_product),
     ):
         if key and key in lookup:
@@ -431,6 +438,31 @@ def resolve_rule_book_display_name(
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
     lookup = _build_rule_book_match_lookup(book)
     return _resolve_rule_book_display_name(product, lookup=lookup)
+
+
+def iter_mr_dc_rows(
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+) -> list[tuple[str, Mapping[str, Any]]]:
+    """Product rows from MR and DC location pivots. Quantity columns are left unchanged."""
+    found: list[tuple[str, Mapping[str, Any]]] = []
+    for source, tree in (('MR', mr_pivots), ('DC', dc_pivots)):
+        if not isinstance(tree, Mapping):
+            continue
+        for rows in tree.values():
+            if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
+                continue
+            for row in rows:
+                if isinstance(row, Mapping) and str(row.get('product') or '').strip():
+                    found.append((source, row))
+    return found
+
+
+def _trading_account_product(product: str) -> bool:
+    """Gold and silver products are on the Trading sheet, not the jewel sheets."""
+    from app.engines.financials_engine.engine.metal_trading import resolve_metal_trading_account
+
+    return resolve_metal_trading_account(product) is not None
 
 
 def _row_text(row: Mapping[str, Any], key: str) -> str:
@@ -600,6 +632,30 @@ def _location_from_known_product_line(
     ) or _location_from_rule_book_name_prefix(product, rule_book)
 
 
+def _code_sheet_location(product: str) -> tuple[str, str | None] | None:
+    """Same product-to-sheet rules as Jubilee Hills. The Rule Book is not used."""
+    from app.engines.financials_engine.engine.jubilee_hills_placement import (
+        locate_jubilee_hills_product,
+    )
+
+    found = locate_jubilee_hills_product(product)
+    if found is None:
+        return None
+    return found[0]
+
+
+def _previous_year_sheet_location(row: Mapping[str, Any]) -> tuple[str, str | None] | None:
+    """Opening-only sheet from last year. Diamond is assigned only by a Diamond regex."""
+    from app.engines.financials_engine.engine.jubilee_hills_placement import DIAMOND_SHEET
+
+    subcategory = _row_text(row, 'subcategory') or None
+    for key in ('category', 'sheetName'):
+        sheet = _resolve_closing_stock_sheet(_row_text(row, key))
+        if sheet and sheet != DIAMOND_SHEET:
+            return sheet, subcategory
+    return None
+
+
 def _sales_purchases_location(
     product: str,
     row: Mapping[str, Any],
@@ -607,17 +663,8 @@ def _sales_purchases_location(
     location_index: Mapping[str, tuple[str, str | None]],
     rule_book: Mapping[str, Any],
 ) -> tuple[str, str | None] | None:
-    loc = _location_from_file_labels(
-        _row_text(row, 'category'),
-        _row_text(row, 'subcategory') or None,
-        rule_book=rule_book,
-    )
-    if loc is not None:
-        return loc
-    loc = resolve_product_location(product, index=location_index)
-    if loc is not None:
-        return loc
-    return _location_from_known_product_line(product, rule_book)
+    del row, location_index, rule_book
+    return _code_sheet_location(product)
 
 
 def _opening_only_location(
@@ -627,24 +674,11 @@ def _opening_only_location(
     location_index: Mapping[str, tuple[str, str | None]],
     rule_book: Mapping[str, Any],
 ) -> tuple[str, str | None] | None:
-    loc = _location_from_file_labels(
-        _row_text(row, 'category'),
-        _row_text(row, 'subcategory') or None,
-        rule_book=rule_book,
-    )
+    del location_index, rule_book
+    loc = _code_sheet_location(product)
     if loc is not None:
         return loc
-    loc = _location_from_file_labels(
-        _row_text(row, 'sheetName'),
-        None,
-        rule_book=rule_book,
-    )
-    if loc is not None:
-        return loc
-    loc = resolve_product_location(product, index=location_index)
-    if loc is not None:
-        return loc
-    return _location_from_known_product_line(product, rule_book)
+    return _previous_year_sheet_location(row)
 
 
 def _lookup_from_entries(
@@ -778,12 +812,14 @@ def _build_financials_product_catalog(
     opening_pivot: Sequence[Mapping[str, Any]] | None,
     location_index: Mapping[str, tuple[str, str | None]],
     rule_book: Mapping[str, Any],
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> tuple[list[tuple[str, str, str | None]], list[dict[str, Any]]]:
     """
-    Sales + Purchases (deduped), then Opening Quantity products absent from that list.
+    Sales + Purchases (deduped), then Opening Quantity products absent from that list,
+    then MR/DC products absent from Sales, Purchases, and Opening Quantity.
 
     Opening-only products with a zero or blank Opening Balance are omitted.
-    Category: Sales/Purchases file first; Opening-only uses previous-year labels.
     """
     entries: list[tuple[str, str, str | None]] = []
     unplaced: list[dict[str, Any]] = []
@@ -841,6 +877,12 @@ def _build_financials_product_catalog(
             unplaced=unplaced,
             location_index=location_index,
             rule_book=rule_book,
+        )
+    for source, row in iter_mr_dc_rows(mr_pivots, dc_pivots):
+        _try_add_from_row(
+            row,
+            source=source,
+            locate=lambda product, row: _code_sheet_location(product),
         )
     return entries, unplaced
 
@@ -1204,6 +1246,24 @@ def _sorted_product_names(names: Sequence[str]) -> list[str]:
     return sorted((str(name) for name in names if str(name or '').strip()), key=_product_name_sort_key)
 
 
+def _subcategory_section_sort_key(category: str, subcategory: str) -> tuple:
+    """Diamond and Precious sections use the same order as Jubilee Hills."""
+    from app.engines.financials_engine.engine.jubilee_hills_placement import (
+        DIAMOND_SHEET,
+        DIAMOND_SUBCATEGORY_ORDER,
+        PRECIOUS_SHEET,
+        PRECIOUS_SUBCATEGORY_ORDER,
+    )
+
+    order = {
+        DIAMOND_SHEET: DIAMOND_SUBCATEGORY_ORDER,
+        PRECIOUS_SHEET: PRECIOUS_SUBCATEGORY_ORDER,
+    }.get(category)
+    if order and subcategory in order:
+        return (0, order.index(subcategory))
+    return (1, _product_name_sort_key(subcategory))
+
+
 def _build_layout_for_category(
     category: str,
     *,
@@ -1248,7 +1308,7 @@ def _build_layout_for_category(
     if isinstance(rule_section, dict):
         sections = sorted(
             rule_section.items(),
-            key=lambda pair: _product_name_sort_key(str(pair[0] or '')),
+            key=lambda pair: _subcategory_section_sort_key(category, str(pair[0] or '')),
         )
         for subcategory, rule_products in sections:
             products = _sorted_product_names(list(rule_products or []))
@@ -1511,12 +1571,15 @@ def map_pivots_to_closing_stock_categories(
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
+    destination_branch: str | None = None,
+    source_average_rates: Any = None,
 ) -> dict[str, Any]:
     """
     Build Closing Stock rows from Sales + Purchases, then Opening Quantity-only products.
 
-    Display names come from those files. Matching uses normalized / alphanumeric / unique
-    core SKU keys. Sales/Purchases categories are never replaced by Opening Stock categories.
+    Sheet placement matches Jubilee Hills: Diamond regex, JOS/JSP/JSY, then JEM/JPS/JRU.
+    The Rule Book does not choose the sheet. Opening-only products without those codes
+    use the previous-year sheet, except Diamond. Display names come from the files.
     """
     log = get_logger('closing-stock-rule-book')
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
@@ -1541,6 +1604,8 @@ def map_pivots_to_closing_stock_categories(
         opening_pivot=opening_pivot,
         location_index=location_index,
         rule_book=book,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
     )
     layout_book = _catalog_to_rule_book(catalog_entries)
     match_lookup = _build_rule_book_match_lookup(layout_book)
@@ -1589,10 +1654,26 @@ def map_pivots_to_closing_stock_categories(
             key = _norm_product(product_name)
             if not key or key in unmapped_seen:
                 continue
+            if _trading_account_product(product_name):
+                continue
             unmapped_seen.add(key)
             unmapped.append(product_name)
             unmapped_details.append({'product': product_name, 'source': source})
             log.warning('Unmapped pivot product: {} Source: {}', product_name, source)
+
+    for source, row in iter_mr_dc_rows(mr_pivots, dc_pivots):
+        product_name = str(row.get('product') or '').strip()
+        key = _norm_product(product_name)
+        if not key or key in unmapped_seen:
+            continue
+        if _resolve_rule_book_display_name(product_name, lookup=match_lookup):
+            continue
+        if _trading_account_product(product_name):
+            continue
+        unmapped_seen.add(key)
+        unmapped.append(product_name)
+        unmapped_details.append({'product': product_name, 'source': source})
+        log.warning('Unmapped pivot product: {} Source: {}', product_name, source)
 
     layout_location_index = build_product_location_index(layout_book)
     sales_by_category, purchases_by_category = _build_category_pivot_lists(
@@ -1681,7 +1762,8 @@ def map_pivots_to_closing_stock_categories(
             reconciliation['unmappedPurchasesAmt'],
         )
 
-    return {
+    return _apply_branch_receipt_amounts(
+        {
         'productsByCategory': products_by_category,
         'layoutByCategory': layout_by_category,
         'salesByCategory': sales_by_category,
@@ -1701,7 +1783,36 @@ def map_pivots_to_closing_stock_categories(
         'productsDisplayed': mapped_count,
         'reconciliation': reconciliation,
         'categories': list(CLOSING_STOCK_CATEGORIES),
-    }
+        'receiptAmountReview': [],
+        'productAverageRates': [],
+        },
+        destination_branch=destination_branch,
+        source_average_rates=source_average_rates,
+    )
+
+
+def _apply_branch_receipt_amounts(
+    mapped: dict[str, Any],
+    *,
+    destination_branch: str | None,
+    source_average_rates: Any = None,
+) -> dict[str, Any]:
+    """Fill receipt amounts when the sheet's branch is known. Quantities stay put."""
+    if not destination_branch:
+        return mapped
+    from app.engines.financials_engine.engine.receipt_amounts import (
+        apply_source_receipt_amounts,
+    )
+
+    applied = apply_source_receipt_amounts(
+        mapped.get('layoutByCategory'),
+        destination=destination_branch,
+        source_average_rates=source_average_rates,
+    )
+    mapped['layoutByCategory'] = applied['layoutByCategory']
+    mapped['receiptAmountReview'] = applied['receiptAmountReview']
+    mapped['productAverageRates'] = applied['productAverageRates']
+    return mapped
 
 
 def map_product_names_to_categories(

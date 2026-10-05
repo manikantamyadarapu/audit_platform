@@ -5,10 +5,7 @@ from __future__ import annotations
 from time import perf_counter
 from typing import Any
 
-from app.engines.financials_engine.engine.calculator import (
-    apply_same_product_adjustment,
-    build_product_pivot,
-)
+from app.engines.financials_engine.engine.calculator import build_product_pivot
 from app.engines.financials_engine.engine.mr_dc_pivots import build_mr_dc_pivot_payload
 from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
 from app.engines.financials_engine.engine.output import build_financials_pivot_response
@@ -17,7 +14,11 @@ from app.engines.financials_engine.parsers.opening_stock_loader import (
     load_opening_quantity_workbook,
     load_previous_year_opening_stock,
 )
-from app.engines.financials_engine.parsers.workbook_loader import load_financials_workbook
+from app.engines.financials_engine.parsers.workbook_loader import (
+    load_financials_workbook,
+    load_return_workbook,
+    load_supplier_note_workbook,
+)
 from app.utils.logger import get_logger
 
 
@@ -60,6 +61,8 @@ class FinancialsPivotAudit:
         mr_bytes: bytes | None = None,
         dc_file_name: str = '',
         dc_bytes: bytes | None = None,
+        destination_branch: str | None = None,
+        source_average_rates: Any = None,
     ) -> dict[str, Any]:
         started = perf_counter()
 
@@ -173,6 +176,8 @@ class FinancialsPivotAudit:
             mr_source_rows=len(mr_rows),
             dc_source_rows=len(dc_rows),
             load_ms=load_ms,
+            destination_branch=destination_branch,
+            source_average_rates=source_average_rates,
         )
 
     def process_sales_purchases_pivots(
@@ -281,6 +286,38 @@ class FinancialsPivotAudit:
         )
         return build_product_pivot(rows)
 
+    def _load_return_pivot(
+        self,
+        file_bytes: bytes | None,
+        file_name: str,
+        source_label: str,
+    ) -> list[dict[str, Any]]:
+        if not file_bytes:
+            return []
+        rows, _header = load_return_workbook(
+            file_bytes,
+            file_name or f'{source_label}.xlsx',
+            source_label=source_label,
+        )
+        return build_product_pivot(rows)
+
+    def _load_supplier_note_pivot(
+        self,
+        file_bytes: bytes | None,
+        file_name: str,
+        source_label: str,
+        note_kind: str,
+    ) -> list[dict[str, Any]]:
+        if not file_bytes:
+            return []
+        rows, _header = load_supplier_note_workbook(
+            file_bytes,
+            file_name or f'{source_label}.xlsx',
+            source_label=source_label,
+            note_kind=note_kind,
+        )
+        return build_product_pivot(rows)
+
     def process_jubilee_hills(
         self,
         sales_file_name: str,
@@ -303,6 +340,8 @@ class FinancialsPivotAudit:
         credit_note_bytes: bytes | None = None,
         debit_note_file_name: str = '',
         debit_note_bytes: bytes | None = None,
+        saved_opening_mappings: list[dict[str, Any]] | None = None,
+        source_average_rates: Any = None,
     ) -> dict[str, Any]:
         """Jubilee Hills only. Basheerbagh and Kokapet keep using process()."""
         base = self.process(
@@ -314,43 +353,115 @@ class FinancialsPivotAudit:
             opening_qty_bytes=opening_qty_bytes,
             previous_year_file_name=previous_year_file_name,
             previous_year_bytes=previous_year_bytes,
-            mr_file_name=mr_file_name,
-            mr_bytes=mr_bytes,
-            dc_file_name=dc_file_name,
-            dc_bytes=dc_bytes,
         )
-        sales_return_pivot = self._load_adjustment_pivot(
+        sales_pivot = list(base.get('salesPivot') or [])
+        purchases_pivot = list(base.get('purchasesPivot') or [])
+        sales_return_pivot = self._load_return_pivot(
             sales_return_bytes,
             sales_return_file_name,
             'Sales Return',
         )
-        purchase_return_pivot = self._load_adjustment_pivot(
+        purchase_return_pivot = self._load_return_pivot(
             purchase_return_bytes,
             purchase_return_file_name,
             'Purchase Return',
         )
-        credit_note_pivot = self._load_adjustment_pivot(
+        credit_note_pivot = self._load_supplier_note_pivot(
             credit_note_bytes,
             credit_note_file_name,
-            'Credit notes from suppliers',
+            'Credit Notes from Suppliers',
+            'credit',
         )
-        debit_note_pivot = self._load_adjustment_pivot(
+        debit_note_pivot = self._load_supplier_note_pivot(
             debit_note_bytes,
             debit_note_file_name,
-            'Debit notes from suppliers',
+            'Debit Notes from Suppliers',
+            'debit',
         )
-        sales_pivot = apply_same_product_adjustment(
-            list(base.get('salesPivot') or []),
-            [(sales_return_pivot, -1)],
+        from app.engines.financials_engine.engine.jubilee_sales_purchase_nets import (
+            build_jubilee_sales_purchase_nets,
         )
-        purchases_pivot = apply_same_product_adjustment(
-            list(base.get('purchasesPivot') or []),
-            [
-                (purchase_return_pivot, -1),
-                (credit_note_pivot, -1),
-                (debit_note_pivot, 1),
-            ],
+
+        nets = build_jubilee_sales_purchase_nets(
+            sales_pivot=sales_pivot,
+            purchases_pivot=purchases_pivot,
+            sales_return_pivot=sales_return_pivot,
+            purchase_return_pivot=purchase_return_pivot,
+            debit_note_pivot=debit_note_pivot,
+            credit_note_pivot=credit_note_pivot,
         )
+        net_report = nets['report']
+        self._log.info(
+            'Jubilee sales/purchase nets: products={} sales_rows={} purchase_rows={} '
+            'sales_return_rows={} purchase_return_rows={} debit_rows={} credit_rows={} unaccounted={}',
+            len(net_report.get('products') or []),
+            len(nets['netSalesPivot']),
+            len(nets['netPurchasesPivot']),
+            len(sales_return_pivot),
+            len(purchase_return_pivot),
+            len(debit_note_pivot),
+            len(credit_note_pivot),
+            len(net_report.get('unaccountedProducts') or []),
+        )
+        self._log.info(
+            'Jubilee sales return file={} products={}',
+            sales_return_file_name,
+            ', '.join(str(row.get('product') or '') for row in sales_return_pivot[:20]) or '(none)',
+        )
+        mr_rows: list[dict[str, Any]] = []
+        dc_rows: list[dict[str, Any]] = []
+        if mr_bytes:
+            mr_rows = load_transfer_workbook(
+                mr_bytes,
+                mr_file_name or 'mr.xlsx',
+                source_label='MR',
+            )
+        if dc_bytes:
+            dc_rows = load_transfer_workbook(
+                dc_bytes,
+                dc_file_name or 'dc.xlsx',
+                source_label='DC',
+            )
+        mr_dc_pivots = build_mr_dc_pivot_payload(mr_rows=mr_rows, dc_rows=dc_rows)
+        opening_pivot = list(base.get('openingPivot') or [])
+        validated_opening = list(base.get('validatedOpening') or [])
+        opening_report = dict(base.get('openingStockReport') or {})
+        opening_amount_match = None
+        if opening_qty_bytes and previous_year_bytes:
+            from app.engines.financials_engine.engine.jubilee_opening_amount import (
+                match_jubilee_opening_amounts,
+            )
+
+            qty_rows = load_opening_quantity_workbook(
+                opening_qty_bytes,
+                opening_qty_file_name or 'opening-quantity.xlsx',
+            )
+            prev_payload = load_previous_year_opening_stock(
+                previous_year_bytes,
+                previous_year_file_name or 'previous-year-closing.xlsx',
+                log=self._log,
+            )
+            jubilee_opening = match_jubilee_opening_amounts(
+                quantity_rows=qty_rows,
+                previous_year_index=prev_payload.get('productIndex') or {},
+                saved_mappings=saved_opening_mappings,
+            )
+            opening_pivot = jubilee_opening['openingPivot']
+            validated_opening = jubilee_opening['validatedOpening']
+            opening_report = jubilee_opening['report']
+            opening_amount_match = jubilee_opening['match']
+            self._log.info(
+                'Jubilee opening amounts: exact={} core={} qty_verified={} saved={} '
+                'manual={} qty_mismatch={} multiple={} unresolved={}',
+                opening_amount_match.get('exactMatches'),
+                opening_amount_match.get('coreCodeMatches'),
+                opening_amount_match.get('quantityVerifiedMatches'),
+                opening_amount_match.get('savedMappingsReused'),
+                opening_amount_match.get('manualMappingRequired'),
+                opening_amount_match.get('quantityMismatches'),
+                opening_amount_match.get('multipleCandidateMatches'),
+                opening_amount_match.get('unresolvedProductCount'),
+            )
         summary = dict(base.get('summary') or {})
         rebuilt = build_financials_pivot_response(
             sales_pivot=sales_pivot,
@@ -360,23 +471,42 @@ class FinancialsPivotAudit:
             sales_file_name=sales_file_name,
             purchases_file_name=purchases_file_name,
             load_ms=float((base.get('executionTiming') or {}).get('loadMs') or 0),
-            opening_pivot=list(base.get('openingPivot') or []),
-            validated_opening=list(base.get('validatedOpening') or []),
-            opening_stock_report=dict(base.get('openingStockReport') or {}),
+            opening_pivot=opening_pivot,
+            validated_opening=validated_opening,
+            opening_stock_report=opening_report,
             opening_qty_file_name=opening_qty_file_name or None,
             previous_year_file_name=previous_year_file_name or None,
-            mr_pivots=base.get('mrPivots'),
-            dc_pivots=base.get('dcPivots'),
-            mr_report=base.get('mrReport'),
-            dc_report=base.get('dcReport'),
-            mr_file_name=mr_file_name or None,
-            dc_file_name=dc_file_name or None,
-            mr_source_rows=int(summary.get('mrSourceRows') or 0),
-            dc_source_rows=int(summary.get('dcSourceRows') or 0),
+            mr_pivots=None,
+            dc_pivots=None,
+            mr_report=None,
+            dc_report=None,
+            mr_file_name=None,
+            dc_file_name=None,
+            mr_source_rows=0,
+            dc_source_rows=0,
         )
+        rebuilt['openingAmountMatch'] = opening_amount_match
+        rebuilt['transferPivots'] = {
+            'mrPivots': mr_dc_pivots['mrPivots'],
+            'dcPivots': mr_dc_pivots['dcPivots'],
+        }
         rebuilt['salesReturnPivot'] = sales_return_pivot
         rebuilt['purchaseReturnPivot'] = purchase_return_pivot
         rebuilt['supplierCreditNotePivot'] = credit_note_pivot
         rebuilt['supplierDebitNotePivot'] = debit_note_pivot
+        rebuilt['netSalesPivot'] = nets['netSalesPivot']
+        rebuilt['netPurchasesPivot'] = nets['netPurchasesPivot']
+        rebuilt['salesPurchaseNet'] = nets['report']
         rebuilt['branch'] = 'jubilee-hills'
-        return rebuilt
+        from app.engines.financials_engine.engine.jubilee_hills_placement import (
+            apply_jubilee_hills_placement,
+        )
+
+        return apply_jubilee_hills_placement(
+            rebuilt,
+            sales_pivot=nets['netSalesPivot'],
+            purchases_pivot=nets['netPurchasesPivot'],
+            mr_pivots=mr_dc_pivots['mrPivots'],
+            dc_pivots=mr_dc_pivots['dcPivots'],
+            source_average_rates=source_average_rates,
+        )

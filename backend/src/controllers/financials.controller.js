@@ -228,6 +228,26 @@ async function exportFinancialsPivots(req, res, next) {
   }
 }
 
+async function exportJubileeHillsTemplate(req, res, next) {
+  try {
+    const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName : '';
+    const address = typeof req.body?.address === 'string' ? req.body.address : '';
+    const financialYear = typeof req.body?.financialYear === 'string' ? req.body.financialYear : '';
+    const file = await financialsService.exportJubileeHillsTemplate(req, {
+      companyName,
+      address,
+      financialYear,
+      layoutByCategory: req.body?.layoutByCategory || null,
+      salesPivot: Array.isArray(req.body?.salesPivot) ? req.body.salesPivot : [],
+      purchasesPivot: Array.isArray(req.body?.purchasesPivot) ? req.body.purchasesPivot : [],
+      openingPivot: Array.isArray(req.body?.openingPivot) ? req.body.openingPivot : [],
+    });
+    return sendExcelDownload(res, file, req.requestId);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function exportClosingStockTemplate(req, res, next) {
   try {
     const parsed = validateClosingStockExportBody(req.body);
@@ -273,6 +293,29 @@ async function getClosingStockRuleBook(req, res, next) {
   }
 }
 
+async function placeJubileeHillsSheets(req, res, next) {
+  try {
+    const parsed = validateFinancialsExportPivotsBody(req.body);
+    if (!parsed.ok) {
+      return res.status(400).json({
+        success: false,
+        detail: parsed.detail,
+        requestId: req.requestId,
+      });
+    }
+    const data = await financialsService.placeJubileeHillsSheets(req, {
+      salesPivot: parsed.salesPivot,
+      purchasesPivot: parsed.purchasesPivot,
+      openingPivot: parsed.openingPivot,
+      mrPivots: parsed.mrPivots,
+      dcPivots: parsed.dcPivots,
+    });
+    return res.json(data);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function remapClosingStock(req, res, next) {
   try {
     const parsed = validateFinancialsExportPivotsBody(req.body);
@@ -304,8 +347,6 @@ async function processJubileeHillsFinancials(req, res, next) {
       ['purchasesFile', 'purchasesFile'],
       ['openingQtyFile', 'openingQtyFile'],
       ['previousYearFile', 'previousYearFile'],
-      ['mrFile', 'mrFile'],
-      ['dcFile', 'dcFile'],
       ['salesReturnFile', 'salesReturnFile'],
       ['purchaseReturnFile', 'purchaseReturnFile'],
       ['creditNoteFile', 'creditNoteFile'],
@@ -323,6 +364,12 @@ async function processJubileeHillsFinancials(req, res, next) {
       }
       files[key] = file;
     }
+    files.mrFile = req.files?.mrFile?.[0] || null;
+    files.dcFile = req.files?.dcFile?.[0] || null;
+    files.savedOpeningMappings =
+      typeof req.body?.savedOpeningMappings === 'string' ? req.body.savedOpeningMappings : '[]';
+    files.sourceAverageRates =
+      typeof req.body?.sourceAverageRates === 'string' ? req.body.sourceAverageRates : '{}';
 
     logger.info('Jubilee Hills financials: forwarding to Python', {
       requestId: req.requestId,
@@ -348,7 +395,9 @@ module.exports = {
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,
   exportFinancialsPivots,
+  exportJubileeHillsTemplate,
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,
+  placeJubileeHillsSheets,
 };

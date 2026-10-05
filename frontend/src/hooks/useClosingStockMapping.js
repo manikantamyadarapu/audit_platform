@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { readSourceAverageRates } from '../utils/sourceAverageRates';
 import {
   fetchClosingStockRuleBook,
   remapClosingStockFromPivots,
@@ -18,7 +19,7 @@ import {
  * @param {object|null|undefined} result
  * @param {(updated: object) => void} [onSynced]
  */
-export function useClosingStockMapping(result, onSynced) {
+export function useClosingStockMapping(result, onSynced, destinationBranch = '') {
   const [mappedResult, setMappedResult] = useState(result);
   const [refreshing, setRefreshing] = useState(false);
   const onSyncedRef = useRef(onSynced);
@@ -50,6 +51,8 @@ export function useClosingStockMapping(result, onSynced) {
           openingPivot,
           mrPivots,
           dcPivots,
+          destinationBranch,
+          sourceAverageRates: readSourceAverageRates(),
         });
       } else {
         const live = await fetchClosingStockRuleBook();
@@ -129,7 +132,7 @@ export function useClosingStockMapping(result, onSynced) {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [destinationBranch]);
 
   useEffect(() => {
     let cancelled = false;

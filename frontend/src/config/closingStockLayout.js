@@ -353,10 +353,17 @@ export function buildGroupedHeaderCells(values) {
   return cells;
 }
 
+/** Jubilee Hills sheets use Basheerbagh on both Receipts and Issues. */
+export const JUBILEE_HILLS_HEADER_LABELS = Object.freeze({
+  'Jubilee Hills': 'Basheerbagh',
+  'Banjara Hills': 'Basheerbagh',
+});
+
 /** @returns {{ level1: string[], level2: string[], leaves: string[], numbers: string[] }} */
-export function getClosingStockHeaderRows() {
+export function getClosingStockHeaderRows(labelMap = null) {
+  const rename = (value) => (labelMap && labelMap[value]) || value;
   const level1 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => path[0] || '');
-  const level2 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => path[1] || '');
+  const level2 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => rename(path[1] || ''));
   const leaves = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => path[2]);
   const numbers = CLOSING_STOCK_LEAF_COLUMNS.map(([, num]) => num);
   return { level1, level2, leaves, numbers };

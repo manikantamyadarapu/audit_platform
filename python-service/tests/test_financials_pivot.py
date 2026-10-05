@@ -9,6 +9,8 @@ from app.engines.financials_engine.engine.audit import FinancialsPivotAudit
 from app.engines.financials_engine.engine.calculator import build_product_pivot
 from app.engines.financials_engine.parsers.workbook_loader import (
     load_financials_workbook,
+    load_return_workbook,
+    load_supplier_note_workbook,
     parse_numeric_value,
 )
 from app.utils.sheet_validation_error import SheetValidationError
@@ -95,6 +97,54 @@ class TestProductPivot:
         assert purchases[0]['sumOfQuantity'] == 8.0
         assert sales[0]['sumOfGross'] == 20000.0
         assert purchases[0]['sumOfGross'] == 70000.0
+
+    def test_standalone_loose_is_the_same_product(self):
+        pivot = build_product_pivot(
+            [
+                {'product': 'DI RA 10', 'quantity': 2, 'grossAmount': 20},
+                {'product': 'DI RA LOOSE 10', 'quantity': 3, 'grossAmount': 30},
+                {'product': 'DI RA 100', 'quantity': 1, 'grossAmount': 5},
+                {'product': 'DI RB 10', 'quantity': 4, 'grossAmount': 8},
+                {'product': 'DI RA LOOSELY 10', 'quantity': 7, 'grossAmount': 9},
+            ]
+        )
+        by_name = {row['product']: row for row in pivot}
+        assert by_name['DI RA 10']['sumOfQuantity'] == 5.0
+        assert by_name['DI RA 10']['sumOfGross'] == 50.0
+        assert 'DI RA LOOSE 10' not in by_name
+        assert by_name['DI RA 100']['sumOfQuantity'] == 1.0
+        assert by_name['DI RB 10']['sumOfQuantity'] == 4.0
+        assert by_name['DI RA LOOSELY 10']['sumOfQuantity'] == 7.0
+
+    def test_diamond_category_words_do_not_split_the_same_code(self):
+        pivot = build_product_pivot(
+            [
+                {'product': 'SD DI. 200', 'quantity': 2, 'grossAmount': 20},
+                {'product': 'Diamonds loose DI. SD 200', 'quantity': 3, 'grossAmount': 30},
+                {'product': 'SD DI. 225', 'quantity': 1, 'grossAmount': 4},
+                {'product': 'Diamonds loose SD Dk Mix', 'quantity': 8, 'grossAmount': 9},
+                {'product': 'SD DI. Mix', 'quantity': 6, 'grossAmount': 7},
+            ]
+        )
+        by_name = {row['product']: row for row in pivot}
+        assert by_name['SD DI. 200']['sumOfQuantity'] == 5.0
+        assert by_name['SD DI. 200']['sumOfGross'] == 50.0
+        assert 'Diamonds loose DI. SD 200' not in by_name
+        assert by_name['SD DI. 225']['sumOfQuantity'] == 1.0
+        assert by_name['Diamonds loose SD Dk Mix']['sumOfQuantity'] == 8.0
+        assert by_name['SD DI. Mix']['sumOfQuantity'] == 6.0
+
+    def test_loose_keeps_the_first_display_name(self):
+        pivot = build_product_pivot(
+            [
+                {'product': 'DI RA LOOSE 10', 'quantity': 1, 'grossAmount': 4},
+                {'product': 'DI RA 10', 'quantity': 2, 'grossAmount': 6},
+            ]
+        )
+        assert len(pivot) == 1
+        assert pivot[0]['product'] == 'DI RA LOOSE 10'
+        assert pivot[0]['sumOfQuantity'] == 3.0
+        assert pivot[0]['sumOfGross'] == 10.0
 
 
 class TestWorkbookLoader:
@@ -206,6 +256,98 @@ class TestWorkbookLoader:
         assert 'Quantity' in caught.value.context['missingColumns']
         assert 'Gross Amount' in caught.value.context['missingColumns']
 
+    def test_supplier_notes_use_only_product_and_amount(self):
+        credit_bytes = _excel_bytes(
+            [
+                {
+                    'Voucher': 'CN-1',
+                    'Product': 'Only Purchase',
+                    'Quantity': 9,
+                    'Gross Amount': 999,
+                    'Credit Amount': '1,250.50',
+                }
+            ],
+            title_rows=2,
+        )
+        debit_bytes = _excel_bytes(
+            [
+                {
+                    'Product': 'Di. Beads',
+                    'Debit Amount': 20,
+                    'Quantity': 7,
+                    'Gross Amount': 999,
+                }
+            ]
+        )
+        credit_rows, credit_header = load_supplier_note_workbook(
+            credit_bytes,
+            'credit notes from suppliers.xlsx',
+            source_label='Credit Notes from Suppliers',
+            note_kind='credit',
+        )
+        debit_rows, _ = load_supplier_note_workbook(
+            debit_bytes,
+            'debit notes from suppliers.xlsx',
+            source_label='Debit Notes from Suppliers',
+            note_kind='debit',
+        )
+        assert credit_header == 2
+        assert credit_rows == [
+            {'product': 'Only Purchase', 'quantity': 0.0, 'grossAmount': 1250.50},
+        ]
+        assert debit_rows == [
+            {'product': 'Di. Beads', 'quantity': 0.0, 'grossAmount': 20.0},
+        ]
+        with pytest.raises(SheetValidationError) as caught:
+            load_supplier_note_workbook(
+                _excel_bytes([{'Product': 'X', 'Quantity': 1, 'Gross Amount': 10}]),
+                'credit notes from suppliers.xlsx',
+                source_label='Credit Notes from Suppliers',
+                note_kind='credit',
+            )
+        assert caught.value.context['missingColumns'] == ['Credit Amount']
+        assert 'Quantity' not in caught.value.context['missingColumns']
+
+    def test_return_workbook_uses_amount_and_ignores_other_columns(self):
+        file_bytes = _excel_bytes(
+            [
+                {
+                    'Product': 'Di. Beads',
+                    'Quantity': 2,
+                    'Amount': 150,
+                    'Gross Amount': 999,
+                    'Rate': 75,
+                }
+            ]
+        )
+        rows, _header = load_return_workbook(
+            file_bytes,
+            'sales return.xlsx',
+            source_label='Sales Return',
+        )
+        assert rows == [{'product': 'Di. Beads', 'quantity': 2.0, 'grossAmount': 150.0}]
+
+    def test_return_workbook_uses_the_sheet_that_has_the_products(self):
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            pd.DataFrame([{'Product': 'Total', 'Quantity': 9, 'Amount': 90}]).to_excel(
+                writer, sheet_name='Cover', index=False
+            )
+            pd.DataFrame(
+                [
+                    {'Item Name': 'Di. Beads', 'Qty': 2, 'Amount': 150},
+                    {'Item Name': 'Emeralds JEM 100', 'Qty': 1, 'Amount': 40},
+                ]
+            ).to_excel(writer, sheet_name='Returns', index=False)
+        rows, _header = load_return_workbook(
+            buffer.getvalue(),
+            'sales return.xlsx',
+            source_label='Sales Return',
+        )
+        assert [row['product'] for row in rows] == ['Di. Beads', 'Emeralds JEM 100']
+        assert rows[0]['quantity'] == 2.0
+        assert rows[0]['grossAmount'] == 150.0
+
 
 class TestFinancialsPivotAudit:
     def test_two_independent_pivots_from_workbooks(self):
@@ -295,12 +437,29 @@ class TestFinancialsPivotAudit:
             [{'Product': 'Di. Beads', 'Quantity': 1, 'Gross Amount': 50}]
         )
         credit_bytes = _excel_bytes(
-            [{'Product': 'Only Purchase', 'Quantity': 1, 'Gross Amount': 40}]
+            [
+                {
+                    'Product': 'Only Purchase',
+                    'Credit Amount': 40,
+                    'Quantity': 9,
+                    'Gross Amount': 999,
+                }
+            ]
         )
         debit_bytes = _excel_bytes(
             [
-                {'Product': 'Di. Beads', 'Quantity': 2, 'Gross Amount': 20},
-                {'Product': 'Debit Only', 'Quantity': 5, 'Gross Amount': 55},
+                {
+                    'Product': 'Di. Beads',
+                    'Debit Amount': 20,
+                    'Quantity': 7,
+                    'Gross Amount': 999,
+                },
+                {
+                    'Product': 'Debit Only',
+                    'Debit Amount': 55,
+                    'Quantity': 5,
+                    'Gross Amount': 999,
+                },
             ]
         )
         before = FinancialsPivotAudit().process(
@@ -325,15 +484,49 @@ class TestFinancialsPivotAudit:
         )
         sales = {row['product']: row for row in result['salesPivot']}
         purchases = {row['product']: row for row in result['purchasesPivot']}
-        assert sales['Di. Beads']['sumOfQuantity'] == 8.0
-        assert sales['Di. Beads']['sumOfGross'] == 850.0
+        assert sales['Di. Beads']['sumOfQuantity'] == 10.0
+        assert sales['Di. Beads']['sumOfGross'] == 1000.0
         assert sales['Emeralds JEM 100']['sumOfQuantity'] == 4.0
         assert 'Return Only' not in sales
-        assert purchases['Di. Beads']['sumOfQuantity'] == 9.0
-        assert purchases['Di. Beads']['sumOfGross'] == 770.0
-        assert purchases['Only Purchase']['sumOfQuantity'] == 2.0
-        assert purchases['Only Purchase']['sumOfGross'] == 260.0
+        assert purchases['Di. Beads']['sumOfQuantity'] == 8.0
+        assert purchases['Di. Beads']['sumOfGross'] == 800.0
+        assert purchases['Only Purchase']['sumOfQuantity'] == 3.0
         assert 'Debit Only' not in purchases
+        returns = {row['product']: row for row in result['salesReturnPivot']}
+        assert returns['Di. Beads']['sumOfQuantity'] == 2.0
+        assert returns['Return Only']['sumOfGross'] == 90.0
+        assert {row['product'] for row in result['supplierDebitNotePivot']} == {'Di. Beads', 'Debit Only'}
+        nets = {row['product']: row for row in result['salesPurchaseNet']['products']}
+        assert set(nets) == {
+            'Di. Beads',
+            'Emeralds JEM 100',
+            'Only Purchase',
+            'Return Only',
+            'Debit Only',
+        }
+        assert result['salesPurchaseNet']['unaccountedProducts'] == []
+        assert result['salesPurchaseNet']['inputProductCount'] == 5
+        assert result['salesPurchaseNet']['accountedProductCount'] == 5
+        assert nets['Di. Beads']['netSalesQty'] == 8.0
+        assert nets['Di. Beads']['netSalesAmount'] == 850.0
+        assert nets['Di. Beads']['netPurchaseQty'] == 7.0
+        assert nets['Di. Beads']['netPurchaseAmount'] == 770.0
+        assert nets['Only Purchase']['netPurchaseQty'] == 3.0
+        assert nets['Only Purchase']['netPurchaseAmount'] == 260.0
+        assert nets['Return Only']['netSalesQty'] == -9.0
+        assert nets['Debit Only']['netPurchaseAmount'] == 55.0
+        assert nets['Debit Only']['netPurchaseQty'] == 0.0
+        sheet_rows = [
+            row
+            for row in result['layoutByCategory']['Diamond']
+            if row.get('kind') == 'product' and row.get('label') == 'Di. Beads'
+        ]
+        assert sheet_rows[0]['salesQty'] == 8.0
+        assert sheet_rows[0]['salesAmt'] == 850.0
+        assert sheet_rows[0]['purchasesQty'] == 7.0
+        assert sheet_rows[0]['purchasesAmt'] == 770.0
+        assert 'Return Only' in result['unmappedProducts']
+        assert 'Debit Only' in result['unmappedProducts']
         assert before['salesPivot'][0]['sumOfQuantity'] == 10.0
         assert result['branch'] == 'jubilee-hills'
 

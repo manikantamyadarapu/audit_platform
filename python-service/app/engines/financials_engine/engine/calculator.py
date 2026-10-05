@@ -15,16 +15,20 @@ def build_product_pivot(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Group rows by Product and sum Quantity and Gross Amount independently.
 
     Blank product names are skipped. First-seen product text is preserved.
-    Each product appears once.
+    A standalone LOOSE is not a different product: DI RA 10 and DI RA LOOSE 10
+    share one row.
     """
+    from app.engines.financials_engine.engine.opening_stock import product_identity_key
+
     buckets: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
     for row in rows:
         product = str(row.get('product') or '').strip()
         if not product:
             continue
-        if product not in buckets:
-            buckets[product] = {
+        key = product_identity_key(product) or product.casefold()
+        if key not in buckets:
+            buckets[key] = {
                 'product': product,
                 'sumOfQuantity': 0.0,
                 'sumOfGross': 0.0,
@@ -32,16 +36,16 @@ def build_product_pivot(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 'subcategory': str(row.get('subcategory') or '').strip() or None,
             }
         else:
-            if not buckets[product]['category']:
+            if not buckets[key]['category']:
                 category = str(row.get('category') or '').strip()
                 if category:
-                    buckets[product]['category'] = category
-            if not buckets[product]['subcategory']:
+                    buckets[key]['category'] = category
+            if not buckets[key]['subcategory']:
                 subcategory = str(row.get('subcategory') or '').strip()
                 if subcategory:
-                    buckets[product]['subcategory'] = subcategory
-        buckets[product]['sumOfQuantity'] += float(row.get('quantity') or 0)
-        buckets[product]['sumOfGross'] += float(row.get('grossAmount') or 0)
+                    buckets[key]['subcategory'] = subcategory
+        buckets[key]['sumOfQuantity'] += float(row.get('quantity') or 0)
+        buckets[key]['sumOfGross'] += float(row.get('grossAmount') or 0)
 
     result: list[dict[str, Any]] = []
     for item in buckets.values():

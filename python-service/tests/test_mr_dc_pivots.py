@@ -286,33 +286,33 @@ class TestMrDcClosingStockQty:
         )
 
         mr_pivots = {
-            'jubileeHills': [{'product': '  PRODUCT   A ', 'sumOfQuantity': 10, 'sumOfGross': 999}],
-            'kokapet': [{'product': 'Product A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
-            'internalBasheerbagh': [{'product': 'Product C', 'sumOfQuantity': 9, 'sumOfGross': 1}],
+            'jubileeHills': [{'product': '  BEADS   DB   A ', 'sumOfQuantity': 10, 'sumOfGross': 999}],
+            'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+            'internalBasheerbagh': [{'product': 'Stone JEM C', 'sumOfQuantity': 9, 'sumOfGross': 1}],
         }
         dc_pivots = {
-            'jubileeHills': [{'product': 'product a', 'sumOfQuantity': 3, 'sumOfGross': 1}],
-            'kokapet': [{'product': 'Product A', 'sumOfQuantity': 5, 'sumOfGross': 1}],
-            'internalBasheerbagh': [{'product': 'Product C', 'sumOfQuantity': 2, 'sumOfGross': 1}],
+            'jubileeHills': [{'product': 'beads db a', 'sumOfQuantity': 3, 'sumOfGross': 1}],
+            'kokapet': [{'product': 'Beads DB A', 'sumOfQuantity': 5, 'sumOfGross': 1}],
+            'internalBasheerbagh': [{'product': 'Stone JEM C', 'sumOfQuantity': 2, 'sumOfGross': 1}],
         }
         original_mr = mr_pivots['jubileeHills'][0].copy()
 
         result = map_pivots_to_closing_stock_categories(
-            sales_pivot=[{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
+            sales_pivot=[{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
             purchases_pivot=[],
             mr_pivots=mr_pivots,
             dc_pivots=dc_pivots,
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['salesQty'] == 1
         assert product_a['receiptsJubileeHillsQty'] == 7
         assert product_a['issuesBanjaraHillsQty'] is None
         assert product_a['issuesKokapetQty'] == 3
         assert product_a['receiptsKokapetQty'] is None
         assert product_a.get('receiptsJubileeHillsAmt') is None
-        assert 'Product C' not in result['productsByCategory']['Emerald']
-        assert 'Product B' not in result['productsByCategory']['Diamond']
+        assert 'Stone JEM C' in result['productsByCategory']['Emerald']
+        assert 'Loose RA B' not in result['productsByCategory']['Diamond']
 
         assert mr_pivots['jubileeHills'][0] == original_mr
 
@@ -323,7 +323,7 @@ class TestMrDcClosingStockQty:
         wb = load_workbook(BytesIO(raw))
         diamond = wb['Diamond']
         product_a_row = 11
-        assert diamond.cell(row=product_a_row, column=1).value == 'Product A'
+        assert diamond.cell(row=product_a_row, column=1).value == 'Beads DB A'
         assert diamond.cell(
             row=product_a_row, column=2 + leaf_index_for_measure('receiptsJubileeHillsQty')
         ).value == 7
@@ -349,7 +349,7 @@ class TestMrDcClosingStockQty:
         )
 
         result = map_pivots_to_closing_stock_categories(
-            sales_pivot=[{'product': 'Product A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
+            sales_pivot=[{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
             purchases_pivot=[],
             mr_pivots={
                 'jubileeHills': [
@@ -363,7 +363,48 @@ class TestMrDcClosingStockQty:
             dc_pivots={'jubileeHills': [], 'kokapet': [], 'internalBasheerbagh': []},
             rule_book=SAMPLE_RULE_BOOK,
         )
-        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Product A')
+        product_a = _product_row(result['layoutByCategory']['Diamond'], 'Beads DB A')
         assert product_a['receiptsJubileeHillsQty'] is None
         assert product_a['issuesBanjaraHillsQty'] is None
+
+    def test_mr_or_dc_only_product_is_added_once(self):
+        from app.engines.financials_engine.config.product_rule_book import (
+            map_pivots_to_closing_stock_categories,
+        )
+
+        result = map_pivots_to_closing_stock_categories(
+            sales_pivot=[{'product': 'Beads DB A', 'sumOfQuantity': 1, 'sumOfGross': 10}],
+            purchases_pivot=[],
+            opening_pivot=[
+                {'product': 'Stone JOS F', 'sumOfQuantity': 0, 'sumOfGross': 0},
+            ],
+            mr_pivots={
+                'jubileeHills': [
+                    {'product': 'Di. RC 9', 'sumOfQuantity': 4, 'sumOfGross': 1},
+                    {'product': 'Beads DB A', 'sumOfQuantity': 2, 'sumOfGross': 1},
+                ],
+                'kokapet': [],
+                'internalBasheerbagh': [],
+            },
+            dc_pivots={
+                'jubileeHills': [{'product': 'Plain Finding', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'kokapet': [{'product': 'di. rc 9', 'sumOfQuantity': 1, 'sumOfGross': 1}],
+                'internalBasheerbagh': [{'product': 'Stone JOS F', 'sumOfQuantity': 3, 'sumOfGross': 1}],
+            },
+            rule_book=SAMPLE_RULE_BOOK,
+        )
+        labels = [
+            row['label']
+            for row in result['layoutByCategory']['Diamond']
+            if row.get('kind') == 'product'
+        ]
+        assert labels.count('Beads DB A') == 1
+        assert 'Di. RC 9' in labels
+        precious = [
+            row['label']
+            for row in result['layoutByCategory']['Precious and Semi Precious']
+            if row.get('kind') == 'product'
+        ]
+        assert 'Stone JOS F' in precious
+        assert 'Plain Finding' in result['unmappedProducts']
 

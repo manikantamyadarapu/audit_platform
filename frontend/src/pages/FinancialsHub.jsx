@@ -17,7 +17,7 @@ const modules = [
   {
     title: 'Jubilee Hills Financials',
     description:
-      'Upload a Jubilee Hills folder of about ten files and download the same Closing Stock workbook.',
+      'Upload a Jubilee Hills folder and download the same Closing Stock workbook.',
     path: '/financials/jubilee-hills',
     icon: Landmark,
     tone: 'emerald',

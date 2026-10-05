@@ -633,6 +633,8 @@ async function postFinancialsPivot(
     contentType:
       dcFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  form.append('destination_branch', options.destinationBranch || 'basheerbagh');
+  form.append('source_average_rates', options.sourceAverageRates || '{}');
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {
@@ -786,6 +788,40 @@ async function postFinancialsExportPivots(payload, options = {}) {
  * @param {{ requestId?: string }} [options]
  * @returns {Promise<{ buffer: Buffer, contentType: string, contentDisposition: string }>}
  */
+async function postJubileeHillsTemplate(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const response = await client.post('/api/process/financials/jubilee-hills/template', payload, {
+      headers,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+    });
+    if (response.status >= 400) {
+      let detail = 'Jubilee Hills template export failed';
+      try {
+        const text = Buffer.from(response.data).toString('utf8');
+        const parsed = JSON.parse(text);
+        if (parsed?.detail) detail = parsed.detail;
+      } catch {
+        /* ignore */
+      }
+      const err = new Error(detail);
+      err.status = response.status;
+      throw err;
+    }
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        response.headers['content-type'] ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition: response.headers['content-disposition'] || '',
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 async function postFinancialsExportClosingStock(payload, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -844,6 +880,19 @@ async function getClosingStockRuleBook(options = {}) {
  * @param {{ requestId?: string }} [options]
  * @returns {Promise<object>}
  */
+async function postJubileeHillsPlace(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/process/financials/jubilee-hills/place', payload, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 async function postFinancialsRemapClosingStock(payload, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -864,16 +913,18 @@ async function postJubileeHillsFinancials(files, options = {}) {
     ['purchases_file', files.purchasesFile, 'purchases.xlsx'],
     ['opening_qty_file', files.openingQtyFile, 'opening-quantity.xlsx'],
     ['previous_year_file', files.previousYearFile, 'previous-year-closing.xlsx'],
-    ['mr_file', files.mrFile, 'mr.xlsx'],
-    ['dc_file', files.dcFile, 'dc.xlsx'],
     ['sales_return_file', files.salesReturnFile, 'sales-return.xlsx'],
     ['purchase_return_file', files.purchaseReturnFile, 'purchase-return.xlsx'],
-    ['credit_note_file', files.creditNoteFile, 'credit-notes.xlsx'],
-    ['debit_note_file', files.debitNoteFile, 'debit-notes.xlsx'],
+    ['credit_note_file', files.creditNoteFile, 'credit-notes-from-suppliers.xlsx'],
+    ['debit_note_file', files.debitNoteFile, 'debit-notes-from-suppliers.xlsx'],
   ];
   for (const [field, file, fallbackName] of fields) {
     appendWorkbook(form, field, file, fallbackName);
   }
+  if (files.mrFile?.buffer) appendWorkbook(form, 'mr_file', files.mrFile, 'mr.xlsx');
+  if (files.dcFile?.buffer) appendWorkbook(form, 'dc_file', files.dcFile, 'dc.xlsx');
+  form.append('saved_opening_mappings', files.savedOpeningMappings || '[]');
+  form.append('source_average_rates', files.sourceAverageRates || '{}');
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {
@@ -927,7 +978,9 @@ module.exports = {
   postFinancialsSalesPurchases,
   postFinancialsSalesPurchasesPivots,
   postFinancialsExportPivots,
+  postJubileeHillsTemplate,
   postFinancialsExportClosingStock,
   getClosingStockRuleBook,
   postFinancialsRemapClosingStock,
+  postJubileeHillsPlace,
 };

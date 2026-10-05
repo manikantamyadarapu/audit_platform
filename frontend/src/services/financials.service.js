@@ -1,5 +1,6 @@
 import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
+import { readSourceAverageRates } from '../utils/sourceAverageRates';
 
 /**
  * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing, MR, DC.
@@ -18,7 +19,8 @@ export async function processFinancialsPivot(
   previousYearFile,
   mrFile,
   dcFile,
-  signal
+  signal,
+  destinationBranch = 'basheerbagh'
 ) {
   const form = new FormData();
   form.append('salesFile', salesFile);
@@ -27,6 +29,8 @@ export async function processFinancialsPivot(
   form.append('previousYearFile', previousYearFile);
   form.append('mrFile', mrFile);
   form.append('dcFile', dcFile);
+  form.append('destinationBranch', destinationBranch || 'basheerbagh');
+  form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -45,18 +49,21 @@ export async function processFinancialsPivot(
  * Jubilee Hills Financials — ten workbooks on a dedicated API.
  * The download still uses the shared Closing Stock workbook.
  */
-export async function processJubileeHillsFinancials(files, signal) {
+export async function processJubileeHillsFinancials(files, options = {}) {
+  const { signal, savedOpeningMappings } = options;
   const form = new FormData();
   form.append('salesFile', files.sales);
   form.append('purchasesFile', files.purchases);
   form.append('openingQtyFile', files.quantity);
   form.append('previousYearFile', files.previousYear);
-  form.append('mrFile', files.mr);
-  form.append('dcFile', files.dc);
   form.append('salesReturnFile', files.salesReturn);
   form.append('purchaseReturnFile', files.purchaseReturn);
   form.append('creditNoteFile', files.creditNote);
   form.append('debitNoteFile', files.debitNote);
+  if (files.mr) form.append('mrFile', files.mr);
+  if (files.dc) form.append('dcFile', files.dc);
+  form.append('savedOpeningMappings', JSON.stringify(savedOpeningMappings || []));
+  form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/jubilee-hills', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -148,6 +155,21 @@ export async function downloadFinancialsPivots(payload, signal) {
 }
 
 /**
+ * Download the Jubilee Hills workbook. A placed layout fills the sheets; otherwise the workbook stays blank.
+ */
+export async function downloadJubileeHillsTemplate(payload, signal) {
+  try {
+    const res = await apiClient.post('/api/v1/process/financials/jubilee-hills/template', payload, {
+      responseType: 'blob',
+      signal,
+    });
+    return downloadBlobResponse(res, 'Jubilee-Hills-Financials.xlsx');
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
+/**
  * Download Closing Stock working-paper template (five category sheets).
  * @param {{
  *   products?: string[],
@@ -180,6 +202,18 @@ export async function downloadClosingStockTemplate(payload, signal) {
 export async function fetchClosingStockRuleBook(signal) {
   try {
     const { data } = await apiClient.get('/api/v1/process/financials/closing-stock-rule-book', {
+      signal,
+    });
+    return data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
+/** Rebuild Jubilee Hills sheets after an opening amount is mapped by hand. */
+export async function placeJubileeHillsFromPivots(payload, signal) {
+  try {
+    const { data } = await apiClient.post('/api/v1/process/financials/jubilee-hills/place', payload, {
       signal,
     });
     return data;

@@ -46,6 +46,11 @@ router.post(
   financialsController.exportFinancialsPivots
 );
 router.post(
+  '/jubilee-hills/template',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.exportJubileeHillsTemplate
+);
+router.post(
   '/export-closing-stock',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   financialsController.exportClosingStockTemplate
@@ -55,6 +60,11 @@ router.post(
   '/remap-closing-stock',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   financialsController.remapClosingStock
+);
+router.post(
+  '/jubilee-hills/place',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.placeJubileeHillsSheets
 );
 
 module.exports = router;

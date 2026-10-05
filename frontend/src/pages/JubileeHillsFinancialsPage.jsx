@@ -1,45 +1,50 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FileSpreadsheet, Gem } from 'lucide-react';
+import { Download, FileSpreadsheet, Gem } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
 import { FolderUploadZone } from '../components/upload/FolderUploadZone';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
-import { FinancialsBranchResults } from '../components/audit/FinancialsBranchResults';
+import {
+  JubileeOpeningAmountPanel,
+  loadJubileeOpeningMappings,
+  saveJubileeOpeningMapping,
+} from '../components/audit/JubileeOpeningAmountPanel';
+import { JubileePivotPreview } from '../components/audit/JubileePivotPreview';
+import { ClosingStockPreviewTable } from '../components/tables/ClosingStockPreviewTable';
+import { TradingAccountPreview } from '../components/tables/TradingAccountPreview';
+import { AbstractPreviewTable } from '../components/tables/AbstractPreviewTable';
 import { Input } from '../components/ui/Input';
 import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
+import { CLOSING_STOCK_CATEGORIES, JUBILEE_HILLS_HEADER_LABELS } from '../config/closingStockLayout';
+import { ABSTRACT_SHEET_NAME } from '../config/abstractLayout';
+import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import {
   JUBILEE_HILLS_FOLDER_SLOTS,
   classifyJubileeHillsFolderFiles,
 } from '../config/jubileeHillsFolderFiles';
-import { processJubileeHillsFinancials } from '../services/financials.service';
+import {
+  JUBILEE_HILLS_PREVIEW_SHEETS,
+} from '../config/jubileeHillsSheetStructure';
+import {
+  downloadJubileeHillsTemplate,
+  placeJubileeHillsFromPivots,
+  processJubileeHillsFinancials,
+} from '../services/financials.service';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { cn } from '../utils/cn';
-
-function toastOutcome(data) {
-  const mapped = data?.summary?.mappedProductCount ?? data?.summary?.productsDisplayed ?? 0;
-  const unmapped = data?.summary?.unmappedProductCount ?? 0;
-  if (mapped > 0) {
-    auditToastSuccess(
-      `Jubilee Hills Financials ready — ${mapped} product${mapped === 1 ? '' : 's'} mapped` +
-        (unmapped ? ` (${unmapped} unmapped)` : '')
-    );
-  } else {
-    auditToastError(
-      unmapped
-        ? `Jubilee Hills Financials: no products matched the Rule Book (${unmapped} unmapped).`
-        : 'Jubilee Hills Financials ready but no products were mapped.'
-    );
-  }
-}
+import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
 
 export default function JubileeHillsFinancialsPage() {
   const [folderFiles, setFolderFiles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [sheetsReady, setSheetsReady] = useState(false);
   const [sheetError, setSheetError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [activeSheet, setActiveSheet] = useState(CLOSING_STOCK_CATEGORIES[0]);
   const [companyName, setCompanyName] = useState('');
   const [address, setAddress] = useState('');
   const [financialYear, setFinancialYear] = useState(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
@@ -51,6 +56,15 @@ export default function JubileeHillsFinancialsPage() {
 
   const canProcess = Boolean(identification?.ready);
 
+  const layouts = result?.layoutByCategory || {};
+
+  const applyPlacement = useCallback((data) => {
+    saveBranchAverageRates('jubileeHills', data?.productAverageRates);
+    setResult(data);
+    setSheetsReady(true);
+    setSheetError(null);
+  }, []);
+
   const runProcess = useCallback(async () => {
     const identified = classifyJubileeHillsFolderFiles(folderFiles, { financialYear });
     if (!identified.ready) {
@@ -59,37 +73,128 @@ export default function JubileeHillsFinancialsPage() {
       } else if (identified.missing?.length) {
         auditToastError(`Jubilee Hills is missing ${identified.missing.join(', ')}.`);
       } else {
-        auditToastError('Upload a Jubilee Hills folder with all ten files before processing.');
+        auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
       }
       return;
     }
 
     setLoading(true);
     try {
-      const data = await processJubileeHillsFinancials(identified.files);
-      if (data && data.success === false) {
-        auditToastError(data.detail || 'Jubilee Hills processing failed');
-        setSheetError(typeof data.error === 'object' ? data : { ...data });
-        setResult(null);
-      } else {
-        setResult(data);
-        setSheetError(null);
-        requestAnimationFrame(() => {
-          document.getElementById('jubilee-hills-results')?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
+      const data = await processJubileeHillsFinancials(identified.files, {
+        savedOpeningMappings: loadJubileeOpeningMappings(),
+      });
+      applyPlacement(data);
+      setActiveSheet(CLOSING_STOCK_CATEGORIES[0]);
+      requestAnimationFrame(() => {
+        document.getElementById('jubilee-hills-pivots')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
         });
-        toastOutcome(data);
-      }
+      });
+      auditToastSuccess('Jubilee Hills pivots are ready.');
     } catch (e) {
-      setSheetError(e.details ?? null);
       setResult(null);
-      auditToastError(e.message || 'Jubilee Hills processing failed');
+      setSheetsReady(false);
+      setSheetError(e.details ?? e.message ?? null);
+      auditToastError(e.message || 'Could not build the Jubilee Hills sheets.');
     } finally {
       setLoading(false);
     }
-  }, [folderFiles, financialYear]);
+  }, [applyPlacement, folderFiles, financialYear]);
+
+  const handleConfirmOpeningAmount = useCallback(
+    async (mapping) => {
+      if (!result) return;
+      const previousNames = mapping.previousYearProducts?.length
+        ? mapping.previousYearProducts
+        : [mapping.previousYearProduct].filter(Boolean);
+      saveJubileeOpeningMapping(mapping.product, previousNames);
+      const openingPivot = (result.openingPivot || []).map((row) => {
+        if (String(row?.product || '').trim() !== mapping.product) return row;
+        return {
+          ...row,
+          product: mapping.product,
+          ruleBookProduct: mapping.product,
+          sumOfGross: mapping.amount,
+          status: 'matched_saved',
+          matchMethod: 'saved',
+          previousYearProduct: previousNames.join(' + '),
+          previousYearProducts: previousNames,
+        };
+      });
+      const match = { ...(result.openingAmountMatch || {}) };
+      const manual = (match.manualMappingRequiredRows || []).filter(
+        (row) => row.product !== mapping.product
+      );
+      const unresolved = (Array.isArray(match.unresolvedProducts) ? match.unresolvedProducts : []).filter(
+        (row) => row.product !== mapping.product
+      );
+      const next = {
+        ...result,
+        openingPivot,
+        openingAmountMatch: {
+          ...match,
+          manualMappingRequiredRows: manual,
+          manualMappingRequired: manual.length,
+          unresolvedProducts: unresolved,
+          unresolvedProductCount: unresolved.length,
+          savedMappingsReused: (match.savedMappingsReused || 0) + 1,
+        },
+      };
+      setResult(next);
+      try {
+        const transfers = result.transferPivots || {};
+        const placed = await placeJubileeHillsFromPivots({
+          salesPivot: next.salesPivot || [],
+          purchasesPivot: next.purchasesPivot || [],
+          salesReturnPivot: next.salesReturnPivot || [],
+          purchaseReturnPivot: next.purchaseReturnPivot || [],
+          supplierDebitNotePivot: next.supplierDebitNotePivot || [],
+          supplierCreditNotePivot: next.supplierCreditNotePivot || [],
+          openingPivot,
+          mrPivots: transfers.mrPivots || {},
+          dcPivots: transfers.dcPivots || {},
+          sourceAverageRates: readSourceAverageRates(),
+        });
+        saveBranchAverageRates('jubileeHills', placed.productAverageRates);
+        setResult({
+          ...next,
+          productsByCategory: placed.productsByCategory,
+          layoutByCategory: placed.layoutByCategory,
+          unmappedProducts: placed.unmappedProducts,
+          unmappedProductDetails: placed.unmappedProductDetails,
+          receiptAmountReview: placed.receiptAmountReview || [],
+          productAverageRates: placed.productAverageRates || [],
+        });
+        auditToastSuccess(`Opening amount mapped for ${mapping.product}`);
+      } catch (e) {
+        auditToastError(e.message || 'Could not update the Jubilee Hills sheets.');
+      }
+    },
+    [result]
+  );
+
+  const downloadSheets = useCallback(async () => {
+    setExporting(true);
+    try {
+      await downloadJubileeHillsTemplate({
+        companyName: companyName.trim(),
+        address: address.trim(),
+        financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
+        layoutByCategory: result?.layoutByCategory || null,
+        salesPivot: result?.netSalesPivot || result?.salesPivot || [],
+        purchasesPivot: result?.netPurchasesPivot || result?.purchasesPivot || [],
+        openingPivot: result?.openingPivot || [],
+        mrPivots: result?.mrPivots || result?.transferPivots?.mrPivots || {},
+        dcPivots: result?.dcPivots || result?.transferPivots?.dcPivots || {},
+      });
+      auditToastSuccess('Jubilee Hills workbook downloaded');
+    } catch (e) {
+      auditToastError(e.message || 'Jubilee Hills download failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [address, companyName, financialYear, result]);
 
   return (
     <div className="relative space-y-8">
@@ -100,12 +205,14 @@ export default function JubileeHillsFinancialsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-50">
             Jubilee Hills Financials
           </h1>
-          <Badge tone="amber">Ten files</Badge>
+          <Badge tone="amber">Eight files</Badge>
         </div>
         <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-          Upload one Jubilee Hills folder. Sales on the sheets are Sales minus Sales Return.
-          Purchases are Purchases minus Purchase Return minus supplier credit notes, plus supplier
-          debit notes. The download is the same Closing Stock workbook.
+          Upload one Jubilee Hills folder. Diamond products are identified by Chakri, Flat Polki, Polki, FP,
+          BD, Black Diamonds, DB, Di. Beads, RC, RA, and SD. JOS, JSP, and JSY go to Precious and Semi
+          Precious as Precious Stones, Semi Precious, and Synthetic Stones. JEM, JPS, and JRU go
+          to Emerald, Pearls, or Rubie. A product that appears only in Opening Quantity uses last
+          year’s sheet, except Diamond, which follows those Diamond codes.
         </p>
       </div>
 
@@ -113,9 +220,13 @@ export default function JubileeHillsFinancialsPage() {
         <CardBody>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              The folder needs Sales, Purchases, Opening Quantity, Previous Year Financials, MR, DC,
-              Sales Return, Purchase Return, Credit notes from suppliers, and Debit notes from
-              suppliers.
+              The folder needs Sales, Purchases, Opening Quantity, Previous Year Financials, Sales
+              Return, Purchase Return, Credit Notes from Suppliers, and Debit Notes from Suppliers.
+              Sales Return uses Product, Quantity, and Amount. Purchase Return uses Product,
+              Quantity, and Amount. Debit notes use Product and Debit Amount. Credit notes use
+              Product and Credit Amount. Sheet sales are Sales minus Sales Return. Sheet purchases
+              are Purchases minus Purchase Return, plus Debit Amount, minus Credit Amount. Opening,
+              MR, and DC stay unchanged. MR and DC are optional.
             </p>
             <Button
               variant="primary"
@@ -125,7 +236,7 @@ export default function JubileeHillsFinancialsPage() {
               onClick={runProcess}
             >
               <FileSpreadsheet className="h-4 w-4" />
-              Process
+              Show sheets
             </Button>
           </div>
           <div className="mt-4">
@@ -135,14 +246,15 @@ export default function JubileeHillsFinancialsPage() {
               formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
               onFilesChange={(files) => {
                 setFolderFiles(files);
-                setResult(null);
+                setSheetsReady(false);
                 setSheetError(null);
+                setResult(null);
               }}
             />
           </div>
           {identification?.missing.length ? (
             <p className="mt-4 text-sm font-medium text-rose-700 dark:text-rose-300">
-              Missing: {identification.missing.join(', ')}. All ten Jubilee Hills files are required.
+              Missing: {identification.missing.join(', ')}. Those six Jubilee Hills files are required.
             </p>
           ) : null}
           {identification?.issues.length ? (
@@ -154,7 +266,7 @@ export default function JubileeHillsFinancialsPage() {
           ) : null}
           {identification?.ready ? (
             <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              All ten Jubilee Hills files are identified.
+              The six Jubilee Hills files are identified.
             </p>
           ) : null}
           <ul className="mt-4 divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:divide-slate-700 dark:border-slate-700 dark:bg-[var(--color-surface-elevated)]/80">
@@ -218,9 +330,9 @@ export default function JubileeHillsFinancialsPage() {
       </Card>
 
       {sheetError ? (
-        <Card className="border-rose-200/80 bg-rose-50/40 shadow-md">
+        <Card className="border-amber-200/80 bg-amber-50/40 shadow-md">
           <CardHeader>
-            <h3 className="text-base font-semibold text-rose-950">Unable to process Jubilee Hills workbook</h3>
+            <h3 className="text-base font-semibold text-amber-950">Jubilee Hills sheets could not be built</h3>
           </CardHeader>
           <CardBody>
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-[var(--color-surface-elevated)] p-4 font-mono text-xs text-[var(--color-text-primary)] shadow-inner">
@@ -230,24 +342,148 @@ export default function JubileeHillsFinancialsPage() {
         </Card>
       ) : null}
 
-      {result ? (
-        <FinancialsBranchResults
-          key={`jh-${result.auditRunId || result.requestId || 'current'}`}
-          result={result}
-          onResultUpdate={setResult}
-          resultsId="jubilee-hills-results"
-          branchHeading="Jubilee Hills Financials"
-          financialYear={financialYear}
-          companyName={companyName}
-          address={address}
-        />
-      ) : !sheetError ? (
+      {sheetsReady ? <JubileePivotPreview result={result} /> : null}
+
+      {sheetsReady && result?.openingAmountMatch ? (
+        <Card className="border-sky-200/80 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20">
+          <CardHeader>
+            <h3 className="text-base font-semibold text-sky-950 dark:text-sky-100">
+              Previous-year opening amounts
+            </h3>
+            <p className="mt-1 text-sm text-sky-900/80 dark:text-sky-200/80">
+              Amounts are filled when one previous-year product in the same category matches and
+              the quantity matches. Anything else stays here for review. The list shows only that
+              category.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <JubileeOpeningAmountPanel
+              match={result.openingAmountMatch}
+              onConfirm={handleConfirmOpeningAmount}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {Array.isArray(result?.receiptAmountReview) && result.receiptAmountReview.length ? (
+        <Card className="border-amber-200/80 bg-amber-50/70">
+          <CardHeader>
+            <h3 className="text-base font-bold text-amber-900">Receipt amounts to review</h3>
+            <p className="mt-1 text-sm text-amber-900/80">
+              These receipt quantities have no matching Average Rate on the source branch, so the amount was left blank.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <ul className="space-y-1 text-sm text-amber-950">
+              {result.receiptAmountReview.map((row) => (
+                <li key={`${row.category}-${row.product}-${row.column}`}>
+                  {row.product} — {row.column} needs {row.sourceBranchLabel} Average Rate
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {sheetsReady ? (
+        <Card id="jubilee-hills-results">
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-base font-bold text-emerald-700">Jubilee Hills Financials</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Diamond codes and words place the product on the Diamond sheet. JOS, JSP, and JSY
+                  place it on Precious and Semi Precious. JEM, JPS, and JRU place it on Emerald,
+                  Pearls, or Rubie. An opening-only product uses last year’s sheet when that sheet
+                  is not Diamond.
+                </p>
+              </div>
+              <Button variant="primary" size="md" loading={exporting} disabled={exporting} onClick={downloadSheets}>
+                <Download className="h-4 w-4" />
+                Download workbook
+              </Button>
+            </div>
+            <div
+              className="mt-4 flex flex-wrap gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 dark:border-slate-700 dark:bg-slate-900/30"
+              role="tablist"
+              aria-label="Jubilee Hills sheets"
+            >
+              {JUBILEE_HILLS_PREVIEW_SHEETS.map((sheet) => {
+                const selected = sheet === activeSheet;
+                const isCategorySheet =
+                  sheet !== TRADING_SHEET_NAME && sheet !== ABSTRACT_SHEET_NAME;
+                const count = Array.isArray(result?.productsByCategory?.[sheet])
+                  ? result.productsByCategory[sheet].length
+                  : 0;
+                return (
+                  <button
+                    key={sheet}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setActiveSheet(sheet)}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors',
+                      selected
+                        ? 'bg-emerald-700 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-white hover:text-emerald-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-emerald-200'
+                    )}
+                  >
+                    {sheet}
+                    {isCategorySheet ? (
+                      <span
+                        className={cn(
+                          'ml-1.5 text-xs font-medium',
+                          selected ? 'text-emerald-100' : 'text-slate-400'
+                        )}
+                      >
+                        ({count})
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </CardHeader>
+          <CardBody>
+            {activeSheet === TRADING_SHEET_NAME ? (
+              <TradingAccountPreview
+                layoutByCategory={layouts}
+                salesPivot={result?.netSalesPivot || result?.salesPivot || []}
+                purchasesPivot={result?.netPurchasesPivot || result?.purchasesPivot || []}
+                openingPivot={result?.openingPivot || []}
+                mrPivots={result?.mrPivots || result?.transferPivots?.mrPivots || {}}
+                dcPivots={result?.dcPivots || result?.transferPivots?.dcPivots || {}}
+              />
+            ) : activeSheet === ABSTRACT_SHEET_NAME ? (
+              <AbstractPreviewTable
+                layoutByCategory={layouts}
+                salesPivot={result?.netSalesPivot || result?.salesPivot || []}
+                purchasesPivot={result?.netPurchasesPivot || result?.purchasesPivot || []}
+                openingPivot={result?.openingPivot || []}
+                mrPivots={result?.mrPivots || result?.transferPivots?.mrPivots || {}}
+                dcPivots={result?.dcPivots || result?.transferPivots?.dcPivots || {}}
+              />
+            ) : (
+              <ClosingStockPreviewTable
+                category={activeSheet}
+                layoutRows={layouts[activeSheet] || []}
+                products={result?.productsByCategory?.[activeSheet] || []}
+                financialYear={financialYear || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear}
+                companyName={companyName}
+                address={address}
+                headerLabels={JUBILEE_HILLS_HEADER_LABELS}
+              />
+            )}
+          </CardBody>
+        </Card>
+      ) : (
         <EmptyState
           icon={Gem}
-          title="Awaiting process"
-          description="Upload a Jubilee Hills folder with the ten required files, then Process."
+          title="Sheet structure not shown yet"
+          description="Upload a Jubilee Hills folder with the six required files, then Show sheets."
         />
-      ) : null}
+      )}
     </div>
   );
 }

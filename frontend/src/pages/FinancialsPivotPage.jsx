@@ -22,6 +22,7 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
+import { saveBranchAverageRates } from '../utils/sourceAverageRates';
 
 const SESSION_KEY = CLOSING_STOCK_AUDIT_CONFIG.sessionKey;
 
@@ -66,7 +67,7 @@ function toastClosingStockOutcome(data, branch = '') {
     const label = branch ? `${branch} Closing Stock` : 'Closing Stock';
     auditToastError(
       unmapped
-        ? `${label}: no products matched the Rule Book (${unmapped} unmapped). Check product names.`
+        ? `${label}: no products matched a sheet code (${unmapped} unmapped). Check product names.`
         : `${label} ready but no products were mapped.`
     );
   }
@@ -339,7 +340,9 @@ export default function FinancialsPivotPage() {
           { notifyOnFailure: true, force: true }
         );
       } else {
+        saveBranchAverageRates('basheerbagh', data.productAverageRates);
         setResult(data);
+        setKokapetResult((current) => (current ? { ...current } : current));
         setSheetError(null);
         requestAnimationFrame(() => {
           document.getElementById('basheerbagh-results')?.scrollIntoView({
@@ -440,14 +443,18 @@ export default function FinancialsPivotPage() {
         kpOpeningQty,
         kpPreviousYear,
         kpMr,
-        kpDc
+        kpDc,
+        undefined,
+        'kokapet'
       );
       if (data && data.success === false) {
         auditToastError(data.detail || 'Kokapet processing failed');
         setKokapetSheetError(typeof data.error === 'object' ? data : { ...data });
         setKokapetResult(null);
       } else {
+        saveBranchAverageRates('kokapet', data.productAverageRates);
         setKokapetResult(data);
+        setResult((current) => (current ? { ...current } : current));
         setKokapetSheetError(null);
         requestAnimationFrame(() => {
           document.getElementById('kokapet-results')?.scrollIntoView({
@@ -527,8 +534,9 @@ export default function FinancialsPivotPage() {
               <h2 className="text-lg font-bold text-emerald-700">Upload &amp; process</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Six files are required. Opening Qty from Opening Balance; Opening Amount from each
-                product’s previous-year sheet Closing Balance — then Rule Book layout. MR and DC
-                each produce three location pivots.
+                product’s previous-year sheet Closing Balance. Sheet placement uses the same Diamond,
+                Precious, Emerald, Pearls, and Rubie codes as Jubilee Hills. MR and DC each produce
+                three location pivots.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -732,6 +740,7 @@ export default function FinancialsPivotPage() {
           onResultUpdate={setResult}
           resultsId="basheerbagh-results"
           branchHeading="Basheerbagh Financials"
+          destinationBranch="basheerbagh"
           financialYear={financialYear}
           companyName={companyName}
           address={address}
@@ -768,6 +777,7 @@ export default function FinancialsPivotPage() {
           onResultUpdate={setKokapetResult}
           resultsId="kokapet-results"
           branchHeading="Kokapet Financials"
+          destinationBranch="kokapet"
           financialYear={financialYear}
           companyName={companyName}
           address={address}

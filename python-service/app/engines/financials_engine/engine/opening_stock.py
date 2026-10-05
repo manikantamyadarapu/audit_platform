@@ -36,11 +36,74 @@ _CATEGORY_PREFIXES = (
 )
 
 
+def _without_standalone_loose(text: str) -> str:
+    """Drop the whole word loose. Leave it inside a code such as loosely or diraloose."""
+    parts = re.split(r'([^a-z0-9]+)', text)
+    kept = [part for part in parts if part != 'loose']
+    return ' '.join(''.join(kept).split())
+
+
 def norm_opening_product_name(name: str) -> str:
-    """Case-insensitive, trim, collapse invisible/extra whitespace. No fuzzy matching."""
+    """Case-insensitive, trim, collapse whitespace, and ignore a standalone loose."""
     text = unicodedata.normalize('NFKC', str(name or ''))
     text = _UNICODE_WS.sub(' ', text).strip().casefold()
-    return ' '.join(text.split())
+    text = ' '.join(text.split())
+    return _without_standalone_loose(text)
+
+
+def collapse_same_product_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    product_field: str = 'product',
+    sum_fields: Sequence[str] = ('openingBalance',),
+) -> list[dict[str, Any]]:
+    """One row per product. The first name stays. Loose variants add into that row."""
+    buckets: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for row in rows:
+        product = str(row.get(product_field) or '').strip()
+        key = product_identity_key(product) or norm_opening_product_name(product)
+        if not product or not key:
+            continue
+        current = buckets.get(key)
+        if current is None:
+            copied = dict(row)
+            copied[product_field] = product
+            buckets[key] = copied
+            order.append(key)
+            continue
+        for field in sum_fields:
+            if field not in row and field not in current:
+                continue
+            left = current.get(field)
+            right = row.get(field)
+            if left is None and right is None:
+                continue
+            try:
+                current[field] = float(left or 0) + float(right or 0)
+            except (TypeError, ValueError):
+                continue
+    return [buckets[key] for key in order]
+
+
+_IDENTITY_FILLERS = frozenset({'loose', 'diamond', 'diamonds'})
+
+
+def product_identity_key(name: str) -> str:
+    """Product code without category words or a standalone loose.
+
+    Token order does not matter.
+    "DI RA 10" and "DI RA LOOSE 10" → 10 di ra
+    "Diamonds loose DI. SD 200" and "SD DI. 200" → 200 di sd
+    "DI RA 100" stays 100 di ra. "DI RB 10" stays 10 di rb.
+    """
+    text = norm_opening_product_name(name).replace('.', ' ')
+    tokens: list[str] = []
+    for raw in text.split():
+        token = _NON_ALNUM.sub('', raw)
+        if token and token not in _IDENTITY_FILLERS:
+            tokens.append(token)
+    return ' '.join(sorted(tokens))
 
 
 def alnum_opening_product_key(name: str) -> str:
@@ -98,6 +161,7 @@ def product_sheet_lookup_keys(product: str) -> list[str]:
     primary = norm_opening_product_name(name)
     add(primary)
     add(alnum_opening_product_key(name))
+    add(product_identity_key(name))
 
     stripped = _strip_category_prefix(primary)
     if stripped != primary:
@@ -320,6 +384,10 @@ def map_opening_stock_from_product_sheets(
     - Missing product or Closing Amt → amount blank, logged with product + reason.
     """
     logger = log or get_logger()
+    quantity_rows = collapse_same_product_rows(
+        quantity_rows,
+        sum_fields=('openingBalance',),
+    )
     matched: list[dict[str, Any]] = []
     fallback_matched: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
