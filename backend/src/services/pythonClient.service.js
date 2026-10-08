@@ -633,7 +633,6 @@ async function postFinancialsPivot(
     contentType:
       dcFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  form.append('destination_branch', options.destinationBranch || 'basheerbagh');
   form.append('source_average_rates', options.sourceAverageRates || '{}');
 
   const headers = { ...form.getHeaders() };
@@ -641,8 +640,10 @@ async function postFinancialsPivot(
     headers['x-request-id'] = options.requestId;
   }
 
+  const branch = options.destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
+
   try {
-    const { data } = await client.post('/api/process/financials', form, {
+    const { data } = await client.post(`/api/process/financials/${branch}`, form, {
       headers,
     });
     return data;

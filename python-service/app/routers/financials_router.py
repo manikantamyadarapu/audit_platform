@@ -253,9 +253,9 @@ async def _process_financials_sales_purchases(
         )
 
 
-@router.post('/financials')
-@gateway_router.post('/financials/validate')
-async def process_financials_pivot(
+@router.post('/financials/basheerbagh')
+@gateway_router.post('/financials/validate/basheerbagh')
+async def process_basheerbagh_financials(
     request: Request,
     sales_file: UploadFile = File(...),
     purchases_file: UploadFile = File(...),
@@ -263,7 +263,6 @@ async def process_financials_pivot(
     previous_year_file: UploadFile = File(...),
     mr_file: UploadFile = File(...),
     dc_file: UploadFile = File(...),
-    destination_branch: str = Form('basheerbagh'),
     source_average_rates: str = Form('{}'),
 ) -> dict[str, Any]:
     return await _process_financials_pivot(
@@ -274,13 +273,39 @@ async def process_financials_pivot(
         _request_id(request),
         mr_file=mr_file,
         dc_file=dc_file,
-        destination_branch=destination_branch or 'basheerbagh',
+        destination_branch='basheerbagh',
+        source_average_rates=_parse_source_average_rates(source_average_rates),
+    )
+
+
+@router.post('/financials/kokapet')
+@gateway_router.post('/financials/validate/kokapet')
+async def process_kokapet_financials(
+    request: Request,
+    sales_file: UploadFile = File(...),
+    purchases_file: UploadFile = File(...),
+    opening_qty_file: UploadFile = File(...),
+    previous_year_file: UploadFile = File(...),
+    mr_file: UploadFile = File(...),
+    dc_file: UploadFile = File(...),
+    source_average_rates: str = Form('{}'),
+) -> dict[str, Any]:
+    return await _process_financials_pivot(
+        sales_file,
+        purchases_file,
+        opening_qty_file,
+        previous_year_file,
+        _request_id(request),
+        mr_file=mr_file,
+        dc_file=dc_file,
+        destination_branch='kokapet',
         source_average_rates=_parse_source_average_rates(source_average_rates),
     )
 
 
 @router.post('/financials/jubilee-hills')
 @gateway_router.post('/financials/jubilee-hills')
+@gateway_router.post('/financials/validate/jubilee-hills')
 async def process_jubilee_hills_financials(
     request: Request,
     sales_file: UploadFile = File(...),

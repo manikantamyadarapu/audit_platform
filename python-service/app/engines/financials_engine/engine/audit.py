@@ -344,18 +344,40 @@ class FinancialsPivotAudit:
         source_average_rates: Any = None,
     ) -> dict[str, Any]:
         """Jubilee Hills only. Basheerbagh and Kokapet keep using process()."""
-        base = self.process(
-            sales_file_name,
+        started = perf_counter()
+        sales_rows, _ = load_financials_workbook(
             sales_bytes,
-            purchases_file_name,
-            purchases_bytes,
-            opening_qty_file_name=opening_qty_file_name,
-            opening_qty_bytes=opening_qty_bytes,
-            previous_year_file_name=previous_year_file_name,
-            previous_year_bytes=previous_year_bytes,
+            sales_file_name,
+            source_label='Sales',
         )
-        sales_pivot = list(base.get('salesPivot') or [])
-        purchases_pivot = list(base.get('purchasesPivot') or [])
+        purchases_rows, _ = load_financials_workbook(
+            purchases_bytes,
+            purchases_file_name,
+            source_label='Purchases',
+        )
+        sales_pivot = build_product_pivot(sales_rows)
+        purchases_pivot = build_product_pivot(purchases_rows)
+        qty_rows: list[dict[str, Any]] = []
+        prev_payload: dict[str, Any] = {}
+        if opening_qty_bytes and previous_year_bytes:
+            qty_rows = load_opening_quantity_workbook(
+                opening_qty_bytes,
+                opening_qty_file_name or 'opening-quantity.xlsx',
+            )
+            prev_payload = load_previous_year_opening_stock(
+                previous_year_bytes,
+                previous_year_file_name or 'previous-year-closing.xlsx',
+                log=self._log,
+            )
+        self._log.info(
+            'Financials pivot: sales {} rows → {} products; purchases {} rows → {} products; '
+            'opening rows {}',
+            len(sales_rows),
+            len(sales_pivot),
+            len(purchases_rows),
+            len(purchases_pivot),
+            len(qty_rows),
+        )
         sales_return_pivot = self._load_return_pivot(
             sales_return_bytes,
             sales_return_file_name,
@@ -423,24 +445,15 @@ class FinancialsPivotAudit:
                 source_label='DC',
             )
         mr_dc_pivots = build_mr_dc_pivot_payload(mr_rows=mr_rows, dc_rows=dc_rows)
-        opening_pivot = list(base.get('openingPivot') or [])
-        validated_opening = list(base.get('validatedOpening') or [])
-        opening_report = dict(base.get('openingStockReport') or {})
+        opening_pivot: list[dict[str, Any]] = []
+        validated_opening: list[dict[str, Any]] = []
+        opening_report: dict[str, Any] = {}
         opening_amount_match = None
         if opening_qty_bytes and previous_year_bytes:
             from app.engines.financials_engine.engine.jubilee_opening_amount import (
                 match_jubilee_opening_amounts,
             )
 
-            qty_rows = load_opening_quantity_workbook(
-                opening_qty_bytes,
-                opening_qty_file_name or 'opening-quantity.xlsx',
-            )
-            prev_payload = load_previous_year_opening_stock(
-                previous_year_bytes,
-                previous_year_file_name or 'previous-year-closing.xlsx',
-                log=self._log,
-            )
             jubilee_opening = match_jubilee_opening_amounts(
                 quantity_rows=qty_rows,
                 previous_year_index=prev_payload.get('productIndex') or {},
@@ -462,15 +475,15 @@ class FinancialsPivotAudit:
                 opening_amount_match.get('multipleCandidateMatches'),
                 opening_amount_match.get('unresolvedProductCount'),
             )
-        summary = dict(base.get('summary') or {})
+        load_ms = (perf_counter() - started) * 1000
         rebuilt = build_financials_pivot_response(
             sales_pivot=sales_pivot,
             purchases_pivot=purchases_pivot,
-            sales_source_rows=int(summary.get('salesSourceRows') or 0),
-            purchases_source_rows=int(summary.get('purchasesSourceRows') or 0),
+            sales_source_rows=len(sales_rows),
+            purchases_source_rows=len(purchases_rows),
             sales_file_name=sales_file_name,
             purchases_file_name=purchases_file_name,
-            load_ms=float((base.get('executionTiming') or {}).get('loadMs') or 0),
+            load_ms=load_ms,
             opening_pivot=opening_pivot,
             validated_opening=validated_opening,
             opening_stock_report=opening_report,

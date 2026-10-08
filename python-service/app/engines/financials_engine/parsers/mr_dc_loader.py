@@ -113,9 +113,8 @@ def load_transfer_workbook(
     Columns are located by case-insensitive, whitespace-tolerant names.
     Column order does not matter.
     """
-    raw = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
+    book = pd.ExcelFile(BytesIO(file_bytes), engine='openpyxl')
+    raw = book.parse(
         header=None,
         nrows=max(HEADER_SCAN_LIMIT, 120),
     )
@@ -135,9 +134,7 @@ def load_transfer_workbook(
         )
     assert header_row_index is not None
 
-    dataframe = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
+    dataframe = book.parse(
         header=int(header_row_index),
     )
     original_columns = [

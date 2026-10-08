@@ -1,0 +1,25 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const financialsRoutes = require('./financials.routes');
+
+function routePaths() {
+  return financialsRoutes.stack
+    .filter((layer) => layer.route)
+    .map((layer) => {
+      const method = Object.keys(layer.route.methods)[0].toUpperCase();
+      return `${method} ${layer.route.path}`;
+    });
+}
+
+test('Financials validate routes are split by branch and stay authenticated', () => {
+  const authLayer = financialsRoutes.stack.find((layer) => !layer.route);
+  assert.equal(authLayer.handle.name, 'authenticate');
+
+  const paths = routePaths();
+  assert.equal(paths.includes('POST /validate'), false);
+  assert.equal(paths.includes('POST /jubilee-hills'), false);
+  assert.equal(paths.includes('POST /validate/basheerbagh'), true);
+  assert.equal(paths.includes('POST /validate/kokapet'), true);
+  assert.equal(paths.includes('POST /validate/jubilee-hills'), true);
+});

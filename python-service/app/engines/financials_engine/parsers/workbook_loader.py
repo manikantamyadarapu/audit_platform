@@ -191,9 +191,8 @@ def load_financials_workbook(
     Does not assume header row 1, column order, or Excel column letters.
     Blank Product rows (e.g. Round Off Type / Round Off Account metadata) are skipped.
     """
-    raw = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
+    book = pd.ExcelFile(BytesIO(file_bytes), engine='openpyxl')
+    raw = book.parse(
         header=None,
         nrows=max(HEADER_SCAN_LIMIT, 120),
     )
@@ -212,12 +211,8 @@ def load_financials_workbook(
 
     assert header_row_index is not None
 
-    # Re-read with the detected header row so all transaction rows below are loaded.
-    dataframe = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
-        header=int(header_row_index),
-    )
+    # Parse the detected header from the same workbook so transaction rows are loaded once.
+    dataframe = book.parse(header=int(header_row_index))
     # Keep original display names for mapping, then locate by normalized name.
     original_columns = [str(c) if c is not None and not (isinstance(c, float) and pd.isna(c)) else '' for c in dataframe.columns]
     column_map = _resolve_column_map(original_columns)
@@ -291,9 +286,8 @@ def load_supplier_note_workbook(
         raise ValueError(f'Unsupported supplier note kind: {note_kind}')
 
     expected = tuple(required.values())
-    raw = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
+    book = pd.ExcelFile(BytesIO(file_bytes), engine='openpyxl')
+    raw = book.parse(
         header=None,
         nrows=max(HEADER_SCAN_LIMIT, 120),
     )
@@ -312,11 +306,7 @@ def load_supplier_note_workbook(
         )
 
     assert header_row_index is not None
-    dataframe = pd.read_excel(
-        BytesIO(file_bytes),
-        engine='openpyxl',
-        header=int(header_row_index),
-    )
+    dataframe = book.parse(header=int(header_row_index))
     original_columns = [
         str(c) if c is not None and not (isinstance(c, float) and pd.isna(c)) else ''
         for c in dataframe.columns

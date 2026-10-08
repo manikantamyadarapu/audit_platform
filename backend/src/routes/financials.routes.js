@@ -10,20 +10,28 @@ router.use(authenticate);
 
 /**
  * Full paths (mounted under /api/v1):
- * POST /api/v1/process/financials/validate  (sales/purchases/opening/previousYear + required mr/dc)
+ * POST /api/v1/process/financials/validate/basheerbagh
+ * POST /api/v1/process/financials/validate/kokapet
+ * POST /api/v1/process/financials/validate/jubilee-hills
  * POST /api/v1/process/financials/export-pivots
  * POST /api/v1/process/financials/export-closing-stock
  * GET  /api/v1/process/financials/closing-stock-rule-book
  * POST /api/v1/process/financials/remap-closing-stock
  */
 router.post(
-  '/validate',
+  '/validate/basheerbagh',
   financialsPivotFiles,
   handleMulterError,
-  financialsController.processFinancialsPivot
+  financialsController.processBasheerbaghFinancials
 );
 router.post(
-  '/jubilee-hills',
+  '/validate/kokapet',
+  financialsPivotFiles,
+  handleMulterError,
+  financialsController.processKokapetFinancials
+);
+router.post(
+  '/validate/jubilee-hills',
   financialsJubileeHillsFiles,
   handleMulterError,
   financialsController.processJubileeHillsFinancials

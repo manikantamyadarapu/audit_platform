@@ -681,6 +681,46 @@ def _opening_only_location(
     return _previous_year_sheet_location(row)
 
 
+class _IncrementalProductLookup:
+    """Same name index as rebuilding the Rule Book lookup after every added product.
+
+    Name keys keep the first product that claimed them. A core code is added only
+    while exactly one product owns it, and a later name key replaces that core key.
+    """
+
+    def __init__(self) -> None:
+        self.lookup: dict[str, str] = {}
+        self._core_owners: dict[str, list[str]] = {}
+        self._core_only: set[str] = set()
+
+    def add(self, display_name: str) -> None:
+        for key in (
+            _norm_product(display_name),
+            _match_key(display_name),
+            product_identity_key(display_name),
+        ):
+            if not key:
+                continue
+            if key in self._core_only:
+                del self.lookup[key]
+                self._core_only.discard(key)
+            if key not in self.lookup:
+                self.lookup[key] = display_name
+        core = _core_sku_key(display_name)
+        if not core:
+            return
+        owners = self._core_owners.setdefault(core, [])
+        owners.append(display_name)
+        if len(owners) == 1:
+            if core not in self.lookup:
+                self.lookup[core] = display_name
+                self._core_only.add(core)
+            return
+        if core in self._core_only:
+            del self.lookup[core]
+            self._core_only.discard(core)
+
+
 def _lookup_from_entries(
     entries: Sequence[tuple[str, str, str | None]],
 ) -> dict[str, str]:
@@ -742,6 +782,7 @@ def _try_add_opening_row(
     unplaced: list[dict[str, Any]],
     location_index: Mapping[str, tuple[str, str | None]],
     rule_book: Mapping[str, Any],
+    names: _IncrementalProductLookup,
 ) -> None:
     """
     Add an Opening Quantity product that is not already in Sales/Purchases.
@@ -756,7 +797,7 @@ def _try_add_opening_row(
     if not product and not mapped_name:
         return
 
-    lookup = _lookup_from_entries(entries)
+    lookup = names.lookup
     if product and _catalog_display_for(product, lookup):
         return
     if mapped_name and _catalog_display_for(mapped_name, lookup):
@@ -793,6 +834,7 @@ def _try_add_opening_row(
         )
         return
     _append_unique_catalog_product(entries, product=display, location=loc)
+    names.add(display)
 
 
 def _append_unique_catalog_product(
@@ -823,6 +865,7 @@ def _build_financials_product_catalog(
     """
     entries: list[tuple[str, str, str | None]] = []
     unplaced: list[dict[str, Any]] = []
+    names = _IncrementalProductLookup()
 
     def _try_add_from_row(
         row: Mapping[str, Any],
@@ -833,8 +876,7 @@ def _build_financials_product_catalog(
         product = _row_text(row, 'product')
         if not product:
             return
-        lookup = _lookup_from_entries(entries)
-        existing = _resolve_rule_book_display_name(product, lookup=lookup)
+        existing = _resolve_rule_book_display_name(product, lookup=names.lookup)
         if existing is not None:
             return
         loc = locate(product, row)
@@ -853,6 +895,7 @@ def _build_financials_product_catalog(
             )
             return
         _append_unique_catalog_product(entries, product=product, location=loc)
+        names.add(product)
 
     for row in sales_pivot or ():
         _try_add_from_row(
@@ -877,6 +920,7 @@ def _build_financials_product_catalog(
             unplaced=unplaced,
             location_index=location_index,
             rule_book=rule_book,
+            names=names,
         )
     for source, row in iter_mr_dc_rows(mr_pivots, dc_pivots):
         _try_add_from_row(
@@ -1644,6 +1688,7 @@ def map_pivots_to_closing_stock_categories(
     unmapped: list[str] = []
     unmapped_details: list[dict[str, str]] = []
     unmapped_seen: set[str] = set()
+    unmapped_counts: dict[str, int] = {}
     for source, rows in (
         ('Sales', unmapped_sales_rows),
         ('Purchases', unmapped_purchases_rows),
@@ -1659,7 +1704,7 @@ def map_pivots_to_closing_stock_categories(
             unmapped_seen.add(key)
             unmapped.append(product_name)
             unmapped_details.append({'product': product_name, 'source': source})
-            log.warning('Unmapped pivot product: {} Source: {}', product_name, source)
+            unmapped_counts[source] = unmapped_counts.get(source, 0) + 1
 
     for source, row in iter_mr_dc_rows(mr_pivots, dc_pivots):
         product_name = str(row.get('product') or '').strip()
@@ -1673,7 +1718,12 @@ def map_pivots_to_closing_stock_categories(
         unmapped_seen.add(key)
         unmapped.append(product_name)
         unmapped_details.append({'product': product_name, 'source': source})
-        log.warning('Unmapped pivot product: {} Source: {}', product_name, source)
+        unmapped_counts[source] = unmapped_counts.get(source, 0) + 1
+    if unmapped_counts:
+        log.warning(
+            'Unmapped pivot products: {}',
+            ', '.join(f'{source}={count}' for source, count in unmapped_counts.items()),
+        )
 
     layout_location_index = build_product_location_index(layout_book)
     sales_by_category, purchases_by_category = _build_category_pivot_lists(

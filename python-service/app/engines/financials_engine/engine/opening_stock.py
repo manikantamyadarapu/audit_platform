@@ -384,6 +384,17 @@ def map_opening_stock_from_product_sheets(
     - Missing product or Closing Amt → amount blank, logged with product + reason.
     """
     logger = log or get_logger()
+    fallback_counts: dict[str, int] = {}
+    from app.engines.financials_engine.config.product_rule_book import (
+        _build_rule_book_match_lookup,
+        build_product_location_index,
+        load_closing_stock_product_rule_book,
+    )
+
+    if rule_book is None:
+        rule_book = load_closing_stock_product_rule_book()
+    fallback_location_index = build_product_location_index(rule_book)
+    fallback_match_lookup = _build_rule_book_match_lookup(rule_book)
     quantity_rows = collapse_same_product_rows(
         quantity_rows,
         sum_fields=('openingBalance',),
@@ -447,6 +458,9 @@ def map_opening_stock_from_product_sheets(
             rule_book=rule_book,
             log=logger,
             claimed_prev_keys=claimed_prev_keys,
+            log_counts=fallback_counts,
+            location_index=fallback_location_index,
+            match_lookup=fallback_match_lookup,
         )
         if fallback is None:
             return False
@@ -700,6 +714,11 @@ def map_opening_stock_from_product_sheets(
     exact_matched_count = len(matched)
     fallback_matched_count = len(fallback_matched)
     total_matched_count = exact_matched_count + fallback_matched_count
+    if fallback_counts:
+        logger.warning(
+            'Opening Stock fallback summary: {}',
+            ' '.join(f'{kind}={count}' for kind, count in fallback_counts.items()),
+        )
 
     return {
         'validatedOpening': validated_opening,

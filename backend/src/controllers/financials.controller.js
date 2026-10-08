@@ -16,6 +16,16 @@ function sendExcelDownload(res, file, requestId) {
   return res.send(file.buffer);
 }
 
+function processBasheerbaghFinancials(req, res, next) {
+  req.body = { ...(req.body || {}), destinationBranch: 'basheerbagh' };
+  return processFinancialsPivot(req, res, next);
+}
+
+function processKokapetFinancials(req, res, next) {
+  req.body = { ...(req.body || {}), destinationBranch: 'kokapet' };
+  return processFinancialsPivot(req, res, next);
+}
+
 async function processFinancialsPivot(req, res, next) {
   try {
     const salesFile = req.files?.salesFile?.[0];
@@ -391,6 +401,8 @@ async function processJubileeHillsFinancials(req, res, next) {
 
 module.exports = {
   processFinancialsPivot,
+  processBasheerbaghFinancials,
+  processKokapetFinancials,
   processJubileeHillsFinancials,
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,

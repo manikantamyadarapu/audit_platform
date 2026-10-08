@@ -29,10 +29,10 @@ export async function processFinancialsPivot(
   form.append('previousYearFile', previousYearFile);
   form.append('mrFile', mrFile);
   form.append('dcFile', dcFile);
-  form.append('destinationBranch', destinationBranch || 'basheerbagh');
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  const branch = destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
   try {
-    const { data } = await apiClient.post('/api/v1/process/financials/validate', form, {
+    const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });
@@ -65,7 +65,7 @@ export async function processJubileeHillsFinancials(files, options = {}) {
   form.append('savedOpeningMappings', JSON.stringify(savedOpeningMappings || []));
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
   try {
-    const { data } = await apiClient.post('/api/v1/process/financials/jubilee-hills', form, {
+    const { data } = await apiClient.post('/api/v1/process/financials/validate/jubilee-hills', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });

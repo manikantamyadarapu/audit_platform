@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 
 from app.engines.financials_engine.config.product_rule_book import (
     CLOSING_STOCK_CATEGORIES,
+    _IncrementalProductLookup,
     _build_rule_book_match_lookup,
     _coerce_measure,
     _display_product_measures,
@@ -407,13 +408,13 @@ def place_jubilee_hills_products(
     resolved: list[dict[str, str]] = []
     unmapped: list[dict[str, Any]] = []
     pending: list[str] = []
-
-    def placed_lookup() -> dict[str, str]:
-        return _name_lookup([name for name, _category, _sub in placed])
+    placed_names = _IncrementalProductLookup()
+    pending_names = _IncrementalProductLookup()
 
     def remember(product: str, location: tuple[str, str | None], source: str) -> None:
         category, subcategory = location
         placed.append((product, category, subcategory))
+        placed_names.add(product)
         if source not in {'rule-book', 'product-code'}:
             resolved.append(
                 {
@@ -430,13 +431,13 @@ def place_jubilee_hills_products(
     for source, rows in (('Sales', sales_pivot or ()), ('Purchases', purchases_pivot or ())):
         for row in rows:
             product = str(row.get('product') or '').strip()
-            if not product or _already_placed(product, placed_lookup()):
+            if not product or _already_placed(product, placed_names.lookup):
                 continue
             found = locate_product(product)
             if found is None:
                 if _trading_account_product(product):
                     continue
-                if not _already_placed(product, _name_lookup(pending)):
+                if not _already_placed(product, pending_names.lookup):
                     unmapped.append(
                         {
                             'product': product,
@@ -446,6 +447,7 @@ def place_jubilee_hills_products(
                         }
                     )
                     pending.append(product)
+                    pending_names.add(product)
                 continue
             location, origin = found
             remember(product, location, origin)
@@ -454,8 +456,8 @@ def place_jubilee_hills_products(
         product = str(row.get('product') or '').strip()
         if (
             not product
-            or _already_placed(product, placed_lookup())
-            or _already_placed(product, _name_lookup(pending))
+            or _already_placed(product, placed_names.lookup)
+            or _already_placed(product, pending_names.lookup)
         ):
             continue
         if _opening_is_blank_or_zero(row):
@@ -482,13 +484,14 @@ def place_jubilee_hills_products(
             }
         )
         pending.append(product)
+        pending_names.add(product)
 
     for source, row in iter_mr_dc_rows(mr_pivots, dc_pivots):
         product = str(row.get('product') or '').strip()
         if (
             not product
-            or _already_placed(product, placed_lookup())
-            or _already_placed(product, _name_lookup(pending))
+            or _already_placed(product, placed_names.lookup)
+            or _already_placed(product, pending_names.lookup)
         ):
             continue
         if _trading_account_product(product):
@@ -504,6 +507,7 @@ def place_jubilee_hills_products(
                 }
             )
             pending.append(product)
+            pending_names.add(product)
             continue
         location, origin = found
         remember(product, location, origin)

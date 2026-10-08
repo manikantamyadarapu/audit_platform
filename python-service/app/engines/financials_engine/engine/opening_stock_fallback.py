@@ -619,6 +619,9 @@ def try_subcategory_fallback(
     rule_book: Mapping[str, Any] | None = None,
     log: Any | None = None,
     claimed_prev_keys: set[str] | None = None,
+    log_counts: dict[str, int] | None = None,
+    location_index: Mapping[str, tuple[str, str | None]] | None = None,
+    match_lookup: Mapping[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """
     Name-based previous-year identification. Auto-accepts Opening Amount only
@@ -631,10 +634,17 @@ def try_subcategory_fallback(
         sheet_products = {}
 
     logger = log or get_logger()
+    counts = log_counts if log_counts is not None else {}
+
+    def _count(kind: str) -> None:
+        counts[kind] = counts.get(kind, 0) + 1
+
     claimed = claimed_prev_keys if claimed_prev_keys is not None else set()
     book = rule_book if rule_book is not None else load_closing_stock_product_rule_book()
-    location_index = build_product_location_index(book)
-    match_lookup = _build_rule_book_match_lookup(book)
+    if location_index is None:
+        location_index = build_product_location_index(book)
+    if match_lookup is None:
+        match_lookup = _build_rule_book_match_lookup(book)
 
     display_name = _resolve_rule_book_display_name(product, lookup=match_lookup)
     location = resolve_product_location(product, index=location_index)
@@ -658,10 +668,7 @@ def try_subcategory_fallback(
         )
         if metal is not None:
             return metal
-        logger.warning(
-            'Opening Stock fallback: Rule Book location not found product={}',
-            product,
-        )
+        _count('location_not_found')
         return _manual_mapping_result(
             category=None,
             subcategory=None,
@@ -705,12 +712,7 @@ def try_subcategory_fallback(
     )
 
     if not candidates:
-        logger.warning(
-            'Opening Stock fallback: no previous-year subcategory rows product={} category={} subcategory={}',
-            product,
-            category,
-            subcategory,
-        )
+        _count('subcategory_rows_missing')
         return _manual_mapping_result(
             category=category,
             subcategory=subcategory,
@@ -731,10 +733,7 @@ def try_subcategory_fallback(
     )
 
     if not matched_prev:
-        logger.warning(
-            'Opening Stock fallback: previous-year products not identified product={} → Manual Mapping Required',
-            product,
-        )
+        _count('not_identified')
         return _manual_mapping_result(
             category=category,
             subcategory=subcategory,
@@ -748,17 +747,7 @@ def try_subcategory_fallback(
     sum_amt = _sum_prev_amt(matched_prev)
     qty_matches = _qty_equal(opening_qty, sum_qty)
     prev_product_names = [str(r.get('product') or '') for r in matched_prev]
-
-    logger.info(
-        'Opening Stock fallback: product={} → prev_products={} → prev_qty_sum={} → '
-        'opening_qty={} → match={} → prev_amount={}',
-        product,
-        prev_product_names,
-        round(sum_qty, 6),
-        opening_qty,
-        'yes' if qty_matches else 'no',
-        round(sum_amt, 4),
-    )
+    _count('checked')
 
     same_name_only = all(
         _same_opening_name(str(row.get('product') or ''), product)
