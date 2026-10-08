@@ -49,8 +49,12 @@ export const AUDIT_SESSION_REGISTRY = {
     localStorageAlias: 'audit_session_rate',
   },
   'financials-sales-purchases': {
-    pageRoute: '/financials/closing-stock',
+    pageRoute: '/financials/basheerbagh',
     localStorageAlias: 'audit_session_financials_sales_purchases',
+  },
+  'financials-kokapet': {
+    pageRoute: '/financials/kokapet',
+    localStorageAlias: 'audit_session_financials_kokapet',
   },
 };
 

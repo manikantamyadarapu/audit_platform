@@ -35,6 +35,7 @@ import {
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { cn } from '../utils/cn';
+import { SourceAverageRatesHint } from '../components/audit/SourceAverageRatesHint';
 import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
 
 export default function JubileeHillsFinancialsPage() {
@@ -214,6 +215,7 @@ export default function JubileeHillsFinancialsPage() {
           to Emerald, Pearls, or Rubie. A product that appears only in Opening Quantity uses last
           year’s sheet, except Diamond, which follows those Diamond codes.
         </p>
+        <SourceAverageRatesHint branch="jubileeHills" />
       </div>
 
       <Card>

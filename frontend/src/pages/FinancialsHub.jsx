@@ -1,23 +1,30 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Gem, Landmark } from 'lucide-react';
+import { Gem, Landmark, MapPin } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
-import { Card, CardBody } from '../components/ui/Card';
 
 const modules = [
   {
-    title: 'Stock Reconciliation',
+    title: 'Basheerbagh Financials',
     description:
-      'Reconcile opening stock, purchases, receipts, issues and sales. Download the working paper and supporting pivots as Excel.',
-    path: '/financials/closing-stock',
+      'Upload the Basheerbagh folder and build that branch Closing Stock workbook. Saved Average Rates stay available to the other branches.',
+    path: '/financials/basheerbagh',
     icon: Gem,
+    tone: 'emerald',
+  },
+  {
+    title: 'Kokapet Financials',
+    description:
+      'Upload the Kokapet folder on the same six-file flow. Receipt amounts can use Average Rates saved from the other branches.',
+    path: '/financials/kokapet',
+    icon: MapPin,
     tone: 'emerald',
   },
   {
     title: 'Jubilee Hills Financials',
     description:
-      'Upload a Jubilee Hills folder and download the same Closing Stock workbook.',
+      'Upload a Jubilee Hills folder and download the Closing Stock workbook. Receipt amounts use Average Rates saved from Basheerbagh and Kokapet.',
     path: '/financials/jubilee-hills',
     icon: Landmark,
     tone: 'emerald',
@@ -35,8 +42,8 @@ export default function FinancialsHub() {
           <Badge tone="emerald">Active division</Badge>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Financial statement workflows. Stock Reconciliation builds product pivots from Sales,
-          Purchases, Opening, MR, and DC, then produces the jewels working-paper template.
+          Three branch workbooks. Each page runs its own upload. Average Rates saved on one branch
+          are reused when another branch calculates receipt amounts.
         </p>
       </motion.div>
 
@@ -57,15 +64,6 @@ export default function FinancialsHub() {
         </div>
       </section>
 
-      <Card>
-        <CardBody>
-          <h3 className="text-base font-semibold text-slate-900">Next steps</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Opening Stock, Purchases, Receipts (including Kokapet), Issues, Sales, Average Rate,
-            Gross Profit, and Deviation will be wired onto this template in follow-up tasks.
-          </p>
-        </CardBody>
-      </Card>
     </div>
   );
 }

@@ -14,9 +14,10 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/scrutiny/tds/rate-0.1': () => import('../pages/TdsRate01Page'),
   '/scrutiny/diamond-gem-rates': () => import('../pages/DiamondGemRateBook'),
   '/financials': () => import('../pages/FinancialsHub'),
-  '/financials/closing-stock': () => import('../pages/FinancialsPivotPage'),
+  '/financials/basheerbagh': () => import('../pages/BasheerbaghFinancialsPage'),
+  '/financials/kokapet': () => import('../pages/KokapetFinancialsPage'),
   '/financials/jubilee-hills': () => import('../pages/JubileeHillsFinancialsPage'),
-  '/financials/first-audit': () => import('../pages/FinancialsPivotPage'),
+  '/financials/closing-stock': () => import('../pages/BasheerbaghFinancialsPage'),
 };
 
 const preloaded = new Set();

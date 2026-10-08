@@ -20,6 +20,7 @@ import {
   Undo2,
   Wallet,
   Landmark,
+  MapPin,
   Weight,
   LogOut,
   UserCircle,
@@ -65,7 +66,8 @@ const tdsItems = [
 ];
 
 const financialsItems = [
-  { to: '/financials/closing-stock', label: 'Stock Reconciliation', icon: Gem },
+  { to: '/financials/basheerbagh', label: 'Basheerbagh Financials', icon: Gem },
+  { to: '/financials/kokapet', label: 'Kokapet Financials', icon: MapPin },
   { to: '/financials/jubilee-hills', label: 'Jubilee Hills Financials', icon: Landmark },
 ];
 
