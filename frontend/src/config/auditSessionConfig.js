@@ -56,6 +56,10 @@ export const AUDIT_SESSION_REGISTRY = {
     pageRoute: '/financials/kokapet',
     localStorageAlias: 'audit_session_financials_kokapet',
   },
+  'financials-jubilee-hills': {
+    pageRoute: '/financials/jubilee-hills',
+    localStorageAlias: 'audit_session_financials_jubilee_hills',
+  },
 };
 
 /** @param {string} registryKey */

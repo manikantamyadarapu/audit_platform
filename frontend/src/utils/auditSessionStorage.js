@@ -169,6 +169,171 @@ function slimAuditResult(result, { aggressive = false } = {}) {
   return slimmed;
 }
 
+function slimPivotList(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    product: row?.product ?? '',
+    sumOfQuantity: row?.sumOfQuantity ?? null,
+    sumOfGross: row?.sumOfGross ?? null,
+    ruleBookProduct: row?.ruleBookProduct,
+    category: row?.category,
+    subcategory: row?.subcategory,
+    sheetName: row?.sheetName,
+    status: row?.status,
+    matchMethod: row?.matchMethod,
+    previousYearProduct: row?.previousYearProduct,
+    previousYearProducts: row?.previousYearProducts,
+  }));
+}
+
+function slimLocationTree(tree) {
+  if (!tree || typeof tree !== 'object') return {};
+  return Object.fromEntries(Object.entries(tree).map(([key, rows]) => [key, slimPivotList(rows)]));
+}
+
+function slimLayoutRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const slim = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value == null || value === '') continue;
+    if (typeof value === 'object') continue;
+    slim[key] = value;
+  }
+  if (!slim.kind) slim.kind = row.kind || 'product';
+  if (!slim.label && row.label) slim.label = row.label;
+  return slim;
+}
+
+function slimLayoutByCategory(layoutByCategory) {
+  if (!layoutByCategory || typeof layoutByCategory !== 'object') return null;
+  return Object.fromEntries(
+    Object.entries(layoutByCategory).map(([category, rows]) => [
+      category,
+      Array.isArray(rows) ? rows.map(slimLayoutRow) : [],
+    ])
+  );
+}
+
+function slimProductNames(productsByCategory) {
+  if (!productsByCategory || typeof productsByCategory !== 'object') return null;
+  return Object.fromEntries(
+    Object.entries(productsByCategory).map(([category, rows]) => [
+      category,
+      (Array.isArray(rows) ? rows : [])
+        .map((row) => (typeof row === 'string' ? row : row?.product || row?.label || ''))
+        .filter(Boolean),
+    ])
+  );
+}
+
+function slimManualOpeningRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    product: row.product ?? '',
+    category: row.category ?? null,
+    subcategory: row.subcategory ?? null,
+    openingQty: row.openingQty ?? null,
+    openingAmt: row.openingAmt ?? null,
+    status: row.status ?? null,
+    reason: row.reason ?? null,
+    sheetName: row.sheetName ?? row.category ?? null,
+  };
+}
+
+function slimPreviousYearCatalog(catalog) {
+  if (!catalog || typeof catalog !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(catalog).map(([category, rows]) => [
+      category,
+      (Array.isArray(rows) ? rows : []).map((row) => ({
+        product: row?.product ?? '',
+        category: row?.category ?? category,
+        closingStockQty: row?.closingStockQty ?? null,
+        closingStockAmount: row?.closingStockAmount ?? null,
+      })),
+    ])
+  );
+}
+
+function slimOpeningAmountMatch(match, { keepCatalog = true } = {}) {
+  if (!match || typeof match !== 'object') return null;
+  const rows = Array.isArray(match.manualMappingRequiredRows)
+    ? match.manualMappingRequiredRows.map(slimManualOpeningRow)
+    : [];
+  return {
+    exactMatches: match.exactMatches ?? 0,
+    alphanumericMatches: match.alphanumericMatches ?? 0,
+    coreCodeMatches: match.coreCodeMatches ?? 0,
+    prefixMatches: match.prefixMatches ?? 0,
+    quantityVerifiedMatches: match.quantityVerifiedMatches ?? 0,
+    savedMappingsReused: match.savedMappingsReused ?? 0,
+    manualMappingRequired: rows.length || match.manualMappingRequired || 0,
+    quantityMismatches: match.quantityMismatches ?? 0,
+    multipleCandidateMatches: match.multipleCandidateMatches ?? 0,
+    unresolvedProductCount: match.unresolvedProductCount ?? 0,
+    manualMappingRequiredRows: rows,
+    unresolvedProducts: Array.isArray(match.unresolvedProducts)
+      ? match.unresolvedProducts.map((row) => ({
+          product: row?.product ?? '',
+          category: row?.category ?? null,
+          reason: row?.reason ?? null,
+        }))
+      : [],
+    previousYearByCategory: keepCatalog ? slimPreviousYearCatalog(match.previousYearByCategory) : {},
+  };
+}
+
+/** Keep the Jubilee Hills sheets and the pivots that draw them. Drop duplicated catalogs. */
+export function slimJubileeHillsResult(result, { keepCatalog = true } = {}) {
+  if (!result || typeof result !== 'object') return result;
+
+  return {
+    success: result.success,
+    branch: result.branch,
+    auditRunId: result.auditRunId,
+    fileType: result.fileType,
+    auditKey: result.auditKey,
+    totalRows: result.totalRows,
+    errorRows: result.errorRows,
+    summary: trimHeavySummaryFields(result.summary),
+    layoutByCategory: slimLayoutByCategory(result.layoutByCategory),
+    productsByCategory: slimProductNames(result.productsByCategory),
+    unmappedProducts: result.unmappedProducts ?? [],
+    unmappedProductDetails: keepCatalog ? result.unmappedProductDetails ?? [] : [],
+    receiptAmountReview: result.receiptAmountReview ?? [],
+    productAverageRates: keepCatalog ? result.productAverageRates ?? [] : [],
+    resolvedMappings: keepCatalog ? result.resolvedMappings ?? [] : [],
+    categories: result.categories,
+    salesPivot: slimPivotList(result.netSalesPivot?.length ? result.netSalesPivot : result.salesPivot),
+    purchasesPivot: slimPivotList(
+      result.netPurchasesPivot?.length ? result.netPurchasesPivot : result.purchasesPivot
+    ),
+    salesReturnPivot: slimPivotList(result.salesReturnPivot),
+    purchaseReturnPivot: slimPivotList(result.purchaseReturnPivot),
+    supplierCreditNotePivot: slimPivotList(result.supplierCreditNotePivot),
+    supplierDebitNotePivot: slimPivotList(result.supplierDebitNotePivot),
+    netSalesPivot: slimPivotList(result.netSalesPivot),
+    netPurchasesPivot: slimPivotList(result.netPurchasesPivot),
+    openingPivot: slimPivotList(result.openingPivot),
+    mrPivots: slimLocationTree(result.mrPivots || result.transferPivots?.mrPivots),
+    dcPivots: slimLocationTree(result.dcPivots || result.transferPivots?.dcPivots),
+    openingAmountMatch: slimOpeningAmountMatch(result.openingAmountMatch, { keepCatalog }),
+  };
+}
+
+export function slimJubileeHillsSnapshot(snapshot, options = {}) {
+  if (!snapshot?.result) return snapshot;
+  return {
+    ...snapshot,
+    result: slimJubileeHillsResult(snapshot.result, options),
+  };
+}
+
+/** Sheet only, when the fuller Jubilee Hills save does not fit in localStorage. */
+export function aggressiveSlimJubileeHillsSnapshot(snapshot) {
+  return slimJubileeHillsSnapshot(snapshot, { keepCatalog: false });
+}
+
 /** Extra pass when localStorage quota is exceeded. */
 export function aggressiveSlimAuditSnapshot(snapshot) {
   if (!snapshot?.result) return snapshot;
@@ -282,6 +447,8 @@ export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
     case 'cash-ledger':
     case 'negative-bank':
       return slimCashLedgerSnapshot(snapshot);
+    case 'financials-jubilee-hills':
+      return aggressiveSlimJubileeHillsSnapshot(snapshot);
     default:
       return aggressiveSlimAuditSnapshot(snapshot);
   }
@@ -417,6 +584,110 @@ function writeRaw(key, payload) {
   localStorage.setItem(key, JSON.stringify(payload));
 }
 
+function evictExpiredAuditSessions() {
+  if (typeof localStorage === 'undefined') return;
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (!key.startsWith('audit_session_') && !key.startsWith(LEGACY_KEY_PREFIX)) continue;
+    keys.push(key);
+  }
+  for (const key of keys) {
+    try {
+      const payload = JSON.parse(localStorage.getItem(key) || 'null');
+      if (!payload?.expiresAt || Date.now() > payload.expiresAt) {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+const SESSION_DB_NAME = 'audit_platform_sessions';
+const SESSION_DB_STORE = 'sessions';
+
+function openSessionDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(SESSION_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(SESSION_DB_STORE)) {
+        db.createObjectStore(SESSION_DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function sessionRecord(registryKey, data) {
+  return {
+    savedAt: Date.now(),
+    expiresAt: Date.now() + AUDIT_SESSION_RETENTION_DAYS * MS_PER_DAY,
+    auditKey: registryKey,
+    data,
+  };
+}
+
+/** Larger browser store used when localStorage rejects a Jubilee Hills sheet. */
+export async function saveAuditSessionOverflow(registryKey, data) {
+  const key = resolveScopedStorageKey(registryKey);
+  const payload = sessionRecord(registryKey, data);
+  const db = await openSessionDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SESSION_DB_STORE, 'readwrite');
+      tx.objectStore(SESSION_DB_STORE).put(payload, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+  writeCachedSession(registryKey, payload);
+  return true;
+}
+
+export async function loadAuditSessionOverflow(registryKey) {
+  const key = resolveScopedStorageKey(registryKey);
+  const db = await openSessionDb();
+  try {
+    const payload = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SESSION_DB_STORE, 'readonly');
+      const request = tx.objectStore(SESSION_DB_STORE).get(key);
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
+    if (!payload?.data) return null;
+    if (!payload.expiresAt || Date.now() > payload.expiresAt) {
+      await deleteAuditSessionOverflow(registryKey);
+      return null;
+    }
+    if (!payload.data.result && !payload.data.sheetError) return null;
+    writeCachedSession(registryKey, payload);
+    return payload;
+  } finally {
+    db.close();
+  }
+}
+
+export async function deleteAuditSessionOverflow(registryKey) {
+  const key = resolveScopedStorageKey(registryKey);
+  const db = await openSessionDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SESSION_DB_STORE, 'readwrite');
+      tx.objectStore(SESSION_DB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
 /**
  * Load session for one audit type only (with legacy key migration).
  * @param {string} registryKey
@@ -487,6 +758,7 @@ export function saveAuditSession(registryKey, data, options = {}) {
     return ok;
   } catch {
     try {
+      evictExpiredAuditSessions();
       const aggressive = aggressiveSlimSnapshotForRegistry(registryKey, transformed);
       const body = { ...payload, data: aggressive };
       const ok = tryWrite(body);
@@ -516,6 +788,7 @@ export function clearAuditSession(registryKey) {
     config?.localStorageAlias?.replace(/^audit_session_/, '') ??
     registryKey.replace(/-/g, '_');
   localStorage.removeItem(`audit_session_anon_${suffix}`);
+  void deleteAuditSessionOverflow(registryKey).catch(() => {});
 }
 
 /** Whole days remaining before this session expires. */

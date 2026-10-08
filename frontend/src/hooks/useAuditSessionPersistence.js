@@ -3,8 +3,10 @@ import {
   clearAuditSession,
   formatSavedSessionLabel,
   loadAuditSession,
+  loadAuditSessionOverflow,
   readAuditSessionMeta,
   saveAuditSession,
+  saveAuditSessionOverflow,
   aggressiveSlimSnapshotForRegistry,
 } from '../utils/auditSessionStorage';
 
@@ -79,6 +81,25 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         ok = saveAuditSession(registryKey, storedPayload);
       }
 
+      if (!ok && registryKey === 'financials-jubilee-hills' && payloadForStorage?.result) {
+        void saveAuditSessionOverflow(registryKey, payloadForStorage)
+          .then((saved) => {
+            if (saved) {
+              updateSessionMeta(readAuditSessionMeta(registryKey));
+              return;
+            }
+            if (notifyOnFailure && optionsRef.current.onSaveFailed) {
+              optionsRef.current.onSaveFailed();
+            }
+          })
+          .catch(() => {
+            if (notifyOnFailure && optionsRef.current.onSaveFailed) {
+              optionsRef.current.onSaveFailed();
+            }
+          });
+        return true;
+      }
+
       if (ok) {
         updateSessionMeta(readAuditSessionMeta(registryKey));
       } else if (notifyOnFailure && optionsRef.current.onSaveFailed) {
@@ -94,24 +115,51 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
   useEffect(() => {
     const generation = ++mountGenerationRef.current;
     lastPersistKeyRef.current = '';
+    let cancelled = false;
 
-    const local = loadAuditSession(registryKey);
-    if (local?.data) {
-      const snap = snapshotRef.current;
-      const alreadyHasWorkspace = Boolean(snap?.result || snap?.sheetError);
-      const localHasWorkspace = Boolean(local.data?.result || local.data?.sheetError);
-      if (localHasWorkspace && !alreadyHasWorkspace) {
-        applySessionPayload(local.data);
+    async function hydrate() {
+      let local = loadAuditSession(registryKey);
+      if (
+        registryKey === 'financials-jubilee-hills' &&
+        !local?.data?.result?.layoutByCategory
+      ) {
+        try {
+          const overflow = await loadAuditSessionOverflow(registryKey);
+          if (!cancelled && overflow?.data?.result?.layoutByCategory) {
+            local = overflow;
+          }
+        } catch {
+          /* keep the localStorage copy */
+        }
       }
-      updateSessionMeta({ savedAt: local.savedAt, expiresAt: local.expiresAt });
-      return undefined;
+      if (cancelled || generation !== mountGenerationRef.current) return;
+
+      if (local?.data) {
+        const snap = snapshotRef.current;
+        const alreadyHasWorkspace = Boolean(snap?.result || snap?.sheetError);
+        const localHasWorkspace = Boolean(local.data?.result || local.data?.sheetError);
+        const alreadyHasSheet = Boolean(snap?.result?.layoutByCategory);
+        const localHasSheet = Boolean(local.data?.result?.layoutByCategory);
+        const shouldApply =
+          registryKey === 'financials-jubilee-hills'
+            ? localHasSheet && !alreadyHasSheet
+            : localHasWorkspace && !alreadyHasWorkspace;
+        if (shouldApply) {
+          applySessionPayload(local.data);
+        }
+        updateSessionMeta({ savedAt: local.savedAt, expiresAt: local.expiresAt });
+        return;
+      }
+
+      if (generation === mountGenerationRef.current) {
+        updateSessionMeta(null);
+      }
     }
 
-    if (generation === mountGenerationRef.current) {
-      updateSessionMeta(null);
-    }
-
-    return undefined;
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
   }, [registryKey, applySessionPayload, updateSessionMeta]);
 
   // Auto-save filter/workspace changes — persist() dedupes identical writes.
