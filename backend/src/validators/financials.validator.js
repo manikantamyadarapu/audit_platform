@@ -7,6 +7,22 @@
  * @param {string} field
  * @returns {{ ok: true, rows: object[] } | { ok: false, detail: string }}
  */
+function branchFrom(body) {
+  const branch = String(body?.destinationBranch || '').trim();
+  if (branch === 'basheerbagh' || branch === 'kokapet' || branch === 'jubileeHills') return branch;
+  return '';
+}
+
+function ratesFrom(body) {
+  const rates = body?.sourceAverageRates;
+  if (rates && typeof rates === 'object' && !Array.isArray(rates)) return rates;
+  return {};
+}
+
+function mappingsFrom(body) {
+  return Array.isArray(body?.receiptRateMappings) ? body.receiptRateMappings : [];
+}
+
 function validatePivotArray(value, field) {
   if (value == null) {
     return { ok: true, rows: [] };
@@ -72,14 +88,29 @@ function validateFinancialsExportPivotsBody(body) {
   if (!mrPivots.ok) return mrPivots;
   const dcPivots = validateLocationPivots(body.dcPivots, 'dcPivots');
   if (!dcPivots.ok) return dcPivots;
+  const salesReturn = validatePivotArray(body.salesReturnPivot, 'salesReturnPivot');
+  if (!salesReturn.ok) return salesReturn;
+  const purchaseReturn = validatePivotArray(body.purchaseReturnPivot, 'purchaseReturnPivot');
+  if (!purchaseReturn.ok) return purchaseReturn;
+  const supplierDebit = validatePivotArray(body.supplierDebitNotePivot, 'supplierDebitNotePivot');
+  if (!supplierDebit.ok) return supplierDebit;
+  const supplierCredit = validatePivotArray(body.supplierCreditNotePivot, 'supplierCreditNotePivot');
+  if (!supplierCredit.ok) return supplierCredit;
 
   return {
     ok: true,
     salesPivot: sales.rows,
     purchasesPivot: purchases.rows,
     openingPivot: opening.rows,
+    salesReturnPivot: salesReturn.rows,
+    purchaseReturnPivot: purchaseReturn.rows,
+    supplierDebitNotePivot: supplierDebit.rows,
+    supplierCreditNotePivot: supplierCredit.rows,
     mrPivots: mrPivots.tree,
     dcPivots: dcPivots.tree,
+    destinationBranch: branchFrom(body),
+    sourceAverageRates: ratesFrom(body),
+    receiptRateMappings: mappingsFrom(body),
   };
 }
 
@@ -134,6 +165,9 @@ function validateClosingStockExportBody(body) {
     companyName,
     address,
     financialYear,
+    destinationBranch: branchFrom(body),
+    sourceAverageRates: ratesFrom(body),
+    receiptRateMappings: mappingsFrom(body),
   };
 }
 

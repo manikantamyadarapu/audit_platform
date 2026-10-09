@@ -287,6 +287,9 @@ async function exportClosingStockTemplate(req, res, next) {
       companyName: parsed.companyName,
       address: parsed.address,
       financialYear: parsed.financialYear,
+      destinationBranch: parsed.destinationBranch,
+      sourceAverageRates: parsed.sourceAverageRates,
+      receiptRateMappings: parsed.receiptRateMappings,
     });
     return sendExcelDownload(res, file, req.requestId);
   } catch (err) {
@@ -317,8 +320,14 @@ async function placeJubileeHillsSheets(req, res, next) {
       salesPivot: parsed.salesPivot,
       purchasesPivot: parsed.purchasesPivot,
       openingPivot: parsed.openingPivot,
+      salesReturnPivot: parsed.salesReturnPivot,
+      purchaseReturnPivot: parsed.purchaseReturnPivot,
+      supplierDebitNotePivot: parsed.supplierDebitNotePivot,
+      supplierCreditNotePivot: parsed.supplierCreditNotePivot,
       mrPivots: parsed.mrPivots,
       dcPivots: parsed.dcPivots,
+      sourceAverageRates: parsed.sourceAverageRates,
+      receiptRateMappings: parsed.receiptRateMappings,
     });
     return res.json(data);
   } catch (err) {
@@ -343,6 +352,9 @@ async function remapClosingStock(req, res, next) {
       openingPivot: parsed.openingPivot,
       mrPivots: parsed.mrPivots,
       dcPivots: parsed.dcPivots,
+      destinationBranch: parsed.destinationBranch,
+      sourceAverageRates: parsed.sourceAverageRates,
+      receiptRateMappings: parsed.receiptRateMappings,
     });
     return res.json(data);
   } catch (err) {
@@ -380,6 +392,8 @@ async function processJubileeHillsFinancials(req, res, next) {
       typeof req.body?.savedOpeningMappings === 'string' ? req.body.savedOpeningMappings : '[]';
     files.sourceAverageRates =
       typeof req.body?.sourceAverageRates === 'string' ? req.body.sourceAverageRates : '{}';
+    files.receiptRateMappings =
+      typeof req.body?.receiptRateMappings === 'string' ? req.body.receiptRateMappings : '[]';
 
     logger.info('Jubilee Hills financials: forwarding to Python', {
       requestId: req.requestId,

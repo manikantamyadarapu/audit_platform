@@ -396,6 +396,7 @@ def place_jubilee_hills_products(
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     rule_book: Mapping[str, Any] | None = None,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     """
     Diamond uses the Diamond regex rules. JOS, JSP, and JSY choose Precious Stones,
@@ -539,6 +540,7 @@ def place_jubilee_hills_products(
         layouts,
         destination='jubileeHills',
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
     return {
         'productsByCategory': products_by_category,
@@ -561,6 +563,7 @@ def apply_jubilee_hills_placement(
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     """Replace Basheerbagh sheet placement on a Jubilee Hills process result.
 
@@ -577,6 +580,7 @@ def apply_jubilee_hills_placement(
         mr_pivots=resolved_mr,
         dc_pivots=resolved_dc,
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
     response['mrPivots'] = _with_internal_as_jubilee_hills(resolved_mr)
     response['dcPivots'] = _with_internal_as_jubilee_hills(resolved_dc)

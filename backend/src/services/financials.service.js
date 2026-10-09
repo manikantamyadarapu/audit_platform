@@ -37,6 +37,7 @@ async function processFinancialsPivot(
       requestId,
       destinationBranch: req.body?.destinationBranch || 'basheerbagh',
       sourceAverageRates: req.body?.sourceAverageRates || '{}',
+      receiptRateMappings: req.body?.receiptRateMappings || '[]',
     }
   );
 

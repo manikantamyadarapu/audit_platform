@@ -69,6 +69,7 @@ class ExportPivotsRequest(BaseModel):
     dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
     destinationBranch: str = ''
     sourceAverageRates: dict[str, Any] = Field(default_factory=dict)
+    receiptRateMappings: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class JubileeHillsTemplateRequest(BaseModel):
@@ -95,6 +96,7 @@ class ExportClosingStockRequest(BaseModel):
     financialYear: str = 'AY 2025-26'
     destinationBranch: str = ''
     sourceAverageRates: dict[str, Any] = Field(default_factory=dict)
+    receiptRateMappings: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _parse_source_average_rates(raw: str) -> dict[str, Any]:
@@ -103,6 +105,16 @@ def _parse_source_average_rates(raw: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _parse_receipt_rate_mappings(raw: str) -> list[dict[str, Any]]:
+    try:
+        parsed = json.loads(raw or '[]')
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [row for row in parsed if isinstance(row, dict)]
 
 
 def _dump_location_pivots(tree: LocationPivotTree) -> dict[str, list[dict[str, Any]]]:
@@ -123,6 +135,7 @@ async def _process_financials_pivot(
     dc_file: UploadFile,
     destination_branch: str | None = None,
     source_average_rates: dict[str, Any] | None = None,
+    receipt_rate_mappings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     log = get_logger(request_id)
     log.info(
@@ -176,6 +189,7 @@ async def _process_financials_pivot(
             dc_bytes=dc_bytes,
             destination_branch=destination_branch,
             source_average_rates=source_average_rates,
+            receipt_rate_mappings=receipt_rate_mappings,
         )
         response['requestId'] = request_id
         return response
@@ -264,6 +278,7 @@ async def process_basheerbagh_financials(
     mr_file: UploadFile = File(...),
     dc_file: UploadFile = File(...),
     source_average_rates: str = Form('{}'),
+    receipt_rate_mappings: str = Form('[]'),
 ) -> dict[str, Any]:
     return await _process_financials_pivot(
         sales_file,
@@ -275,6 +290,7 @@ async def process_basheerbagh_financials(
         dc_file=dc_file,
         destination_branch='basheerbagh',
         source_average_rates=_parse_source_average_rates(source_average_rates),
+        receipt_rate_mappings=_parse_receipt_rate_mappings(receipt_rate_mappings),
     )
 
 
@@ -289,6 +305,7 @@ async def process_kokapet_financials(
     mr_file: UploadFile = File(...),
     dc_file: UploadFile = File(...),
     source_average_rates: str = Form('{}'),
+    receipt_rate_mappings: str = Form('[]'),
 ) -> dict[str, Any]:
     return await _process_financials_pivot(
         sales_file,
@@ -300,6 +317,7 @@ async def process_kokapet_financials(
         dc_file=dc_file,
         destination_branch='kokapet',
         source_average_rates=_parse_source_average_rates(source_average_rates),
+        receipt_rate_mappings=_parse_receipt_rate_mappings(receipt_rate_mappings),
     )
 
 
@@ -320,6 +338,7 @@ async def process_jubilee_hills_financials(
     dc_file: UploadFile | None = File(None),
     saved_opening_mappings: str = Form('[]'),
     source_average_rates: str = Form('{}'),
+    receipt_rate_mappings: str = Form('[]'),
 ) -> dict[str, Any]:
     """Jubilee Hills: Sales, Purchases, Opening Quantity, returns, supplier notes, previous year, and optional MR/DC."""
     request_id = _request_id(request)
@@ -376,6 +395,7 @@ async def process_jubilee_hills_financials(
             dc_bytes=await dc_file.read() if dc_file is not None else None,
             saved_opening_mappings=saved_mappings,
             source_average_rates=_parse_source_average_rates(source_average_rates),
+            receipt_rate_mappings=_parse_receipt_rate_mappings(receipt_rate_mappings),
         )
         response['requestId'] = request_id
         return response
@@ -528,6 +548,7 @@ async def remap_closing_stock(
         dc_pivots=_dump_location_pivots(payload.dcPivots),
         destination_branch=payload.destinationBranch or None,
         source_average_rates=payload.sourceAverageRates,
+        receipt_rate_mappings=payload.receiptRateMappings,
     )
     log.info(
         'Closing Stock remap: fingerprint={} products={}',
@@ -592,6 +613,7 @@ async def place_jubilee_hills_sheets(
         mr_pivots=_dump_location_pivots(payload.mrPivots),
         dc_pivots=_dump_location_pivots(payload.dcPivots),
         source_average_rates=payload.sourceAverageRates,
+        receipt_rate_mappings=payload.receiptRateMappings,
     )
     return {
         'success': True,
@@ -654,6 +676,7 @@ async def export_closing_stock_template(
         dc_pivots=_dump_location_pivots(payload.dcPivots),
         destination_branch=payload.destinationBranch or None,
         source_average_rates=payload.sourceAverageRates,
+        receipt_rate_mappings=payload.receiptRateMappings,
     )
     products_by_category = mapped['productsByCategory']
     layout_by_category = mapped['layoutByCategory']

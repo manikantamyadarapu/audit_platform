@@ -1617,6 +1617,7 @@ def map_pivots_to_closing_stock_categories(
     rule_book: Mapping[str, Any] | None = None,
     destination_branch: str | None = None,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     """
     Build Closing Stock rows from Sales + Purchases, then Opening Quantity-only products.
@@ -1838,6 +1839,7 @@ def map_pivots_to_closing_stock_categories(
         },
         destination_branch=destination_branch,
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
 
 
@@ -1846,6 +1848,7 @@ def _apply_branch_receipt_amounts(
     *,
     destination_branch: str | None,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     """Fill receipt amounts when the sheet's branch is known. Quantities stay put."""
     if not destination_branch:
@@ -1858,6 +1861,7 @@ def _apply_branch_receipt_amounts(
         mapped.get('layoutByCategory'),
         destination=destination_branch,
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
     mapped['layoutByCategory'] = applied['layoutByCategory']
     mapped['receiptAmountReview'] = applied['receiptAmountReview']
