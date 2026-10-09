@@ -1,6 +1,7 @@
 import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 import { readSourceAverageRates } from '../utils/sourceAverageRates';
+import { readReceiptRateMappings } from '../utils/receiptRateMappings';
 
 const SLOT_TO_FIELD = {
   sales: 'salesFile',
@@ -119,6 +120,7 @@ export async function processFinancialsPivot(
   form.append('dcFile', dcFile);
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
   const branch = financialsBranch(destinationBranch);
+  form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings(branch)));
   try {
     const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -139,6 +141,7 @@ export async function processFinancialsPivotFromHeld(destinationBranch = 'bashee
   const branch = financialsBranch(destinationBranch);
   const form = new FormData();
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings(branch)));
   try {
     const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -169,6 +172,7 @@ export async function processJubileeHillsFinancials(files, options = {}) {
   if (files.dc) form.append('dcFile', files.dc);
   form.append('savedOpeningMappings', JSON.stringify(savedOpeningMappings || []));
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings('jubileeHills')));
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate/jubilee-hills', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -189,6 +193,7 @@ export async function processJubileeHillsFinancialsFromHeld(options = {}) {
   const form = new FormData();
   form.append('savedOpeningMappings', JSON.stringify(savedOpeningMappings || []));
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings('jubileeHills')));
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate/jubilee-hills', form, {
       headers: { 'Content-Type': 'multipart/form-data' },

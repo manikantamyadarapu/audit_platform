@@ -113,6 +113,7 @@ def build_financials_pivot_response(
     dc_source_rows: int = 0,
     destination_branch: str | None = None,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     sales_qty, sales_gross = _pivot_totals(sales_pivot)
     purchases_qty, purchases_gross = _pivot_totals(purchases_pivot)
@@ -125,6 +126,7 @@ def build_financials_pivot_response(
         dc_pivots=dc_pivots,
         destination_branch=destination_branch,
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
     mapping_payload = format_closing_stock_mapping_response(category_mapping)
 

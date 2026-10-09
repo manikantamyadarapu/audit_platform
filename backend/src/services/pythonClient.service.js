@@ -634,6 +634,7 @@ async function postFinancialsPivot(
       dcFile.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   form.append('source_average_rates', options.sourceAverageRates || '{}');
+  form.append('receipt_rate_mappings', options.receiptRateMappings || '[]');
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {
@@ -936,6 +937,7 @@ async function postJubileeHillsFinancials(files, options = {}) {
   if (files.dcFile?.buffer) appendWorkbook(form, 'dc_file', files.dcFile, 'dc.xlsx');
   form.append('saved_opening_mappings', files.savedOpeningMappings || '[]');
   form.append('source_average_rates', files.sourceAverageRates || '{}');
+  form.append('receipt_rate_mappings', files.receiptRateMappings || '[]');
 
   const headers = { ...form.getHeaders() };
   if (options.requestId) {

@@ -49,10 +49,16 @@ _AMBIGUOUS = _Ambiguous()
 
 
 def receipt_source_branch(destination: str, qty_key: str) -> str:
-    """Branch whose Financials Average Rate values this receipt column."""
+    """Branch whose Financials Average Rate values this receipt column.
+
+    On the Jubilee Hills workbook the Jubilee Hills receipt column is labeled
+    Basheerbagh, so that quantity uses the Basheerbagh Average Rate.
+    """
     if qty_key == 'receiptsKokapetQty':
         return 'kokapet'
     if qty_key == 'receiptsJubileeHillsQty':
+        if destination == 'jubileeHills':
+            return 'basheerbagh'
         return 'jubileeHills'
     if destination == 'jubileeHills':
         return 'jubileeHills'
@@ -117,6 +123,48 @@ def normalize_source_average_rates(payload: Any) -> dict[str, list[Mapping[str, 
     return normalized
 
 
+def normalize_receipt_rate_mappings(payload: Any) -> list[dict[str, Any]]:
+    """Saved choices: this sheet product uses that source-branch product's rate."""
+    if not isinstance(payload, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for row in payload:
+        if not isinstance(row, Mapping):
+            continue
+        product = str(row.get('product') or '').strip()
+        source_product = str(row.get('sourceProduct') or '').strip()
+        source = str(row.get('sourceBranch') or '').strip()
+        if product and source_product and source:
+            rows.append(dict(row))
+    return rows
+
+
+def _same_product_name(left: str, right: str) -> bool:
+    if str(left or '').strip().lower() == str(right or '').strip().lower():
+        return True
+    left_key = product_identity_key(left)
+    right_key = product_identity_key(right)
+    return bool(left_key and left_key == right_key)
+
+
+def _mapping_for(
+    mappings: Sequence[Mapping[str, Any]],
+    *,
+    product: str,
+    category: str,
+    source: str,
+) -> Mapping[str, Any] | None:
+    for row in mappings:
+        if str(row.get('sourceBranch') or '') != source:
+            continue
+        row_category = str(row.get('category') or '').strip()
+        if row_category and category and row_category != category:
+            continue
+        if _same_product_name(str(row.get('product') or ''), product):
+            return row
+    return None
+
+
 def _lookup_rate(
     index: Mapping[str, float | _Ambiguous],
     product: str,
@@ -146,6 +194,7 @@ def _apply_product_row(
     destination: str,
     indexes: Mapping[str, Mapping[str, float | _Ambiguous]],
     category: str,
+    receipt_rate_mappings: Sequence[Mapping[str, Any]] | None = None,
 ) -> tuple[dict[str, float | None], list[dict[str, Any]]]:
     product = str(row.get('label') or '').strip()
     review: list[dict[str, Any]] = []
@@ -156,13 +205,17 @@ def _apply_product_row(
     columns: list[dict[str, Any]] = []
     for qty_key, amt_key, label in _RECEIPT_COLUMNS:
         qty = _coerce_measure(row.get(qty_key))
+        source = receipt_source_branch(destination, qty_key)
+        shown = label
+        if destination == 'jubileeHills' and qty_key == 'receiptsJubileeHillsQty':
+            shown = 'Basheerbagh'
         columns.append(
             {
                 'qty_key': qty_key,
                 'amt_key': amt_key,
-                'label': label,
+                'label': shown,
                 'qty': qty,
-                'source': receipt_source_branch(destination, qty_key),
+                'source': source,
                 'amount': None,
             }
         )
@@ -183,12 +236,28 @@ def _apply_product_row(
             own_qty += qty
             own_columns.append(column)
             continue
-        status, rate = _lookup_rate(indexes.get(column['source']) or {}, product)
+        mapped = _mapping_for(
+            receipt_rate_mappings or [],
+            product=product,
+            category=category,
+            source=column['source'],
+        )
+        if mapped:
+            status, rate = _lookup_rate(
+                indexes.get(column['source']) or {},
+                str(mapped.get('sourceProduct') or ''),
+            )
+            if status != 'ok' or rate is None:
+                rate = _coerce_measure(mapped.get('averageRateAmt'))
+                status = 'ok' if rate is not None else 'missing'
+        else:
+            status, rate = _lookup_rate(indexes.get(column['source']) or {}, product)
         if status != 'ok' or rate is None:
             review.append(
                 {
                     'product': product,
                     'category': category,
+                    'subcategory': row.get('subcategory'),
                     'column': column['label'],
                     'sourceBranch': column['source'],
                     'sourceBranchLabel': _BRANCH_LABELS.get(column['source'], column['source']),
@@ -269,10 +338,12 @@ def apply_source_receipt_amounts(
     *,
     destination: str,
     source_average_rates: Any = None,
+    receipt_rate_mappings: Any = None,
 ) -> dict[str, Any]:
     """Fill every receipt amount on one branch and list products that need review."""
     layouts = layout_by_category or {}
     supplied = normalize_source_average_rates(source_average_rates)
+    mappings = normalize_receipt_rate_mappings(receipt_rate_mappings)
     indexes = {
         branch: index_average_rates(rows)
         for branch, rows in supplied.items()
@@ -292,6 +363,7 @@ def apply_source_receipt_amounts(
                     destination=destination,
                     indexes=indexes,
                     category=category,
+                    receipt_rate_mappings=mappings,
                 )
                 display = _display_product_measures(raw)
                 rebuilt.append(

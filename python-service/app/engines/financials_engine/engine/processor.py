@@ -40,6 +40,7 @@ class FinancialsClosingStockProcessor:
         dc_bytes: bytes | None = None,
         destination_branch: str | None = None,
         source_average_rates: Any = None,
+        receipt_rate_mappings: Any = None,
     ) -> dict[str, Any]:
         try:
             return self.audit.process(
@@ -57,6 +58,7 @@ class FinancialsClosingStockProcessor:
                 dc_bytes=dc_bytes,
                 destination_branch=destination_branch,
                 source_average_rates=source_average_rates,
+                receipt_rate_mappings=receipt_rate_mappings,
             )
         except Exception as exc:
             self._log.error('Closing Stock processing failed: {}', exc)

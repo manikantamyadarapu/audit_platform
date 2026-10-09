@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readSourceAverageRates } from '../utils/sourceAverageRates';
+import { readReceiptRateMappings } from '../utils/receiptRateMappings';
 import {
   fetchClosingStockRuleBook,
   remapClosingStockFromPivots,
@@ -53,6 +54,7 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
           dcPivots,
           destinationBranch,
           sourceAverageRates: readSourceAverageRates(),
+          receiptRateMappings: readReceiptRateMappings(destinationBranch),
         });
       } else {
         const live = await fetchClosingStockRuleBook();

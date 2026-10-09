@@ -63,6 +63,7 @@ class FinancialsPivotAudit:
         dc_bytes: bytes | None = None,
         destination_branch: str | None = None,
         source_average_rates: Any = None,
+        receipt_rate_mappings: Any = None,
     ) -> dict[str, Any]:
         started = perf_counter()
 
@@ -178,6 +179,7 @@ class FinancialsPivotAudit:
             load_ms=load_ms,
             destination_branch=destination_branch,
             source_average_rates=source_average_rates,
+            receipt_rate_mappings=receipt_rate_mappings,
         )
 
     def process_sales_purchases_pivots(
@@ -342,6 +344,7 @@ class FinancialsPivotAudit:
         debit_note_bytes: bytes | None = None,
         saved_opening_mappings: list[dict[str, Any]] | None = None,
         source_average_rates: Any = None,
+        receipt_rate_mappings: Any = None,
     ) -> dict[str, Any]:
         """Jubilee Hills only. Basheerbagh and Kokapet keep using process()."""
         started = perf_counter()
@@ -522,4 +525,5 @@ class FinancialsPivotAudit:
             mr_pivots=mr_dc_pivots['mrPivots'],
             dc_pivots=mr_dc_pivots['dcPivots'],
             source_average_rates=source_average_rates,
+            receipt_rate_mappings=receipt_rate_mappings,
         )

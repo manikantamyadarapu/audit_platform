@@ -42,6 +42,8 @@ import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { cn } from '../utils/cn';
 import { SourceAverageRatesHint } from '../components/audit/SourceAverageRatesHint';
 import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
+import { readReceiptRateMappings, saveReceiptRateMapping } from '../utils/receiptRateMappings';
+import { ReceiptRateManualMappingPanel } from '../components/audit/ReceiptRateManualMappingPanel';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState, slimJubileeHillsSnapshot } from '../utils/auditSessionStorage';
 
@@ -405,6 +407,7 @@ export default function JubileeHillsFinancialsPage() {
           mrPivots: transfers.mrPivots || {},
           dcPivots: transfers.dcPivots || {},
           sourceAverageRates: readSourceAverageRates(),
+          receiptRateMappings: readReceiptRateMappings('jubileeHills'),
         });
         saveBranchAverageRates('jubileeHills', placed.productAverageRates);
         setResult({
@@ -661,25 +664,44 @@ export default function JubileeHillsFinancialsPage() {
         </Card>
       ) : null}
 
-      {Array.isArray(result?.receiptAmountReview) && result.receiptAmountReview.length ? (
-        <Card className="border-amber-200/80 bg-amber-50/70">
-          <CardHeader>
-            <h3 className="text-base font-bold text-amber-900">Receipt amounts to review</h3>
-            <p className="mt-1 text-sm text-amber-900/80">
-              These receipt quantities have no matching Average Rate on the source branch, so the amount was left blank.
-            </p>
-          </CardHeader>
-          <CardBody>
-            <ul className="space-y-1 text-sm text-amber-950">
-              {result.receiptAmountReview.map((row) => (
-                <li key={`${row.category}-${row.product}-${row.column}`}>
-                  {row.product} — {row.column} needs {row.sourceBranchLabel} Average Rate
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      ) : null}
+      <ReceiptRateManualMappingPanel
+        rows={result?.receiptAmountReview}
+        onConfirmMapping={async (mapping) => {
+          if (!result) return;
+          try {
+          saveReceiptRateMapping('jubileeHills', mapping);
+          const transfers = result.transferPivots || {};
+          const placed = await placeJubileeHillsFromPivots({
+            salesPivot: result.salesPivot || [],
+            purchasesPivot: result.purchasesPivot || [],
+            salesReturnPivot: result.salesReturnPivot || [],
+            purchaseReturnPivot: result.purchaseReturnPivot || [],
+            supplierDebitNotePivot: result.supplierDebitNotePivot || [],
+            supplierCreditNotePivot: result.supplierCreditNotePivot || [],
+            openingPivot: result.openingPivot || [],
+            mrPivots: transfers.mrPivots || result.mrPivots || {},
+            dcPivots: transfers.dcPivots || result.dcPivots || {},
+            sourceAverageRates: readSourceAverageRates(),
+            receiptRateMappings: readReceiptRateMappings('jubileeHills'),
+          });
+          saveBranchAverageRates('jubileeHills', placed.productAverageRates);
+          const placedResult = {
+            ...result,
+            productsByCategory: placed.productsByCategory,
+            layoutByCategory: placed.layoutByCategory,
+            unmappedProducts: placed.unmappedProducts,
+            unmappedProductDetails: placed.unmappedProductDetails,
+            receiptAmountReview: placed.receiptAmountReview || [],
+            productAverageRates: placed.productAverageRates || [],
+          };
+          setResult(placedResult);
+          persistWorkspace({ result: placedResult, sheetError: null }, { notifyOnFailure: true, force: true });
+          auditToastSuccess(`Average rate mapped for ${mapping.product}`);
+          } catch (error) {
+            auditToastError(error.message || 'Could not map the average rate.');
+          }
+        }}
+      />
 
       {sheetsReady ? (
         <Card id="jubilee-hills-results">
