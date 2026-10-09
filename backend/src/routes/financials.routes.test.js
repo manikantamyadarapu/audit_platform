@@ -47,3 +47,13 @@ test('Financials hold routes are registered and stay authenticated', () => {
   assert.equal(paths.includes('GET /hold/:branch'), true);
   assert.equal(paths.includes('DELETE /hold/:branch'), true);
 });
+
+test('Financials hold POST uses dedicated hold multer (all slot fields)', () => {
+  const holdPost = financialsRoutes.stack.find(
+    (layer) => layer.route && layer.route.path === '/hold/:branch' && layer.route.methods.post
+  );
+  assert.ok(holdPost);
+  const handlerNames = holdPost.route.stack.map((layer) => layer.handle.name);
+  assert.equal(handlerNames.includes('holdBranchUpload'), true);
+  assert.equal(handlerNames.includes('holdFinancialsBranchFiles'), true);
+});

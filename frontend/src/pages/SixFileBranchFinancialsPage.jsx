@@ -314,8 +314,11 @@ export function SixFileBranchFinancialsPage({ branch }) {
         try {
           await holdFinancialsBranchFiles(page.branch, files);
           setHeldReady(true);
-        } catch {
-          /* Process continues even if hold fails. */
+        } catch (holdErr) {
+          auditToastError(
+            holdErr.message ||
+              'Files were processed but could not be saved for the next visit. Upload the folder again later if needed.'
+          );
         }
       }
       const data = useHeld

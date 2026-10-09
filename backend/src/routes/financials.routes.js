@@ -1,7 +1,14 @@
 const express = require('express');
 const financialsController = require('../controllers/financials.controller');
 const { authenticate } = require('../middleware/auth.middleware');
-const { financialsPivotFiles, financialsSalesPurchasesFiles, financialsSalesPurchasesPivotFiles, financialsJubileeHillsFiles, handleMulterError } = require('../middleware/upload.middleware');
+const {
+  financialsPivotFiles,
+  financialsSalesPurchasesFiles,
+  financialsSalesPurchasesPivotFiles,
+  financialsJubileeHillsFiles,
+  financialsHoldFiles,
+  handleMulterError,
+} = require('../middleware/upload.middleware');
 const { REQUEST_BODY_JSON_LIMIT } = require('../config');
 
 const router = express.Router();
@@ -25,10 +32,9 @@ router.use(authenticate);
  * POST /api/v1/process/financials/remap-closing-stock
  */
 function holdBranchUpload(req, res, next) {
-  const branch = String(req.params?.branch || '');
-  const upload =
-    branch === 'jubilee-hills' ? financialsJubileeHillsFiles : financialsPivotFiles;
-  return upload(req, res, (err) => handleMulterError(err, req, res, next));
+  // Same field allow-list for every branch so Basheerbagh Sales/Purchase Return
+  // extras do not trip LIMIT_UNEXPECTED_FILE. Service keeps branch-required slots only.
+  return financialsHoldFiles(req, res, (err) => handleMulterError(err, req, res, next));
 }
 
 router.post('/hold/:branch', holdBranchUpload, financialsController.holdFinancialsBranchFiles);

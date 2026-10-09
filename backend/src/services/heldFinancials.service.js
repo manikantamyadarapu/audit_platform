@@ -16,6 +16,26 @@ const {
 } = require('../utils/heldFinancialPath');
 const logger = require('../utils/logger');
 
+/** Serialize hold/clear per user+branch so concurrent uploads cannot interleave. */
+const branchLocks = new Map();
+
+function withBranchLock(userId, branch, work) {
+  const key = `${userId}:${branch}`;
+  const previous = branchLocks.get(key) || Promise.resolve();
+  const run = previous.catch(() => {}).then(work);
+  // Keep the queue settled so a rejected hold does not leave an unhandled rejection
+  // on the lock chain, while still returning the real outcome to the caller.
+  const queued = run.then(
+    () => undefined,
+    () => undefined
+  );
+  branchLocks.set(key, queued);
+  queued.finally(() => {
+    if (branchLocks.get(key) === queued) branchLocks.delete(key);
+  });
+  return run;
+}
+
 /**
  * @param {object} row
  * @returns {object}
@@ -66,82 +86,84 @@ async function listHeldFiles(userId, branch) {
  * @returns {Promise<object>}
  */
 async function holdBranchFiles(userId, branch, multerFiles) {
-  if (!isValidBranch(branch)) {
-    const err = new Error(`Unsupported Financials branch "${branch}"`);
-    err.status = 400;
-    throw err;
-  }
+  return withBranchLock(userId, branch, async () => {
+    if (!isValidBranch(branch)) {
+      const err = new Error(`Unsupported Financials branch "${branch}"`);
+      err.status = 400;
+      throw err;
+    }
 
-  const allowed = new Set(allowedSlotsForBranch(branch));
-  /** @type {Array<{ slotKey: string, file: object }>} */
-  const incoming = [];
-  for (const [field, files] of Object.entries(multerFiles || {})) {
-    const slotKey = FIELD_TO_SLOT[field];
-    if (!slotKey || !allowed.has(slotKey)) continue;
-    const file = Array.isArray(files) ? files[0] : null;
-    if (!file?.buffer?.length) continue;
-    incoming.push({ slotKey, file });
-  }
+    const allowed = new Set(allowedSlotsForBranch(branch));
+    /** @type {Array<{ slotKey: string, file: object }>} */
+    const incoming = [];
+    for (const [field, files] of Object.entries(multerFiles || {})) {
+      const slotKey = FIELD_TO_SLOT[field];
+      if (!slotKey || !allowed.has(slotKey)) continue;
+      const file = Array.isArray(files) ? files[0] : null;
+      if (!file?.buffer?.length) continue;
+      incoming.push({ slotKey, file });
+    }
 
-  if (!incoming.length) {
-    const err = new Error('No Financials workbooks were uploaded to hold');
-    err.status = 400;
-    throw err;
-  }
+    if (!incoming.length) {
+      const err = new Error('No Financials workbooks were uploaded to hold');
+      err.status = 400;
+      throw err;
+    }
 
-  const required = requiredSlotsForBranch(branch);
-  const presentSlots = new Set(incoming.map((item) => item.slotKey));
-  const missingRequired = required.filter((slot) => !presentSlots.has(slot));
-  if (missingRequired.length) {
-    const err = new Error(
-      `Cannot hold incomplete ${branch} set. Missing: ${missingRequired.join(', ')}`
-    );
-    err.status = 400;
-    throw err;
-  }
+    const required = requiredSlotsForBranch(branch);
+    const presentSlots = new Set(incoming.map((item) => item.slotKey));
+    const missingRequired = required.filter((slot) => !presentSlots.has(slot));
+    if (missingRequired.length) {
+      const err = new Error(
+        `Cannot hold incomplete ${branch} set. Missing: ${missingRequired.join(', ')}`
+      );
+      err.status = 400;
+      throw err;
+    }
 
-  await clearBranchFiles(userId, branch);
+    await clearBranchFilesUnlocked(userId, branch);
 
-  const uploadSessionId = crypto.randomUUID();
-  const expiresAt = heldRepo.computeExpiresAt();
-  const saved = [];
+    const uploadSessionId = crypto.randomUUID();
+    const expiresAt = heldRepo.computeExpiresAt();
+    const saved = [];
 
-  for (const { slotKey, file } of incoming) {
-    const { absolutePath, relativePath } = buildHeldFilePaths(
+    for (const { slotKey, file } of incoming) {
+      const { absolutePath, relativePath } = buildHeldFilePaths(
+        userId,
+        branch,
+        slotKey,
+        file.originalname
+      );
+      await writeHeldFile(absolutePath, file.buffer);
+      const row = await heldRepo.upsertSlot({
+        userId,
+        branch,
+        slotKey,
+        uploadSessionId,
+        originalName: file.originalname || `${slotKey}.xlsx`,
+        storagePath: relativePath,
+        sizeBytes: BigInt(file.size || file.buffer.length),
+        contentType: file.mimetype || null,
+        expiresAt,
+      });
+      saved.push(toPublicMeta(row));
+    }
+
+    logger.info('Held Financials files saved', {
       userId,
       branch,
-      slotKey,
-      file.originalname
-    );
-    await writeHeldFile(absolutePath, file.buffer);
-    const row = await heldRepo.upsertSlot({
-      userId,
-      branch,
-      slotKey,
       uploadSessionId,
-      originalName: file.originalname || `${slotKey}.xlsx`,
-      storagePath: relativePath,
-      sizeBytes: BigInt(file.size || file.buffer.length),
-      contentType: file.mimetype || null,
-      expiresAt,
+      slots: saved.map((item) => item.slotKey),
     });
-    saved.push(toPublicMeta(row));
-  }
 
-  logger.info('Held Financials files saved', {
-    userId,
-    branch,
-    uploadSessionId,
-    slots: saved.map((item) => item.slotKey),
+    return {
+      branch,
+      uploadSessionId,
+      ready: true,
+      missingSlots: [],
+      files: saved,
+    };
   });
-
-  return {
-    branch,
-    uploadSessionId,
-    ready: true,
-    missingSlots: [],
-    files: saved,
-  };
 }
 
 /**
@@ -149,12 +171,7 @@ async function holdBranchFiles(userId, branch, multerFiles) {
  * @param {string} branch
  * @returns {Promise<{ deleted: number }>}
  */
-async function clearBranchFiles(userId, branch) {
-  if (!isValidBranch(branch)) {
-    const err = new Error(`Unsupported Financials branch "${branch}"`);
-    err.status = 400;
-    throw err;
-  }
+async function clearBranchFilesUnlocked(userId, branch) {
   const existing = await heldRepo.listAllByUserBranch(userId, branch);
   for (const row of existing) {
     const absolutePath = absoluteFromRelative(row.storagePath);
@@ -163,6 +180,15 @@ async function clearBranchFiles(userId, branch) {
   }
   const result = await heldRepo.deleteByUserBranch(userId, branch);
   return { deleted: result.count };
+}
+
+async function clearBranchFiles(userId, branch) {
+  if (!isValidBranch(branch)) {
+    const err = new Error(`Unsupported Financials branch "${branch}"`);
+    err.status = 400;
+    throw err;
+  }
+  return withBranchLock(userId, branch, () => clearBranchFilesUnlocked(userId, branch));
 }
 
 /**

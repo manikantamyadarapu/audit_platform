@@ -192,15 +192,60 @@ test('incomplete hold is rejected and does not wipe an existing ready set', asyn
   const { service, root } = await loadServiceWithTempRoot();
   await service.holdBranchFiles(11, 'basheerbagh', sixFiles('keep-'));
   await assert.rejects(
-    () =>
-      service.holdBranchFiles(11, 'basheerbagh', {
-        salesFile: [fakeFile('only-sales.xlsx')],
-      }),
-    /Missing/
+    service.holdBranchFiles(11, 'basheerbagh', {
+      salesFile: [fakeFile('only-sales.xlsx')],
+    }),
+    (err) => err?.status === 400 && /Missing/i.test(String(err.message || ''))
   );
   const listed = await service.listHeldFiles(11, 'basheerbagh');
   assert.equal(listed.ready, true);
   assert.equal(listed.files[0].originalName.startsWith('keep-') || listed.files.some((f) => f.originalName.startsWith('keep-')), true);
+
+  await fs.promises.rm(root, { recursive: true, force: true });
+});
+
+test('Basheerbagh hold ignores Sales Return extras and stays ready', async () => {
+  const { service, root } = await loadServiceWithTempRoot();
+  const files = {
+    ...sixFiles('bb-'),
+    salesReturnFile: [fakeFile('sales-return.xlsx', 'sr')],
+    purchaseReturnFile: [fakeFile('purchase-return.xlsx', 'pr')],
+  };
+  const held = await service.holdBranchFiles(11, 'basheerbagh', files);
+  assert.equal(held.ready, true);
+  assert.equal(held.files.length, 6);
+  assert.equal(
+    held.files.some((row) => row.slotKey === 'salesReturn' || row.slotKey === 'purchaseReturn'),
+    false
+  );
+  const listed = await service.listHeldFiles(11, 'basheerbagh');
+  assert.equal(listed.ready, true);
+  const loaded = await service.loadHeldFilesAsMulter(11, 'basheerbagh');
+  assert.equal(loaded.salesFile[0].buffer.toString(), 'bb--sales');
+  assert.equal(loaded.salesReturnFile, undefined);
+
+  await fs.promises.rm(root, { recursive: true, force: true });
+});
+
+test('three-branch isolation: clear one branch leaves the others', async () => {
+  const { service, root } = await loadServiceWithTempRoot();
+  await service.holdBranchFiles(11, 'basheerbagh', sixFiles('bb-'));
+  await service.holdBranchFiles(11, 'kokapet', sixFiles('kk-'));
+  await service.holdBranchFiles(11, 'jubilee-hills', {
+    ...sixFiles('jh-'),
+    salesReturnFile: [fakeFile('sr.xlsx', 'sr')],
+    purchaseReturnFile: [fakeFile('pr.xlsx', 'pr')],
+    creditNoteFile: [fakeFile('cn.xlsx', 'cn')],
+    debitNoteFile: [fakeFile('dn.xlsx', 'dn')],
+  });
+
+  await service.clearBranchFiles(11, 'basheerbagh');
+  assert.equal((await service.listHeldFiles(11, 'basheerbagh')).ready, false);
+  assert.equal((await service.listHeldFiles(11, 'kokapet')).ready, true);
+  assert.equal((await service.listHeldFiles(11, 'jubilee-hills')).ready, true);
+
+  await service.clearBranchFiles(11, 'kokapet');
+  assert.equal((await service.listHeldFiles(11, 'jubilee-hills')).ready, true);
 
   await fs.promises.rm(root, { recursive: true, force: true });
 });

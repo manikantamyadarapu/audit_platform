@@ -2,26 +2,15 @@ import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 import { readSourceAverageRates } from '../utils/sourceAverageRates';
 import { readReceiptRateMappings } from '../utils/receiptRateMappings';
+import {
+  buildHoldUploadParts,
+  normalizeFinancialsHoldBranch,
+} from '../utils/financialsHoldUpload';
 
-const SLOT_TO_FIELD = {
-  sales: 'salesFile',
-  purchases: 'purchasesFile',
-  quantity: 'openingQtyFile',
-  previousYear: 'previousYearFile',
-  mr: 'mrFile',
-  dc: 'dcFile',
-  salesReturn: 'salesReturnFile',
-  purchaseReturn: 'purchaseReturnFile',
-  creditNote: 'creditNoteFile',
-  debitNote: 'debitNoteFile',
-};
+export { buildHoldUploadParts } from '../utils/financialsHoldUpload';
 
 function financialsBranch(destinationBranch) {
-  if (destinationBranch === 'kokapet') return 'kokapet';
-  if (destinationBranch === 'jubilee-hills' || destinationBranch === 'jubileeHills') {
-    return 'jubilee-hills';
-  }
-  return 'basheerbagh';
+  return normalizeFinancialsHoldBranch(destinationBranch);
 }
 
 function throwProcessingError(err) {
@@ -39,9 +28,11 @@ function throwProcessingError(err) {
  */
 export async function holdFinancialsBranchFiles(branch, slotFiles, signal) {
   const form = new FormData();
-  for (const [slotKey, file] of Object.entries(slotFiles || {})) {
-    const field = SLOT_TO_FIELD[slotKey];
-    if (!field || !file) continue;
+  const parts = buildHoldUploadParts(branch, slotFiles);
+  if (!parts.length) {
+    throw new Error('No Financials workbooks were selected to hold');
+  }
+  for (const { field, file } of parts) {
     form.append(field, file);
   }
   try {
@@ -49,7 +40,7 @@ export async function holdFinancialsBranchFiles(branch, slotFiles, signal) {
       `/api/v1/process/financials/hold/${financialsBranch(branch)}`,
       form,
       {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        // Let the browser set multipart boundary; do not force Content-Type.
         signal,
       }
     );
@@ -144,7 +135,6 @@ export async function processFinancialsPivotFromHeld(destinationBranch = 'bashee
   form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings(branch)));
   try {
     const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });
     return data;
@@ -196,7 +186,6 @@ export async function processJubileeHillsFinancialsFromHeld(options = {}) {
   form.append('receiptRateMappings', JSON.stringify(readReceiptRateMappings('jubileeHills')));
   try {
     const { data } = await apiClient.post('/api/v1/process/financials/validate/jubilee-hills', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       signal,
     });
     return data;
