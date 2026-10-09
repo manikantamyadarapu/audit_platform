@@ -228,7 +228,10 @@ function notifyFinancialsPivotFailure(req, err) {
 }
 
 async function exportFinancialsPivots(req, payload) {
-  return pythonClient.postFinancialsExportPivots(payload, { requestId: req.requestId });
+  return pythonClient.postFinancialsExportPivots(payload, {
+    requestId: req.requestId,
+    destinationBranch: req.financialsBranch,
+  });
 }
 
 async function exportJubileeHillsTemplate(req, payload) {
@@ -236,7 +239,10 @@ async function exportJubileeHillsTemplate(req, payload) {
 }
 
 async function exportClosingStockTemplate(req, payload) {
-  return pythonClient.postFinancialsExportClosingStock(payload, { requestId: req.requestId });
+  return pythonClient.postFinancialsExportClosingStock(payload, {
+    requestId: req.requestId,
+    destinationBranch: req.financialsBranch,
+  });
 }
 
 async function getClosingStockRuleBook(req) {

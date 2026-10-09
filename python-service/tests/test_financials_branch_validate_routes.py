@@ -1,6 +1,9 @@
 """Branch validate routes keep the existing processors and pin the branch."""
 
+from io import BytesIO
+
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 from app.main import app
 from app.routers import financials_router
@@ -21,6 +24,129 @@ def _post_paths() -> set[str]:
         for path, operations in schema['paths'].items()
         if 'post' in operations
     }
+
+
+def test_download_routes_are_split_by_branch() -> None:
+    paths = _post_paths()
+    assert '/api/v1/process/financials/export-pivots' not in paths
+    assert '/api/process/financials/export-pivots' not in paths
+    assert '/api/v1/process/financials/export-closing-stock' not in paths
+    assert '/api/process/financials/export-closing-stock' not in paths
+    for branch in ('basheerbagh', 'kokapet'):
+        assert f'/api/v1/process/financials/export-pivots/{branch}' in paths
+        assert f'/api/process/financials/export-pivots/{branch}' in paths
+        assert f'/api/v1/process/financials/export-closing-stock/{branch}' in paths
+        assert f'/api/process/financials/export-closing-stock/{branch}' in paths
+    assert '/api/v1/process/financials/jubilee-hills/template' in paths
+    assert '/api/process/financials/jubilee-hills/template' in paths
+
+
+def test_branch_download_routes_reuse_existing_exporters(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def fake_pivots(request, payload):
+        calls.append('pivots')
+        return {'kind': 'pivots', 'sales': len(payload.salesPivot)}
+
+    async def fake_closing(request, payload):
+        calls.append('closing')
+        return {'kind': 'closing', 'sales': len(payload.salesPivot)}
+
+    monkeypatch.setattr(financials_router, 'export_financials_pivots', fake_pivots)
+    monkeypatch.setattr(financials_router, 'export_closing_stock_template', fake_closing)
+
+    pivots = client.post(
+        '/api/v1/process/financials/export-pivots/kokapet',
+        json={'salesPivot': [{'product': 'A'}], 'purchasesPivot': []},
+    )
+    closing = client.post(
+        '/api/process/financials/export-closing-stock/basheerbagh',
+        json={'salesPivot': [{'product': 'A'}]},
+    )
+    assert pivots.status_code == 200
+    assert pivots.json()['kind'] == 'pivots'
+    assert closing.status_code == 200
+    assert closing.json()['kind'] == 'closing'
+    assert calls == ['pivots', 'closing']
+
+
+def _xlsx_snapshot(content: bytes) -> tuple[list[str], list[tuple]]:
+    workbook = load_workbook(BytesIO(content), data_only=False)
+    snapshot = []
+    for name in workbook.sheetnames:
+        sheet = workbook[name]
+        snapshot.append(
+            (
+                name,
+                tuple(
+                    tuple(cell.value for cell in row)
+                    for row in sheet.iter_rows(max_row=min(sheet.max_row or 1, 12), max_col=6)
+                ),
+            )
+        )
+    names = list(workbook.sheetnames)
+    workbook.close()
+    return names, snapshot
+
+
+def test_each_download_endpoint_returns_the_existing_workbook() -> None:
+    pivots = {
+        'salesPivot': [{'product': 'Gold Ring', 'sumOfQuantity': 2, 'sumOfGross': 20000}],
+        'purchasesPivot': [{'product': 'Gold Chain', 'sumOfQuantity': 3, 'sumOfGross': 15000}],
+        'openingPivot': [{'product': 'Gold Ring', 'sumOfQuantity': 1, 'sumOfGross': 9000}],
+    }
+    pivot_books: dict[str, tuple] = {}
+    for branch in ('basheerbagh', 'kokapet'):
+        response = client.post(f'/api/v1/process/financials/export-pivots/{branch}', json=pivots)
+        assert response.status_code == 200, response.text
+        assert 'spreadsheetml.sheet' in response.headers['content-type']
+        assert response.content[:2] == b'PK'
+        workbook = load_workbook(BytesIO(response.content))
+        assert workbook.sheetnames == ['Sales Pivot', 'Purchases Pivot']
+        assert workbook['Sales Pivot']['A2'].value == 'Gold Ring'
+        assert workbook['Sales Pivot']['B2'].value == 2
+        assert workbook['Purchases Pivot']['A2'].value == 'Gold Chain'
+        assert workbook['Purchases Pivot']['C2'].value == 15000
+        workbook.close()
+        pivot_books[branch] = _xlsx_snapshot(response.content)
+
+    assert pivot_books['basheerbagh'] == pivot_books['kokapet']
+
+    closing_books: dict[str, tuple] = {}
+    for branch in ('basheerbagh', 'kokapet'):
+        response = client.post(
+            f'/api/process/financials/export-closing-stock/{branch}',
+            json={**pivots, 'companyName': 'Sample Jewellers', 'financialYear': 'AY 2025-26'},
+        )
+        assert response.status_code == 200, response.text
+        assert response.content[:2] == b'PK'
+        names, snapshot = _xlsx_snapshot(response.content)
+        assert names[:5] == [
+            'Diamond',
+            'Emerald',
+            'Pearls',
+            'Rubie',
+            'Precious and Semi Precious',
+        ]
+        assert names[-2:] == ['Trading', 'Abstract']
+        closing_books[branch] = (names, snapshot)
+
+    assert closing_books['basheerbagh'] == closing_books['kokapet']
+
+    jubilee = client.post(
+        '/api/v1/process/financials/jubilee-hills/template',
+        json={'companyName': 'Sample Jewellers', 'financialYear': 'AY 2025-26'},
+    )
+    assert jubilee.status_code == 200, jubilee.text
+    assert jubilee.content[:2] == b'PK'
+    assert 'Jubilee-Hills-Financials-' in jubilee.headers['content-disposition']
+    jubilee_names, _jubilee_rows = _xlsx_snapshot(jubilee.content)
+    assert jubilee_names[-2:] == ['Trading', 'Abstract']
+
+    removed = client.post('/api/v1/process/financials/export-pivots', json=pivots)
+    assert removed.status_code == 404
+    removed_closing = client.post('/api/v1/process/financials/export-closing-stock', json=pivots)
+    assert removed_closing.status_code == 404
 
 
 def test_validate_routes_are_split_by_branch() -> None:

@@ -748,11 +748,16 @@ async function postFinancialsSalesPurchasesPivots(
  * @param {{ requestId?: string }} [options]
  * @returns {Promise<{ buffer: Buffer, contentType: string, contentDisposition: string }>}
  */
+function financialsExportBranch(destinationBranch) {
+  return destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
+}
+
 async function postFinancialsExportPivots(payload, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (options.requestId) headers['x-request-id'] = options.requestId;
+  const branch = financialsExportBranch(options.destinationBranch);
   try {
-    const response = await client.post('/api/process/financials/export-pivots', payload, {
+    const response = await client.post(`/api/process/financials/export-pivots/${branch}`, payload, {
       headers,
       responseType: 'arraybuffer',
       validateStatus: () => true,
@@ -826,12 +831,17 @@ async function postJubileeHillsTemplate(payload, options = {}) {
 async function postFinancialsExportClosingStock(payload, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (options.requestId) headers['x-request-id'] = options.requestId;
+  const branch = financialsExportBranch(options.destinationBranch);
   try {
-    const response = await client.post('/api/process/financials/export-closing-stock', payload, {
-      headers,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-    });
+    const response = await client.post(
+      `/api/process/financials/export-closing-stock/${branch}`,
+      payload,
+      {
+        headers,
+        responseType: 'arraybuffer',
+        validateStatus: () => true,
+      }
+    );
 
     if (response.status >= 400) {
       let detail = `Python service returned ${response.status}`;

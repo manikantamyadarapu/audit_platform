@@ -21,6 +21,8 @@ venv/
 Thumbs.db
 # Logs
 *.log
+# Held Financials Excel uploads (per-user, server-side)
+backend/storage/
 # Python debug exports (regenerated when AUDIT_DEBUG_EXPORT / SALES_DEBUG_EXPORT enabled)
 python-service/app/debug/*.csv
 python-service/app/debug/*.xlsx

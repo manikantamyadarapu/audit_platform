@@ -1,9 +1,21 @@
 const financialsService = require('../services/financials.service');
+const heldFinancialsService = require('../services/heldFinancials.service');
+const { isValidBranch } = require('../constants/heldFinancials');
 const {
   validateFinancialsExportPivotsBody,
   validateClosingStockExportBody,
 } = require('../validators/financials.validator');
 const logger = require('../utils/logger');
+
+function branchFromParams(req) {
+  const branch = String(req.params?.branch || '').trim();
+  if (!isValidBranch(branch)) {
+    const err = new Error(`Unsupported Financials branch "${branch}"`);
+    err.status = 400;
+    throw err;
+  }
+  return branch;
+}
 
 function sendExcelDownload(res, file, requestId) {
   if (file.contentDisposition) {
@@ -28,12 +40,15 @@ function processKokapetFinancials(req, res, next) {
 
 async function processFinancialsPivot(req, res, next) {
   try {
-    const salesFile = req.files?.salesFile?.[0];
-    const purchasesFile = req.files?.purchasesFile?.[0];
-    const openingQtyFile = req.files?.openingQtyFile?.[0];
-    const previousYearFile = req.files?.previousYearFile?.[0];
-    const mrFile = req.files?.mrFile?.[0];
-    const dcFile = req.files?.dcFile?.[0];
+    const branch =
+      req.body?.destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
+    const files = await heldFinancialsService.resolveProcessFiles(req, branch);
+    const salesFile = files?.salesFile?.[0];
+    const purchasesFile = files?.purchasesFile?.[0];
+    const openingQtyFile = files?.openingQtyFile?.[0];
+    const previousYearFile = files?.previousYearFile?.[0];
+    const mrFile = files?.mrFile?.[0];
+    const dcFile = files?.dcFile?.[0];
 
     if (!salesFile?.buffer) {
       return res.status(400).json({
@@ -80,12 +95,14 @@ async function processFinancialsPivot(req, res, next) {
 
     logger.info('Financials pivot: forwarding to Python', {
       requestId: req.requestId,
+      branch,
       salesFile: salesFile.originalname,
       purchasesFile: purchasesFile.originalname,
       openingQtyFile: openingQtyFile.originalname,
       previousYearFile: previousYearFile.originalname,
       mrFile: mrFile.originalname,
       dcFile: dcFile.originalname,
+      fromHeld: !req.files?.salesFile?.[0]?.buffer,
     });
 
     const { data, auditRunId } = await financialsService.processFinancialsPivot(
@@ -99,6 +116,13 @@ async function processFinancialsPivot(req, res, next) {
     );
     return res.json({ ...data, auditRunId });
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        detail: err.message,
+        requestId: req.requestId,
+      });
+    }
     financialsService.notifyFinancialsPivotFailure(req, err);
     return next(err);
   }
@@ -211,6 +235,16 @@ async function processSalesPurchasesPivots(req, res, next) {
   }
 }
 
+function exportBasheerbaghPivots(req, res, next) {
+  req.financialsBranch = 'basheerbagh';
+  return exportFinancialsPivots(req, res, next);
+}
+
+function exportKokapetPivots(req, res, next) {
+  req.financialsBranch = 'kokapet';
+  return exportFinancialsPivots(req, res, next);
+}
+
 async function exportFinancialsPivots(req, res, next) {
   try {
     const parsed = validateFinancialsExportPivotsBody(req.body);
@@ -256,6 +290,16 @@ async function exportJubileeHillsTemplate(req, res, next) {
   } catch (err) {
     return next(err);
   }
+}
+
+function exportBasheerbaghClosingStock(req, res, next) {
+  req.financialsBranch = 'basheerbagh';
+  return exportClosingStockTemplate(req, res, next);
+}
+
+function exportKokapetClosingStock(req, res, next) {
+  req.financialsBranch = 'kokapet';
+  return exportClosingStockTemplate(req, res, next);
 }
 
 async function exportClosingStockTemplate(req, res, next) {
@@ -352,6 +396,7 @@ async function remapClosingStock(req, res, next) {
 
 async function processJubileeHillsFinancials(req, res, next) {
   try {
+    const resolved = await heldFinancialsService.resolveProcessFiles(req, 'jubilee-hills');
     const required = [
       ['salesFile', 'salesFile'],
       ['purchasesFile', 'purchasesFile'],
@@ -364,7 +409,7 @@ async function processJubileeHillsFinancials(req, res, next) {
     ];
     const files = {};
     for (const [key, field] of required) {
-      const file = req.files?.[field]?.[0];
+      const file = resolved?.[field]?.[0];
       if (!file?.buffer) {
         return res.status(400).json({
           success: false,
@@ -374,8 +419,8 @@ async function processJubileeHillsFinancials(req, res, next) {
       }
       files[key] = file;
     }
-    files.mrFile = req.files?.mrFile?.[0] || null;
-    files.dcFile = req.files?.dcFile?.[0] || null;
+    files.mrFile = resolved?.mrFile?.[0] || null;
+    files.dcFile = resolved?.dcFile?.[0] || null;
     files.savedOpeningMappings =
       typeof req.body?.savedOpeningMappings === 'string' ? req.body.savedOpeningMappings : '[]';
     files.sourceAverageRates =
@@ -389,12 +434,71 @@ async function processJubileeHillsFinancials(req, res, next) {
       purchaseReturnFile: files.purchaseReturnFile.originalname,
       creditNoteFile: files.creditNoteFile.originalname,
       debitNoteFile: files.debitNoteFile.originalname,
+      fromHeld: !req.files?.salesFile?.[0]?.buffer,
     });
 
     const { data, auditRunId } = await financialsService.processJubileeHillsFinancials(req, files);
     return res.json({ ...data, auditRunId });
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        detail: err.message,
+        requestId: req.requestId,
+      });
+    }
     financialsService.notifyFinancialsPivotFailure(req, err);
+    return next(err);
+  }
+}
+
+async function holdFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    const data = await heldFinancialsService.holdBranchFiles(req.user.id, branch, req.files || {});
+    return res.json({ success: true, ...data, requestId: req.requestId });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        detail: err.message,
+        requestId: req.requestId,
+      });
+    }
+    return next(err);
+  }
+}
+
+async function listHeldFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    const data = await heldFinancialsService.listHeldFiles(req.user.id, branch);
+    return res.json({ success: true, ...data, requestId: req.requestId });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        detail: err.message,
+        requestId: req.requestId,
+      });
+    }
+    return next(err);
+  }
+}
+
+async function clearHeldFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    const data = await heldFinancialsService.clearBranchFiles(req.user.id, branch);
+    return res.json({ success: true, branch, ...data, requestId: req.requestId });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        detail: err.message,
+        requestId: req.requestId,
+      });
+    }
     return next(err);
   }
 }
@@ -406,8 +510,15 @@ module.exports = {
   processJubileeHillsFinancials,
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,
+  holdFinancialsBranchFiles,
+  listHeldFinancialsBranchFiles,
+  clearHeldFinancialsBranchFiles,
+  exportBasheerbaghPivots,
+  exportKokapetPivots,
   exportFinancialsPivots,
   exportJubileeHillsTemplate,
+  exportBasheerbaghClosingStock,
+  exportKokapetClosingStock,
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,

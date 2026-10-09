@@ -21,6 +21,10 @@ const PYTHON_SERVICE_URL = (process.env.PYTHON_SERVICE_URL || 'http://127.0.0.1:
 const CORS_ORIGIN_RAW = process.env.CORS_ORIGIN;
 const REQUEST_BODY_JSON_LIMIT = process.env.REQUEST_BODY_JSON_LIMIT || '50mb';
 const UPLOAD_MAX_BYTES = Number(process.env.UPLOAD_MAX_BYTES) || 50 * 1024 * 1024;
+const HELD_FINANCIALS_DIR =
+  process.env.HELD_FINANCIALS_DIR ||
+  path.resolve(__dirname, '../../storage/held-financials');
+const HELD_FINANCIALS_TTL_DAYS = Number(process.env.HELD_FINANCIALS_TTL_DAYS) || 7;
 
 /** Swagger is always disabled in production regardless of env flag. */
 const ENABLE_SWAGGER = isProduction ? false : process.env.ENABLE_SWAGGER !== 'false';
@@ -76,6 +80,8 @@ module.exports = {
   getCorsOrigin,
   REQUEST_BODY_JSON_LIMIT,
   UPLOAD_MAX_BYTES,
+  HELD_FINANCIALS_DIR,
+  HELD_FINANCIALS_TTL_DAYS,
   ENABLE_SWAGGER,
   validateConfigOrThrow,
 };

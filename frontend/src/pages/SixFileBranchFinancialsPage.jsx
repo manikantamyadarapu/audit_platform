@@ -18,12 +18,37 @@ import {
   classifyBasheerbaghFolderFiles,
   classifyKokapetFolderFiles,
 } from '../config/basheerbaghFolderFiles';
+import {
+  clearHeldFinancialsBranchFiles,
+  holdFinancialsBranchFiles,
+  listHeldFinancialsBranchFiles,
+  processFinancialsPivotFromHeld,
+} from '../services/financials.service';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 import { saveBranchAverageRates } from '../utils/sourceAverageRates';
+
+const EMPTY_SIX_NAMES = {
+  sales: null,
+  purchases: null,
+  quantity: null,
+  previousYear: null,
+  mr: null,
+  dc: null,
+};
+
+function namesFromHeldFiles(files) {
+  const next = { ...EMPTY_SIX_NAMES };
+  for (const row of Array.isArray(files) ? files : []) {
+    if (row?.slotKey && Object.prototype.hasOwnProperty.call(next, row.slotKey)) {
+      next[row.slotKey] = row.originalName || null;
+    }
+  }
+  return next;
+}
 
 const BRANCH_PAGE = {
   basheerbagh: {
@@ -131,6 +156,8 @@ export function SixFileBranchFinancialsPage({ branch }) {
     mr: initialSession.data?.mrFileName ?? null,
     dc: initialSession.data?.dcFileName ?? null,
   }));
+  const [heldReady, setHeldReady] = useState(false);
+  const [loadingHeld, setLoadingHeld] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(() => initialSession.data?.result ?? null);
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
@@ -202,15 +229,56 @@ export function SixFileBranchFinancialsPage({ branch }) {
     workspaceRef.current = sessionSnapshot;
   }, [sessionSnapshot]);
 
-  const canProcess = Boolean(identification?.ready);
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingHeld(true);
+    listHeldFinancialsBranchFiles(page.branch)
+      .then((held) => {
+        if (cancelled) return;
+        setHeldReady(Boolean(held?.ready));
+        if (held?.files?.length) {
+          setRestoredNames((prev) => ({ ...prev, ...namesFromHeldFiles(held.files) }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHeldReady(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHeld(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page.branch]);
+
+  useEffect(() => {
+    if (!identification?.ready || !identification.files) return undefined;
+    let cancelled = false;
+    holdFinancialsBranchFiles(page.branch, identification.files)
+      .then((held) => {
+        if (cancelled) return;
+        setHeldReady(Boolean(held?.ready));
+        setRestoredNames(namesFromHeldFiles(held?.files));
+      })
+      .catch(() => {
+        /* Holding is best-effort; Process can still run from the live folder. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [identification?.ready, identification?.files, page.branch]);
+
+  const canProcess = Boolean(identification?.ready || heldReady);
 
   const runProcess = useCallback(async () => {
-    const identified = identifyFolder(page.branch, folderFiles, financialYear);
-    const files = identified.files || {};
-    if (!identified.ready) {
-      if (identified.issues?.length) {
+    const identified = folderFiles.length
+      ? identifyFolder(page.branch, folderFiles, financialYear)
+      : null;
+    const files = identified?.files || {};
+    if (folderFiles.length && !identified?.ready) {
+      if (identified?.issues?.length) {
         auditToastError(identified.issues.map((issue) => issue.message).join(' '));
-      } else if (identified.missing?.length) {
+      } else if (identified?.missing?.length) {
         auditToastError(
           `${page.missingPrefix} ${identified.missing.join(', ')}. Closing Stock runs only when all six files are identified.`
         );
@@ -219,6 +287,13 @@ export function SixFileBranchFinancialsPage({ branch }) {
           'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC files before processing.'
         );
       }
+      return;
+    }
+    const useHeld = !folderFiles.length;
+    if (useHeld && !heldReady) {
+      auditToastError(
+        'Upload Sales, Purchases, Opening Quantity, Previous Year Closing, MR, and DC files before processing.'
+      );
       return;
     }
 
@@ -235,8 +310,17 @@ export function SixFileBranchFinancialsPage({ branch }) {
       financialYear,
     };
     try {
-      const data =
-        page.branch === 'kokapet'
+      if (!useHeld) {
+        try {
+          await holdFinancialsBranchFiles(page.branch, files);
+          setHeldReady(true);
+        } catch {
+          /* Process continues even if hold fails. */
+        }
+      }
+      const data = useHeld
+        ? await processFinancialsPivotFromHeld(page.branch)
+        : page.branch === 'kokapet'
           ? await CLOSING_STOCK_AUDIT_CONFIG.process(
               files.sales,
               files.purchases,
@@ -289,6 +373,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
     page,
     folderFiles,
     financialYear,
+    heldReady,
     restoredNames,
     companyName,
     address,
@@ -298,20 +383,15 @@ export function SixFileBranchFinancialsPage({ branch }) {
   const handleStartNew = useCallback(() => {
     startNewAudit();
     setFolderFiles([]);
-    setRestoredNames({
-      sales: null,
-      purchases: null,
-      quantity: null,
-      previousYear: null,
-      mr: null,
-      dc: null,
-    });
+    setRestoredNames({ ...EMPTY_SIX_NAMES });
+    setHeldReady(false);
     setCompanyName('');
     setAddress('');
     setFinancialYear(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
     setResult(null);
     setSheetError(null);
-  }, [startNewAudit]);
+    clearHeldFinancialsBranchFiles(page.branch).catch(() => {});
+  }, [page.branch, startNewAudit]);
 
   return (
     <div className="relative space-y-8">
@@ -349,6 +429,9 @@ export function SixFileBranchFinancialsPage({ branch }) {
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Six files are required. Opening Qty from Opening Balance; Opening Amount from each
                 product’s previous-year sheet Closing Balance.
+                {heldReady && !folderFiles.length
+                  ? ' Previously uploaded files for this branch are ready to process again.'
+                  : ''}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -357,7 +440,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
                 variant="primary"
                 size="md"
                 loading={loading}
-                disabled={loading || !canProcess}
+                disabled={loading || loadingHeld || !canProcess}
                 onClick={runProcess}
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -414,7 +497,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
                 status = shown.name;
                 statusClass = 'text-slate-500';
               } else if (restored) {
-                status = restored;
+                status = heldReady ? `${restored} (held)` : restored;
                 statusClass = 'text-slate-500';
               } else if (ambiguous) {
                 status = 'Not selected — more than one file matched';

@@ -236,6 +236,7 @@ export function FinancialsBranchResults({
       await CLOSING_STOCK_AUDIT_CONFIG.downloadPivots({
         salesPivot,
         purchasesPivot,
+        destinationBranch,
       });
       auditToastSuccess('Pivots workbook downloaded');
     } catch (e) {
@@ -243,7 +244,7 @@ export function FinancialsBranchResults({
     } finally {
       setExportingPivots(false);
     }
-  }, [salesPivot, purchasesPivot]);
+  }, [salesPivot, purchasesPivot, destinationBranch]);
 
   const handleDownloadClosingStock = useCallback(async () => {
     if (salesPurchasesOnly || !result) {

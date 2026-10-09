@@ -29,9 +29,13 @@ import {
   JUBILEE_HILLS_PREVIEW_SHEETS,
 } from '../config/jubileeHillsSheetStructure';
 import {
+  clearHeldFinancialsBranchFiles,
   downloadJubileeHillsTemplate,
+  holdFinancialsBranchFiles,
+  listHeldFinancialsBranchFiles,
   placeJubileeHillsFromPivots,
   processJubileeHillsFinancials,
+  processJubileeHillsFinancialsFromHeld,
 } from '../services/financials.service';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
@@ -70,6 +74,16 @@ function restoredNamesFromSession(data) {
     mr: data.mrFileName ?? null,
     dc: data.dcFileName ?? null,
   };
+}
+
+function namesFromHeldFiles(files) {
+  const next = { ...EMPTY_RESTORED_NAMES };
+  for (const row of Array.isArray(files) ? files : []) {
+    if (row?.slotKey && Object.prototype.hasOwnProperty.call(next, row.slotKey)) {
+      next[row.slotKey] = row.originalName || null;
+    }
+  }
+  return next;
 }
 
 function withOpeningCandidates(result) {
@@ -122,6 +136,8 @@ export default function JubileeHillsFinancialsPage() {
   const [restoredNames, setRestoredNames] = useState(() =>
     restoredNamesFromSession(initialSession.data)
   );
+  const [heldReady, setHeldReady] = useState(false);
+  const [loadingHeld, setLoadingHeld] = useState(true);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sheetsReady, setSheetsReady] = useState(() => Boolean(sessionResult(initialSession.data)?.layoutByCategory));
@@ -141,7 +157,7 @@ export default function JubileeHillsFinancialsPage() {
     return classifyJubileeHillsFolderFiles(folderFiles, { financialYear });
   }, [folderFiles, financialYear]);
 
-  const canProcess = Boolean(identification?.ready);
+  const canProcess = Boolean(identification?.ready || heldReady);
   const namedFiles = identification?.files;
 
   const applySession = useCallback((data) => {
@@ -201,6 +217,43 @@ export default function JubileeHillsFinancialsPage() {
     workspaceRef.current = sessionSnapshot;
   }, [sessionSnapshot]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingHeld(true);
+    listHeldFinancialsBranchFiles('jubilee-hills')
+      .then((held) => {
+        if (cancelled) return;
+        setHeldReady(Boolean(held?.ready));
+        if (held?.files?.length) {
+          setRestoredNames((prev) => ({ ...prev, ...namesFromHeldFiles(held.files) }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHeldReady(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHeld(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!identification?.ready || !identification.files) return undefined;
+    let cancelled = false;
+    holdFinancialsBranchFiles('jubilee-hills', identification.files)
+      .then((held) => {
+        if (cancelled) return;
+        setHeldReady(Boolean(held?.ready));
+        setRestoredNames(namesFromHeldFiles(held?.files));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [identification?.ready, identification?.files]);
+
   const layouts = result?.layoutByCategory || {};
 
   const applyPlacement = useCallback((data) => {
@@ -211,38 +264,57 @@ export default function JubileeHillsFinancialsPage() {
   }, []);
 
   const runProcess = useCallback(async () => {
-    const identified = classifyJubileeHillsFolderFiles(folderFiles, { financialYear });
-    if (!identified.ready) {
-      if (identified.issues?.length) {
+    const identified = folderFiles.length
+      ? classifyJubileeHillsFolderFiles(folderFiles, { financialYear })
+      : null;
+    if (folderFiles.length && !identified?.ready) {
+      if (identified?.issues?.length) {
         auditToastError(identified.issues.map((issue) => issue.message).join(' '));
-      } else if (identified.missing?.length) {
+      } else if (identified?.missing?.length) {
         auditToastError(`Jubilee Hills is missing ${identified.missing.join(', ')}.`);
       } else {
         auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
       }
       return;
     }
+    const useHeld = !folderFiles.length;
+    if (useHeld && !heldReady) {
+      auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
+      return;
+    }
 
     setLoading(true);
     const fileNames = {
-      salesFileName: identified.files?.sales?.name ?? restoredNames.sales ?? null,
-      purchasesFileName: identified.files?.purchases?.name ?? restoredNames.purchases ?? null,
-      openingQtyFileName: identified.files?.quantity?.name ?? restoredNames.quantity ?? null,
-      previousYearFileName: identified.files?.previousYear?.name ?? restoredNames.previousYear ?? null,
-      salesReturnFileName: identified.files?.salesReturn?.name ?? restoredNames.salesReturn ?? null,
-      purchaseReturnFileName: identified.files?.purchaseReturn?.name ?? restoredNames.purchaseReturn ?? null,
-      creditNoteFileName: identified.files?.creditNote?.name ?? restoredNames.creditNote ?? null,
-      debitNoteFileName: identified.files?.debitNote?.name ?? restoredNames.debitNote ?? null,
-      mrFileName: identified.files?.mr?.name ?? restoredNames.mr ?? null,
-      dcFileName: identified.files?.dc?.name ?? restoredNames.dc ?? null,
+      salesFileName: identified?.files?.sales?.name ?? restoredNames.sales ?? null,
+      purchasesFileName: identified?.files?.purchases?.name ?? restoredNames.purchases ?? null,
+      openingQtyFileName: identified?.files?.quantity?.name ?? restoredNames.quantity ?? null,
+      previousYearFileName: identified?.files?.previousYear?.name ?? restoredNames.previousYear ?? null,
+      salesReturnFileName: identified?.files?.salesReturn?.name ?? restoredNames.salesReturn ?? null,
+      purchaseReturnFileName: identified?.files?.purchaseReturn?.name ?? restoredNames.purchaseReturn ?? null,
+      creditNoteFileName: identified?.files?.creditNote?.name ?? restoredNames.creditNote ?? null,
+      debitNoteFileName: identified?.files?.debitNote?.name ?? restoredNames.debitNote ?? null,
+      mrFileName: identified?.files?.mr?.name ?? restoredNames.mr ?? null,
+      dcFileName: identified?.files?.dc?.name ?? restoredNames.dc ?? null,
       companyName,
       address,
       financialYear,
     };
     try {
-      const data = await processJubileeHillsFinancials(identified.files, {
-        savedOpeningMappings: loadJubileeOpeningMappings(),
-      });
+      if (!useHeld) {
+        try {
+          await holdFinancialsBranchFiles('jubilee-hills', identified.files);
+          setHeldReady(true);
+        } catch {
+          /* Process continues even if hold fails. */
+        }
+      }
+      const data = useHeld
+        ? await processJubileeHillsFinancialsFromHeld({
+            savedOpeningMappings: loadJubileeOpeningMappings(),
+          })
+        : await processJubileeHillsFinancials(identified.files, {
+            savedOpeningMappings: loadJubileeOpeningMappings(),
+          });
       applyPlacement(data);
       setActiveSheet(CLOSING_STOCK_CATEGORIES[0]);
       persistWorkspace(
@@ -269,7 +341,16 @@ export default function JubileeHillsFinancialsPage() {
     } finally {
       setLoading(false);
     }
-  }, [address, applyPlacement, companyName, financialYear, folderFiles, persistWorkspace, restoredNames]);
+  }, [
+    address,
+    applyPlacement,
+    companyName,
+    financialYear,
+    folderFiles,
+    heldReady,
+    persistWorkspace,
+    restoredNames,
+  ]);
 
   const handleConfirmOpeningAmount = useCallback(
     async (mapping) => {
@@ -361,6 +442,7 @@ export default function JubileeHillsFinancialsPage() {
     startNewAudit();
     setFolderFiles([]);
     setRestoredNames({ ...EMPTY_RESTORED_NAMES });
+    setHeldReady(false);
     setSheetsReady(false);
     setSheetError(null);
     setResult(null);
@@ -368,6 +450,7 @@ export default function JubileeHillsFinancialsPage() {
     setCompanyName('');
     setAddress('');
     setFinancialYear(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
+    clearHeldFinancialsBranchFiles('jubilee-hills').catch(() => {});
   }, [startNewAudit]);
 
   const downloadSheets = useCallback(async () => {
@@ -440,7 +523,7 @@ export default function JubileeHillsFinancialsPage() {
               variant="primary"
               size="md"
               loading={loading}
-              disabled={loading || !canProcess}
+              disabled={loading || loadingHeld || !canProcess}
               onClick={runProcess}
             >
               <FileSpreadsheet className="h-4 w-4" />
@@ -471,7 +554,11 @@ export default function JubileeHillsFinancialsPage() {
           ) : null}
           {identification?.ready ? (
             <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              The six Jubilee Hills files are identified.
+              The Jubilee Hills files are identified.
+            </p>
+          ) : heldReady && !folderFiles.length ? (
+            <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              Previously uploaded Jubilee Hills files are ready to process again.
             </p>
           ) : null}
           <ul className="mt-4 divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:divide-slate-700 dark:border-slate-700 dark:bg-[var(--color-surface-elevated)]/80">
@@ -486,7 +573,7 @@ export default function JubileeHillsFinancialsPage() {
                 status = shown.name;
                 statusClass = 'text-slate-500';
               } else if (restored) {
-                status = restored;
+                status = heldReady ? `${restored} (held)` : restored;
                 statusClass = 'text-slate-500';
               } else if (ambiguous) {
                 status = 'Not selected — more than one file matched';

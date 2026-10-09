@@ -7,6 +7,7 @@ config.validateConfigOrThrow();
 const app = require('./app');
 const prisma = require('./lib/prisma');
 const { startAuditSessionCleanupJob } = require('./jobs/auditSessionCleanup.job');
+const { startHeldFinancialsCleanupJob } = require('./jobs/heldFinancialsCleanup.job');
 
 const server = http.createServer(app);
 
@@ -23,6 +24,7 @@ server.listen(config.PORT, () => {
   logger.info('Node backend listening', { port: config.PORT, env: config.NODE_ENV });
   warmDatabaseConnection();
   startAuditSessionCleanupJob();
+  startHeldFinancialsCleanupJob();
 });
 
 function shutdown(signal) {

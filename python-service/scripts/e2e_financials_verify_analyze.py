@@ -207,28 +207,28 @@ def main() -> None:
 
     _status, content, _ctype = http_json(
         "POST",
-        "/api/v1/process/financials/export-pivots",
+        "/api/v1/process/financials/export-pivots/basheerbagh",
         {"salesPivot": sales, "purchasesPivot": purch},
     )
     save_xlsx("sales_purchases_pivots.xlsx", content)
 
     _status, content, _ctype = http_json(
         "POST",
-        "/api/v1/process/financials/export-pivots",
+        "/api/v1/process/financials/export-pivots/basheerbagh",
         {"salesPivot": sales, "purchasesPivot": []},
     )
     save_xlsx("sales_pivot.xlsx", content)
 
     _status, content, _ctype = http_json(
         "POST",
-        "/api/v1/process/financials/export-pivots",
+        "/api/v1/process/financials/export-pivots/basheerbagh",
         {"salesPivot": [], "purchasesPivot": purch},
     )
     save_xlsx("purchases_pivot.xlsx", content)
 
     _status, content, _ctype = http_json(
         "POST",
-        "/api/v1/process/financials/export-closing-stock",
+        "/api/v1/process/financials/export-closing-stock/basheerbagh",
         {
             "salesPivot": sales,
             "purchasesPivot": purch,

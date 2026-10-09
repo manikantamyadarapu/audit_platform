@@ -17,11 +17,12 @@ model User {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   role          UserRole       @default(VIEWER)
-  auditRuns     AuditRun[]
-  auditSessions AuditSession[]
-  authTokens    AuthToken[]
-  ruleUpdates   MasterRule[]
-  notifications Notification[]
+  auditRuns           AuditRun[]
+  auditSessions       AuditSession[]
+  authTokens          AuthToken[]
+  ruleUpdates         MasterRule[]
+  notifications       Notification[]
+  heldFinancialFiles  HeldFinancialFile[]
 
   @@index([email])
   @@index([role])
@@ -195,6 +196,29 @@ model DemoVideo {
   @@index([isActive])
   @@index([displayOrder])
   @@map("demo_videos")
+}
+
+/// Per-user held Excel workbooks for Financials branch re-processing.
+model HeldFinancialFile {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  branch          String   @db.VarChar(40)
+  slotKey         String   @map("slot_key") @db.VarChar(40)
+  uploadSessionId String   @map("upload_session_id") @db.VarChar(64)
+  originalName    String   @map("original_name") @db.VarChar(255)
+  storagePath     String   @map("storage_path") @db.VarChar(500)
+  sizeBytes       BigInt   @map("size_bytes")
+  contentType     String?  @map("content_type") @db.VarChar(120)
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branch, slotKey])
+  @@index([userId, branch])
+  @@index([expiresAt])
+  @@index([uploadSessionId])
+  @@map("held_financial_files")
 }
 
 enum AuditStatus {

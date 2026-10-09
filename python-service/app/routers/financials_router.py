@@ -472,8 +472,6 @@ async def process_sales_purchases_pivots(
         )
 
 
-@router.post('/financials/export-pivots')
-@gateway_router.post('/financials/export-pivots')
 async def export_financials_pivots(
     request: Request,
     payload: ExportPivotsRequest,
@@ -499,6 +497,24 @@ async def export_financials_pivots(
             'x-request-id': request_id,
         },
     )
+
+
+@router.post('/financials/export-pivots/basheerbagh')
+@gateway_router.post('/financials/export-pivots/basheerbagh')
+async def export_basheerbagh_pivots(
+    request: Request,
+    payload: ExportPivotsRequest,
+) -> StreamingResponse:
+    return await export_financials_pivots(request, payload)
+
+
+@router.post('/financials/export-pivots/kokapet')
+@gateway_router.post('/financials/export-pivots/kokapet')
+async def export_kokapet_pivots(
+    request: Request,
+    payload: ExportPivotsRequest,
+) -> StreamingResponse:
+    return await export_financials_pivots(request, payload)
 
 
 @router.get('/financials/closing-stock-rule-book')
@@ -637,8 +653,6 @@ async def export_jubilee_hills_structure(
     )
 
 
-@router.post('/financials/export-closing-stock')
-@gateway_router.post('/financials/export-closing-stock')
 async def export_closing_stock_template(
     request: Request,
     payload: ExportClosingStockRequest,
@@ -686,3 +700,21 @@ async def export_closing_stock_template(
             'x-request-id': request_id,
         },
     )
+
+
+@router.post('/financials/export-closing-stock/basheerbagh')
+@gateway_router.post('/financials/export-closing-stock/basheerbagh')
+async def export_basheerbagh_closing_stock(
+    request: Request,
+    payload: ExportClosingStockRequest,
+) -> StreamingResponse:
+    return await export_closing_stock_template(request, payload)
+
+
+@router.post('/financials/export-closing-stock/kokapet')
+@gateway_router.post('/financials/export-closing-stock/kokapet')
+async def export_kokapet_closing_stock(
+    request: Request,
+    payload: ExportClosingStockRequest,
+) -> StreamingResponse:
+    return await export_closing_stock_template(request, payload)

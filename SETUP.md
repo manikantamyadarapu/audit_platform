@@ -106,6 +106,14 @@ Create `backend/.env` file with these variables:
 | `CORS_ORIGIN` | Allowed frontend origins (comma-separated) | See below |
 | `ENABLE_SWAGGER` | Enable API documentation | `false` or `true` |
 
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPLOAD_MAX_BYTES` | Max upload size for audit workbooks | `52428800` (50MB) |
+| `HELD_FINANCIALS_DIR` | Disk root for per-user held Financials Excel files | `backend/storage/held-financials` |
+| `HELD_FINANCIALS_TTL_DAYS` | Days to keep held Financials files | `7` |
+
 ### Database URL Format (Supabase)
 
 **Important:** For Supabase, you need TWO connection strings:

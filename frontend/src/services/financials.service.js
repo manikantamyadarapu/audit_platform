@@ -2,6 +2,94 @@ import apiClient, { getApiErrorMessage } from './apiClient';
 import { getProcessingErrorPayload } from '../utils/processingErrorUtils';
 import { readSourceAverageRates } from '../utils/sourceAverageRates';
 
+const SLOT_TO_FIELD = {
+  sales: 'salesFile',
+  purchases: 'purchasesFile',
+  quantity: 'openingQtyFile',
+  previousYear: 'previousYearFile',
+  mr: 'mrFile',
+  dc: 'dcFile',
+  salesReturn: 'salesReturnFile',
+  purchaseReturn: 'purchaseReturnFile',
+  creditNote: 'creditNoteFile',
+  debitNote: 'debitNoteFile',
+};
+
+function financialsBranch(destinationBranch) {
+  if (destinationBranch === 'kokapet') return 'kokapet';
+  if (destinationBranch === 'jubilee-hills' || destinationBranch === 'jubileeHills') {
+    return 'jubilee-hills';
+  }
+  return 'basheerbagh';
+}
+
+function throwProcessingError(err) {
+  const error = new Error(getApiErrorMessage(err));
+  const payload = getProcessingErrorPayload(err);
+  if (payload) error.details = payload;
+  throw error;
+}
+
+/**
+ * Persist classified branch workbooks for the authenticated user.
+ * @param {'basheerbagh'|'kokapet'|'jubilee-hills'} branch
+ * @param {Record<string, File|null|undefined>} slotFiles
+ * @param {AbortSignal} [signal]
+ */
+export async function holdFinancialsBranchFiles(branch, slotFiles, signal) {
+  const form = new FormData();
+  for (const [slotKey, file] of Object.entries(slotFiles || {})) {
+    const field = SLOT_TO_FIELD[slotKey];
+    if (!field || !file) continue;
+    form.append(field, file);
+  }
+  try {
+    const { data } = await apiClient.post(
+      `/api/v1/process/financials/hold/${financialsBranch(branch)}`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        signal,
+      }
+    );
+    return data;
+  } catch (err) {
+    throwProcessingError(err);
+  }
+}
+
+/**
+ * @param {'basheerbagh'|'kokapet'|'jubilee-hills'} branch
+ * @param {AbortSignal} [signal]
+ */
+export async function listHeldFinancialsBranchFiles(branch, signal) {
+  try {
+    const { data } = await apiClient.get(
+      `/api/v1/process/financials/hold/${financialsBranch(branch)}`,
+      { signal }
+    );
+    return data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
+/**
+ * @param {'basheerbagh'|'kokapet'|'jubilee-hills'} branch
+ * @param {AbortSignal} [signal]
+ */
+export async function clearHeldFinancialsBranchFiles(branch, signal) {
+  try {
+    const { data } = await apiClient.delete(
+      `/api/v1/process/financials/hold/${financialsBranch(branch)}`,
+      { signal }
+    );
+    return data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
 /**
  * Closing Stock audit — Sales, Purchases, Opening Quantity, Previous Year Closing, MR, DC.
  * @param {File} salesFile
@@ -30,7 +118,7 @@ export async function processFinancialsPivot(
   form.append('mrFile', mrFile);
   form.append('dcFile', dcFile);
   form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
-  const branch = destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
+  const branch = financialsBranch(destinationBranch);
   try {
     const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -38,10 +126,27 @@ export async function processFinancialsPivot(
     });
     return data;
   } catch (err) {
-    const error = new Error(getApiErrorMessage(err));
-    const payload = getProcessingErrorPayload(err);
-    if (payload) error.details = payload;
-    throw error;
+    throwProcessingError(err);
+  }
+}
+
+/**
+ * Re-process a previously held six-file branch without re-uploading.
+ * @param {'basheerbagh'|'kokapet'} destinationBranch
+ * @param {AbortSignal} [signal]
+ */
+export async function processFinancialsPivotFromHeld(destinationBranch = 'basheerbagh', signal) {
+  const branch = financialsBranch(destinationBranch);
+  const form = new FormData();
+  form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  try {
+    const { data } = await apiClient.post(`/api/v1/process/financials/validate/${branch}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      signal,
+    });
+    return data;
+  } catch (err) {
+    throwProcessingError(err);
   }
 }
 
@@ -71,10 +176,27 @@ export async function processJubileeHillsFinancials(files, options = {}) {
     });
     return data;
   } catch (err) {
-    const error = new Error(getApiErrorMessage(err));
-    const payload = getProcessingErrorPayload(err);
-    if (payload) error.details = payload;
-    throw error;
+    throwProcessingError(err);
+  }
+}
+
+/**
+ * Re-process previously held Jubilee Hills workbooks without re-uploading.
+ * @param {{ signal?: AbortSignal, savedOpeningMappings?: object[] }} [options]
+ */
+export async function processJubileeHillsFinancialsFromHeld(options = {}) {
+  const { signal, savedOpeningMappings } = options;
+  const form = new FormData();
+  form.append('savedOpeningMappings', JSON.stringify(savedOpeningMappings || []));
+  form.append('sourceAverageRates', JSON.stringify(readSourceAverageRates()));
+  try {
+    const { data } = await apiClient.post('/api/v1/process/financials/validate/jubilee-hills', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      signal,
+    });
+    return data;
+  } catch (err) {
+    throwProcessingError(err);
   }
 }
 
@@ -137,17 +259,26 @@ async function downloadBlobResponse(res, fallbackName) {
   return { blob, filename };
 }
 
+function financialsDownloadBranch(destinationBranch) {
+  return destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
+}
+
 /**
  * Download Sales + Purchases pivots as one workbook (two sheets).
- * @param {{ salesPivot?: object[], purchasesPivot?: object[] }} payload
+ * @param {{ salesPivot?: object[], purchasesPivot?: object[], destinationBranch?: string }} payload
  * @param {AbortSignal} [signal]
  */
 export async function downloadFinancialsPivots(payload, signal) {
+  const branch = financialsDownloadBranch(payload?.destinationBranch);
   try {
-    const res = await apiClient.post('/api/v1/process/financials/export-pivots', payload, {
-      responseType: 'blob',
-      signal,
-    });
+    const res = await apiClient.post(
+      `/api/v1/process/financials/export-pivots/${branch}`,
+      payload,
+      {
+        responseType: 'blob',
+        signal,
+      }
+    );
     return downloadBlobResponse(res, 'Financials-Sales-Purchases-Pivots.xlsx');
   } catch (err) {
     throw new Error(getApiErrorMessage(err), { cause: err });
@@ -183,9 +314,10 @@ export async function downloadJubileeHillsTemplate(payload, signal) {
  * @param {AbortSignal} [signal]
  */
 export async function downloadClosingStockTemplate(payload, signal) {
+  const branch = financialsDownloadBranch(payload?.destinationBranch);
   try {
     const res = await apiClient.post(
-      '/api/v1/process/financials/export-closing-stock',
+      `/api/v1/process/financials/export-closing-stock/${branch}`,
       payload,
       {
         responseType: 'blob',

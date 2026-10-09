@@ -13,11 +13,27 @@ router.use(authenticate);
  * POST /api/v1/process/financials/validate/basheerbagh
  * POST /api/v1/process/financials/validate/kokapet
  * POST /api/v1/process/financials/validate/jubilee-hills
- * POST /api/v1/process/financials/export-pivots
- * POST /api/v1/process/financials/export-closing-stock
+ * POST /api/v1/process/financials/export-pivots/basheerbagh
+ * POST /api/v1/process/financials/export-pivots/kokapet
+ * POST /api/v1/process/financials/export-closing-stock/basheerbagh
+ * POST /api/v1/process/financials/export-closing-stock/kokapet
+ * POST /api/v1/process/financials/jubilee-hills/template
+ * POST /api/v1/process/financials/hold/:branch
+ * GET  /api/v1/process/financials/hold/:branch
+ * DELETE /api/v1/process/financials/hold/:branch
  * GET  /api/v1/process/financials/closing-stock-rule-book
  * POST /api/v1/process/financials/remap-closing-stock
  */
+function holdBranchUpload(req, res, next) {
+  const branch = String(req.params?.branch || '');
+  const upload =
+    branch === 'jubilee-hills' ? financialsJubileeHillsFiles : financialsPivotFiles;
+  return upload(req, res, (err) => handleMulterError(err, req, res, next));
+}
+
+router.post('/hold/:branch', holdBranchUpload, financialsController.holdFinancialsBranchFiles);
+router.get('/hold/:branch', financialsController.listHeldFinancialsBranchFiles);
+router.delete('/hold/:branch', financialsController.clearHeldFinancialsBranchFiles);
 router.post(
   '/validate/basheerbagh',
   financialsPivotFiles,
@@ -49,9 +65,14 @@ router.post(
   financialsController.processSalesPurchasesPivots
 );
 router.post(
-  '/export-pivots',
+  '/export-pivots/basheerbagh',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
-  financialsController.exportFinancialsPivots
+  financialsController.exportBasheerbaghPivots
+);
+router.post(
+  '/export-pivots/kokapet',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.exportKokapetPivots
 );
 router.post(
   '/jubilee-hills/template',
@@ -59,9 +80,14 @@ router.post(
   financialsController.exportJubileeHillsTemplate
 );
 router.post(
-  '/export-closing-stock',
+  '/export-closing-stock/basheerbagh',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
-  financialsController.exportClosingStockTemplate
+  financialsController.exportBasheerbaghClosingStock
+);
+router.post(
+  '/export-closing-stock/kokapet',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.exportKokapetClosingStock
 );
 router.get('/closing-stock-rule-book', financialsController.getClosingStockRuleBook);
 router.post(
