@@ -9,6 +9,17 @@ import {
   saveAuditSessionOverflow,
   aggressiveSlimSnapshotForRegistry,
 } from '../utils/auditSessionStorage';
+import { isFinancialsSessionKey } from '../utils/financialsSessionKeys';
+
+function financialsSessionUsable(payload, registryKey) {
+  const data = payload?.data;
+  if (!data) return false;
+  if (data.sheetError) return true;
+  if (registryKey === 'financials-jubilee-hills') {
+    return Boolean(data.result?.layoutByCategory);
+  }
+  return Boolean(data.result);
+}
 
 function metaEquals(a, b) {
   if (!a && !b) return true;
@@ -81,7 +92,7 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         ok = saveAuditSession(registryKey, storedPayload);
       }
 
-      if (!ok && registryKey === 'financials-jubilee-hills' && payloadForStorage?.result) {
+      if (!ok && isFinancialsSessionKey(registryKey) && payloadForStorage?.result) {
         void saveAuditSessionOverflow(registryKey, payloadForStorage)
           .then((saved) => {
             if (saved) {
@@ -119,13 +130,10 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
 
     async function hydrate() {
       let local = loadAuditSession(registryKey);
-      if (
-        registryKey === 'financials-jubilee-hills' &&
-        !local?.data?.result?.layoutByCategory
-      ) {
+      if (isFinancialsSessionKey(registryKey) && !financialsSessionUsable(local, registryKey)) {
         try {
           const overflow = await loadAuditSessionOverflow(registryKey);
-          if (!cancelled && overflow?.data?.result?.layoutByCategory) {
+          if (!cancelled && financialsSessionUsable(overflow, registryKey)) {
             local = overflow;
           }
         } catch {
@@ -184,7 +192,17 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
     setRestoring(true);
     try {
       lastPersistKeyRef.current = '';
-      const local = loadAuditSession(registryKey);
+      let local = loadAuditSession(registryKey);
+      if (isFinancialsSessionKey(registryKey) && !financialsSessionUsable(local, registryKey)) {
+        try {
+          const overflow = await loadAuditSessionOverflow(registryKey);
+          if (financialsSessionUsable(overflow, registryKey)) {
+            local = overflow;
+          }
+        } catch {
+          /* keep localStorage */
+        }
+      }
       if (local?.data) {
         applySessionPayload(local.data);
         updateSessionMeta({ savedAt: local.savedAt, expiresAt: local.expiresAt });

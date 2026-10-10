@@ -27,7 +27,10 @@ import {
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
-import { bootstrapAuditSessionState } from '../utils/auditSessionStorage';
+import {
+  bootstrapAuditSessionState,
+  slimJubileeHillsSnapshot,
+} from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 import { saveBranchAverageRates } from '../utils/sourceAverageRates';
 
@@ -116,7 +119,8 @@ function toastClosingStockOutcome(data, branchLabel = '') {
 
 function slimSnapshot(data) {
   if (!data) return null;
-  return {
+  // Same closing-stock slim as Jubilee Hills so localStorage can hold pivots/layouts.
+  return slimJubileeHillsSnapshot({
     result: data.result ?? null,
     sheetError: data.sheetError ?? null,
     salesFileName: data.salesFileName ?? null,
@@ -128,7 +132,7 @@ function slimSnapshot(data) {
     companyName: data.companyName ?? '',
     address: data.address ?? '',
     financialYear: data.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
-  };
+  });
 }
 
 function identifyFolder(branch, folderFiles, financialYear) {
@@ -260,8 +264,12 @@ export function SixFileBranchFinancialsPage({ branch }) {
         setHeldReady(Boolean(held?.ready));
         setRestoredNames(namesFromHeldFiles(held?.files));
       })
-      .catch(() => {
-        /* Holding is best-effort; Process can still run from the live folder. */
+      .catch((err) => {
+        if (cancelled) return;
+        auditToastError(
+          err?.message ||
+            'Could not save these workbooks for the next visit. You can still Process from this folder.'
+        );
       });
     return () => {
       cancelled = true;

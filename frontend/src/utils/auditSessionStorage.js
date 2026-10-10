@@ -1,6 +1,9 @@
 import { getAuditSessionConfig } from '../config/auditSessionConfig';
 import { getStoredUser } from './authUser';
 import { panMessageForRecord } from './panRecordFilters';
+import { isFinancialsSessionKey } from './financialsSessionKeys';
+
+export { FINANCIALS_SESSION_KEYS, isFinancialsSessionKey } from './financialsSessionKeys';
 
 /** How long audit page results/filters are kept when switching tabs (days). */
 export const AUDIT_SESSION_RETENTION_DAYS = 7;
@@ -438,6 +441,10 @@ export function aggressiveSlimGrossWeightSnapshot(snapshot) {
 }
 
 export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
+  if (isFinancialsSessionKey(registryKey)) {
+    // Must keep layout/pivots — generic slimAuditResult strips them and loses the workspace.
+    return aggressiveSlimJubileeHillsSnapshot(snapshot);
+  }
   switch (registryKey) {
     case 'pan-audit':
       return aggressiveSlimPanSnapshot(snapshot);
@@ -447,8 +454,6 @@ export function aggressiveSlimSnapshotForRegistry(registryKey, snapshot) {
     case 'cash-ledger':
     case 'negative-bank':
       return slimCashLedgerSnapshot(snapshot);
-    case 'financials-jubilee-hills':
-      return aggressiveSlimJubileeHillsSnapshot(snapshot);
     default:
       return aggressiveSlimAuditSnapshot(snapshot);
   }
@@ -631,7 +636,7 @@ function sessionRecord(registryKey, data) {
   };
 }
 
-/** Larger browser store used when localStorage rejects a Jubilee Hills sheet. */
+/** Larger browser store used when localStorage rejects a Financials closing-stock session. */
 export async function saveAuditSessionOverflow(registryKey, data) {
   const key = resolveScopedStorageKey(registryKey);
   const payload = sessionRecord(registryKey, data);

@@ -11,7 +11,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
+      host: '127.0.0.1',
       port: devPort,
+      strictPort: false,
       proxy: {
         '/api': {
           target: `http://127.0.0.1:${backendPort}`,
