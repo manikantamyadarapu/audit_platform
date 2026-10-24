@@ -44,14 +44,14 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
             'To Opening Stock',
             'To Purchases',
             'Less: Purchase Returns',
-            'Difference',
+            'Net Purchases',
             'To Gross Profit',
             'Total',
         ),
         'right': (
             'By Sales',
             'Less: Sales Returns',
-            'Difference',
+            'Net Sales',
             'By Transfer to Head Office',
             'By Closing stock',
             'Total',
@@ -64,7 +64,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
             'To Opening Stock',
             'To Purchases',
             'Less: Purchase Returns',
-            'Difference',
+            'Net Purchases',
             'To Transfer from Head Office',
             'To Making Charges',
             'To Gross Profit',
@@ -73,7 +73,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
         'right': (
             'By Sales',
             'Less: Sales Returns',
-            'Difference',
+            'Net Sales',
             'By Closing stock',
             'Total',
         ),
@@ -85,7 +85,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
             'To Opening Stock',
             'To Purchases',
             'Less: Returns',
-            'Difference',
+            'Net Purchases',
             'To Transfer from Head Office',
             'To Making Charges',
             'To Gross Profit',
@@ -94,7 +94,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
         'right': (
             'By Sales',
             'Less: Returns',
-            'Difference',
+            'Net Sales',
             'By Closing stock',
             'Total',
         ),
@@ -106,7 +106,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
             'To Opening Stock',
             'To Purchases',
             'Less: Purchase Returns',
-            'Difference',
+            'Net Purchases',
             'To Transfer from Head Office',
             'To Gross Profit',
             'Total',
@@ -114,7 +114,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
         'right': (
             'By Sales',
             'Less: Sales Returns',
-            'Difference',
+            'Net Sales',
             'By Closing stock',
             'Total',
         ),
@@ -126,7 +126,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
             'To Opening Stock',
             'To Purchases',
             'Less: Returns',
-            'Difference',
+            'Net Purchases',
             'To Transfer from Head Office',
             'To Gross Profit',
             'Total',
@@ -134,7 +134,7 @@ TRADING_METAL_ACCOUNTS: tuple[dict[str, object], ...] = (
         'right': (
             'By Sales',
             'Less: Sales Returns',
-            'Difference',
+            'Net Sales',
             'By Closing stock',
             'Total',
         ),
@@ -368,7 +368,7 @@ def _account_computed(
     }
 
 
-_SKIP_IN_METAL_TOTAL = frozenset({'Total', 'Difference'})
+_SKIP_IN_METAL_TOTAL = frozenset({'Total', 'Difference', 'Net Purchases', 'Net Sales'})
 
 
 def _metal_side_total(
@@ -378,7 +378,7 @@ def _metal_side_total(
     side: str,
     computed: Mapping[str, float] | None = None,
 ) -> tuple[Any, Any]:
-    """Sum displayed Qty/Amt on one T-account side. Difference is a subtotal (not added again)."""
+    """Sum displayed Qty/Amt on one T-account side. Net Purchases/Net Sales are subtotals."""
     qty_total: float | None = None
     amt_total: float | None = None
     for label in labels:
@@ -420,9 +420,9 @@ def _line_values(
         return qty, to_head_office_amt(grand_total)
     if transfer and label == transfer.get('label'):
         return transfer.get('qty'), transfer.get('amt')
-    if label == 'Difference':
-        if side == 'right':
-            return grand_total.get('netSalesQty'), grand_total.get('netSalesAmt')
+    if label in ('Net Sales', 'Difference') and side == 'right':
+        return grand_total.get('netSalesQty'), grand_total.get('netSalesAmt')
+    if label in ('Net Purchases', 'Difference'):
         return grand_total.get('netPurchasesQty'), grand_total.get('netPurchasesAmt')
     if metal_source and label == 'By Closing stock':
         return metal_closing_qty(grand_total), metal_closing_amt(grand_total)

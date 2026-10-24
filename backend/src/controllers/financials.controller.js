@@ -272,6 +272,15 @@ async function exportFinancialsPivots(req, res, next) {
   }
 }
 
+async function exportConsolidatedFinancialsTemplate(req, res, next) {
+  try {
+    const file = await financialsService.exportConsolidatedFinancialsTemplate(req);
+    return sendExcelDownload(res, file, req.requestId);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function exportJubileeHillsTemplate(req, res, next) {
   try {
     const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName : '';
@@ -531,6 +540,7 @@ module.exports = {
   exportKokapetPivots,
   exportFinancialsPivots,
   exportJubileeHillsTemplate,
+  exportConsolidatedFinancialsTemplate,
   exportBasheerbaghClosingStock,
   exportKokapetClosingStock,
   exportClosingStockTemplate,

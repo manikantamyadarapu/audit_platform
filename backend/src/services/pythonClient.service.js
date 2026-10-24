@@ -795,6 +795,40 @@ async function postFinancialsExportPivots(payload, options = {}) {
  * @param {{ requestId?: string }} [options]
  * @returns {Promise<{ buffer: Buffer, contentType: string, contentDisposition: string }>}
  */
+async function postConsolidatedFinancialsTemplate(payload = {}, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const response = await client.post('/api/process/financials/consolidated/template', payload, {
+      headers,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+    });
+    if (response.status >= 400) {
+      let detail = 'Consolidated Financials template export failed';
+      try {
+        const text = Buffer.from(response.data).toString('utf8');
+        const parsed = JSON.parse(text);
+        if (parsed?.detail) detail = parsed.detail;
+      } catch {
+        /* ignore */
+      }
+      const err = new Error(detail);
+      err.status = response.status;
+      throw err;
+    }
+    return {
+      buffer: Buffer.from(response.data),
+      contentType:
+        response.headers['content-type'] ||
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentDisposition: response.headers['content-disposition'] || '',
+    };
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 async function postJubileeHillsTemplate(payload, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (options.requestId) headers['x-request-id'] = options.requestId;
@@ -992,6 +1026,7 @@ module.exports = {
   postFinancialsSalesPurchasesPivots,
   postFinancialsExportPivots,
   postJubileeHillsTemplate,
+  postConsolidatedFinancialsTemplate,
   postFinancialsExportClosingStock,
   getClosingStockRuleBook,
   postFinancialsRemapClosingStock,

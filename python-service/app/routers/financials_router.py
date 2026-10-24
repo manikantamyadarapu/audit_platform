@@ -19,6 +19,9 @@ from app.engines.financials_engine.engine.jubilee_hills_template import (
     build_jubilee_hills_structure_bytes,
     build_jubilee_hills_workbook_bytes,
 )
+from app.engines.financials_engine.engine.consolidated_financials_template import (
+    build_consolidated_financials_workbook_bytes,
+)
 from app.engines.financials_engine.config.product_rule_book import (
     format_closing_stock_mapping_response,
     get_closing_stock_rule_book_payload,
@@ -82,6 +85,23 @@ class JubileeHillsTemplateRequest(BaseModel):
     openingPivot: list[PivotRow] = Field(default_factory=list)
     mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
     dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+
+
+class BranchFinancialsSnapshot(BaseModel):
+    model_config = {'extra': 'allow'}
+
+    layoutByCategory: dict[str, list[dict[str, Any]]] | None = None
+    salesPivot: list[PivotRow] = Field(default_factory=list)
+    purchasesPivot: list[PivotRow] = Field(default_factory=list)
+    openingPivot: list[PivotRow] = Field(default_factory=list)
+    mrPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+    dcPivots: LocationPivotTree = Field(default_factory=LocationPivotTree)
+
+
+class ConsolidatedTemplateRequest(BaseModel):
+    model_config = {'extra': 'allow'}
+
+    branches: dict[str, BranchFinancialsSnapshot] = Field(default_factory=dict)
 
 
 class ExportClosingStockRequest(BaseModel):
@@ -665,6 +685,38 @@ async def export_jubilee_hills_structure(
     )
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'Jubilee-Hills-Financials-{timestamp}.xlsx'
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'x-request-id': request_id,
+        },
+    )
+
+
+@router.post('/financials/consolidated/template')
+@gateway_router.post('/financials/consolidated/template')
+async def export_consolidated_financials_structure(
+    request: Request,
+    payload: ConsolidatedTemplateRequest | None = None,
+) -> StreamingResponse:
+    """Consolidated Financials workbook: Abstract and TShape mapped only when all three branches are complete."""
+    request_id = _request_id(request)
+    log = get_logger(request_id)
+    body = payload or ConsolidatedTemplateRequest()
+    branches = {
+        name: snapshot.model_dump()
+        for name, snapshot in (body.branches or {}).items()
+    }
+    excel_bytes, contributing, unresolved = build_consolidated_financials_workbook_bytes(branches)
+    log.info(
+        'Consolidated Abstract: branches={} unresolved={}',
+        contributing,
+        unresolved,
+    )
+    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'Consolidated-Financials-{timestamp}.xlsx'
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

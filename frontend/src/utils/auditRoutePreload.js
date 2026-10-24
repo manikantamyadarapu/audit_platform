@@ -17,6 +17,7 @@ const AUDIT_ROUTE_PRELOADERS = {
   '/financials/basheerbagh': () => import('../pages/BasheerbaghFinancialsPage'),
   '/financials/kokapet': () => import('../pages/KokapetFinancialsPage'),
   '/financials/jubilee-hills': () => import('../pages/JubileeHillsFinancialsPage'),
+  '/financials/consolidated': () => import('../pages/ConsolidatedFinancialsPage'),
   '/financials/closing-stock': () => import('../pages/BasheerbaghFinancialsPage'),
 };
 

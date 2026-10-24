@@ -24,6 +24,17 @@ const BODY_CELL =
   'border border-slate-200/90 px-2 py-1.5 text-xs dark:border-slate-700';
 const VALUE_CELL = cn(BODY_CELL, 'text-center tabular-nums');
 
+function defaultMeasureColumns() {
+  return ABSTRACT_MEASURE_GROUPS.map((heading) => ({
+    heading,
+    kind: abstractColumnSpan(heading) === 1 ? 'none' : 'qty_amt',
+  }));
+}
+
+function columnSpan(column) {
+  return column.kind === 'qty_amt' ? 2 : 1;
+}
+
 function rowClass(kind) {
   if (kind === 'spacer') return 'h-3';
   if (kind === 'section_heading') {
@@ -46,6 +57,46 @@ function displayMeasure(value) {
   return formatClosingStockMeasure(value).replace(/\u00a0/g, '').trim();
 }
 
+function headerCells(column) {
+  if (column.kind === 'qty_amt') {
+    return [
+      <th key={`${column.heading}-qty`} className={SUBHEADER_CELL}>
+        {ABSTRACT_QTY_SUBHEADER}
+      </th>,
+      <th key={`${column.heading}-amt`} className={SUBHEADER_CELL}>
+        {ABSTRACT_AMT_SUBHEADER}
+      </th>,
+    ];
+  }
+  if (column.kind === 'amt_only') {
+    return [
+      <th key={`${column.heading}-amt`} className={SUBHEADER_CELL}>
+        {ABSTRACT_AMT_SUBHEADER}
+      </th>,
+    ];
+  }
+  return [];
+}
+
+function valueCells(column, fill, index, kindClass) {
+  const pair = fill?.[column.heading];
+  if (column.kind === 'qty_amt') {
+    return [
+      <td key={`${index}-${column.heading}-qty`} className={cn(VALUE_CELL, kindClass)}>
+        {displayMeasure(pair?.qty)}
+      </td>,
+      <td key={`${index}-${column.heading}-amt`} className={cn(VALUE_CELL, kindClass)}>
+        {displayMeasure(pair?.amt)}
+      </td>,
+    ];
+  }
+  return [
+    <td key={`${index}-${column.heading}-amt`} className={cn(VALUE_CELL, kindClass)}>
+      {displayMeasure(pair?.amt)}
+    </td>,
+  ];
+}
+
 /**
  * On-screen preview of the Abstract sheet, filled from Trading sources.
  */
@@ -57,11 +108,20 @@ export function AbstractPreviewTable({
   mrPivots = {},
   dcPivots = {},
   blankValues = false,
+  title = ABSTRACT_TITLE,
+  bodyRows = ABSTRACT_BODY_ROWS,
+  measureColumns,
+  byLabel: byLabelProp,
+  className,
 }) {
-  const lastCol = 1 + abstractColumnCount();
-  const byLabel = useMemo(
+  const columns = measureColumns ?? defaultMeasureColumns();
+  const lastCol = measureColumns
+    ? 1 + columns.reduce((total, column) => total + columnSpan(column), 0)
+    : 1 + abstractColumnCount();
+  const computedByLabel = useMemo(
     () =>
-      blankValues
+      byLabelProp ||
+      (blankValues
         ? {}
         : buildAbstractRowMeasures({
             layoutByCategory,
@@ -70,45 +130,46 @@ export function AbstractPreviewTable({
             openingPivot,
             mrPivots,
             dcPivots,
-          }),
-    [blankValues, layoutByCategory, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots]
+          })),
+    [
+      byLabelProp,
+      blankValues,
+      layoutByCategory,
+      salesPivot,
+      purchasesPivot,
+      openingPivot,
+      mrPivots,
+      dcPivots,
+    ]
   );
   return (
-    <div className="overflow-x-auto">
+    <div className={cn('overflow-auto scrollbar-thin', className)}>
       <table className="min-w-max border-collapse bg-white dark:bg-slate-950">
-        <thead>
+        <thead className="sticky top-0 z-20">
           <tr>
             <th colSpan={lastCol} className={TITLE_CELL}>
-              {ABSTRACT_TITLE}
+              {title}
             </th>
           </tr>
           <tr>
-            <th rowSpan={2} className={cn(HEADER_CELL, STICKY_LABEL)}>
+            <th rowSpan={2} className={cn(HEADER_CELL, STICKY_LABEL, 'z-30')}>
               Particulars
             </th>
-            {ABSTRACT_MEASURE_GROUPS.map((group) => (
-              <th key={group} colSpan={abstractColumnSpan(group)} rowSpan={abstractColumnSpan(group) === 1 ? 2 : 1} className={HEADER_CELL}>
-                {group}
+            {columns.map((column) => (
+              <th
+                key={column.heading}
+                colSpan={columnSpan(column)}
+                rowSpan={column.kind === 'none' ? 2 : 1}
+                className={HEADER_CELL}
+              >
+                {column.heading}
               </th>
             ))}
           </tr>
-          <tr>
-            {ABSTRACT_MEASURE_GROUPS.flatMap((group) =>
-              abstractColumnSpan(group) === 1
-                ? []
-                : [
-                    <th key={`${group}-qty`} className={SUBHEADER_CELL}>
-                      {ABSTRACT_QTY_SUBHEADER}
-                    </th>,
-                    <th key={`${group}-amt`} className={SUBHEADER_CELL}>
-                      {ABSTRACT_AMT_SUBHEADER}
-                    </th>,
-                  ]
-            )}
-          </tr>
+          <tr>{columns.flatMap((column) => headerCells(column))}</tr>
         </thead>
         <tbody>
-          {ABSTRACT_BODY_ROWS.map((row, index) => {
+          {bodyRows.map((row, index) => {
             const kind = row.kind;
             const label = row.label ?? '';
             if (kind === 'spacer') {
@@ -119,37 +180,21 @@ export function AbstractPreviewTable({
               );
             }
             const fill =
-              kind === 'section_heading' || kind === 'group_heading'
-                ? null
-                : byLabel[label];
+              kind === 'section_heading' || kind === 'group_heading' ? null : computedByLabel[label];
+            const kindClass = rowClass(kind);
             return (
-              <tr key={`${kind}-${label}-${index}`} className={rowClass(kind)}>
+              <tr key={`${kind}-${label}-${index}`} className={kindClass}>
                 <td
                   className={cn(
                     BODY_CELL,
                     STICKY_LABEL,
-                    rowClass(kind),
+                    kindClass,
                     kind === 'item' && 'pl-8 font-medium'
                   )}
                 >
                   {label}
                 </td>
-                {ABSTRACT_MEASURE_GROUPS.flatMap((group) =>
-                  abstractColumnSpan(group) === 1
-                    ? [
-                        <td key={`${index}-${group}-amt`} className={cn(VALUE_CELL, rowClass(kind))}>
-                          {displayMeasure(fill?.[group]?.amt)}
-                        </td>,
-                      ]
-                    : [
-                        <td key={`${index}-${group}-qty`} className={cn(VALUE_CELL, rowClass(kind))}>
-                          {displayMeasure(fill?.[group]?.qty)}
-                        </td>,
-                        <td key={`${index}-${group}-amt`} className={cn(VALUE_CELL, rowClass(kind))}>
-                          {displayMeasure(fill?.[group]?.amt)}
-                        </td>,
-                      ]
-                )}
+                {columns.flatMap((column) => valueCells(column, fill, index, kindClass))}
               </tr>
             );
           })}

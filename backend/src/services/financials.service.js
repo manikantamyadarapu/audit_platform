@@ -239,6 +239,12 @@ async function exportJubileeHillsTemplate(req, payload) {
   return pythonClient.postJubileeHillsTemplate(payload, { requestId: req.requestId });
 }
 
+async function exportConsolidatedFinancialsTemplate(req) {
+  return pythonClient.postConsolidatedFinancialsTemplate(req.body || {}, {
+    requestId: req.requestId,
+  });
+}
+
 async function exportClosingStockTemplate(req, payload) {
   return pythonClient.postFinancialsExportClosingStock(payload, {
     requestId: req.requestId,
@@ -308,6 +314,7 @@ module.exports = {
   notifyFinancialsPivotFailure,
   exportFinancialsPivots,
   exportJubileeHillsTemplate,
+  exportConsolidatedFinancialsTemplate,
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,

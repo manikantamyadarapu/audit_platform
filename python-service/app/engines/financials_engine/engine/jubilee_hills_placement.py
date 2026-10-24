@@ -540,7 +540,6 @@ def place_jubilee_hills_products(
         layouts,
         destination='jubileeHills',
         source_average_rates=source_average_rates,
-        receipt_rate_mappings=receipt_rate_mappings,
     )
     return {
         'productsByCategory': products_by_category,
