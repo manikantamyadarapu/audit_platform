@@ -1,6 +1,6 @@
 /** Shared Closing Stock layout — mirrors python closing_stock_template. */
 
-import { formatIndianNumber } from '../utils/format';
+import { formatIndianNumber, roundHalfUpWhole } from '../utils/format';
 
 export const CLOSING_STOCK_CATEGORIES = Object.freeze([
   'Diamond',
@@ -140,6 +140,13 @@ const MEASURE_FIELD_BY_LEAF_LOCAL = MEASURE_FIELD_BY_LEAF;
  * @param {number|null|undefined} value
  * @returns {string}
  */
+export function formatClosingStockAverageRate(value) {
+  if (value === null || value === undefined || value === '') return '\u00a0';
+  const rounded = roundHalfUpWhole(value);
+  if (rounded === null) return '\u00a0';
+  return formatIndianNumber(rounded, { minDecimals: 0, maxDecimals: 0, fallback: '\u00a0' });
+}
+
 export function formatClosingStockMeasure(value) {
   if (value === null || value === undefined || value === '') {
     return '\u00a0';
@@ -325,7 +332,21 @@ export function closingStockCellValue(row, leafIndex) {
   if (leaf === '%') {
     return formatClosingStockPercent(row[field]);
   }
+  if (field === 'averageRateAmt') {
+    return formatClosingStockAverageRate(row[field]);
+  }
   return formatClosingStockMeasure(row[field]);
+}
+
+/** Original stored Average Rate, kept beside the rounded preview. */
+export function closingStockCellTitle(row, leafIndex) {
+  const field = MEASURE_FIELD_BY_LEAF_LOCAL[leafIndex];
+  if (field !== 'averageRateAmt' || row?.averageRateAmt == null || row.averageRateAmt === '') {
+    return undefined;
+  }
+  const totalAmt = row.totalAmt ?? 0;
+  const totalQty = row.totalQty ?? 0;
+  return `Stored Average Rate ${row.averageRateAmt}. Average Rate = Total Amount ${totalAmt} / Total Qty ${totalQty}`;
 }
 
 /**

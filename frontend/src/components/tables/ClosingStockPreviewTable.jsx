@@ -3,6 +3,7 @@ import {
   CLOSING_STOCK_CATEGORIES,
   buildClosingStockPreviewRows,
   buildGroupedHeaderCells,
+  closingStockCellTitle,
   closingStockCellValue,
   closingStockReportTitle,
   getClosingStockHeaderRows,
@@ -174,7 +175,11 @@ export function ClosingStockPreviewTable({
                 <tr key={`${row.kind}-${row.label}-${rowIdx}`} className={styles.tr}>
                   <td className={styles.label}>{row.label}</td>
                   {numbers.map((num, leafIdx) => (
-                    <td key={`${rowIdx}-${num}`} className={styles.cell}>
+                    <td
+                      key={`${rowIdx}-${num}`}
+                      className={styles.cell}
+                      title={closingStockCellTitle(row, leafIdx)}
+                    >
                       {closingStockCellValue(row, leafIdx)}
                     </td>
                   ))}

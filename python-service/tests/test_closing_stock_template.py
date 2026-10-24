@@ -10,6 +10,11 @@ from app.engines.financials_engine.engine.closing_stock_template import (
     build_closing_stock_template_bytes,
     build_pivots_workbook_bytes,
     closing_stock_report_title,
+    displayed_average_rate,
+    leaf_index_for_measure,
+)
+from app.engines.financials_engine.engine.jubilee_hills_template import (
+    build_jubilee_hills_workbook_bytes,
 )
 
 
@@ -136,3 +141,35 @@ class TestClosingStockTemplate:
         assert wb.sheetnames == ['Sales Pivot', 'Purchases Pivot']
         assert wb['Sales Pivot']['A2'].value == 'A'
         assert wb['Purchases Pivot']['A2'].value == 'B'
+
+    def test_average_rate_export_rounds_half_up_without_changing_stored_rate(self):
+        assert displayed_average_rate(10.49) == 10
+        assert displayed_average_rate(10.5) == 11
+        assert displayed_average_rate(10.51) == 11
+        rates = {'Diamond': 10.49, 'Emerald': 10.5, 'Pearls': 10.51}
+        layout = {
+            category: [{
+                'kind': 'product',
+                'label': category,
+                'averageRateAmt': rate,
+                'totalAmt': rate * 2,
+                'totalQty': 2,
+            }]
+            for category, rate in rates.items()
+        }
+        column = 2 + leaf_index_for_measure('averageRateAmt')
+        shared = load_workbook(BytesIO(build_closing_stock_template_bytes(
+            layout_by_category=layout,
+            categories=CLOSING_STOCK_CATEGORIES,
+        )))
+        jubilee = load_workbook(BytesIO(build_jubilee_hills_workbook_bytes(
+            layout_by_category=layout,
+        )))
+        for category, rate in rates.items():
+            shown = displayed_average_rate(rate)
+            for book in (shared, jubilee):
+                cell = book[category].cell(row=10, column=column)
+                assert cell.value == shown
+                assert str(rate) in cell.comment.text
+                assert 'Total Amount / Total Qty' in cell.comment.text
+            assert layout[category][0]['averageRateAmt'] == rate

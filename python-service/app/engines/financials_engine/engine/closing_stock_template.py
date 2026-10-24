@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 from typing import Any, Mapping, Sequence
 
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
@@ -241,6 +243,30 @@ def _leaf_excel_column(leaf_idx: int) -> int:
     return 2 + leaf_idx
 
 
+def displayed_average_rate(value: Any) -> int | None:
+    """Nearest whole number for the Average Rate column. Stored rates stay unchanged."""
+    if value is None or value == '':
+        return None
+    number = Decimal(str(value))
+    if not number.is_finite():
+        return None
+    return int(number.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+
+
+def _assign_measure_cell(cell, measure_key: str, value: Any, path) -> None:
+    if measure_key == 'averageRateAmt':
+        cell.value = displayed_average_rate(value)
+        cell.comment = Comment(
+            f'Stored Average Rate {value}. Average Rate = Total Amount / Total Qty.',
+            'Audit',
+            width=240,
+            height=40,
+        )
+    else:
+        cell.value = value
+    _apply_closing_stock_cell_format(cell, path)
+
+
 def _write_product_sales_purchases(
     ws: Worksheet,
     row: int,
@@ -252,8 +278,8 @@ def _write_product_sales_purchases(
         if value is None:
             continue
         leaf_idx = leaf_index_for_measure(measure_key)
-        cell = ws.cell(row=row, column=_leaf_excel_column(leaf_idx), value=value)
-        _apply_closing_stock_cell_format(cell, CLOSING_STOCK_MEASURE_PATHS[measure_key])
+        cell = ws.cell(row=row, column=_leaf_excel_column(leaf_idx))
+        _assign_measure_cell(cell, measure_key, value, CLOSING_STOCK_MEASURE_PATHS[measure_key])
         cell.alignment = CENTER
 
 
@@ -296,9 +322,8 @@ def _write_sum_formulas(
 
         measure_key = measure_leaf_indexes.get(idx)
         if measure_key and entry is not None and entry.get(measure_key) is not None:
-            cell.value = entry.get(measure_key)
+            _assign_measure_cell(cell, measure_key, entry.get(measure_key), path)
             cell.font = TOTAL_FONT
-            _apply_closing_stock_cell_format(cell, path)
             continue
 
         if _is_summable_leaf(path) and first is not None and last is not None and first <= last:

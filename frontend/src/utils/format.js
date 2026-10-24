@@ -17,6 +17,14 @@ export function formatIndianNumber(n, options = {}) {
   }).format(Number(n));
 }
 
+/** Nearest whole number. Below 0.5 rounds down; 0.5 and above round away from zero. */
+export function roundHalfUpWhole(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const sign = num < 0 ? -1 : 1;
+  return sign * Math.round(Math.abs(num));
+}
+
 /**
  * @param {number|null|undefined} n
  * @param {number} [decimals=0]
