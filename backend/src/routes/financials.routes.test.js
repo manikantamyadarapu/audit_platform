@@ -36,6 +36,7 @@ test('Financials download routes are split by branch and stay authenticated', ()
   assert.equal(paths.includes('POST /export-closing-stock/basheerbagh'), true);
   assert.equal(paths.includes('POST /export-closing-stock/kokapet'), true);
   assert.equal(paths.includes('POST /jubilee-hills/template'), true);
+  assert.equal(paths.includes('POST /consolidated/template'), true);
 });
 
 test('Financials hold routes are registered and stay authenticated', () => {

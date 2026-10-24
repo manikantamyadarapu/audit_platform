@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Gem, Landmark, MapPin } from 'lucide-react';
+import { Gem, Landmark, Layers, MapPin } from 'lucide-react';
 import { ServiceCard } from '../components/cards/ServiceCard';
 import { Badge } from '../components/ui/Badge';
 
@@ -29,6 +29,14 @@ const modules = [
     icon: Landmark,
     tone: 'emerald',
   },
+  {
+    title: 'Consolidated Financials',
+    description:
+      'Download the Consolidated Financials workbook. This first version has Abstract and TShape only.',
+    path: '/financials/consolidated',
+    icon: Layers,
+    tone: 'emerald',
+  },
 ];
 
 export default function FinancialsHub() {
@@ -42,8 +50,8 @@ export default function FinancialsHub() {
           <Badge tone="emerald">Active division</Badge>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Three branch workbooks. Each page runs its own upload. Average Rates saved on one branch
-          are reused when another branch calculates receipt amounts.
+          Three branch workbooks plus Consolidated Financials. Each branch page runs its own upload.
+          Average Rates saved on one branch are reused when another branch calculates receipt amounts.
         </p>
       </motion.div>
 

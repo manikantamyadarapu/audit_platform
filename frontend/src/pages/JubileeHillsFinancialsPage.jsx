@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Download, FileSpreadsheet, Gem } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { AuditValidationOverlay } from '../components/ui/AuditValidationOverlay';
@@ -6,7 +6,6 @@ import { FolderUploadZone } from '../components/upload/FolderUploadZone';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
-import { AuditSessionBanner } from '../components/audit/AuditSessionBanner';
 import {
   JubileeOpeningAmountPanel,
   loadJubileeOpeningMappings,
@@ -29,232 +28,33 @@ import {
   JUBILEE_HILLS_PREVIEW_SHEETS,
 } from '../config/jubileeHillsSheetStructure';
 import {
-  clearHeldFinancialsBranchFiles,
   downloadJubileeHillsTemplate,
-  holdFinancialsBranchFiles,
-  listHeldFinancialsBranchFiles,
   placeJubileeHillsFromPivots,
   processJubileeHillsFinancials,
-  processJubileeHillsFinancialsFromHeld,
 } from '../services/financials.service';
 import { formatProcessingErrorHuman } from '../utils/processingErrorUtils';
 import { auditToastError, auditToastSuccess } from '../utils/auditToast';
 import { cn } from '../utils/cn';
-import { SourceAverageRatesHint } from '../components/audit/SourceAverageRatesHint';
 import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
-import { readReceiptRateMappings, saveReceiptRateMapping } from '../utils/receiptRateMappings';
-import { ReceiptRateManualMappingPanel } from '../components/audit/ReceiptRateManualMappingPanel';
-import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
-import { bootstrapAuditSessionState, slimJubileeHillsSnapshot } from '../utils/auditSessionStorage';
-
-const JUBILEE_SESSION_KEY = 'financials-jubilee-hills';
-
-const EMPTY_RESTORED_NAMES = {
-  sales: null,
-  purchases: null,
-  quantity: null,
-  previousYear: null,
-  salesReturn: null,
-  purchaseReturn: null,
-  creditNote: null,
-  debitNote: null,
-  mr: null,
-  dc: null,
-};
-
-function restoredNamesFromSession(data) {
-  if (!data) return { ...EMPTY_RESTORED_NAMES };
-  return {
-    sales: data.salesFileName ?? null,
-    purchases: data.purchasesFileName ?? null,
-    quantity: data.openingQtyFileName ?? null,
-    previousYear: data.previousYearFileName ?? null,
-    salesReturn: data.salesReturnFileName ?? null,
-    purchaseReturn: data.purchaseReturnFileName ?? null,
-    creditNote: data.creditNoteFileName ?? null,
-    debitNote: data.debitNoteFileName ?? null,
-    mr: data.mrFileName ?? null,
-    dc: data.dcFileName ?? null,
-  };
-}
-
-function namesFromHeldFiles(files) {
-  const next = { ...EMPTY_RESTORED_NAMES };
-  for (const row of Array.isArray(files) ? files : []) {
-    if (row?.slotKey && Object.prototype.hasOwnProperty.call(next, row.slotKey)) {
-      next[row.slotKey] = row.originalName || null;
-    }
-  }
-  return next;
-}
-
-function withOpeningCandidates(result) {
-  const match = result?.openingAmountMatch;
-  const catalog = match?.previousYearByCategory;
-  if (!match || !catalog || !Array.isArray(match.manualMappingRequiredRows)) return result;
-  return {
-    ...result,
-    openingAmountMatch: {
-      ...match,
-      manualMappingRequiredRows: match.manualMappingRequiredRows.map((row) => {
-        if (Array.isArray(row?.candidateProducts) && row.candidateProducts.length) return row;
-        const category = String(row?.category || '').trim();
-        const options = Array.isArray(catalog[category]) ? catalog[category] : [];
-        return { ...row, candidateProducts: options };
-      }),
-    },
-  };
-}
-
-function sessionResult(data) {
-  return withOpeningCandidates(data?.result ?? null);
-}
-
-function slimSnapshot(data) {
-  if (!data) return null;
-  return slimJubileeHillsSnapshot({
-    result: data.result ?? null,
-    sheetError: data.sheetError ?? null,
-    activeSheet: data.activeSheet ?? CLOSING_STOCK_CATEGORIES[0],
-    salesFileName: data.salesFileName ?? null,
-    purchasesFileName: data.purchasesFileName ?? null,
-    openingQtyFileName: data.openingQtyFileName ?? null,
-    previousYearFileName: data.previousYearFileName ?? null,
-    salesReturnFileName: data.salesReturnFileName ?? null,
-    purchaseReturnFileName: data.purchaseReturnFileName ?? null,
-    creditNoteFileName: data.creditNoteFileName ?? null,
-    debitNoteFileName: data.debitNoteFileName ?? null,
-    mrFileName: data.mrFileName ?? null,
-    dcFileName: data.dcFileName ?? null,
-    companyName: data.companyName ?? '',
-    address: data.address ?? '',
-    financialYear: data.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
-  });
-}
 
 export default function JubileeHillsFinancialsPage() {
-  const [initialSession] = useState(() => bootstrapAuditSessionState(JUBILEE_SESSION_KEY));
   const [folderFiles, setFolderFiles] = useState([]);
-  const [restoredNames, setRestoredNames] = useState(() =>
-    restoredNamesFromSession(initialSession.data)
-  );
-  const [heldReady, setHeldReady] = useState(false);
-  const [loadingHeld, setLoadingHeld] = useState(true);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [sheetsReady, setSheetsReady] = useState(() => Boolean(sessionResult(initialSession.data)?.layoutByCategory));
-  const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
-  const [result, setResult] = useState(() => sessionResult(initialSession.data));
-  const [activeSheet, setActiveSheet] = useState(
-    () => initialSession.data?.activeSheet || CLOSING_STOCK_CATEGORIES[0]
-  );
-  const [companyName, setCompanyName] = useState(() => initialSession.data?.companyName ?? '');
-  const [address, setAddress] = useState(() => initialSession.data?.address ?? '');
-  const [financialYear, setFinancialYear] = useState(
-    () => initialSession.data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear
-  );
+  const [sheetsReady, setSheetsReady] = useState(false);
+  const [sheetError, setSheetError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [activeSheet, setActiveSheet] = useState(CLOSING_STOCK_CATEGORIES[0]);
+  const [companyName, setCompanyName] = useState('');
+  const [address, setAddress] = useState('');
+  const [financialYear, setFinancialYear] = useState(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
 
   const identification = useMemo(() => {
     if (!folderFiles.length) return null;
     return classifyJubileeHillsFolderFiles(folderFiles, { financialYear });
   }, [folderFiles, financialYear]);
 
-  const canProcess = Boolean(identification?.ready || heldReady);
-  const namedFiles = identification?.files;
-
-  const applySession = useCallback((data) => {
-    const nextResult = sessionResult(data);
-    setResult(nextResult);
-    setSheetsReady(Boolean(nextResult?.layoutByCategory));
-    setSheetError(data?.sheetError ?? null);
-    setActiveSheet(data?.activeSheet || CLOSING_STOCK_CATEGORIES[0]);
-    setRestoredNames(restoredNamesFromSession(data));
-    setCompanyName(data?.companyName ?? '');
-    setAddress(data?.address ?? '');
-    setFinancialYear(data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
-    setFolderFiles([]);
-  }, []);
-
-  const sessionSnapshot = useMemo(
-    () => ({
-      result,
-      sheetError,
-      activeSheet,
-      salesFileName: namedFiles?.sales?.name ?? restoredNames.sales ?? null,
-      purchasesFileName: namedFiles?.purchases?.name ?? restoredNames.purchases ?? null,
-      openingQtyFileName: namedFiles?.quantity?.name ?? restoredNames.quantity ?? null,
-      previousYearFileName: namedFiles?.previousYear?.name ?? restoredNames.previousYear ?? null,
-      salesReturnFileName: namedFiles?.salesReturn?.name ?? restoredNames.salesReturn ?? null,
-      purchaseReturnFileName: namedFiles?.purchaseReturn?.name ?? restoredNames.purchaseReturn ?? null,
-      creditNoteFileName: namedFiles?.creditNote?.name ?? restoredNames.creditNote ?? null,
-      debitNoteFileName: namedFiles?.debitNote?.name ?? restoredNames.debitNote ?? null,
-      mrFileName: namedFiles?.mr?.name ?? restoredNames.mr ?? null,
-      dcFileName: namedFiles?.dc?.name ?? restoredNames.dc ?? null,
-      companyName,
-      address,
-      financialYear,
-    }),
-    [result, sheetError, activeSheet, namedFiles, restoredNames, companyName, address, financialYear]
-  );
-
-  const { sessionLabel, sessionMeta, persist, restoreSession, startNewAudit, restoring } =
-    useAuditSessionPersistence(JUBILEE_SESSION_KEY, sessionSnapshot, {
-      transform: slimSnapshot,
-      onApplySession: applySession,
-      onSaveFailed: () => {
-        auditToastError('Could not save results locally. Free browser storage or start a new audit.');
-      },
-    });
-
-  const workspaceRef = useRef(sessionSnapshot);
-  workspaceRef.current = sessionSnapshot;
-  const persistWorkspace = useCallback(
-    (patch, options = { notifyOnFailure: true, force: true }) => {
-      persist({ ...workspaceRef.current, ...patch }, options);
-    },
-    [persist]
-  );
-
-  useEffect(() => {
-    workspaceRef.current = sessionSnapshot;
-  }, [sessionSnapshot]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingHeld(true);
-    listHeldFinancialsBranchFiles('jubilee-hills')
-      .then((held) => {
-        if (cancelled) return;
-        setHeldReady(Boolean(held?.ready));
-        if (held?.files?.length) {
-          setRestoredNames((prev) => ({ ...prev, ...namesFromHeldFiles(held.files) }));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setHeldReady(false);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingHeld(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!identification?.ready || !identification.files) return undefined;
-    let cancelled = false;
-    holdFinancialsBranchFiles('jubilee-hills', identification.files)
-      .then((held) => {
-        if (cancelled) return;
-        setHeldReady(Boolean(held?.ready));
-        setRestoredNames(namesFromHeldFiles(held?.files));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [identification?.ready, identification?.files]);
+  const canProcess = Boolean(identification?.ready);
 
   const layouts = result?.layoutByCategory || {};
 
@@ -266,63 +66,25 @@ export default function JubileeHillsFinancialsPage() {
   }, []);
 
   const runProcess = useCallback(async () => {
-    const identified = folderFiles.length
-      ? classifyJubileeHillsFolderFiles(folderFiles, { financialYear })
-      : null;
-    if (folderFiles.length && !identified?.ready) {
-      if (identified?.issues?.length) {
+    const identified = classifyJubileeHillsFolderFiles(folderFiles, { financialYear });
+    if (!identified.ready) {
+      if (identified.issues?.length) {
         auditToastError(identified.issues.map((issue) => issue.message).join(' '));
-      } else if (identified?.missing?.length) {
+      } else if (identified.missing?.length) {
         auditToastError(`Jubilee Hills is missing ${identified.missing.join(', ')}.`);
       } else {
         auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
       }
       return;
     }
-    const useHeld = !folderFiles.length;
-    if (useHeld && !heldReady) {
-      auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
-      return;
-    }
 
     setLoading(true);
-    const fileNames = {
-      salesFileName: identified?.files?.sales?.name ?? restoredNames.sales ?? null,
-      purchasesFileName: identified?.files?.purchases?.name ?? restoredNames.purchases ?? null,
-      openingQtyFileName: identified?.files?.quantity?.name ?? restoredNames.quantity ?? null,
-      previousYearFileName: identified?.files?.previousYear?.name ?? restoredNames.previousYear ?? null,
-      salesReturnFileName: identified?.files?.salesReturn?.name ?? restoredNames.salesReturn ?? null,
-      purchaseReturnFileName: identified?.files?.purchaseReturn?.name ?? restoredNames.purchaseReturn ?? null,
-      creditNoteFileName: identified?.files?.creditNote?.name ?? restoredNames.creditNote ?? null,
-      debitNoteFileName: identified?.files?.debitNote?.name ?? restoredNames.debitNote ?? null,
-      mrFileName: identified?.files?.mr?.name ?? restoredNames.mr ?? null,
-      dcFileName: identified?.files?.dc?.name ?? restoredNames.dc ?? null,
-      companyName,
-      address,
-      financialYear,
-    };
     try {
-      if (!useHeld) {
-        try {
-          await holdFinancialsBranchFiles('jubilee-hills', identified.files);
-          setHeldReady(true);
-        } catch {
-          /* Process continues even if hold fails. */
-        }
-      }
-      const data = useHeld
-        ? await processJubileeHillsFinancialsFromHeld({
-            savedOpeningMappings: loadJubileeOpeningMappings(),
-          })
-        : await processJubileeHillsFinancials(identified.files, {
-            savedOpeningMappings: loadJubileeOpeningMappings(),
-          });
+      const data = await processJubileeHillsFinancials(identified.files, {
+        savedOpeningMappings: loadJubileeOpeningMappings(),
+      });
       applyPlacement(data);
       setActiveSheet(CLOSING_STOCK_CATEGORIES[0]);
-      persistWorkspace(
-        { result: data, sheetError: null, activeSheet: CLOSING_STOCK_CATEGORIES[0], ...fileNames },
-        { notifyOnFailure: true, force: true }
-      );
       requestAnimationFrame(() => {
         document.getElementById('jubilee-hills-pivots')?.scrollIntoView({
           behavior: 'smooth',
@@ -331,28 +93,14 @@ export default function JubileeHillsFinancialsPage() {
       });
       auditToastSuccess('Jubilee Hills pivots are ready.');
     } catch (e) {
-      const errorBody = e.details ?? e.message ?? null;
       setResult(null);
       setSheetsReady(false);
-      setSheetError(errorBody);
-      persistWorkspace(
-        { result: null, sheetError: errorBody, ...fileNames },
-        { notifyOnFailure: true, force: true }
-      );
+      setSheetError(e.details ?? e.message ?? null);
       auditToastError(e.message || 'Could not build the Jubilee Hills sheets.');
     } finally {
       setLoading(false);
     }
-  }, [
-    address,
-    applyPlacement,
-    companyName,
-    financialYear,
-    folderFiles,
-    heldReady,
-    persistWorkspace,
-    restoredNames,
-  ]);
+  }, [applyPlacement, folderFiles, financialYear]);
 
   const handleConfirmOpeningAmount = useCallback(
     async (mapping) => {
@@ -407,7 +155,6 @@ export default function JubileeHillsFinancialsPage() {
           mrPivots: transfers.mrPivots || {},
           dcPivots: transfers.dcPivots || {},
           sourceAverageRates: readSourceAverageRates(),
-          receiptRateMappings: readReceiptRateMappings('jubileeHills'),
         });
         saveBranchAverageRates('jubileeHills', placed.productAverageRates);
         setResult({
@@ -419,42 +166,13 @@ export default function JubileeHillsFinancialsPage() {
           receiptAmountReview: placed.receiptAmountReview || [],
           productAverageRates: placed.productAverageRates || [],
         });
-        persistWorkspace(
-          {
-            result: {
-              ...next,
-              productsByCategory: placed.productsByCategory,
-              layoutByCategory: placed.layoutByCategory,
-              unmappedProducts: placed.unmappedProducts,
-              unmappedProductDetails: placed.unmappedProductDetails,
-              receiptAmountReview: placed.receiptAmountReview || [],
-              productAverageRates: placed.productAverageRates || [],
-            },
-          },
-          { notifyOnFailure: true, force: true }
-        );
         auditToastSuccess(`Opening amount mapped for ${mapping.product}`);
       } catch (e) {
         auditToastError(e.message || 'Could not update the Jubilee Hills sheets.');
       }
     },
-    [persistWorkspace, result]
+    [result]
   );
-
-  const handleStartNew = useCallback(() => {
-    startNewAudit();
-    setFolderFiles([]);
-    setRestoredNames({ ...EMPTY_RESTORED_NAMES });
-    setHeldReady(false);
-    setSheetsReady(false);
-    setSheetError(null);
-    setResult(null);
-    setActiveSheet(CLOSING_STOCK_CATEGORIES[0]);
-    setCompanyName('');
-    setAddress('');
-    setFinancialYear(CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
-    clearHeldFinancialsBranchFiles('jubilee-hills').catch(() => {});
-  }, [startNewAudit]);
 
   const downloadSheets = useCallback(async () => {
     setExporting(true);
@@ -496,19 +214,7 @@ export default function JubileeHillsFinancialsPage() {
           to Emerald, Pearls, or Rubie. A product that appears only in Opening Quantity uses last
           year’s sheet, except Diamond, which follows those Diamond codes.
         </p>
-        <SourceAverageRatesHint branch="jubileeHills" />
       </div>
-
-      {result ? (
-        <AuditSessionBanner
-          sessionMeta={sessionMeta}
-          sessionLabel={sessionLabel}
-          hasResults={Boolean(result)}
-          onRestore={restoreSession}
-          onStartNew={handleStartNew}
-          restoring={restoring}
-        />
-      ) : null}
 
       <Card>
         <CardBody>
@@ -526,7 +232,7 @@ export default function JubileeHillsFinancialsPage() {
               variant="primary"
               size="md"
               loading={loading}
-              disabled={loading || loadingHeld || !canProcess}
+              disabled={loading || !canProcess}
               onClick={runProcess}
             >
               <FileSpreadsheet className="h-4 w-4" />
@@ -539,7 +245,10 @@ export default function JubileeHillsFinancialsPage() {
               disabled={loading}
               formatHint={CLOSING_STOCK_AUDIT_CONFIG.fileFormatHint}
               onFilesChange={(files) => {
-                setFolderFiles(Array.isArray(files) ? files : []);
+                setFolderFiles(files);
+                setSheetsReady(false);
+                setSheetError(null);
+                setResult(null);
               }}
             />
           </div>
@@ -557,26 +266,18 @@ export default function JubileeHillsFinancialsPage() {
           ) : null}
           {identification?.ready ? (
             <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              The Jubilee Hills files are identified.
-            </p>
-          ) : heldReady && !folderFiles.length ? (
-            <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              Previously uploaded Jubilee Hills files are ready to process again.
+              The six Jubilee Hills files are identified.
             </p>
           ) : null}
           <ul className="mt-4 divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/80 bg-white/80 dark:divide-slate-700 dark:border-slate-700 dark:bg-[var(--color-surface-elevated)]/80">
             {JUBILEE_HILLS_FOLDER_SLOTS.map((slot) => {
               const shown = identification?.files?.[slot.key];
-              const restored = restoredNames[slot.key];
               const ambiguous = identification?.issues.some((issue) => issue.key === slot.key);
-              const waiting = !identification && !restored;
+              const waiting = !identification;
               let status = 'Waiting for folder';
               let statusClass = 'text-slate-400';
-              if (shown?.name) {
+              if (!waiting && shown?.name) {
                 status = shown.name;
-                statusClass = 'text-slate-500';
-              } else if (restored) {
-                status = heldReady ? `${restored} (held)` : restored;
                 statusClass = 'text-slate-500';
               } else if (ambiguous) {
                 status = 'Not selected — more than one file matched';
@@ -664,44 +365,25 @@ export default function JubileeHillsFinancialsPage() {
         </Card>
       ) : null}
 
-      <ReceiptRateManualMappingPanel
-        rows={result?.receiptAmountReview}
-        onConfirmMapping={async (mapping) => {
-          if (!result) return;
-          try {
-          saveReceiptRateMapping('jubileeHills', mapping);
-          const transfers = result.transferPivots || {};
-          const placed = await placeJubileeHillsFromPivots({
-            salesPivot: result.salesPivot || [],
-            purchasesPivot: result.purchasesPivot || [],
-            salesReturnPivot: result.salesReturnPivot || [],
-            purchaseReturnPivot: result.purchaseReturnPivot || [],
-            supplierDebitNotePivot: result.supplierDebitNotePivot || [],
-            supplierCreditNotePivot: result.supplierCreditNotePivot || [],
-            openingPivot: result.openingPivot || [],
-            mrPivots: transfers.mrPivots || result.mrPivots || {},
-            dcPivots: transfers.dcPivots || result.dcPivots || {},
-            sourceAverageRates: readSourceAverageRates(),
-            receiptRateMappings: readReceiptRateMappings('jubileeHills'),
-          });
-          saveBranchAverageRates('jubileeHills', placed.productAverageRates);
-          const placedResult = {
-            ...result,
-            productsByCategory: placed.productsByCategory,
-            layoutByCategory: placed.layoutByCategory,
-            unmappedProducts: placed.unmappedProducts,
-            unmappedProductDetails: placed.unmappedProductDetails,
-            receiptAmountReview: placed.receiptAmountReview || [],
-            productAverageRates: placed.productAverageRates || [],
-          };
-          setResult(placedResult);
-          persistWorkspace({ result: placedResult, sheetError: null }, { notifyOnFailure: true, force: true });
-          auditToastSuccess(`Average rate mapped for ${mapping.product}`);
-          } catch (error) {
-            auditToastError(error.message || 'Could not map the average rate.');
-          }
-        }}
-      />
+      {Array.isArray(result?.receiptAmountReview) && result.receiptAmountReview.length ? (
+        <Card className="border-amber-200/80 bg-amber-50/70">
+          <CardHeader>
+            <h3 className="text-base font-bold text-amber-900">Receipt amounts to review</h3>
+            <p className="mt-1 text-sm text-amber-900/80">
+              These receipt quantities have no matching Average Rate on the source branch, so the amount was left blank.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <ul className="space-y-1 text-sm text-amber-950">
+              {result.receiptAmountReview.map((row) => (
+                <li key={`${row.category}-${row.product}-${row.column}`}>
+                  {row.product} — {row.column} needs {row.sourceBranchLabel} Average Rate
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {sheetsReady ? (
         <Card id="jubilee-hills-results">

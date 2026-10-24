@@ -25,6 +25,7 @@ router.use(authenticate);
  * POST /api/v1/process/financials/export-closing-stock/basheerbagh
  * POST /api/v1/process/financials/export-closing-stock/kokapet
  * POST /api/v1/process/financials/jubilee-hills/template
+ * POST /api/v1/process/financials/consolidated/template
  * POST /api/v1/process/financials/hold/:branch
  * GET  /api/v1/process/financials/hold/:branch
  * DELETE /api/v1/process/financials/hold/:branch
@@ -84,6 +85,11 @@ router.post(
   '/jubilee-hills/template',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   financialsController.exportJubileeHillsTemplate
+);
+router.post(
+  '/consolidated/template',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.exportConsolidatedFinancialsTemplate
 );
 router.post(
   '/export-closing-stock/basheerbagh',

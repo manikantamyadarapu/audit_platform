@@ -20,6 +20,7 @@ import {
   Undo2,
   Wallet,
   Landmark,
+  Layers,
   MapPin,
   Weight,
   LogOut,
@@ -69,6 +70,7 @@ const financialsItems = [
   { to: '/financials/basheerbagh', label: 'Basheerbagh Financials', icon: Gem },
   { to: '/financials/kokapet', label: 'Kokapet Financials', icon: MapPin },
   { to: '/financials/jubilee-hills', label: 'Jubilee Hills Financials', icon: Landmark },
+  { to: '/financials/consolidated', label: 'Consolidated Financials', icon: Layers },
 ];
 
 const vouchingItems = [

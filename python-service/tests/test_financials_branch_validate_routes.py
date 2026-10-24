@@ -39,6 +39,8 @@ def test_download_routes_are_split_by_branch() -> None:
         assert f'/api/process/financials/export-closing-stock/{branch}' in paths
     assert '/api/v1/process/financials/jubilee-hills/template' in paths
     assert '/api/process/financials/jubilee-hills/template' in paths
+    assert '/api/v1/process/financials/consolidated/template' in paths
+    assert '/api/process/financials/consolidated/template' in paths
 
 
 def test_branch_download_routes_reuse_existing_exporters(monkeypatch) -> None:
@@ -142,6 +144,13 @@ def test_each_download_endpoint_returns_the_existing_workbook() -> None:
     assert 'Jubilee-Hills-Financials-' in jubilee.headers['content-disposition']
     jubilee_names, _jubilee_rows = _xlsx_snapshot(jubilee.content)
     assert jubilee_names[-2:] == ['Trading', 'Abstract']
+
+    consolidated = client.post('/api/v1/process/financials/consolidated/template')
+    assert consolidated.status_code == 200, consolidated.text
+    assert consolidated.content[:2] == b'PK'
+    assert 'Consolidated-Financials-' in consolidated.headers['content-disposition']
+    consolidated_names, _consolidated_rows = _xlsx_snapshot(consolidated.content)
+    assert consolidated_names == ['Abstract', 'TShape']
 
     removed = client.post('/api/v1/process/financials/export-pivots', json=pivots)
     assert removed.status_code == 404

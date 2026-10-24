@@ -31,6 +31,7 @@ const TITLE_MAP = [
   { test: /^\/financials\/basheerbagh/, title: 'Basheerbagh Financials' },
   { test: /^\/financials\/kokapet/, title: 'Kokapet Financials' },
   { test: /^\/financials\/jubilee-hills/, title: 'Jubilee Hills Financials' },
+  { test: /^\/financials\/consolidated/, title: 'Consolidated Financials' },
   { test: /^\/financials\/closing-stock/, title: 'Basheerbagh Financials' },
   { test: /^\/financials\/first-audit/, title: 'Basheerbagh Financials' },
   { test: /^\/financials\//, title: 'Financials' },

@@ -15,6 +15,7 @@ const FinancialsHub = lazy(() => import('../pages/FinancialsHub'));
 const BasheerbaghFinancialsPage = lazy(() => import('../pages/BasheerbaghFinancialsPage'));
 const KokapetFinancialsPage = lazy(() => import('../pages/KokapetFinancialsPage'));
 const JubileeHillsFinancialsPage = lazy(() => import('../pages/JubileeHillsFinancialsPage'));
+const ConsolidatedFinancialsPage = lazy(() => import('../pages/ConsolidatedFinancialsPage'));
 const PanVerification = lazy(() => import('../pages/PanVerification'));
 const GrossWeight = lazy(() => import('../pages/GrossWeight'));
 const PurchaseGrossWeight = lazy(() => import('../pages/PurchaseGrossWeight'));
@@ -98,6 +99,7 @@ export function AppRoutes() {
           <Route path="/financials/basheerbagh" element={lazyPage(BasheerbaghFinancialsPage)} />
           <Route path="/financials/kokapet" element={lazyPage(KokapetFinancialsPage)} />
           <Route path="/financials/jubilee-hills" element={lazyPage(JubileeHillsFinancialsPage)} />
+          <Route path="/financials/consolidated" element={lazyPage(ConsolidatedFinancialsPage)} />
           <Route path="/financials/closing-stock" element={<Navigate to="/financials/basheerbagh" replace />} />
           <Route path="/financials/first-audit" element={<Navigate to="/financials/basheerbagh" replace />} />
 

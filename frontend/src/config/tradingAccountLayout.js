@@ -130,7 +130,7 @@ export function tradingLineValues(label, grandTotal, side = 'left') {
 }
 
 /**
- * Gold/Silver: Opening, Purchases, Sales, Closing, Difference, HO qty, GP amt.
+ * Gold/Silver: Opening, Purchases, Sales, Closing, Net Purchases, Net Sales, HO qty, GP amt.
  * HO amounts, returns, making charges, and GP qty stay blank.
  */
 export function metalTradingLineValues(label, totals, side = 'left', account) {
@@ -152,14 +152,15 @@ export function metalTradingLineValues(label, totals, side = 'left', account) {
   if (transfer && label === transfer.label) {
     return { qty: transfer.qty, amt: transfer.amt };
   }
-  if (label === 'Difference') {
+  if (label === 'Net Sales' || (label === 'Difference' && side === 'right')) {
     if (!totals) return { qty: null, amt: null };
-    if (side === 'right') {
-      return {
-        qty: coerceMeasure(totals.netSalesQty),
-        amt: coerceMeasure(totals.netSalesAmt),
-      };
-    }
+    return {
+      qty: coerceMeasure(totals.netSalesQty),
+      amt: coerceMeasure(totals.netSalesAmt),
+    };
+  }
+  if (label === 'Net Purchases' || label === 'Difference') {
+    if (!totals) return { qty: null, amt: null };
     return {
       qty: coerceMeasure(totals.netPurchasesQty),
       amt: coerceMeasure(totals.netPurchasesAmt),
@@ -180,7 +181,7 @@ export function metalTradingLineValues(label, totals, side = 'left', account) {
   };
 }
 
-const METAL_TOTAL_SKIP = new Set(['Total', 'Difference', '']);
+const METAL_TOTAL_SKIP = new Set(['Total', 'Difference', 'Net Purchases', 'Net Sales', '']);
 
 export function metalTradingSideTotal(labels, totals, side, account) {
   let qty = null;
@@ -203,14 +204,14 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
       'To Opening Stock',
       'To Purchases',
       'Less: Purchase Returns',
-      'Difference',
+      'Net Purchases',
       'To Gross Profit',
       'Total',
     ],
     right: [
       'By Sales',
       'Less: Sales Returns',
-      'Difference',
+      'Net Sales',
       'By Transfer to Head Office',
       'By Closing stock',
       'Total',
@@ -223,7 +224,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
       'To Opening Stock',
       'To Purchases',
       'Less: Purchase Returns',
-      'Difference',
+      'Net Purchases',
       'To Transfer from Head Office',
       'To Making Charges',
       'To Gross Profit',
@@ -232,7 +233,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
     right: [
       'By Sales',
       'Less: Sales Returns',
-      'Difference',
+      'Net Sales',
       'By Closing stock',
       'Total',
     ],
@@ -244,7 +245,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
       'To Opening Stock',
       'To Purchases',
       'Less: Returns',
-      'Difference',
+      'Net Purchases',
       'To Transfer from Head Office',
       'To Making Charges',
       'To Gross Profit',
@@ -253,7 +254,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
     right: [
       'By Sales',
       'Less: Returns',
-      'Difference',
+      'Net Sales',
       'By Closing stock',
       'Total',
     ],
@@ -265,7 +266,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
       'To Opening Stock',
       'To Purchases',
       'Less: Purchase Returns',
-      'Difference',
+      'Net Purchases',
       'To Transfer from Head Office',
       'To Gross Profit',
       'Total',
@@ -273,7 +274,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
     right: [
       'By Sales',
       'Less: Sales Returns',
-      'Difference',
+      'Net Sales',
       'By Closing stock',
       'Total',
     ],
@@ -285,7 +286,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
       'To Opening Stock',
       'To Purchases',
       'Less: Returns',
-      'Difference',
+      'Net Purchases',
       'To Transfer from Head Office',
       'To Gross Profit',
       'Total',
@@ -293,7 +294,7 @@ export const TRADING_METAL_ACCOUNTS = Object.freeze([
     right: [
       'By Sales',
       'Less: Sales Returns',
-      'Difference',
+      'Net Sales',
       'By Closing stock',
       'Total',
     ],

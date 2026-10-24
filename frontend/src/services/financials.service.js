@@ -279,6 +279,23 @@ export async function downloadFinancialsPivots(payload, signal) {
   }
 }
 
+/** Download the Consolidated Financials workbook (Abstract mapped from branch results, empty TShape). */
+export async function downloadConsolidatedFinancialsTemplate(payload = {}, signal) {
+  try {
+    const res = await apiClient.post(
+      '/api/v1/process/financials/consolidated/template',
+      payload,
+      {
+        responseType: 'blob',
+        signal,
+      }
+    );
+    return downloadBlobResponse(res, 'Consolidated-Financials.xlsx');
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
 /**
  * Download the Jubilee Hills workbook. A placed layout fills the sheets; otherwise the workbook stays blank.
  */

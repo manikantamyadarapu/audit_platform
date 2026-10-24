@@ -1861,7 +1861,6 @@ def _apply_branch_receipt_amounts(
         mapped.get('layoutByCategory'),
         destination=destination_branch,
         source_average_rates=source_average_rates,
-        receipt_rate_mappings=receipt_rate_mappings,
     )
     mapped['layoutByCategory'] = applied['layoutByCategory']
     mapped['receiptAmountReview'] = applied['receiptAmountReview']
