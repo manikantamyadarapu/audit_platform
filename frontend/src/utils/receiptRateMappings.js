@@ -1,25 +1,35 @@
-const STORAGE_KEY = 'financials-receipt-rate-mappings';
+import { readSourceAverageRates } from './sourceAverageRates.js';
+import {
+  readSessionReceiptMappings,
+  writeSessionReceiptMappings,
+} from './financialsMappingSession.js';
 
-function readAll() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
+function sourceProductStillValid(mapping) {
+  const rates = readSourceAverageRates();
+  const source = String(mapping?.sourceBranch || '').trim();
+  const list = rates?.[source];
+  if (!Array.isArray(list) || !list.length) return true;
+  const product = String(mapping?.sourceProduct || '').trim();
+  const category = String(mapping?.category || '').trim();
+  return list.some((row) => {
+    const name = String(row?.product || '').trim();
+    const rowCategory = String(row?.category || '').trim();
+    if (name !== product) return false;
+    if (category && rowCategory && rowCategory !== category) return false;
+    return row?.averageRateAmt != null && row.averageRateAmt !== '';
+  });
 }
 
 export function readReceiptRateMappings(branch) {
-  const rows = readAll()[branch];
-  return Array.isArray(rows) ? rows : [];
+  if (!branch) return [];
+  return readSessionReceiptMappings(branch).filter(sourceProductStillValid);
 }
 
 export function saveReceiptRateMapping(branch, mapping) {
   if (!branch || !mapping?.product || !mapping?.sourceProduct || !mapping?.sourceBranch) {
     return readReceiptRateMappings(branch);
   }
-  const all = readAll();
-  const current = Array.isArray(all[branch]) ? all[branch] : [];
+  const current = readSessionReceiptMappings(branch);
   const product = String(mapping.product).trim();
   const source = String(mapping.sourceBranch).trim();
   const category = String(mapping.category || '').trim();
@@ -40,7 +50,6 @@ export function saveReceiptRateMapping(branch, mapping) {
     averageRateAmt: mapping.averageRateAmt ?? null,
     receiptQty: mapping.receiptQty ?? null,
   });
-  all[branch] = next;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  writeSessionReceiptMappings(branch, next);
   return next;
 }

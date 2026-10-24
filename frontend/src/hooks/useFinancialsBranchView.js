@@ -2,6 +2,27 @@ import { useMemo } from 'react';
 import { CLOSING_STOCK_CATEGORIES } from '../config/closingStockLayout';
 import { filterSheetsToBranchActivity } from '../utils/closingStockProductMapping';
 
+function pickOpeningStockReport(result, mappedResult) {
+  const fromResult = result?.openingStockReport || result?.summary?.openingStockReport || null;
+  const fromMapped =
+    mappedResult?.openingStockReport || mappedResult?.summary?.openingStockReport || null;
+  if (!fromResult) return fromMapped || {};
+  if (!fromMapped) return fromResult;
+  const pendingCount = (report) =>
+    report.manualMappingRequiredCount ??
+    (Array.isArray(report.manualMappingRequired) ? report.manualMappingRequired.length : 0);
+  const fallbackCount = (report) =>
+    report.fallbackMatchedCount ??
+    (Array.isArray(report.fallbackMatched) ? report.fallbackMatched.length : 0);
+  if (
+    pendingCount(fromResult) !== pendingCount(fromMapped) ||
+    fallbackCount(fromResult) !== fallbackCount(fromMapped)
+  ) {
+    return fromResult;
+  }
+  return fromMapped;
+}
+
 export function useFinancialsBranchView(result, mappedResult) {
   const salesPivot = useMemo(
     () => (Array.isArray(result?.salesPivot) ? result.salesPivot : []),
@@ -24,12 +45,7 @@ export function useFinancialsBranchView(result, mappedResult) {
     [result]
   );
   const openingStockReport = useMemo(() => {
-    const base =
-      mappedResult?.openingStockReport ||
-      result?.openingStockReport ||
-      mappedResult?.summary?.openingStockReport ||
-      result?.summary?.openingStockReport ||
-      {};
+    const base = pickOpeningStockReport(result, mappedResult);
     const mappedCount =
       mappedResult?.summary?.productsWithOpeningData ??
       base.mappedToClosingStockCount ??

@@ -26,9 +26,11 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
   const onSyncedRef = useRef(onSynced);
   onSyncedRef.current = onSynced;
   const resultRef = useRef(result);
+  const syncGenerationRef = useRef(0);
   resultRef.current = result;
 
   const syncFromLiveRuleBook = useCallback(async ({ persistIfChanged = true } = {}) => {
+    const requestId = ++syncGenerationRef.current;
     const current = resultRef.current;
     if (!current) {
       setMappedResult(null);
@@ -82,7 +84,8 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
         };
       }
 
-      const updated = mergeRemapIntoResult(current, remapped);
+      if (requestId !== syncGenerationRef.current) return null;
+      const updated = mergeRemapIntoResult(resultRef.current || current, remapped);
       setMappedResult(updated);
 
       const nextFingerprint = remapped.ruleBookFingerprint ?? remapped.summary?.ruleBookFingerprint;
@@ -91,6 +94,7 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
       }
       return updated;
     } catch {
+      if (requestId !== syncGenerationRef.current) return null;
       // Fallback: client-side map using freshly fetched Rule Book JSON.
       try {
         const live = await fetchClosingStockRuleBook();
@@ -103,7 +107,7 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
           ruleBook: live.ruleBook,
           ruleBookMeta: live,
         });
-        const updated = mergeRemapIntoResult(current, {
+        const updated = mergeRemapIntoResult(resultRef.current || current, {
           ...local,
           summary: {
             ruleBookFingerprint: live.ruleBookFingerprint,
@@ -117,6 +121,7 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
             unmappedProductCount: local.unmappedProducts?.length ?? 0,
           },
         });
+        if (requestId !== syncGenerationRef.current) return null;
         setMappedResult(updated);
         if (
           persistIfChanged &&
@@ -128,11 +133,11 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
         return updated;
       } catch (syncErr) {
         console.error('Closing Stock Rule Book sync failed', syncErr);
-        setMappedResult(current);
-        return current;
+        if (requestId === syncGenerationRef.current) setMappedResult(resultRef.current || current);
+        return resultRef.current || current;
       }
     } finally {
-      setRefreshing(false);
+      if (requestId === syncGenerationRef.current) setRefreshing(false);
     }
   }, [destinationBranch]);
 
@@ -144,6 +149,7 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
         setMappedResult(null);
         return;
       }
+      setMappedResult(result);
       await syncFromLiveRuleBook({ persistIfChanged: true });
       if (cancelled) return;
     }

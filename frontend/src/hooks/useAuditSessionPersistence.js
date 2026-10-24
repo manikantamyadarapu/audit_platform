@@ -21,6 +21,36 @@ function financialsSessionUsable(payload, registryKey) {
   return Boolean(data.result);
 }
 
+function openingPendingCount(payload) {
+  const result = payload?.data?.result;
+  const report = result?.openingStockReport || result?.summary?.openingStockReport;
+  const jubilee = result?.openingAmountMatch?.manualMappingRequiredRows;
+  if (Array.isArray(report?.manualMappingRequired) && report.manualMappingRequired.length) {
+    return report.manualMappingRequired.length;
+  }
+  if (Array.isArray(jubilee) && jubilee.length) return jubilee.length;
+  return 0;
+}
+
+function hasOpeningReport(payload) {
+  const result = payload?.data?.result;
+  return Boolean(
+    result?.openingStockReport ||
+      result?.summary?.openingStockReport ||
+      result?.openingAmountMatch
+  );
+}
+
+function preferFinancialsPayload(local, overflow) {
+  if (!overflow?.data) return local;
+  if (!local?.data) return overflow;
+  const localHas = hasOpeningReport(local);
+  const overflowHas = hasOpeningReport(overflow);
+  if (overflowHas && !localHas) return overflow;
+  if (localHas && !overflowHas) return local;
+  return (overflow.savedAt || 0) >= (local.savedAt || 0) ? overflow : local;
+}
+
 function metaEquals(a, b) {
   if (!a && !b) return true;
   if (!a || !b) return false;
@@ -74,9 +104,9 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
       const transform = optionsRef.current.transform;
       const payloadToStore = transform ? transform(data) : data;
       const resultSig = data.result
-        ? `${data.result.auditRunId ?? ''}:${data.result.totalRows ?? ''}:${data.result.errorRows ?? ''}`
+        ? `${data.result.auditRunId ?? ''}:${data.result.totalRows ?? ''}:${data.result.errorRows ?? ''}:${openingPendingCount({ data })}`
         : '';
-      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}:${resultSig}`;
+      const persistKey = `${registryKey}:${data.fileName ?? ''}:${Boolean(data.result)}:${Boolean(data.sheetError)}:${data.activeFilter ?? ''}:${data.mappingSessionId ?? ''}:${resultSig}`;
 
       if (!force && persistKey === lastPersistKeyRef.current) return true;
       lastPersistKeyRef.current = persistKey;
@@ -92,23 +122,24 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         ok = saveAuditSession(registryKey, storedPayload);
       }
 
-      if (!ok && isFinancialsSessionKey(registryKey) && payloadForStorage?.result) {
-        void saveAuditSessionOverflow(registryKey, payloadForStorage)
+      if (isFinancialsSessionKey(registryKey) && (storedPayload?.result || payloadForStorage?.result)) {
+        const overflowBody = ok ? storedPayload : payloadForStorage;
+        void saveAuditSessionOverflow(registryKey, overflowBody)
           .then((saved) => {
             if (saved) {
               updateSessionMeta(readAuditSessionMeta(registryKey));
               return;
             }
-            if (notifyOnFailure && optionsRef.current.onSaveFailed) {
+            if (!ok && notifyOnFailure && optionsRef.current.onSaveFailed) {
               optionsRef.current.onSaveFailed();
             }
           })
           .catch(() => {
-            if (notifyOnFailure && optionsRef.current.onSaveFailed) {
+            if (!ok && notifyOnFailure && optionsRef.current.onSaveFailed) {
               optionsRef.current.onSaveFailed();
             }
           });
-        return true;
+        if (!ok) return true;
       }
 
       if (ok) {
@@ -130,11 +161,11 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
 
     async function hydrate() {
       let local = loadAuditSession(registryKey);
-      if (isFinancialsSessionKey(registryKey) && !financialsSessionUsable(local, registryKey)) {
+      if (isFinancialsSessionKey(registryKey)) {
         try {
           const overflow = await loadAuditSessionOverflow(registryKey);
           if (!cancelled && financialsSessionUsable(overflow, registryKey)) {
-            local = overflow;
+            local = preferFinancialsPayload(local, overflow);
           }
         } catch {
           /* keep the localStorage copy */
@@ -148,10 +179,11 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
         const localHasWorkspace = Boolean(local.data?.result || local.data?.sheetError);
         const alreadyHasSheet = Boolean(snap?.result?.layoutByCategory);
         const localHasSheet = Boolean(local.data?.result?.layoutByCategory);
+        const pendingDiffers = openingPendingCount({ data: snap }) !== openingPendingCount(local);
         const shouldApply =
           registryKey === 'financials-jubilee-hills'
-            ? localHasSheet && !alreadyHasSheet
-            : localHasWorkspace && !alreadyHasWorkspace;
+            ? (localHasSheet && !alreadyHasSheet) || pendingDiffers
+            : (localHasWorkspace && !alreadyHasWorkspace) || pendingDiffers;
         if (shouldApply) {
           applySessionPayload(local.data);
         }
@@ -193,11 +225,11 @@ export function useAuditSessionPersistence(registryKey, snapshot, options = {}) 
     try {
       lastPersistKeyRef.current = '';
       let local = loadAuditSession(registryKey);
-      if (isFinancialsSessionKey(registryKey) && !financialsSessionUsable(local, registryKey)) {
+      if (isFinancialsSessionKey(registryKey)) {
         try {
           const overflow = await loadAuditSessionOverflow(registryKey);
           if (financialsSessionUsable(overflow, registryKey)) {
-            local = overflow;
+            local = preferFinancialsPayload(local, overflow);
           }
         } catch {
           /* keep localStorage */

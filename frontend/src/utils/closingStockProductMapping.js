@@ -4,6 +4,7 @@
  */
 
 import { CLOSING_STOCK_CATEGORIES, TRANSFER_QTY_FIELDS } from '../config/closingStockLayout';
+import { mergeReceiptReviews, preserveManualOpeningRows } from './mappingPendingLists';
 import { resolveMetalTradingAccount } from './metalTradingTotals';
 
 const SHEET_KEY_ALIASES = {
@@ -1069,11 +1070,12 @@ export function mergeRemapIntoResult(result, remapPayload) {
   if (!result || !remapPayload) return result;
   const mappedOpening =
     remapPayload.mappedOpeningProducts ?? result.mappedOpeningProducts ?? [];
-  const openingReport = {
-    ...(result.openingStockReport || result.summary?.openingStockReport || {}),
+  const previousOpening = result.openingStockReport || result.summary?.openingStockReport || {};
+  const openingReport = preserveManualOpeningRows(previousOpening, {
+    ...previousOpening,
     mappedToClosingStock: mappedOpening,
     mappedToClosingStockCount: Array.isArray(mappedOpening) ? mappedOpening.length : 0,
-  };
+  });
   return {
     ...result,
     // Replace mapping fields entirely — never keep stale product/layout lists.
@@ -1093,7 +1095,10 @@ export function mergeRemapIntoResult(result, remapPayload) {
     productsDisplayed:
       remapPayload.productsDisplayed ?? remapPayload.summary?.productsDisplayed,
     closingStockCategories: remapPayload.closingStockCategories,
-    receiptAmountReview: remapPayload.receiptAmountReview ?? result.receiptAmountReview ?? [],
+    receiptAmountReview: mergeReceiptReviews(
+      result.receiptAmountReview,
+      remapPayload.receiptAmountReview
+    ),
     productAverageRates: remapPayload.productAverageRates ?? result.productAverageRates ?? [],
     summary: {
       ...(result.summary || {}),

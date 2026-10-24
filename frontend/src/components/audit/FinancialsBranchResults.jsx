@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Download,
@@ -29,6 +29,8 @@ import { fetchClosingStockRuleBook, remapClosingStockFromPivots } from '../../se
 import { cn } from '../../utils/cn';
 import { readSourceAverageRates } from '../../utils/sourceAverageRates';
 import { readReceiptRateMappings, saveReceiptRateMapping } from '../../utils/receiptRateMappings';
+import { saveOpeningStockMapping } from '../../utils/financialsOpeningMappings';
+import { withoutResolvedReceiptReviews } from '../../utils/mappingPendingLists';
 import { ReceiptRateManualMappingPanel } from './ReceiptRateManualMappingPanel';
 
 const PREVIEW_SHEETS = [...CLOSING_STOCK_CATEGORIES, TRADING_SHEET_NAME, ABSTRACT_SHEET_NAME];
@@ -125,6 +127,7 @@ export function FinancialsBranchResults({
   omitMrDc = false,
   salesPurchasesOnly = false,
   destinationBranch = 'basheerbagh',
+  mappingSessionId = '',
 }) {
   const [activeCategory, setActiveCategory] = useState(CLOSING_STOCK_CATEGORIES[0]);
   const [exportingPivots, setExportingPivots] = useState(false);
@@ -252,14 +255,55 @@ export function FinancialsBranchResults({
     }
   }, [salesPurchasesOnly, result, salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots, companyName, address, financialYear, destinationBranch]);
 
+  const resultRef = useRef(result);
+  resultRef.current = result;
+
   const handleConfirmManualOpeningMapping = useCallback(
     (mapping) => {
+      let applied = false;
       onResultUpdate?.((prev) => {
         if (!prev) return prev;
-        return applyManualOpeningMapping(prev, mapping);
+        const next = applyManualOpeningMapping(prev, mapping);
+        if (next === prev) return prev;
+        saveOpeningStockMapping(destinationBranch, mapping);
+        applied = true;
+        return next;
       });
+      if (!applied) {
+        throw new Error('Opening amount is missing, so this mapping was not saved.');
+      }
     },
-    [onResultUpdate]
+    [destinationBranch, onResultUpdate]
+  );
+
+  const handleConfirmReceiptRateMapping = useCallback(
+    async (mapping) => {
+      const snapshot = resultRef.current;
+      if (!snapshot) throw new Error('Process the branch before mapping an average rate.');
+      saveReceiptRateMapping(destinationBranch, mapping);
+      const optimistic = {
+        ...snapshot,
+        receiptAmountReview: withoutResolvedReceiptReviews(snapshot.receiptAmountReview, [mapping]),
+      };
+      onResultUpdate?.(optimistic);
+      try {
+        const remapped = await remapClosingStockFromPivots({
+          salesPivot: snapshot.salesPivot || [],
+          purchasesPivot: snapshot.purchasesPivot || [],
+          openingPivot: snapshot.openingPivot || [],
+          mrPivots: snapshot.mrPivots || {},
+          dcPivots: snapshot.dcPivots || {},
+          destinationBranch,
+          sourceAverageRates: readSourceAverageRates(),
+          receiptRateMappings: readReceiptRateMappings(destinationBranch),
+        });
+        onResultUpdate?.(mergeRemapIntoResult(optimistic, remapped));
+      } catch (error) {
+        onResultUpdate?.(snapshot);
+        throw error;
+      }
+    },
+    [destinationBranch, onResultUpdate]
   );
 
   return (
@@ -268,26 +312,13 @@ export function FinancialsBranchResults({
         <h2 className="text-lg font-bold text-emerald-800 dark:text-emerald-300">{branchHeading}</h2>
       ) : null}
       <ReceiptRateManualMappingPanel
-        rows={mappedResult?.receiptAmountReview}
-        onConfirmMapping={async (mapping) => {
-          try {
-            saveReceiptRateMapping(destinationBranch, mapping);
-            const remapped = await remapClosingStockFromPivots({
-              salesPivot,
-              purchasesPivot,
-              openingPivot,
-              mrPivots,
-              dcPivots,
-              destinationBranch,
-              sourceAverageRates: readSourceAverageRates(),
-              receiptRateMappings: readReceiptRateMappings(destinationBranch),
-            });
-            onResultUpdate?.(mergeRemapIntoResult(result, remapped));
-            auditToastSuccess(`Average rate mapped for ${mapping.product}`);
-          } catch (error) {
-            auditToastError(error.message || 'Could not map the average rate.');
-          }
-        }}
+        scopeId={mappingSessionId}
+        rows={
+          Array.isArray(result?.receiptAmountReview)
+            ? result.receiptAmountReview
+            : mappedResult?.receiptAmountReview
+        }
+        onConfirmMapping={handleConfirmReceiptRateMapping}
       />
       <section>
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700/90">
@@ -504,6 +535,7 @@ export function FinancialsBranchResults({
             </details>
           ) : null}
           <OpeningStockManualMappingPanel
+            scopeId={mappingSessionId}
             rows={openingStockReport.manualMappingRequired || []}
             onConfirmMapping={handleConfirmManualOpeningMapping}
           />

@@ -280,7 +280,7 @@ def _net_measure(base: float | None, less: float | None) -> float | None:
 
 
 def from_head_office_qty(entry: Mapping[str, float | None]) -> float | None:
-    """Qty on 'To Transfer from Head Office' (Receipts Jubilee − Issues Banjara, if > 0)."""
+    """Qty on 'To Transfer from Head Office' (Receipts Jubilee Hills − Issues Jubilee Hills, if > 0)."""
     receipts = _coerce_measure(entry.get('receiptsJubileeHillsQty')) or 0.0
     issues = _coerce_measure(entry.get('issuesBanjaraHillsQty')) or 0.0
     qty = receipts - issues
@@ -290,7 +290,7 @@ def from_head_office_qty(entry: Mapping[str, float | None]) -> float | None:
 
 
 def to_head_office_qty(entry: Mapping[str, float | None]) -> float | None:
-    """Qty on 'By Transfer to Head Office' (Issues Banjara − Receipts Jubilee, if > 0)."""
+    """Qty on 'By Transfer to Head Office' (Issues Jubilee Hills − Receipts Jubilee Hills, if > 0)."""
     receipts = _coerce_measure(entry.get('receiptsJubileeHillsQty')) or 0.0
     issues = _coerce_measure(entry.get('issuesBanjaraHillsQty')) or 0.0
     qty = issues - receipts
@@ -483,7 +483,7 @@ def aggregate_metal_trading_totals(
     """
     SUM Opening / Purchases / Sales by metal Trading Account.
 
-    Head Office uses the product-sheet rule: Jubilee Hills MR − Banjara Hills DC.
+    Head Office uses the product-sheet rule: Jubilee Hills MR − Jubilee Hills DC.
     Closing Amt = Closing Qty × net rate.
     Net rate = (Opening + Purchase Difference + From HO + Making Charges) Amt
     / same Qty.

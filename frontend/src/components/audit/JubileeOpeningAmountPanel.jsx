@@ -1,37 +1,25 @@
 import { useMemo } from 'react';
 import { formatNumber } from '../../utils/format';
+import { readOpeningStockMappings, saveOpeningStockMapping } from '../../utils/financialsOpeningMappings';
 import { OpeningStockManualMappingPanel } from './OpeningStockManualMappingPanel';
 
-const STORAGE_KEY = 'jubilee_opening_amount_mappings';
+const JUBILEE_BRANCH = 'jubilee-hills';
 
 export function loadJubileeOpeningMappings() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readOpeningStockMappings(JUBILEE_BRANCH);
 }
 
 export function saveJubileeOpeningMapping(product, previousYearProducts) {
-  const name = String(product || '').trim();
   const names = (Array.isArray(previousYearProducts) ? previousYearProducts : [previousYearProducts])
     .map((item) => String(item || '').trim())
     .filter(Boolean);
-  if (!name || !names.length) return loadJubileeOpeningMappings();
-  const next = loadJubileeOpeningMappings().filter(
-    (row) => String(row?.product || '').trim() !== name
-  );
-  next.push({
-    product: name,
-    previousYearProduct: names[0],
+  return saveOpeningStockMapping(JUBILEE_BRANCH, {
+    product,
     previousYearProducts: names,
   });
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  return next;
 }
 
-export function JubileeOpeningAmountPanel({ match, onConfirm }) {
+export function JubileeOpeningAmountPanel({ match, onConfirm, scopeId = '' }) {
   const rows = useMemo(
     () => (Array.isArray(match?.manualMappingRequiredRows) ? match.manualMappingRequiredRows : []),
     [match]
@@ -69,6 +57,7 @@ export function JubileeOpeningAmountPanel({ match, onConfirm }) {
       </div>
 
       <OpeningStockManualMappingPanel
+        scopeId={scopeId}
         rows={rows.map((row) => {
           const category = String(row?.category || '').trim();
           const options = Array.isArray(row?.candidateProducts) ? row.candidateProducts : [];

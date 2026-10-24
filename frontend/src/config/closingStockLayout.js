@@ -39,8 +39,8 @@ export const CLOSING_STOCK_LEAF_COLUMNS = Object.freeze([
   [['Average Rate', null, 'Amt.'], '15'],
   [['Issues', 'Internal Stock Transfer', 'Qty'], '16'],
   [['Issues', 'Internal Stock Transfer', 'Amt.'], '17'],
-  [['Issues', 'Banjara Hills', 'Qty'], '18'],
-  [['Issues', 'Banjara Hills', 'Amt.'], '19'],
+  [['Issues', 'Jubilee Hills', 'Qty'], '18'],
+  [['Issues', 'Jubilee Hills', 'Amt.'], '19'],
   [['Issues', 'Kokapet', 'Qty'], '20'],
   [['Issues', 'Kokapet', 'Amt.'], '21'],
   [['Issues', 'Total', 'Qty'], '22'],
@@ -77,8 +77,8 @@ export const CLOSING_STOCK_MEASURE_PATHS = Object.freeze({
   averageRateAmt: ['Average Rate', null, 'Amt.'],
   issuesInternalQty: ['Issues', 'Internal Stock Transfer', 'Qty'],
   issuesInternalAmt: ['Issues', 'Internal Stock Transfer', 'Amt.'],
-  issuesBanjaraHillsQty: ['Issues', 'Banjara Hills', 'Qty'],
-  issuesBanjaraHillsAmt: ['Issues', 'Banjara Hills', 'Amt.'],
+  issuesBanjaraHillsQty: ['Issues', 'Jubilee Hills', 'Qty'],
+  issuesBanjaraHillsAmt: ['Issues', 'Jubilee Hills', 'Amt.'],
   issuesKokapetQty: ['Issues', 'Kokapet', 'Qty'],
   issuesKokapetAmt: ['Issues', 'Kokapet', 'Amt.'],
   issuesTotalQty: ['Issues', 'Total', 'Qty'],
@@ -353,17 +353,31 @@ export function buildGroupedHeaderCells(values) {
   return cells;
 }
 
-/** Jubilee Hills sheets use Basheerbagh on both Receipts and Issues. */
+/** Jubilee Hills sheets name the other branch Basheerbagh on both Receipts and Issues. */
 export const JUBILEE_HILLS_HEADER_LABELS = Object.freeze({
   'Jubilee Hills': 'Basheerbagh',
-  'Banjara Hills': 'Basheerbagh',
 });
+
+/**
+ * Preview-only subheader text. Measure paths stay unchanged so column order,
+ * numbering, and cell mapping match the sheet.
+ * @param {string} section
+ * @param {string} label
+ * @returns {string}
+ */
+function previewSubheaderLabel(section, label) {
+  if (section === 'Receipts' && label === 'Receipts') return 'Total Receipts';
+  if (section === 'Issues' && label === 'Total') return 'Total Issues';
+  return label;
+}
 
 /** @returns {{ level1: string[], level2: string[], leaves: string[], numbers: string[] }} */
 export function getClosingStockHeaderRows(labelMap = null) {
   const rename = (value) => (labelMap && labelMap[value]) || value;
   const level1 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => path[0] || '');
-  const level2 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => rename(path[1] || ''));
+  const level2 = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) =>
+    previewSubheaderLabel(path[0] || '', rename(path[1] || ''))
+  );
   const leaves = CLOSING_STOCK_LEAF_COLUMNS.map(([path]) => path[2]);
   const numbers = CLOSING_STOCK_LEAF_COLUMNS.map(([, num]) => num);
   return { level1, level2, leaves, numbers };

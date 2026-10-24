@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { formatNumber } from '../../utils/format';
+import { auditToastError, auditToastSuccess } from '../../utils/auditToast';
 import { readSourceAverageRates } from '../../utils/sourceAverageRates';
+import { keepVisiblePendingRows, pendingRowId, receiptReviewKey } from '../../utils/mappingPendingLists';
 
 function subcategoryKey(row) {
   const category = String(row?.category || '').trim() || 'Uncategorized';
@@ -20,7 +22,7 @@ function subcategoryLabel(row) {
   return source ? `${sheet} · ${source}` : sheet;
 }
 
-function MappingModal({ open, group, productIndex, claimedNames, onClose, onConfirm }) {
+function MappingModal({ open, group, productIndex, claimedNames, rateCatalog, onClose, onConfirm }) {
   const products = group?.products || [];
   const current = products[productIndex] || null;
   const [selected, setSelected] = useState('');
@@ -41,18 +43,23 @@ function MappingModal({ open, group, productIndex, claimedNames, onClose, onConf
   const candidates = useMemo(() => {
     if (!current) return [];
     const rates = readSourceAverageRates();
-    const rows = Array.isArray(rates[current.sourceBranch]) ? rates[current.sourceBranch] : [];
+    const stored = Array.isArray(rates[current.sourceBranch]) ? rates[current.sourceBranch] : [];
+    const rows = rateCatalog?.length ? rateCatalog : stored;
     const category = String(current.category || '').trim();
     return rows.filter((row) => {
       const name = String(row?.product || '').trim();
       const rowCategory = String(row?.category || '').trim();
-      if (!name || claimedNames.has(name)) return false;
+      if (!name) return false;
       if (category && rowCategory && rowCategory !== category) return false;
       return row.averageRateAmt != null && row.averageRateAmt !== '';
     });
-  }, [claimedNames, current]);
+  }, [current, rateCatalog]);
 
-  const selectedRow = candidates.find((row) => String(row.product || '').trim() === selected) || null;
+  const selectedRow =
+    candidates.find((row) => {
+      const name = String(row.product || '').trim();
+      return name === selected && !claimedNames.has(name);
+    }) || null;
   const receiptQty = Number(current?.receiptQty);
   const selectedRate = selectedRow ? Number(selectedRow.averageRateAmt) : null;
   const amount =
@@ -95,6 +102,19 @@ function MappingModal({ open, group, productIndex, claimedNames, onClose, onConf
             <p className="mt-0.5 text-xs text-slate-500">
               Product {productIndex + 1} of {products.length} in this subcategory
             </p>
+            {products.length > 1 ? (
+              <ul className="mt-2 max-h-16 space-y-0.5 overflow-auto text-xs text-slate-600 dark:text-slate-300">
+                {products.map((row, index) => (
+                  <li
+                    key={`${row.product}-${row.column || ''}-${index}`}
+                    className={index === productIndex ? 'font-semibold text-violet-700 dark:text-violet-200' : ''}
+                  >
+                    {row.product}
+                    {row.column ? ` · ${row.column}` : ''}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <button
             type="button"
@@ -131,16 +151,19 @@ function MappingModal({ open, group, productIndex, claimedNames, onClose, onConf
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {candidates.map((row) => {
                   const name = String(row.product || '').trim();
+                  const usedAlready = claimedNames.has(name);
                   return (
                     <li key={`${row.category || 'sheet'}-${name}`}>
-                      <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80">
+                      <label className={`flex items-center gap-3 px-3 py-2 ${usedAlready ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}>
                         <input
                           type="checkbox"
                           checked={selected === name}
+                          disabled={usedAlready}
                           onChange={() => setSelected(selected === name ? '' : name)}
                         />
                         <span className="min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">
                           {name}
+                          {usedAlready ? ' · already used' : ''}
                         </span>
                         <span className="text-xs tabular-nums text-slate-500">
                           Rate {formatNumber(row.averageRateAmt ?? 0, 4)}
@@ -192,16 +215,59 @@ function MappingModal({ open, group, productIndex, claimedNames, onClose, onConf
   );
 }
 
-export function ReceiptRateManualMappingPanel({ rows, onConfirmMapping }) {
+export function ReceiptRateManualMappingPanel({ rows, onConfirmMapping, scopeId = '' }) {
   const items = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const [activeKey, setActiveKey] = useState(null);
   const [productIndex, setProductIndex] = useState(0);
   const [claimedNames, setClaimedNames] = useState(() => new Set());
+  const [hiddenIds, setHiddenIds] = useState(() => new Set());
+  const hiddenRef = useRef(hiddenIds);
+  hiddenRef.current = hiddenIds;
+  const [localRows, setLocalRows] = useState(() => keepVisiblePendingRows([], rows, []));
+  const rateCatalogRef = useRef(new Map());
+  const scopeRef = useRef(scopeId);
+
+  useEffect(() => {
+    setLocalRows((current) => keepVisiblePendingRows(current, items, hiddenRef.current));
+  }, [items]);
+
+  useEffect(() => {
+    if (scopeRef.current === scopeId) return;
+    scopeRef.current = scopeId;
+    const cleared = new Set();
+    hiddenRef.current = cleared;
+    setHiddenIds(cleared);
+    setClaimedNames(new Set());
+    setLocalRows(keepVisiblePendingRows([], items, cleared));
+  }, [items, scopeId]);
 
   const pendingItems = useMemo(
-    () => items.filter((row) => String(row?.product || '').trim()),
-    [items]
+    () => localRows.filter((row) => String(row?.product || '').trim()),
+    [localRows]
   );
+
+  const rateCatalogs = useMemo(() => {
+    const rates = readSourceAverageRates();
+    for (const row of items) {
+      const source = String(row?.sourceBranch || '').trim();
+      const category = String(row?.category || '').trim();
+      if (!source) continue;
+      const key = `${source}\u0000${category}`;
+      let bucket = rateCatalogRef.current.get(key);
+      if (!bucket) {
+        bucket = new Map();
+        rateCatalogRef.current.set(key, bucket);
+      }
+      const stored = Array.isArray(rates[source]) ? rates[source] : [];
+      for (const rate of stored) {
+        const name = String(rate?.product || '').trim();
+        const rateCategory = String(rate?.category || '').trim();
+        if (!name || (category && rateCategory && rateCategory !== category)) continue;
+        if (!bucket.has(name)) bucket.set(name, rate);
+      }
+    }
+    return rateCatalogRef.current;
+  }, [items]);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -237,26 +303,48 @@ export function ReceiptRateManualMappingPanel({ rows, onConfirmMapping }) {
 
   if (!pendingItems.length) return null;
 
-  function handleConfirm(mapping) {
+  async function handleConfirm(mapping) {
+    const key = receiptReviewKey(mapping);
+    const mappedId = pendingRowId(
+      (activeGroup?.products || []).find((row) => receiptReviewKey(row) === key) || mapping
+    );
     setClaimedNames((prev) => {
       const next = new Set(prev);
       if (mapping.sourceProduct) next.add(String(mapping.sourceProduct).trim());
       return next;
     });
-    onConfirmMapping?.(mapping);
-    const remaining = (activeGroup?.products || []).filter(
-      (row) =>
-        !(
-          String(row.product || '').trim() === String(mapping.product || '').trim() &&
-          String(row.sourceBranch || '') === String(mapping.sourceBranch || '')
-        )
-    );
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(mappedId);
+      hiddenRef.current = next;
+      return next;
+    });
+    setLocalRows((current) => current.filter((row) => pendingRowId(row) !== mappedId));
+    const remaining = (activeGroup?.products || []).filter((row) => pendingRowId(row) !== mappedId);
     if (!remaining.length) {
       setActiveKey(null);
       setProductIndex(0);
-      return;
+    } else {
+      setProductIndex(0);
     }
-    setProductIndex(0);
+    try {
+      await onConfirmMapping?.(mapping);
+      auditToastSuccess(`Average rate mapped for ${mapping.product}`);
+    } catch (error) {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.delete(mappedId);
+        hiddenRef.current = next;
+        return next;
+      });
+      setLocalRows((current) => keepVisiblePendingRows(current, items, hiddenRef.current));
+      setClaimedNames((prev) => {
+        const next = new Set(prev);
+        if (mapping.sourceProduct) next.delete(String(mapping.sourceProduct).trim());
+        return next;
+      });
+      auditToastError(error?.message || 'Could not map the average rate.');
+    }
   }
 
   return (
@@ -291,8 +379,16 @@ export function ReceiptRateManualMappingPanel({ rows, onConfirmMapping }) {
                 <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                   {group.label}
                 </td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-600 dark:text-slate-300">
-                  {group.products.length}
+                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                  <p className="tabular-nums">{group.products.length}</p>
+                  <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto text-xs">
+                    {group.products.map((row, index) => (
+                      <li key={`${group.key}-${row.product}-${row.column || ''}-${index}`}>
+                        {row.product}
+                        {row.column ? ` · ${row.column}` : ''}
+                      </li>
+                    ))}
+                  </ul>
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <Button type="button" size="sm" onClick={() => { setActiveKey(group.key); setProductIndex(0); }}>
@@ -310,6 +406,11 @@ export function ReceiptRateManualMappingPanel({ rows, onConfirmMapping }) {
         group={activeGroup}
         productIndex={Math.min(productIndex, Math.max((activeGroup?.products.length || 1) - 1, 0))}
         claimedNames={claimedNames}
+        rateCatalog={
+          activeGroup
+            ? [...(rateCatalogs.get(`${activeGroup.products[0]?.sourceBranch || ''}\u0000${activeGroup.products[0]?.category || ''}`)?.values() || [])]
+            : []
+        }
         onClose={() => {
           setActiveKey(null);
           setProductIndex(0);

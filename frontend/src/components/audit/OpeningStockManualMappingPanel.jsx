@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { formatNumber } from '../../utils/format';
 import { auditToastError, auditToastSuccess } from '../../utils/auditToast';
+import { applyManualOpeningMapping } from '../../utils/financialsOpeningMappings';
+import { keepVisiblePendingRows, pendingRowId } from '../../utils/mappingPendingLists';
 import { cn } from '../../utils/cn';
+
+export { applyManualOpeningMapping };
 
 const QTY_EPS = 1e-4;
 
@@ -60,144 +64,12 @@ function subcategoryLabel(row) {
   return subcategory || category || 'Unspecified';
 }
 
-/**
- * Apply a confirmed manual Opening Stock mapping into process result + pivots.
- * Writes Opening Qty/Amt onto the Closing Stock layout via matched_fallback status.
- * (Logic unchanged — UI-only redesign.)
- */
-export function applyManualOpeningMapping(result, mapping) {
-  const {
-    product,
-    ruleBookProduct,
-    category,
-    subcategory,
-    openingQty,
-    openingAmt,
-    previousYearProducts,
-  } = mapping;
-
-  const productKey = String(product || '').trim();
-  if (!productKey || openingAmt == null) return result;
-
-  const claimed = new Set(
-    (previousYearProducts || []).map((name) => String(name || '').trim()).filter(Boolean)
-  );
-
-  const openingPivot = (Array.isArray(result?.openingPivot) ? result.openingPivot : []).map(
-    (row) => {
-      if (String(row?.product || '').trim() !== productKey) return row;
-      return {
-        ...row,
-        product: productKey,
-        ruleBookProduct: ruleBookProduct || productKey,
-        category: category || null,
-        subcategory: subcategory || null,
-        status: 'matched_fallback',
-        sumOfQuantity: openingQty,
-        sumOfGross: openingAmt,
-      };
-    }
-  );
-  const existingPivot = openingPivot.some((row) => String(row?.product || '').trim() === productKey);
-  if (!existingPivot) {
-    openingPivot.push({
-      product: productKey,
-      ruleBookProduct: ruleBookProduct || productKey,
-      category: category || null,
-      subcategory: subcategory || null,
-      status: 'matched_fallback',
-      sumOfQuantity: openingQty,
-      sumOfGross: openingAmt,
-    });
-  }
-
-  const validatedOpening = (Array.isArray(result?.validatedOpening) ? result.validatedOpening : [])
-    .map((row) => {
-      if (String(row?.product || '').trim() !== productKey) return row;
-      return {
-        ...row,
-        openingQty,
-        openingAmt,
-        status: 'matched_fallback',
-        reason: 'matched_via_manual_mapping',
-        ruleBookProduct: ruleBookProduct || productKey,
-        category: category || null,
-        subcategory: subcategory || null,
-        previousYearProducts,
-      };
-    });
-
-  const report = { ...(result?.openingStockReport || {}) };
-  const sourceManual = Array.isArray(report.manualMappingRequired)
-    ? report.manualMappingRequired
-    : Array.isArray(report.previousYearMappingRequired)
-      ? report.previousYearMappingRequired
-      : [];
-  const manualList = sourceManual
-    .filter((row) => String(row?.product || '').trim() !== productKey)
-    .map((row) => ({
-      ...row,
-      candidateProducts: (row.candidateProducts || []).filter((candidate) => {
-        const name = String(candidate.product || candidate.sheetName || '').trim();
-        return name && !claimed.has(name);
-      }),
-    }));
-  const fallbackMatched = [
-    ...(Array.isArray(report.fallbackMatched) ? report.fallbackMatched : []),
-    {
-      product: productKey,
-      openingQty,
-      openingAmt,
-      status: 'matched_fallback',
-      reason: 'matched_via_manual_mapping',
-      ruleBookProduct: ruleBookProduct || productKey,
-      category,
-      subcategory,
-      previousYearProducts,
-    },
-  ];
-
-  const totalOpeningQty = validatedOpening.reduce((sum, row) => {
-    const qty = coerceNumber(row?.openingQty);
-    return qty == null ? sum : sum + qty;
-  }, 0);
-  const totalOpeningAmount = validatedOpening.reduce((sum, row) => {
-    const amt = coerceNumber(row?.openingAmt);
-    return amt == null ? sum : sum + amt;
-  }, 0);
-
-  const nextReport = {
-    ...report,
-    manualMappingRequired: manualList,
-    manualMappingRequiredCount: manualList.length,
-    previousYearMappingRequired: manualList,
-    previousYearMappingRequiredCount: manualList.length,
-    fallbackMatched,
-    fallbackMatchedCount: fallbackMatched.length,
-    matchedCount: (report.exactMatchedCount || 0) + fallbackMatched.length,
-    totalOpeningQty,
-    totalOpeningAmount,
-  };
-
-  return {
-    ...result,
-    openingPivot,
-    validatedOpening,
-    openingStockReport: nextReport,
-    summary: {
-      ...(result?.summary || {}),
-      openingStockReport: nextReport,
-      openingTotalQuantity: totalOpeningQty,
-      openingTotalAmount: totalOpeningAmount,
-    },
-  };
-}
-
 function MappingModal({
   open,
   group,
   productIndex,
   claimedPrevNames,
+  catalog,
   candidateScope = 'subcategory',
   onClose,
   onConfirm,
@@ -223,7 +95,11 @@ function MappingModal({
   }, [open, onClose]);
 
   const candidates = useMemo(() => {
-    const raw = Array.isArray(current?.candidateProducts) ? current.candidateProducts : [];
+    const raw = catalog?.length
+      ? catalog
+      : Array.isArray(current?.candidateProducts)
+        ? current.candidateProducts
+        : [];
     const category = String(current?.category || '').trim();
     return raw.filter((c) => {
       const name = String(c.product || c.sheetName || '').trim();
@@ -231,13 +107,17 @@ function MappingModal({
       if (candidateScope === 'category' && category && candidateCategory && candidateCategory !== category) {
         return false;
       }
-      return name && !isAddressLikeLabel(name) && !claimedPrevNames.has(name);
+      return name && !isAddressLikeLabel(name);
     });
-  }, [candidateScope, current, claimedPrevNames]);
+  }, [candidateScope, catalog, current]);
 
   const selectedRows = useMemo(
-    () => candidates.filter((c) => selected.has(String(c.product || '').trim())),
-    [candidates, selected]
+    () =>
+      candidates.filter((c) => {
+        const name = String(c.product || c.sheetName || '').trim();
+        return name && selected.has(name) && !claimedPrevNames.has(name);
+      }),
+    [candidates, claimedPrevNames, selected]
   );
   const selectedQty = selectedRows.reduce((sum, c) => sum + (candidateQty(c) || 0), 0);
   const selectedAmt = selectedRows.reduce((sum, c) => sum + (candidateAmt(c) || 0), 0);
@@ -306,6 +186,15 @@ function MappingModal({
             <p className="mt-0.5 text-xs text-slate-500">
               Product {productIndex + 1} of {products.length} in this subcategory
             </p>
+            {products.length > 1 ? (
+              <ul className="mt-2 max-h-16 space-y-0.5 overflow-auto text-xs text-slate-600 dark:text-slate-300">
+                {products.map((row, index) => (
+                  <li key={`${row.product}-${index}`} className={index === productIndex ? 'font-semibold text-violet-700 dark:text-violet-200' : ''}>
+                    {row.product}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <button
             type="button"
@@ -340,17 +229,20 @@ function MappingModal({
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {candidates.map((c) => {
                   const name = String(c.product || c.sheetName || '').trim();
+                  const usedAlready = claimedPrevNames.has(name);
                   const checked = selected.has(name);
                   return (
                     <li key={`${c.sheetName || 'sheet'}-${name}`}>
-                      <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80">
+                      <label className={`flex items-center gap-3 px-3 py-2 ${usedAlready ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}>
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={usedAlready}
                           onChange={() => toggle(name)}
                         />
                         <span className="min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">
                           {name}
+                          {usedAlready ? ' · already used' : ''}
                         </span>
                         <span className="text-xs tabular-nums text-slate-500">
                           Qty {formatNumber(candidateQty(c) ?? 0, 4)} · Amt{' '}
@@ -432,26 +324,58 @@ export function OpeningStockManualMappingPanel({
   rows,
   onConfirmMapping,
   candidateScope = 'subcategory',
+  scopeId = '',
 }) {
   const items = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const [activeKey, setActiveKey] = useState(null);
   const [productIndex, setProductIndex] = useState(0);
   const [claimedPrevNames, setClaimedPrevNames] = useState(() => new Set());
-  const [resolvedProducts, setResolvedProducts] = useState(() => new Set());
+  const [hiddenIds, setHiddenIds] = useState(() => new Set());
+  const hiddenRef = useRef(hiddenIds);
+  hiddenRef.current = hiddenIds;
+  const [localRows, setLocalRows] = useState(() => keepVisiblePendingRows([], rows, []));
+  const catalogRef = useRef(new Map());
+  const scopeRef = useRef(scopeId);
+
+  useEffect(() => {
+    setLocalRows((current) => keepVisiblePendingRows(current, items, hiddenRef.current));
+  }, [items]);
+
+  useEffect(() => {
+    if (scopeRef.current === scopeId) return;
+    scopeRef.current = scopeId;
+    const cleared = new Set();
+    hiddenRef.current = cleared;
+    setHiddenIds(cleared);
+    setClaimedPrevNames(new Set());
+    setLocalRows(keepVisiblePendingRows([], items, cleared));
+  }, [items, scopeId]);
 
   const pendingItems = useMemo(
     () =>
-      items.filter((row) => {
+      localRows.filter((row) => {
         const name = String(row?.product || '').trim();
-        return (
-          name &&
-          !isAddressLikeLabel(name) &&
-          !resolvedProducts.has(name) &&
-          hasNonZeroQty(row.openingQty)
-        );
+        return name && !isAddressLikeLabel(name) && hasNonZeroQty(row.openingQty ?? row.sumOfQuantity);
       }),
-    [items, resolvedProducts]
+    [localRows]
   );
+
+  const catalogs = useMemo(() => {
+    for (const row of items) {
+      const key = subcategoryKey(row);
+      let bucket = catalogRef.current.get(key);
+      if (!bucket) {
+        bucket = new Map();
+        catalogRef.current.set(key, bucket);
+      }
+      const pool = Array.isArray(row?.candidateProducts) ? row.candidateProducts : [];
+      for (const candidate of pool) {
+        const name = String(candidate?.product || candidate?.sheetName || '').trim();
+        if (name && !bucket.has(name)) bucket.set(name, candidate);
+      }
+    }
+    return catalogRef.current;
+  }, [items]);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -477,21 +401,6 @@ export function OpeningStockManualMappingPanel({
   );
 
   useEffect(() => {
-    // Drop local resolved markers once parent rows no longer include them.
-    setResolvedProducts((prev) => {
-      if (!prev.size) return prev;
-      const stillPending = new Set(
-        items.map((row) => String(row?.product || '').trim()).filter(Boolean)
-      );
-      const next = new Set();
-      for (const name of prev) {
-        if (stillPending.has(name)) next.add(name);
-      }
-      return next.size === prev.size ? prev : next;
-    });
-  }, [items]);
-
-  useEffect(() => {
     if (!activeKey) return;
     const group = groups.find((g) => g.key === activeKey);
     if (!group || !group.products.length) {
@@ -511,15 +420,20 @@ export function OpeningStockManualMappingPanel({
     setProductIndex(0);
   }
 
-  function handleConfirm(mapping) {
+  async function handleConfirm(mapping) {
     const productKey = String(mapping.product || '').trim();
     const used = mapping.previousYearProducts || [];
+    const mappedId = pendingRowId(
+      (activeGroup?.products || []).find((row) => String(row?.product || '').trim() === productKey) || mapping
+    );
 
-    setResolvedProducts((prev) => {
+    setHiddenIds((prev) => {
       const next = new Set(prev);
-      if (productKey) next.add(productKey);
+      next.add(mappedId);
+      hiddenRef.current = next;
       return next;
     });
+    setLocalRows((current) => current.filter((row) => pendingRowId(row) !== mappedId));
     setClaimedPrevNames((prev) => {
       const next = new Set(prev);
       for (const name of used) {
@@ -529,21 +443,34 @@ export function OpeningStockManualMappingPanel({
       return next;
     });
 
-    onConfirmMapping?.(mapping);
-    auditToastSuccess(`Mapped ${mapping.product}`);
-
     const remainingInGroup = (activeGroup?.products || []).filter(
-      (row) => String(row.product || '').trim() !== productKey
+      (row) => pendingRowId(row) !== mappedId
     );
-
     if (!remainingInGroup.length) {
       setActiveKey(null);
       setProductIndex(0);
-      return;
+    } else {
+      setProductIndex(0);
     }
 
-    // After local filter removes the mapped product, index 0 is the next pending product.
-    setProductIndex(0);
+    try {
+      await onConfirmMapping?.(mapping);
+      auditToastSuccess(`Mapped ${mapping.product}`);
+    } catch (error) {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.delete(mappedId);
+        hiddenRef.current = next;
+        return next;
+      });
+      setLocalRows((current) => keepVisiblePendingRows(current, items, hiddenRef.current));
+      setClaimedPrevNames((prev) => {
+        const next = new Set(prev);
+        for (const name of used) next.delete(String(name || '').trim());
+        return next;
+      });
+      auditToastError(error?.message || 'Could not save this Opening Stock mapping.');
+    }
   }
 
   return (
@@ -580,8 +507,13 @@ export function OpeningStockManualMappingPanel({
                 <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                   {group.label}
                 </td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-600 dark:text-slate-300">
-                  {group.products.length}
+                <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                  <p className="tabular-nums">{group.products.length}</p>
+                  <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto text-xs">
+                    {group.products.map((row, index) => (
+                      <li key={`${group.key}-${row.product}-${index}`}>{row.product}</li>
+                    ))}
+                  </ul>
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <Button type="button" size="sm" onClick={() => openGroup(group.key)}>
@@ -599,6 +531,7 @@ export function OpeningStockManualMappingPanel({
         group={activeGroup}
         productIndex={Math.min(productIndex, Math.max((activeGroup?.products.length || 1) - 1, 0))}
         claimedPrevNames={claimedPrevNames}
+        catalog={activeGroup ? [...(catalogs.get(activeGroup.key)?.values() || [])] : []}
         candidateScope={candidateScope}
         onClose={() => {
           setActiveKey(null);

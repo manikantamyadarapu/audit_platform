@@ -1067,7 +1067,7 @@ _ISSUE_QTY_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_qty(raw: Mapping[str, float | None]) -> float | None:
-    """Issues Total Qty = Internal + Banjara Hills + Kokapet."""
+    """Issues Total Qty = Internal + Jubilee Hills + Kokapet."""
     return _sum_qty_parts(raw, _ISSUE_QTY_KEYS)
 
 
@@ -1100,7 +1100,7 @@ _ISSUE_AMT_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_amt(raw: Mapping[str, float | None]) -> float | None:
-    """Issues Total Amount = Internal + Banjara Hills + Kokapet."""
+    """Issues Total Amount = Internal + Jubilee Hills + Kokapet."""
     return _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
 
 

@@ -32,6 +32,14 @@ import {
   slimJubileeHillsSnapshot,
 } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
+import { restoreFinancialsMappings } from '../utils/financialsOpeningMappings';
+import {
+  beginFinancialsMappingSession,
+  ensureFinancialsMappingSession,
+  isSameFinancialsFileSet,
+  scopeFinancialsMappingsForProcess,
+  SIX_FILE_NAME_KEYS,
+} from '../utils/financialsMappingSession';
 import { saveBranchAverageRates } from '../utils/sourceAverageRates';
 
 const EMPTY_SIX_NAMES = {
@@ -132,6 +140,7 @@ function slimSnapshot(data) {
     companyName: data.companyName ?? '',
     address: data.address ?? '',
     financialYear: data.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
+    mappingSessionId: data.mappingSessionId ?? null,
   });
 }
 
@@ -163,16 +172,35 @@ export function SixFileBranchFinancialsPage({ branch }) {
   const [heldReady, setHeldReady] = useState(false);
   const [loadingHeld, setLoadingHeld] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(() => initialSession.data?.result ?? null);
+  const [result, setResult] = useState(() => {
+    ensureFinancialsMappingSession(page.branch, {
+      preferredId: initialSession.data?.mappingSessionId || null,
+      adoptLegacy: Boolean(initialSession.data?.result) && !initialSession.data?.mappingSessionId,
+    });
+    const saved = initialSession.data?.result ?? null;
+    return saved ? restoreFinancialsMappings(saved, page.branch) : null;
+  });
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
   const [companyName, setCompanyName] = useState(() => initialSession.data?.companyName ?? '');
   const [address, setAddress] = useState(() => initialSession.data?.address ?? '');
   const [financialYear, setFinancialYear] = useState(
     () => initialSession.data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear
   );
+  const [mappingSessionId, setMappingSessionId] = useState(() =>
+    ensureFinancialsMappingSession(page.branch, {
+      preferredId: initialSession.data?.mappingSessionId || null,
+      adoptLegacy: Boolean(initialSession.data?.result) && !initialSession.data?.mappingSessionId,
+    })
+  );
 
   const applySession = useCallback((data) => {
-    setResult(data?.result ?? null);
+    setMappingSessionId(
+      ensureFinancialsMappingSession(page.branch, {
+        preferredId: data?.mappingSessionId || null,
+        adoptLegacy: Boolean(data?.result) && !data?.mappingSessionId,
+      })
+    );
+    setResult(data?.result ? restoreFinancialsMappings(data.result, page.branch) : null);
     setSheetError(data?.sheetError ?? null);
     setRestoredNames({
       sales: data?.salesFileName ?? null,
@@ -186,7 +214,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
     setAddress(data?.address ?? '');
     setFinancialYear(data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear);
     setFolderFiles([]);
-  }, []);
+  }, [page.branch]);
 
   const identification = useMemo(() => {
     if (!folderFiles.length) return null;
@@ -207,8 +235,9 @@ export function SixFileBranchFinancialsPage({ branch }) {
       companyName,
       address,
       financialYear,
+      mappingSessionId,
     }),
-    [result, sheetError, namedFiles, restoredNames, companyName, address, financialYear]
+    [result, sheetError, namedFiles, restoredNames, companyName, address, financialYear, mappingSessionId]
   );
 
   const { sessionLabel, sessionMeta, persist, restoreSession, startNewAudit, restoring } =
@@ -305,6 +334,12 @@ export function SixFileBranchFinancialsPage({ branch }) {
       return;
     }
 
+    const selectedNames = Object.fromEntries(
+      SIX_FILE_NAME_KEYS.map((key) => [key, files[key]?.name || ''])
+    );
+    const rerun = useHeld || isSameFinancialsFileSet(selectedNames, restoredNames, SIX_FILE_NAME_KEYS);
+    setMappingSessionId(scopeFinancialsMappingsForProcess(page.branch, { rerun }));
+
     setLoading(true);
     const fileNames = {
       salesFileName: files.sales?.name ?? restoredNames.sales ?? null,
@@ -358,7 +393,8 @@ export function SixFileBranchFinancialsPage({ branch }) {
         persistWorkspace({ result: null, sheetError: errorBody, ...fileNames }, { notifyOnFailure: true, force: true });
       } else {
         saveBranchAverageRates(page.branch, data.productAverageRates);
-        setResult(data);
+        const nextResult = restoreFinancialsMappings(data, page.branch);
+        setResult(nextResult);
         setSheetError(null);
         requestAnimationFrame(() => {
           document.getElementById(page.resultsId)?.scrollIntoView({
@@ -366,8 +402,8 @@ export function SixFileBranchFinancialsPage({ branch }) {
             block: 'start',
           });
         });
-        toastClosingStockOutcome(data, page.branch === 'kokapet' ? 'Kokapet' : '');
-        persistWorkspace({ result: data, sheetError: null, ...fileNames }, { notifyOnFailure: true, force: true });
+        toastClosingStockOutcome(nextResult, page.branch === 'kokapet' ? 'Kokapet' : '');
+        persistWorkspace({ result: nextResult, sheetError: null, ...fileNames }, { notifyOnFailure: true, force: true });
       }
     } catch (e) {
       setSheetError(e.details ?? null);
@@ -392,6 +428,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
   ]);
 
   const handleStartNew = useCallback(() => {
+    setMappingSessionId(beginFinancialsMappingSession(page.branch));
     startNewAudit();
     setFolderFiles([]);
     setRestoredNames({ ...EMPTY_SIX_NAMES });
@@ -583,6 +620,7 @@ export function SixFileBranchFinancialsPage({ branch }) {
           resultsId={page.resultsId}
           branchHeading={`${page.heading} Financials`}
           destinationBranch={page.branch}
+          mappingSessionId={mappingSessionId}
           financialYear={financialYear}
           companyName={companyName}
           address={address}

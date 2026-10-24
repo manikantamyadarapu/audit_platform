@@ -90,7 +90,7 @@ class TestClosingStockTemplate:
 
         assert ws.cell(row=6, column=17).value == 'Issues'
         assert ws.cell(row=7, column=17).value == 'Internal Stock Transfer'
-        assert ws.cell(row=7, column=19).value == 'Banjara Hills'
+        assert ws.cell(row=7, column=19).value == 'Jubilee Hills'
         assert ws.cell(row=7, column=21).value == 'Kokapet'
         assert ws.cell(row=7, column=23).value == 'Total'
         assert ws.cell(row=6, column=29).value == 'Gross Profit'
@@ -122,7 +122,7 @@ class TestClosingStockTemplate:
                 issues_ordered.append(name)
         assert issues_ordered == [
             'Internal Stock Transfer',
-            'Banjara Hills',
+            'Jubilee Hills',
             'Kokapet',
             'Total',
         ]

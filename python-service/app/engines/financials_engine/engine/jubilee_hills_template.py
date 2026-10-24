@@ -29,7 +29,6 @@ from app.engines.financials_engine.engine.trading_template import (
 # Jubilee Hills books name the other branch Basheerbagh on both Receipts and Issues.
 JUBILEE_HILLS_LOCATION_LABELS: dict[str, str] = {
     'Jubilee Hills': 'Basheerbagh',
-    'Banjara Hills': 'Basheerbagh',
 }
 
 

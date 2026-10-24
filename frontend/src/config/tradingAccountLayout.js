@@ -335,7 +335,7 @@ export const TRADING_ACCOUNTS = Object.freeze([
 
 /**
  * Align left/right bodies so both Totals sit on the same row.
- * Transfer particulars appear only when Receipts Jubilee Hills − Issues Banjara Hills is non-zero.
+ * Transfer particulars appear only when Receipts Jubilee Hills − Issues Jubilee Hills is non-zero.
  * @param {{ left: string[], right: string[] }} account
  * @param {object|null|undefined} grandTotal
  */

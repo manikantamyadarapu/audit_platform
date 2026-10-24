@@ -2,6 +2,10 @@ import { getAuditSessionConfig } from '../config/auditSessionConfig';
 import { getStoredUser } from './authUser';
 import { panMessageForRecord } from './panRecordFilters';
 import { isFinancialsSessionKey } from './financialsSessionKeys';
+import {
+  slimOpeningCandidate,
+  slimOpeningStockReport as persistSlimOpeningStockReport,
+} from './openingStockReportPersistence';
 
 export { FINANCIALS_SESSION_KEYS, isFinancialsSessionKey } from './financialsSessionKeys';
 
@@ -184,6 +188,7 @@ function slimPivotList(rows) {
     sheetName: row?.sheetName,
     status: row?.status,
     matchMethod: row?.matchMethod,
+    openingQty: row?.openingQty ?? null,
     previousYearProduct: row?.previousYearProduct,
     previousYearProducts: row?.previousYearProducts,
   }));
@@ -231,16 +236,24 @@ function slimProductNames(productsByCategory) {
 
 function slimManualOpeningRow(row) {
   if (!row || typeof row !== 'object') return row;
+  const candidates = Array.isArray(row.candidateProducts)
+    ? row.candidateProducts.map(slimOpeningCandidate).filter(Boolean)
+    : [];
   return {
     product: row.product ?? '',
     category: row.category ?? null,
     subcategory: row.subcategory ?? null,
-    openingQty: row.openingQty ?? null,
+    openingQty: row.openingQty ?? row.sumOfQuantity ?? null,
     openingAmt: row.openingAmt ?? null,
     status: row.status ?? null,
     reason: row.reason ?? null,
     sheetName: row.sheetName ?? row.category ?? null,
+    candidateProducts: candidates,
   };
+}
+
+function slimOpeningStockReport(report) {
+  return persistSlimOpeningStockReport(report);
 }
 
 function slimPreviousYearCatalog(catalog) {
@@ -289,6 +302,9 @@ function slimOpeningAmountMatch(match, { keepCatalog = true } = {}) {
 /** Keep the Jubilee Hills sheets and the pivots that draw them. Drop duplicated catalogs. */
 export function slimJubileeHillsResult(result, { keepCatalog = true } = {}) {
   if (!result || typeof result !== 'object') return result;
+  const openingStockReport = slimOpeningStockReport(
+    result.openingStockReport || result.summary?.openingStockReport
+  );
 
   return {
     success: result.success,
@@ -298,7 +314,11 @@ export function slimJubileeHillsResult(result, { keepCatalog = true } = {}) {
     auditKey: result.auditKey,
     totalRows: result.totalRows,
     errorRows: result.errorRows,
-    summary: trimHeavySummaryFields(result.summary),
+    summary: {
+      ...trimHeavySummaryFields(result.summary),
+      openingStockReport,
+    },
+    openingStockReport,
     layoutByCategory: slimLayoutByCategory(result.layoutByCategory),
     productsByCategory: slimProductNames(result.productsByCategory),
     unmappedProducts: result.unmappedProducts ?? [],

@@ -43,9 +43,18 @@ import { cn } from '../utils/cn';
 import { SourceAverageRatesHint } from '../components/audit/SourceAverageRatesHint';
 import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
 import { readReceiptRateMappings, saveReceiptRateMapping } from '../utils/receiptRateMappings';
+import { withoutResolvedReceiptReviews } from '../utils/mappingPendingLists';
 import { ReceiptRateManualMappingPanel } from '../components/audit/ReceiptRateManualMappingPanel';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState, slimJubileeHillsSnapshot } from '../utils/auditSessionStorage';
+import { restoreFinancialsMappings } from '../utils/financialsOpeningMappings';
+import {
+  beginFinancialsMappingSession,
+  ensureFinancialsMappingSession,
+  isSameFinancialsFileSet,
+  JUBILEE_FILE_NAME_KEYS,
+  scopeFinancialsMappingsForProcess,
+} from '../utils/financialsMappingSession';
 
 const JUBILEE_SESSION_KEY = 'financials-jubilee-hills';
 
@@ -129,6 +138,7 @@ function slimSnapshot(data) {
     companyName: data.companyName ?? '',
     address: data.address ?? '',
     financialYear: data.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
+    mappingSessionId: data.mappingSessionId ?? null,
   });
 }
 
@@ -144,7 +154,14 @@ export default function JubileeHillsFinancialsPage() {
   const [exporting, setExporting] = useState(false);
   const [sheetsReady, setSheetsReady] = useState(() => Boolean(sessionResult(initialSession.data)?.layoutByCategory));
   const [sheetError, setSheetError] = useState(() => initialSession.data?.sheetError ?? null);
-  const [result, setResult] = useState(() => sessionResult(initialSession.data));
+  const [result, setResult] = useState(() => {
+    ensureFinancialsMappingSession('jubilee-hills', {
+      preferredId: initialSession.data?.mappingSessionId || null,
+      adoptLegacy: Boolean(sessionResult(initialSession.data)) && !initialSession.data?.mappingSessionId,
+    });
+    const saved = sessionResult(initialSession.data);
+    return saved ? restoreFinancialsMappings(saved, 'jubilee-hills') : null;
+  });
   const [activeSheet, setActiveSheet] = useState(
     () => initialSession.data?.activeSheet || CLOSING_STOCK_CATEGORIES[0]
   );
@@ -152,6 +169,12 @@ export default function JubileeHillsFinancialsPage() {
   const [address, setAddress] = useState(() => initialSession.data?.address ?? '');
   const [financialYear, setFinancialYear] = useState(
     () => initialSession.data?.financialYear ?? CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear
+  );
+  const [mappingSessionId, setMappingSessionId] = useState(() =>
+    ensureFinancialsMappingSession('jubilee-hills', {
+      preferredId: initialSession.data?.mappingSessionId || null,
+      adoptLegacy: Boolean(sessionResult(initialSession.data)) && !initialSession.data?.mappingSessionId,
+    })
   );
 
   const identification = useMemo(() => {
@@ -163,8 +186,14 @@ export default function JubileeHillsFinancialsPage() {
   const namedFiles = identification?.files;
 
   const applySession = useCallback((data) => {
+    setMappingSessionId(
+      ensureFinancialsMappingSession('jubilee-hills', {
+        preferredId: data?.mappingSessionId || null,
+        adoptLegacy: Boolean(sessionResult(data)) && !data?.mappingSessionId,
+      })
+    );
     const nextResult = sessionResult(data);
-    setResult(nextResult);
+    setResult(nextResult ? restoreFinancialsMappings(nextResult, 'jubilee-hills') : null);
     setSheetsReady(Boolean(nextResult?.layoutByCategory));
     setSheetError(data?.sheetError ?? null);
     setActiveSheet(data?.activeSheet || CLOSING_STOCK_CATEGORIES[0]);
@@ -193,8 +222,19 @@ export default function JubileeHillsFinancialsPage() {
       companyName,
       address,
       financialYear,
+      mappingSessionId,
     }),
-    [result, sheetError, activeSheet, namedFiles, restoredNames, companyName, address, financialYear]
+    [
+      result,
+      sheetError,
+      activeSheet,
+      namedFiles,
+      restoredNames,
+      companyName,
+      address,
+      financialYear,
+      mappingSessionId,
+    ]
   );
 
   const { sessionLabel, sessionMeta, persist, restoreSession, startNewAudit, restoring } =
@@ -260,7 +300,7 @@ export default function JubileeHillsFinancialsPage() {
 
   const applyPlacement = useCallback((data) => {
     saveBranchAverageRates('jubileeHills', data?.productAverageRates);
-    setResult(data);
+    setResult(data ? restoreFinancialsMappings(data, 'jubilee-hills') : data);
     setSheetsReady(true);
     setSheetError(null);
   }, []);
@@ -284,6 +324,13 @@ export default function JubileeHillsFinancialsPage() {
       auditToastError('Upload a Jubilee Hills folder with Sales, Purchases, Opening Quantity, Sales Return, Purchase Return, Credit Notes from Suppliers, Debit Notes from Suppliers, and Previous Year Financials.');
       return;
     }
+
+    const selectedNames = Object.fromEntries(
+      JUBILEE_FILE_NAME_KEYS.map((key) => [key, identified?.files?.[key]?.name || ''])
+    );
+    const rerun =
+      useHeld || isSameFinancialsFileSet(selectedNames, restoredNames, JUBILEE_FILE_NAME_KEYS);
+    setMappingSessionId(scopeFinancialsMappingsForProcess('jubilee-hills', { rerun }));
 
     setLoading(true);
     const fileNames = {
@@ -433,15 +480,16 @@ export default function JubileeHillsFinancialsPage() {
           },
           { notifyOnFailure: true, force: true }
         );
-        auditToastSuccess(`Opening amount mapped for ${mapping.product}`);
       } catch (e) {
-        auditToastError(e.message || 'Could not update the Jubilee Hills sheets.');
+        setResult(result);
+        throw e;
       }
     },
     [persistWorkspace, result]
   );
 
   const handleStartNew = useCallback(() => {
+    setMappingSessionId(beginFinancialsMappingSession('jubilee-hills'));
     startNewAudit();
     setFolderFiles([]);
     setRestoredNames({ ...EMPTY_RESTORED_NAMES });
@@ -657,6 +705,7 @@ export default function JubileeHillsFinancialsPage() {
           </CardHeader>
           <CardBody>
             <JubileeOpeningAmountPanel
+              scopeId={mappingSessionId}
               match={result.openingAmountMatch}
               onConfirm={handleConfirmOpeningAmount}
             />
@@ -665,40 +714,47 @@ export default function JubileeHillsFinancialsPage() {
       ) : null}
 
       <ReceiptRateManualMappingPanel
+        scopeId={mappingSessionId}
         rows={result?.receiptAmountReview}
         onConfirmMapping={async (mapping) => {
-          if (!result) return;
-          try {
+          if (!result) throw new Error('Process Jubilee Hills before mapping an average rate.');
+          const snapshot = result;
           saveReceiptRateMapping('jubileeHills', mapping);
-          const transfers = result.transferPivots || {};
-          const placed = await placeJubileeHillsFromPivots({
-            salesPivot: result.salesPivot || [],
-            purchasesPivot: result.purchasesPivot || [],
-            salesReturnPivot: result.salesReturnPivot || [],
-            purchaseReturnPivot: result.purchaseReturnPivot || [],
-            supplierDebitNotePivot: result.supplierDebitNotePivot || [],
-            supplierCreditNotePivot: result.supplierCreditNotePivot || [],
-            openingPivot: result.openingPivot || [],
-            mrPivots: transfers.mrPivots || result.mrPivots || {},
-            dcPivots: transfers.dcPivots || result.dcPivots || {},
-            sourceAverageRates: readSourceAverageRates(),
-            receiptRateMappings: readReceiptRateMappings('jubileeHills'),
-          });
-          saveBranchAverageRates('jubileeHills', placed.productAverageRates);
-          const placedResult = {
-            ...result,
-            productsByCategory: placed.productsByCategory,
-            layoutByCategory: placed.layoutByCategory,
-            unmappedProducts: placed.unmappedProducts,
-            unmappedProductDetails: placed.unmappedProductDetails,
-            receiptAmountReview: placed.receiptAmountReview || [],
-            productAverageRates: placed.productAverageRates || [],
+          const optimistic = {
+            ...snapshot,
+            receiptAmountReview: withoutResolvedReceiptReviews(snapshot.receiptAmountReview, [mapping]),
           };
-          setResult(placedResult);
-          persistWorkspace({ result: placedResult, sheetError: null }, { notifyOnFailure: true, force: true });
-          auditToastSuccess(`Average rate mapped for ${mapping.product}`);
+          setResult(optimistic);
+          try {
+            const transfers = snapshot.transferPivots || {};
+            const placed = await placeJubileeHillsFromPivots({
+              salesPivot: snapshot.salesPivot || [],
+              purchasesPivot: snapshot.purchasesPivot || [],
+              salesReturnPivot: snapshot.salesReturnPivot || [],
+              purchaseReturnPivot: snapshot.purchaseReturnPivot || [],
+              supplierDebitNotePivot: snapshot.supplierDebitNotePivot || [],
+              supplierCreditNotePivot: snapshot.supplierCreditNotePivot || [],
+              openingPivot: snapshot.openingPivot || [],
+              mrPivots: transfers.mrPivots || snapshot.mrPivots || {},
+              dcPivots: transfers.dcPivots || snapshot.dcPivots || {},
+              sourceAverageRates: readSourceAverageRates(),
+              receiptRateMappings: readReceiptRateMappings('jubileeHills'),
+            });
+            saveBranchAverageRates('jubileeHills', placed.productAverageRates);
+            const placedResult = {
+              ...optimistic,
+              productsByCategory: placed.productsByCategory,
+              layoutByCategory: placed.layoutByCategory,
+              unmappedProducts: placed.unmappedProducts,
+              unmappedProductDetails: placed.unmappedProductDetails,
+              receiptAmountReview: placed.receiptAmountReview || [],
+              productAverageRates: placed.productAverageRates || [],
+            };
+            setResult(placedResult);
+            persistWorkspace({ result: placedResult, sheetError: null }, { notifyOnFailure: true, force: true });
           } catch (error) {
-            auditToastError(error.message || 'Could not map the average rate.');
+            setResult(snapshot);
+            throw error;
           }
         }}
       />
