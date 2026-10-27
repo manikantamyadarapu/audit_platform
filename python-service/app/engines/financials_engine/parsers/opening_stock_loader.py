@@ -266,6 +266,67 @@ def load_opening_quantity_workbook(
     return rows
 
 
+def _is_abstract_sheet(sheet_name: str) -> bool:
+    return str(sheet_name or '').strip().casefold() == 'abstract'
+
+
+def _extract_abstract_products(raw: pd.DataFrame, *, sheet_name: str) -> list[dict[str, Any]]:
+    """Previous-year Abstract particulars and their Closing stock qty/amount.
+
+    Headers are found by text. Column letters are not assumed. TOTAL rows are omitted.
+    """
+    scan_rows = min(len(raw.index), 12)
+    scan_cols = min(len(raw.columns), 40)
+    header_row = None
+    closing_col = None
+    for row in range(scan_rows):
+        for col in range(scan_cols):
+            text = str(raw.iat[row, col] or '').strip().casefold()
+            if 'closing' in text and 'stock' in text:
+                header_row = row
+                closing_col = col
+                break
+        if header_row is not None:
+            break
+    if header_row is None or closing_col is None:
+        return []
+
+    qty_col = closing_col
+    amt_col = closing_col + 1 if closing_col + 1 < scan_cols else closing_col
+    leaf_row = header_row + 1 if header_row + 1 < len(raw.index) else header_row
+    for col in range(closing_col, min(closing_col + 3, scan_cols)):
+        label = str(raw.iat[leaf_row, col] or '').casefold()
+        if 'amount' in label or 'amt' in label:
+            amt_col = col
+        elif 'qty' in label or 'gms' in label or 'cts' in label:
+            qty_col = col
+
+    products: list[dict[str, Any]] = []
+    for row in range(leaf_row + 1, len(raw.index)):
+        label = str(raw.iat[row, 0] or '').strip()
+        if not label:
+            if products:
+                break
+            continue
+        key = ' '.join(label.casefold().split())
+        if key in {'total', 'grand total'} or key.startswith('total '):
+            break
+        qty = parse_numeric_value(raw.iat[row, qty_col]) if qty_col < len(raw.columns) else None
+        amt = parse_numeric_value(raw.iat[row, amt_col]) if amt_col < len(raw.columns) else None
+        if qty is None and amt is None:
+            continue
+        products.append(
+            {
+                'product': label,
+                'sheetName': sheet_name or 'Abstract',
+                'source': 'abstract',
+                'closingStockQty': qty,
+                'closingStockAmount': amt,
+            }
+        )
+    return products
+
+
 def _is_trading_sheet(sheet_name: str) -> bool:
     low = str(sheet_name or '').strip().casefold()
     return low in {'trading', 'trading account', 'trading a/c', 'trading ac'}
@@ -670,6 +731,7 @@ def load_previous_year_product_index(
     log: Any | None = None,
     dedicated_product_sheets: list[dict[str, Any]] | None = None,
     trading_sheet_products: list[dict[str, Any]] | None = None,
+    abstract_products: list[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
     Index previous-year Closing Balance by product.
@@ -708,7 +770,7 @@ def load_previous_year_product_index(
     try:
         for sheet_name in sheet_names:
             display_name = str(sheet_name or '').strip()
-            if _is_non_stock_sheet(display_name) and not _is_trading_sheet(display_name):
+            if _is_non_stock_sheet(display_name) and not _is_trading_sheet(display_name) and not _is_abstract_sheet(display_name):
                 continue
 
             try:
@@ -726,6 +788,13 @@ def load_previous_year_product_index(
                 continue
 
             raw = pd.DataFrame(rows)
+
+            if _is_abstract_sheet(display_name):
+                if abstract_products is not None:
+                    abstract_products.extend(
+                        _extract_abstract_products(raw, sheet_name=display_name)
+                    )
+                continue
 
             if _is_trading_sheet(display_name):
                 if trading_sheet_products is not None:
@@ -835,12 +904,14 @@ def load_previous_year_opening_stock(
     """Product index plus subcategory/sheet groupings for fallback mapping."""
     dedicated_product_sheets: list[dict[str, Any]] = []
     trading_sheet_products: list[dict[str, Any]] = []
+    abstract_products: list[dict[str, Any]] = []
     product_index = load_previous_year_product_index(
         file_bytes,
         file_name,
         log=log,
         dedicated_product_sheets=dedicated_product_sheets,
         trading_sheet_products=trading_sheet_products,
+        abstract_products=abstract_products,
     )
     subcategory_products, sheet_products = _build_subcategory_indexes(product_index)
     return {
@@ -849,6 +920,7 @@ def load_previous_year_opening_stock(
         'sheetProducts': sheet_products,
         'dedicatedProductSheets': dedicated_product_sheets,
         'tradingSheetProducts': trading_sheet_products,
+        'abstractProducts': abstract_products,
     }
 
 

@@ -78,8 +78,10 @@ export function JubileeOpeningAmountPanel({ match, onConfirm, scopeId = '' }) {
             product: mapping.product,
             category: mapping.category,
             subcategory: mapping.subcategory,
+            openingQty: mapping.openingQty,
             previousYearProduct: names[0] || '',
             previousYearProducts: names,
+            openingAmt: mapping.openingAmt,
             amount: mapping.openingAmt,
           });
         }}

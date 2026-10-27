@@ -47,7 +47,7 @@ import { withoutResolvedReceiptReviews } from '../utils/mappingPendingLists';
 import { ReceiptRateManualMappingPanel } from '../components/audit/ReceiptRateManualMappingPanel';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState, slimJubileeHillsSnapshot } from '../utils/auditSessionStorage';
-import { restoreFinancialsMappings } from '../utils/financialsOpeningMappings';
+import { applyManualOpeningMapping, restoreFinancialsMappings } from '../utils/financialsOpeningMappings';
 import {
   beginFinancialsMappingSession,
   ensureFinancialsMappingSession,
@@ -408,28 +408,37 @@ export default function JubileeHillsFinancialsPage() {
         ? mapping.previousYearProducts
         : [mapping.previousYearProduct].filter(Boolean);
       saveJubileeOpeningMapping(mapping.product, previousNames);
-      const openingPivot = (result.openingPivot || []).map((row) => {
-        if (String(row?.product || '').trim() !== mapping.product) return row;
-        return {
-          ...row,
+      const openingAmt = mapping.amount ?? mapping.openingAmt;
+      const applied = applyManualOpeningMapping(
+        {
+          ...result,
+          openingStockReport: result.openingStockReport || {
+            manualMappingRequired: result.openingAmountMatch?.manualMappingRequiredRows || [],
+            manualMappingRequiredCount: result.openingAmountMatch?.manualMappingRequiredRows?.length || 0,
+            fallbackMatched: [],
+            exactMatchedCount: 0,
+          },
+        },
+        {
           product: mapping.product,
           ruleBookProduct: mapping.product,
-          sumOfGross: mapping.amount,
-          status: 'matched_saved',
-          matchMethod: 'saved',
-          previousYearProduct: previousNames.join(' + '),
+          category: mapping.category,
+          subcategory: mapping.subcategory,
+          openingQty: mapping.openingQty,
+          openingAmt,
           previousYearProducts: previousNames,
-        };
-      });
-      const match = { ...(result.openingAmountMatch || {}) };
+        }
+      );
+      const match = { ...(applied.openingAmountMatch || {}) };
       const manual = (match.manualMappingRequiredRows || []).filter(
         (row) => row.product !== mapping.product
       );
       const unresolved = (Array.isArray(match.unresolvedProducts) ? match.unresolvedProducts : []).filter(
         (row) => row.product !== mapping.product
       );
+      const openingPivot = applied.openingPivot || [];
       const next = {
-        ...result,
+        ...applied,
         openingPivot,
         openingAmountMatch: {
           ...match,

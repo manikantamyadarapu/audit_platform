@@ -151,11 +151,85 @@ def _prefix_candidates(pool: Sequence[dict[str, Any]], product: str) -> list[dic
     return found
 
 
+def _abstract_rows(abstract_products: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in abstract_products or ():
+        product = str(entry.get('product') or '').strip()
+        key = norm_opening_product_name(product)
+        if not product or not key or key in seen:
+            continue
+        if key in {'total', 'grand total'} or key.startswith('total '):
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                'product': product,
+                'sheetName': 'Abstract',
+                'source': 'abstract',
+                'closingStockQty': _coerce_qty(entry.get('closingStockQty')),
+                'closingStockAmount': _coerce_qty(entry.get('closingStockAmount')),
+            }
+        )
+    return rows
+
+
+def _abstract_tokens(*parts: str | None) -> set[str]:
+    key = _match_key(' '.join(str(part or '') for part in parts))
+    tokens: set[str] = set()
+    if 'platinum' in key:
+        tokens.add('platinum')
+    if 'jadau' in key:
+        tokens.add('jadau')
+    if '24' in key:
+        tokens.add('24')
+    if '22' in key:
+        tokens.add('22')
+    if '18' in key:
+        tokens.add('18')
+    if '14' in key:
+        tokens.add('14')
+    if 'silver' in key:
+        tokens.add('silver')
+    if 'diamond' in key:
+        tokens.add('diamond')
+    if 'emerald' in key:
+        tokens.add('emerald')
+    if 'pearl' in key:
+        tokens.add('pearl')
+    if 'rub' in key:
+        tokens.add('rub')
+    if 'precious' in key or 'stone' in key or 'colour' in key or 'color' in key:
+        tokens.add('stone')
+    return tokens
+
+
+def _relevant_abstract_rows(
+    product: str,
+    category: str | None,
+    subcategory: str | None,
+    abstract_rows: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Abstract accounts for this product. Unrecognised names keep the full account list."""
+    if not abstract_rows:
+        return []
+    tokens = _abstract_tokens(product, category, subcategory)
+    if not tokens:
+        return [dict(row) for row in abstract_rows]
+    matched = [
+        dict(row)
+        for row in abstract_rows
+        if _abstract_tokens(row.get('product')) & tokens
+    ]
+    return matched or [dict(row) for row in abstract_rows]
+
+
 def match_jubilee_opening_amounts(
     *,
     quantity_rows: Sequence[Mapping[str, Any]],
     previous_year_index: Mapping[str, Mapping[str, Any]],
     saved_mappings: Sequence[Mapping[str, Any]] | None = None,
+    abstract_products: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Match Opening Quantity rows to Previous Year amounts inside one category."""
     quantity_rows = collapse_same_product_rows(
@@ -163,6 +237,7 @@ def match_jubilee_opening_amounts(
         sum_fields=('openingBalance',),
     )
     previous = _previous_rows(previous_year_index)
+    abstract = _abstract_rows(abstract_products)
     by_category: dict[str, list[dict[str, Any]]] = {}
     for row in previous:
         by_category.setdefault(row['category'], []).append(row)
@@ -251,6 +326,20 @@ def match_jubilee_opening_amounts(
             counts['quantityMismatches'] += 1
         elif reason == 'multiple_candidates':
             counts['multipleCandidateMatches'] += 1
+        candidates = _options(category) if category else []
+        seen_names = {norm_opening_product_name(item.get('product') or '') for item in candidates}
+        for abstract_row in _relevant_abstract_rows(product, category, subcategory, abstract):
+            name_key = norm_opening_product_name(abstract_row['product'])
+            if not name_key or name_key in seen_names:
+                continue
+            seen_names.add(name_key)
+            candidates.append(
+                {
+                    **abstract_row,
+                    'category': category,
+                    'closingBalanceAmount': abstract_row.get('closingStockAmount'),
+                }
+            )
         row = {
             'product': product,
             'category': category,
@@ -260,7 +349,7 @@ def match_jubilee_opening_amounts(
             'status': 'manual_mapping_required',
             'reason': reason,
             'sheetName': category,
-            'candidateProducts': _options(category) if category else [],
+            'candidateProducts': candidates,
             'suggestedProducts': [
                 {
                     'product': item['product'],
@@ -282,16 +371,6 @@ def match_jubilee_opening_amounts(
         seen.add(identity)
         opening_qty = _coerce_qty(qty_row.get('openingBalance'))
         category, subcategory = _category_of(product)
-        if not category:
-            _manual(
-                product,
-                category=None,
-                subcategory=None,
-                opening_qty=opening_qty,
-                reason='category_not_resolved',
-            )
-            continue
-
         pool = [
             row
             for row in by_category.get(category, [])
@@ -300,14 +379,16 @@ def match_jubilee_opening_amounts(
         saved_names = saved.get(_exact_key(product)) or saved.get(_match_key(product)) or []
         if saved_names:
             saved_rows: list[dict[str, Any]] = []
+            search_rows = [*pool, *abstract]
             for saved_name in saved_names:
                 saved_key = norm_opening_product_name(saved_name)
+                saved_match = _match_key(saved_name)
                 saved_row = next(
                     (
                         row
-                        for row in pool
+                        for row in search_rows
                         if norm_opening_product_name(row['product']) == saved_key
-                        or _match_key(row['product']) == _match_key(saved_name)
+                        or _match_key(row['product']) == saved_match
                     ),
                     None,
                 )
@@ -352,7 +433,7 @@ def match_jubilee_opening_amounts(
                 category=category,
                 subcategory=subcategory,
                 opening_qty=opening_qty,
-                reason='no_candidate',
+                reason='category_not_resolved' if not category else 'no_candidate',
             )
             continue
         if len(chosen) != 1:

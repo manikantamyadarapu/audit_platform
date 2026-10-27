@@ -173,3 +173,109 @@ def test_loose_opening_rows_aggregate_before_matching():
     assert row['product'] == 'DI RA 10'
     names = {item['product'] for item in result['validatedOpening']}
     assert 'DI RA LOOSE 10' not in names
+
+
+def _abstract(*rows):
+    return [
+        {
+            'product': name,
+            'sheetName': 'Abstract',
+            'source': 'abstract',
+            'closingStockQty': qty,
+            'closingStockAmount': amount,
+        }
+        for name, qty, amount in rows
+    ]
+
+
+def test_unresolved_jubilee_product_offers_relevant_abstract_candidates():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'Gold Platinum', 'openingBalance': 7}],
+        previous_year_index=_index(('Flat Polki FP 1', 'Dia', 4, 400)),
+        abstract_products=_abstract(
+            ('Platinum Account', 164.645, 618634),
+            ('Gold Account 18K', 100, 206447.963),
+            ('Diamonds Account', 50, 9000),
+        ),
+    )
+    row = _row(result, 'Gold Platinum')
+    assert row['status'] == 'manual_mapping_required'
+    assert row['openingAmt'] is None
+    names = {item['product']: item for item in row['candidateProducts']}
+    assert names['Platinum Account']['source'] == 'abstract'
+    assert names['Platinum Account']['closingStockAmount'] == 618634
+    assert 'Gold Account 18K' not in names
+    assert 'Diamonds Account' not in names
+    assert 'Flat Polki FP 1' not in names
+
+
+def test_exact_match_ignores_abstract_products():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'FP 1', 'openingBalance': 4}],
+        previous_year_index=_index(('Flat Polki FP 1', 'Dia', 4, 400)),
+        abstract_products=_abstract(('Diamonds Account', 50, 9000)),
+    )
+    row = _row(result, 'FP 1')
+    assert row['openingAmt'] == 400
+    assert row['status'] != 'manual_mapping_required'
+    assert result['match']['manualMappingRequired'] == 0
+
+
+def test_saved_abstract_mapping_uses_closing_balance_on_rerun():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'Plain Finding', 'openingBalance': 3}],
+        previous_year_index={},
+        saved_mappings=[
+            {'product': 'Plain Finding', 'previousYearProducts': ['Platinum Account', 'Gold Account 18K']},
+        ],
+        abstract_products=_abstract(
+            ('Platinum Account', 164.645, 618634),
+            ('Gold Account 18K', 100, 200),
+        ),
+    )
+    row = _row(result, 'Plain Finding')
+    assert row['openingAmt'] == 618834
+    assert row['matchMethod'] == 'saved'
+    assert result['match']['manualMappingRequired'] == 0
+
+
+def test_basheerbagh_opening_validation_does_not_use_abstract_products():
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    from app.engines.financials_engine.engine.opening_stock import validate_opening_stock
+    from app.engines.financials_engine.parsers.opening_stock_loader import load_previous_year_opening_stock
+
+    wb = Workbook()
+    dia = wb.active
+    dia.title = 'Dia'
+    dia.append(['Particulars', 'Opening stock', None, 'Closing stock', None])
+    dia.append([None, 'Qty', 'Amount', 'Qty', 'Amount'])
+    dia.append(['Di. Beads', 10, 20, 8, 400])
+    abstract = wb.create_sheet('Abstract')
+    abstract.append(['Particulars', 'Opening stock', None, 'Closing stock', None])
+    abstract.append([None, 'Qty', 'Amount', 'Qty', 'Amount'])
+    abstract.append(['Platinum Account', 1, 10, 164.645, 618634])
+    abstract.append(['TOTAL', 1, 10, 164.645, 618634])
+    buffer = BytesIO()
+    wb.save(buffer)
+
+    loaded = load_previous_year_opening_stock(buffer.getvalue(), 'previous.xlsx')
+    indexed = {str(row.get('product') or '') for row in loaded['productIndex'].values()}
+    assert 'Platinum Account' not in indexed
+    assert loaded['abstractProducts'][0]['product'] == 'Platinum Account'
+    assert loaded['abstractProducts'][0]['closingStockAmount'] == 618634
+
+    report = validate_opening_stock(
+        quantity_rows=[{'product': 'Di. Beads', 'openingBalance': 1, 'category': 'Diamond'}],
+        previous_year_sheets=loaded['productIndex'],
+        subcategory_products=loaded['subcategoryProducts'],
+        sheet_products=loaded['sheetProducts'],
+    )
+    candidates = [
+        item.get('product')
+        for row in report.get('manualMappingRequired') or []
+        for item in row.get('candidateProducts') or []
+    ]
+    assert 'Platinum Account' not in candidates

@@ -461,6 +461,7 @@ class FinancialsPivotAudit:
                 quantity_rows=qty_rows,
                 previous_year_index=prev_payload.get('productIndex') or {},
                 saved_mappings=saved_opening_mappings,
+                abstract_products=prev_payload.get('abstractProducts'),
             )
             opening_pivot = jubilee_opening['openingPivot']
             validated_opening = jubilee_opening['validatedOpening']

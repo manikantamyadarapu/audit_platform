@@ -220,9 +220,11 @@ function MappingModal({
             Previous-year products
           </p>
           <p className="text-xs text-slate-500">
-            {candidateScope === 'category'
-              ? `Select one or more from ${current.category || 'this category'}. Confirm Mapping requires Selected Qty to equal Opening Qty.`
-              : 'Select one or more from this subcategory. Confirm Mapping requires Selected Qty to equal Opening Qty.'}
+            {candidates.some((item) => item?.source === 'abstract')
+              ? 'Abstract sheet products are listed with their Closing Balance. The selected Closing Balance amounts become the opening amount.'
+              : candidateScope === 'category'
+                ? `Select one or more from ${current.category || 'this category'}. Confirm Mapping requires Selected Qty to equal Opening Qty.`
+                : 'Select one or more from this subcategory. Confirm Mapping requires Selected Qty to equal Opening Qty.'}
           </p>
           {candidates.length ? (
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
@@ -242,11 +244,22 @@ function MappingModal({
                         />
                         <span className="min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">
                           {name}
+                          {c.source === 'abstract' ? (
+                            <span className="mt-0.5 block text-xs font-normal text-slate-500">Abstract sheet</span>
+                          ) : null}
                           {usedAlready ? ' · already used' : ''}
                         </span>
-                        <span className="text-xs tabular-nums text-slate-500">
-                          Qty {formatNumber(candidateQty(c) ?? 0, 4)} · Amt{' '}
-                          {formatNumber(candidateAmt(c) ?? 0, 2)}
+                        <span className="text-right text-xs tabular-nums text-slate-500">
+                          {c.source === 'abstract' ? (
+                            <>
+                              Closing Balance {formatNumber(candidateAmt(c) ?? 0, 2)}
+                            </>
+                          ) : (
+                            <>
+                              Qty {formatNumber(candidateQty(c) ?? 0, 4)} · Amt{' '}
+                              {formatNumber(candidateAmt(c) ?? 0, 2)}
+                            </>
+                          )}
                         </span>
                       </label>
                     </li>

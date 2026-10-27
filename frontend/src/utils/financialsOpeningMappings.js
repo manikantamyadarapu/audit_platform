@@ -255,7 +255,33 @@ export function reapplyOpeningStockMappings(result, branch) {
       ),
     });
   }
-  return next;
+  return syncOpeningAmountMatch(next);
+}
+
+function syncOpeningAmountMatch(result) {
+  const match = result?.openingAmountMatch;
+  if (!match || !Array.isArray(match.manualMappingRequiredRows)) return result;
+  const pending = new Set(
+    (readOpeningStockReport(result)?.manualMappingRequired || [])
+      .map((row) => String(row?.product || '').trim())
+      .filter(Boolean)
+  );
+  const manual = match.manualMappingRequiredRows.filter((row) =>
+    pending.has(String(row?.product || '').trim())
+  );
+  const unresolved = (Array.isArray(match.unresolvedProducts) ? match.unresolvedProducts : []).filter(
+    (row) => pending.has(String(row?.product || '').trim())
+  );
+  return {
+    ...result,
+    openingAmountMatch: {
+      ...match,
+      manualMappingRequiredRows: manual,
+      manualMappingRequired: manual.length,
+      unresolvedProducts: unresolved,
+      unresolvedProductCount: unresolved.length,
+    },
+  };
 }
 
 /** Restore this session's mappings before pending lists are shown. */

@@ -168,6 +168,51 @@ test('mapping one opening product keeps the sibling when the next report drops t
   assert.deepEqual(next.manualMappingRequired.map((row) => row.product), ['Chain']);
 });
 
+test('abstract closing balances become the opening amount and leave the pending match list', () => {
+  memory.clear();
+  const start = {
+    ...resultWith([
+      pendingRow('Gold Platinum', 'Diamond', [
+        { product: 'Platinum Account', source: 'abstract', closingStockAmount: 618634, closingStockQty: 164.645 },
+        { product: 'Gold Account 18K', source: 'abstract', closingStockAmount: 200, closingStockQty: 100 },
+      ]),
+      pendingRow('Chain', 'Diamond', [
+        { product: 'Old Chain', closingStockAmount: 50, closingStockQty: 2 },
+      ]),
+    ]),
+    openingAmountMatch: {
+      manualMappingRequiredRows: [
+        { product: 'Gold Platinum', category: 'Diamond' },
+        { product: 'Chain', category: 'Diamond' },
+      ],
+      unresolvedProducts: [
+        { product: 'Gold Platinum' },
+        { product: 'Chain' },
+      ],
+    },
+  };
+  saveOpeningStockMapping('jubilee-hills', {
+    product: 'Gold Platinum',
+    previousYearProducts: ['Platinum Account', 'Gold Account 18K'],
+  });
+  const next = reapplyOpeningStockMappings(start, 'jubilee-hills');
+  assert.equal(next.openingPivot.find((row) => row.product === 'Gold Platinum').sumOfGross, 618834);
+  assert.deepEqual(
+    next.openingStockReport.manualMappingRequired.map((row) => row.product),
+    ['Chain']
+  );
+  assert.deepEqual(
+    next.openingAmountMatch.manualMappingRequiredRows.map((row) => row.product),
+    ['Chain']
+  );
+  const basheerbagh = reapplyOpeningStockMappings(start, 'basheerbagh');
+  assert.deepEqual(
+    basheerbagh.openingStockReport.manualMappingRequired.map((row) => row.product),
+    ['Gold Platinum', 'Chain']
+  );
+  assert.equal(basheerbagh.openingAmountMatch, start.openingAmountMatch);
+});
+
 test('a failed receipt mapping keeps the original review row', () => {
   const rows = [{ product: 'Ring', category: 'Diamond', sourceBranch: 'basheerbagh', column: 'qty' }];
   const snapshot = rows;

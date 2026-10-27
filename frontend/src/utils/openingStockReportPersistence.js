@@ -17,7 +17,9 @@ export function slimOpeningCandidate(candidate) {
     category: candidate.category ?? null,
     subcategory: candidate.subcategory ?? null,
     closingStockQty: candidate.closingStockQty ?? candidate.closingQty ?? null,
-    closingStockAmount: candidate.closingStockAmount ?? candidate.closingAmt ?? null,
+    closingStockAmount: candidate.closingStockAmount ?? candidate.closingAmt ?? candidate.closingBalanceAmount ?? null,
+    closingBalanceAmount: candidate.closingBalanceAmount ?? candidate.closingStockAmount ?? candidate.closingAmt ?? null,
+    source: candidate.source ?? null,
   };
 }
 
