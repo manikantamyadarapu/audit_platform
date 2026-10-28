@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.abstract_template import displayed_abstract_amount
 from app.engines.financials_engine.engine.consolidated_abstract_values import (
     build_consolidated_abstract_row_measures,
 )
@@ -252,9 +253,14 @@ def _write_body_row(
             _style(cell, font=font, fill=fill, alignment=_CENTER)
             pair = (measures or {}).get(heading) or {}
             if column_kind == 'qty_amt':
-                _write_numeric(cell, pair.get('qty') if offset == 0 else pair.get('amt'))
-            else:
+                if offset == 0:
+                    _write_numeric(cell, pair.get('qty'))
+                else:
+                    _write_amount(cell, pair.get('amt'))
+            elif heading == 'CY G P %':
                 _write_numeric(cell, pair.get('amt'))
+            else:
+                _write_amount(cell, pair.get('amt'))
             if heading == 'CY G P %':
                 cell.number_format = '0.00'
             else:
@@ -278,6 +284,13 @@ def _write_numeric(cell, value: Any) -> None:
         cell.value = None
         return
     cell.value = value
+
+
+def _write_amount(cell, value: Any) -> None:
+    if value is None or value == '':
+        cell.value = None
+        return
+    cell.value = displayed_abstract_amount(value)
 
 
 def _style(cell, *, font, fill, alignment) -> None:

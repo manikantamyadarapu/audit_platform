@@ -3,10 +3,12 @@ import {
   ABSTRACT_AMT_SUBHEADER,
   ABSTRACT_BODY_ROWS,
   ABSTRACT_MEASURE_GROUPS,
+  ABSTRACT_PERCENT_GROUPS,
   ABSTRACT_QTY_SUBHEADER,
   ABSTRACT_TITLE,
   abstractColumnCount,
   abstractColumnSpan,
+  formatAbstractAmount,
 } from '../../config/abstractLayout';
 import { formatClosingStockMeasure } from '../../config/closingStockLayout';
 import { buildAbstractRowMeasures } from '../../utils/abstractTradingValues';
@@ -52,9 +54,17 @@ function rowClass(kind) {
   return 'bg-white text-slate-800 dark:bg-slate-950 dark:text-slate-100';
 }
 
-function displayMeasure(value) {
+function displayQty(value) {
   if (value === null || value === undefined) return '';
   return formatClosingStockMeasure(value).replace(/\u00a0/g, '').trim();
+}
+
+function displayAmount(value, heading) {
+  if (value === null || value === undefined) return '';
+  if (ABSTRACT_PERCENT_GROUPS.includes(heading)) {
+    return displayQty(value);
+  }
+  return formatAbstractAmount(value);
 }
 
 function headerCells(column) {
@@ -83,16 +93,16 @@ function valueCells(column, fill, index, kindClass) {
   if (column.kind === 'qty_amt') {
     return [
       <td key={`${index}-${column.heading}-qty`} className={cn(VALUE_CELL, kindClass)}>
-        {displayMeasure(pair?.qty)}
+        {displayQty(pair?.qty)}
       </td>,
       <td key={`${index}-${column.heading}-amt`} className={cn(VALUE_CELL, kindClass)}>
-        {displayMeasure(pair?.amt)}
+        {displayAmount(pair?.amt, column.heading)}
       </td>,
     ];
   }
   return [
     <td key={`${index}-${column.heading}-amt`} className={cn(VALUE_CELL, kindClass)}>
-      {displayMeasure(pair?.amt)}
+      {displayAmount(pair?.amt, column.heading)}
     </td>,
   ];
 }

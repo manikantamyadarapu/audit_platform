@@ -11,6 +11,7 @@ from app.engines.financials_engine.engine.abstract_template import (
     ABSTRACT_SHEET_NAME,
     ABSTRACT_TITLE,
     abstract_column_span,
+    displayed_abstract_amount,
 )
 from app.engines.financials_engine.engine.closing_stock_template import (
     CLOSING_STOCK_CATEGORIES,
@@ -232,6 +233,37 @@ class TestAbstractSheet:
 
         heading = _abstract_row(abstract, 'DIAMONDS')
         assert abstract.cell(row=heading, column=2).value is None
+
+    def test_abstract_amounts_round_half_up_to_whole_numbers(self):
+        assert displayed_abstract_amount(123.4567) == 123
+        assert displayed_abstract_amount(123.5678) == 124
+        assert displayed_abstract_amount(123.5) == 124
+        assert displayed_abstract_amount(0.49) == 0
+        assert displayed_abstract_amount(0.5) == 1
+
+        raw = build_closing_stock_template_bytes(
+            sales_pivot=[
+                {'product': 'Standard Gold 24K', 'sumOfQuantity': 2.25, 'sumOfGross': 123.4567},
+            ],
+            purchases_pivot=[
+                {'product': 'standard gold 24 k', 'sumOfQuantity': 1.1, 'sumOfGross': 123.5678},
+            ],
+            opening_pivot=[
+                {'product': 'Standard Gold 24K', 'sumOfQuantity': 10.3333, 'sumOfGross': 1000.49},
+            ],
+        )
+        abstract = load_workbook(BytesIO(raw))[ABSTRACT_SHEET_NAME]
+        gold_row = _abstract_row(abstract, 'Gold Account 24K')
+        # Qty keeps decimals; Amount columns are whole numbers.
+        assert abstract.cell(row=gold_row, column=2).value == pytest.approx(10.3333)
+        assert abstract.cell(row=gold_row, column=3).value == 1000
+        assert abstract.cell(row=gold_row, column=4).value == pytest.approx(1.1)
+        assert abstract.cell(row=gold_row, column=5).value == 124
+        assert abstract.cell(row=gold_row, column=18).value == pytest.approx(2.25)
+        assert abstract.cell(row=gold_row, column=19).value == 123
+
+        trading = load_workbook(BytesIO(raw))[TRADING_SHEET_NAME]
+        assert trading.cell(row=3, column=3).value == pytest.approx(1000.49)
 
 
 def _abstract_row(ws, label: str) -> int:

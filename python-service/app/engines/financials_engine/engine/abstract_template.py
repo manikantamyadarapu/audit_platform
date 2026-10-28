@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Mapping, Sequence
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -94,10 +95,22 @@ _SUB_ROW = 3
 _FIRST_BODY_ROW = 4
 _PARTICULARS_COL = 1
 ABSTRACT_AMT_ONLY_GROUPS: frozenset[str] = frozenset({'Gross Profit', 'CY GP %'})
+# Percentage column — not an Amount in Rs value.
+ABSTRACT_PERCENT_GROUPS: frozenset[str] = frozenset({'CY GP %'})
 
 
 def abstract_column_span(group: str) -> int:
     return 1 if group in ABSTRACT_AMT_ONLY_GROUPS else 2
+
+
+def displayed_abstract_amount(value: Any) -> int | None:
+    """Nearest whole Amount for Abstract display/export. Source measures stay unchanged."""
+    if value is None or value == '':
+        return None
+    number = Decimal(str(value))
+    if not number.is_finite():
+        return None
+    return int(number.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
 
 _LAST_COL = 1 + sum(abstract_column_span(group) for group in ABSTRACT_MEASURE_GROUPS)
@@ -227,9 +240,11 @@ def _write_body_row(
             span = abstract_column_span(group)
             if span == 2:
                 _write_numeric(ws.cell(row=row, column=col), pair.get('qty'))
-                _write_numeric(ws.cell(row=row, column=col + 1), pair.get('amt'))
-            else:
+                _write_amount(ws.cell(row=row, column=col + 1), pair.get('amt'))
+            elif group in ABSTRACT_PERCENT_GROUPS:
                 _write_numeric(ws.cell(row=row, column=col), pair.get('amt'))
+            else:
+                _write_amount(ws.cell(row=row, column=col), pair.get('amt'))
             col += span
     ws.row_dimensions[row].height = height
 
@@ -254,6 +269,15 @@ def _write_numeric(cell, value: Any) -> None:
         cell.value = None
         return
     cell.value = value
+    apply_indian_number_format(cell)
+
+
+def _write_amount(cell, value: Any) -> None:
+    """Write Abstract Amount in Rs as a whole number (half-up)."""
+    if value is None or value == '':
+        cell.value = None
+        return
+    cell.value = displayed_abstract_amount(value)
     apply_indian_number_format(cell)
 
 

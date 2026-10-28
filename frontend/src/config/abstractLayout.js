@@ -1,3 +1,5 @@
+import { formatIndianNumber, roundHalfUpWhole } from '../utils/format.js';
+
 export const ABSTRACT_SHEET_NAME = 'Abstract';
 export const ABSTRACT_TITLE = 'Trading Account Abstract';
 export const ABSTRACT_QTY_SUBHEADER = 'Qty in Gms / Cts';
@@ -19,9 +21,31 @@ export const ABSTRACT_MEASURE_GROUPS = Object.freeze([
 ]);
 
 export const ABSTRACT_AMT_ONLY_GROUPS = Object.freeze(['Gross Profit', 'CY GP %']);
+/** Percentage columns — not Amount in Rs. */
+export const ABSTRACT_PERCENT_GROUPS = Object.freeze(['CY GP %', 'CY G P %']);
 
 export function abstractColumnSpan(group) {
   return ABSTRACT_AMT_ONLY_GROUPS.includes(group) ? 1 : 2;
+}
+
+/**
+ * Nearest whole Amount for Abstract display. Below 0.5 rounds down; 0.5+ rounds up.
+ * @param {number|null|undefined} value
+ * @returns {number|null}
+ */
+export function displayedAbstractAmount(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return roundHalfUpWhole(value);
+}
+
+/**
+ * @param {number|null|undefined} value
+ * @returns {string}
+ */
+export function formatAbstractAmount(value) {
+  const rounded = displayedAbstractAmount(value);
+  if (rounded === null) return '';
+  return formatIndianNumber(rounded, { minDecimals: 0, maxDecimals: 0, fallback: '' });
 }
 
 export function abstractColumnCount() {
