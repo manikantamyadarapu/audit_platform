@@ -138,6 +138,10 @@ class TestMrDcPivots:
         assert classify_mr_dc_location('Kokapet') == 'kokapet'
         assert classify_mr_dc_location('Internal / Basheerbagh') == 'internalBasheerbagh'
         assert classify_mr_dc_location('', 'Basheerbagh') == 'internalBasheerbagh'
+        assert classify_mr_dc_location('Ho') == 'internalBasheerbagh'
+        assert classify_mr_dc_location('HO') == 'internalBasheerbagh'
+        assert classify_mr_dc_location('H.O.') == 'internalBasheerbagh'
+        assert classify_mr_dc_location('Head Office') == 'internalBasheerbagh'
         assert classify_mr_dc_location('Unknown') is None
 
     def test_mr_and_dc_stay_separate(self):

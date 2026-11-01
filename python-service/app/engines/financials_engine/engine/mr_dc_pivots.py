@@ -22,6 +22,13 @@ _INTERNAL = frozenset(
         'internal basheerbagh',
         'ist',
         'internal stock transfer',
+        # Head Office / HO — common Branch value on Jubilee Hills & Kokapet MR/DC.
+        'ho',
+        'h.o',
+        'h.o.',
+        'head office',
+        'head-office',
+        'headoffice',
     }
 )
 

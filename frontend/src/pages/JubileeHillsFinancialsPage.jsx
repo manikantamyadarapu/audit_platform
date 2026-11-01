@@ -101,6 +101,38 @@ function namesFromHeldFiles(files) {
   return next;
 }
 
+function locationPivotRowCount(tree) {
+  if (!tree || typeof tree !== 'object') return 0;
+  return Object.values(tree).reduce(
+    (total, rows) => total + (Array.isArray(rows) ? rows.length : 0),
+    0
+  );
+}
+
+/** Prefer the MR/DC tree that still has classified rows (raw transfer pivots or folded). */
+function pickMrDcPivots(result) {
+  const transferMr = result?.transferPivots?.mrPivots;
+  const transferDc = result?.transferPivots?.dcPivots;
+  const topMr = result?.mrPivots;
+  const topDc = result?.dcPivots;
+  return {
+    mrPivots:
+      locationPivotRowCount(transferMr) >= locationPivotRowCount(topMr)
+        ? transferMr || topMr || {}
+        : topMr || transferMr || {},
+    dcPivots:
+      locationPivotRowCount(transferDc) >= locationPivotRowCount(topDc)
+        ? transferDc || topDc || {}
+        : topDc || transferDc || {},
+  };
+}
+
+function jubileeTransferRowCount(result) {
+  if (!result) return 0;
+  const { mrPivots, dcPivots } = pickMrDcPivots(result);
+  return locationPivotRowCount(mrPivots) + locationPivotRowCount(dcPivots);
+}
+
 function withOpeningCandidates(result) {
   const match = result?.openingAmountMatch;
   const catalog = match?.previousYearByCategory;
@@ -309,6 +341,8 @@ export default function JubileeHillsFinancialsPage() {
     setSheetError(null);
   }, []);
 
+  const transferRebuildRef = useRef(false);
+
   const runProcess = useCallback(async () => {
     const identified = folderFiles.length
       ? classifyJubileeHillsFolderFiles(folderFiles, { financialYear })
@@ -408,6 +442,24 @@ export default function JubileeHillsFinancialsPage() {
     restoredNames,
   ]);
 
+  // Stale sessions built before Branch=Ho classification have empty Receipts/Issues.
+  // Rebuild once from held files; mapping session stays (rerun) so opening/rate maps remain.
+  useEffect(() => {
+    if (transferRebuildRef.current || loading || loadingHeld || !heldReady || !result) return;
+    if (!restoredNames.mr || !restoredNames.dc) return;
+    if (jubileeTransferRowCount(result) > 0) return;
+    transferRebuildRef.current = true;
+    runProcess();
+  }, [
+    heldReady,
+    loading,
+    loadingHeld,
+    result,
+    restoredNames.dc,
+    restoredNames.mr,
+    runProcess,
+  ]);
+
   const handleConfirmOpeningAmount = useCallback(
     async (mapping) => {
       if (!result) return;
@@ -461,7 +513,7 @@ export default function JubileeHillsFinancialsPage() {
       };
       setResult(next);
       try {
-        const transfers = result.transferPivots || {};
+        const transfers = pickMrDcPivots(result);
         const placed = await placeJubileeHillsFromPivots({
           salesPivot: next.salesPivot || [],
           purchasesPivot: next.purchasesPivot || [],
@@ -470,8 +522,8 @@ export default function JubileeHillsFinancialsPage() {
           supplierDebitNotePivot: next.supplierDebitNotePivot || [],
           supplierCreditNotePivot: next.supplierCreditNotePivot || [],
           openingPivot,
-          mrPivots: transfers.mrPivots || result.mrPivots || {},
-          dcPivots: transfers.dcPivots || result.dcPivots || {},
+          mrPivots: transfers.mrPivots,
+          dcPivots: transfers.dcPivots,
           sourceAverageRates: readSourceAverageRates(),
           receiptRateMappings: readReceiptRateMappings('jubileeHills'),
         });
@@ -502,6 +554,7 @@ export default function JubileeHillsFinancialsPage() {
   );
 
   const handleStartNew = useCallback(() => {
+    transferRebuildRef.current = false;
     setMappingSessionId(beginFinancialsMappingSession('jubilee-hills'));
     startNewAudit();
     setFolderFiles([]);
@@ -529,8 +582,7 @@ export default function JubileeHillsFinancialsPage() {
         salesPivot: result?.netSalesPivot || result?.salesPivot || [],
         purchasesPivot: result?.netPurchasesPivot || result?.purchasesPivot || [],
         openingPivot: result?.openingPivot || [],
-        mrPivots: result?.mrPivots || result?.transferPivots?.mrPivots || {},
-        dcPivots: result?.dcPivots || result?.transferPivots?.dcPivots || {},
+        ...pickMrDcPivots(result),
         ...transfer,
       });
       auditToastSuccess('Jubilee Hills workbook downloaded');
@@ -741,7 +793,7 @@ export default function JubileeHillsFinancialsPage() {
           };
           setResult(optimistic);
           try {
-            const transfers = snapshot.transferPivots || {};
+            const transfers = pickMrDcPivots(snapshot);
             const placed = await placeJubileeHillsFromPivots({
               salesPivot: snapshot.salesPivot || [],
               purchasesPivot: snapshot.purchasesPivot || [],
@@ -750,8 +802,8 @@ export default function JubileeHillsFinancialsPage() {
               supplierDebitNotePivot: snapshot.supplierDebitNotePivot || [],
               supplierCreditNotePivot: snapshot.supplierCreditNotePivot || [],
               openingPivot: snapshot.openingPivot || [],
-              mrPivots: transfers.mrPivots || snapshot.mrPivots || {},
-              dcPivots: transfers.dcPivots || snapshot.dcPivots || {},
+              mrPivots: transfers.mrPivots,
+              dcPivots: transfers.dcPivots,
               sourceAverageRates: readSourceAverageRates(),
               receiptRateMappings: readReceiptRateMappings('jubileeHills'),
             });
@@ -842,8 +894,7 @@ export default function JubileeHillsFinancialsPage() {
                 salesPivot={result?.netSalesPivot || result?.salesPivot || []}
                 purchasesPivot={result?.netPurchasesPivot || result?.purchasesPivot || []}
                 openingPivot={result?.openingPivot || []}
-                mrPivots={result?.mrPivots || result?.transferPivots?.mrPivots || {}}
-                dcPivots={result?.dcPivots || result?.transferPivots?.dcPivots || {}}
+                {...pickMrDcPivots(result)}
               />
             ) : activeSheet === ABSTRACT_SHEET_NAME ? (
               <AbstractPreviewTable
@@ -851,8 +902,7 @@ export default function JubileeHillsFinancialsPage() {
                 salesPivot={result?.netSalesPivot || result?.salesPivot || []}
                 purchasesPivot={result?.netPurchasesPivot || result?.purchasesPivot || []}
                 openingPivot={result?.openingPivot || []}
-                mrPivots={result?.mrPivots || result?.transferPivots?.mrPivots || {}}
-                dcPivots={result?.dcPivots || result?.transferPivots?.dcPivots || {}}
+                {...pickMrDcPivots(result)}
                 extraGoldAccounts
                 bodyRows={JUBILEE_ABSTRACT_BODY_ROWS}
               />

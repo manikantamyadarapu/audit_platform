@@ -1,0 +1,1037 @@
+{
+  "generated": "Closing-Stock-Jewels (12).xlsx",
+  "reference": "KOKA.xlsx",
+  "tolerancePp": 0.01,
+  "overall": {
+    "matchedProducts": 219,
+    "passCount": 139,
+    "failCount": 80,
+    "missingInReference": 2,
+    "missingInGenerated": 0,
+    "totalFail": 10,
+    "totalPass": 3
+  },
+  "sheets": [
+    {
+      "summary": {
+        "sheet": "Diamond",
+        "referenceSheet": "DAIMONDS",
+        "generatedGpPercentColumn": 30,
+        "referenceGpPercentColumn": 26,
+        "matchedProducts": 54,
+        "passCount": 25,
+        "failCount": 29,
+        "missingInReference": 2,
+        "missingInGenerated": 0,
+        "duplicateGenerated": 0,
+        "duplicateReference": 0,
+        "ambiguousMatches": 0,
+        "totalRowsCompared": 6,
+        "totalPass": 2,
+        "totalFail": 4
+      },
+      "fails": [
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 110",
+          "referenceProduct": "Di. RA 110",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 11.1982,
+          "diffPp": 88.8018,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 130",
+          "referenceProduct": "Di. RA 130",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 13.9627,
+          "diffPp": 86.0373,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 70",
+          "referenceProduct": "Di. RA 70",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 16.1179,
+          "diffPp": 83.8821,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 10",
+          "referenceProduct": "Di. RA 10",
+          "jewelsGpPct": 83.77,
+          "kokaGpPct": 1.7229,
+          "diffPp": 82.0471,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 100",
+          "referenceProduct": "Di. RA 100",
+          "jewelsGpPct": 93.74,
+          "kokaGpPct": 15.6854,
+          "diffPp": 78.0546,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 9",
+          "referenceProduct": "FP9",
+          "jewelsGpPct": 73.98,
+          "kokaGpPct": 0.1224,
+          "diffPp": 73.8576,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 5",
+          "referenceProduct": "FP5",
+          "jewelsGpPct": 71.76,
+          "kokaGpPct": 8.4086,
+          "diffPp": 63.3514,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 40",
+          "referenceProduct": "Di. RA 40",
+          "jewelsGpPct": 91.3,
+          "kokaGpPct": 29.9534,
+          "diffPp": 61.3466,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 3",
+          "referenceProduct": "FP3",
+          "jewelsGpPct": 57.95,
+          "kokaGpPct": 0.0,
+          "diffPp": 57.95,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 50",
+          "referenceProduct": "Di. RA 50",
+          "jewelsGpPct": 79.44,
+          "kokaGpPct": 24.0503,
+          "diffPp": 55.3897,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 45",
+          "referenceProduct": "Di. RA 45",
+          "jewelsGpPct": 92.43,
+          "kokaGpPct": 38.0157,
+          "diffPp": 54.4143,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 80",
+          "referenceProduct": "Di. RA 80",
+          "jewelsGpPct": 71.23,
+          "kokaGpPct": 19.137,
+          "diffPp": 52.093,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 7",
+          "referenceProduct": "FP7",
+          "jewelsGpPct": 60.9,
+          "kokaGpPct": 9.2415,
+          "diffPp": 51.6585,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "Di. RC 1",
+          "referenceProduct": "QSRC1",
+          "jewelsGpPct": 47.65,
+          "kokaGpPct": 0.0,
+          "diffPp": 47.65,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 6",
+          "referenceProduct": "FP6",
+          "jewelsGpPct": 56.9,
+          "kokaGpPct": 13.6036,
+          "diffPp": 43.2964,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 60",
+          "referenceProduct": "Di. RA 60",
+          "jewelsGpPct": 60.33,
+          "kokaGpPct": 25.4489,
+          "diffPp": 34.8811,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 30",
+          "referenceProduct": "Di. RA 30",
+          "jewelsGpPct": 69.96,
+          "kokaGpPct": 39.4388,
+          "diffPp": 30.5212,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 35",
+          "referenceProduct": "Di. RA 35",
+          "jewelsGpPct": 68.73,
+          "kokaGpPct": 41.1195,
+          "diffPp": 27.6105,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "Di. RC 4",
+          "referenceProduct": "QSRC4",
+          "jewelsGpPct": 83.73,
+          "kokaGpPct": 58.4031,
+          "diffPp": 25.3269,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "Di. RC 2",
+          "referenceProduct": "QSRC2",
+          "jewelsGpPct": 92.24,
+          "kokaGpPct": 67.9654,
+          "diffPp": 24.2746,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 15",
+          "referenceProduct": "Di. RA 15",
+          "jewelsGpPct": 27.9,
+          "kokaGpPct": 7.3554,
+          "diffPp": 20.5446,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "Di. RC 3",
+          "referenceProduct": "QSRC3",
+          "jewelsGpPct": 77.16,
+          "kokaGpPct": 61.4794,
+          "diffPp": 15.6806,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 8",
+          "referenceProduct": "FP8",
+          "jewelsGpPct": 76.99,
+          "kokaGpPct": 64.4212,
+          "diffPp": 12.5688,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 90",
+          "referenceProduct": "Di. RA 90",
+          "jewelsGpPct": 30.72,
+          "kokaGpPct": 18.2167,
+          "diffPp": 12.5033,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds",
+          "product": "Di. RA 20",
+          "referenceProduct": "Di. RA 20",
+          "jewelsGpPct": 26.34,
+          "kokaGpPct": 14.7948,
+          "diffPp": 11.5452,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 1",
+          "referenceProduct": "FP1",
+          "jewelsGpPct": 50.95,
+          "kokaGpPct": 40.0548,
+          "diffPp": 10.8952,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 4",
+          "referenceProduct": "FP4",
+          "jewelsGpPct": 24.44,
+          "kokaGpPct": 16.9942,
+          "diffPp": 7.4458,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Flat Polki",
+          "product": "Flat polki FP 2",
+          "referenceProduct": "FP2",
+          "jewelsGpPct": 76.68,
+          "kokaGpPct": 74.5617,
+          "diffPp": 2.1183,
+          "status": "FAIL"
+        },
+        {
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "Di. RC 8",
+          "referenceProduct": "QSRC8",
+          "jewelsGpPct": 0.0,
+          "kokaGpPct": null,
+          "diffPp": null,
+          "status": "FAIL"
+        }
+      ],
+      "passCount": 25,
+      "missingInKoka": [
+        {
+          "sheet": "Diamond",
+          "category": "Diamonds",
+          "product": "Di. RA 140",
+          "generatedGpPct": 0.0
+        },
+        {
+          "sheet": "Diamond",
+          "category": "Diamonds",
+          "product": "SD Di. 225",
+          "generatedGpPct": 0.0
+        }
+      ],
+      "missingInJewels": [],
+      "totals": [
+        {
+          "kind": "category_total",
+          "category": "Uncut - Diamonds",
+          "product": "TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 0.0,
+          "kokaGpPct": 0.0,
+          "diffPp": 0.0,
+          "status": "PASS",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Diamonds - Flat Polki",
+          "product": "TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 60.44,
+          "kokaGpPct": 40.8157,
+          "diffPp": 19.6243,
+          "status": "FAIL",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Diamonds - Beads",
+          "product": "TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 0.0,
+          "kokaGpPct": 0.0,
+          "diffPp": 0.0,
+          "status": "PASS",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Diamonds - Rosecut Diamonds",
+          "product": "TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 59.97,
+          "kokaGpPct": 35.1182,
+          "diffPp": 24.8518,
+          "status": "FAIL",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Diamonds",
+          "product": "TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 65.88,
+          "kokaGpPct": 28.094,
+          "diffPp": 37.786,
+          "status": "FAIL",
+          "note": null
+        },
+        {
+          "kind": "grand_total",
+          "category": "Diamonds",
+          "product": "GRAND TOTAL",
+          "referenceProduct": "GRAND TOTAL",
+          "jewelsGpPct": 65.32,
+          "kokaGpPct": 29.1557,
+          "diffPp": 36.1643,
+          "status": "FAIL",
+          "note": null
+        }
+      ],
+      "duplicatesGenerated": [],
+      "duplicatesReference": [],
+      "ambiguous": []
+    },
+    {
+      "summary": {
+        "sheet": "Emerald",
+        "referenceSheet": "EMERALDS",
+        "generatedGpPercentColumn": 30,
+        "referenceGpPercentColumn": 26,
+        "matchedProducts": 53,
+        "passCount": 36,
+        "failCount": 17,
+        "missingInReference": 0,
+        "missingInGenerated": 0,
+        "duplicateGenerated": 0,
+        "duplicateReference": 0,
+        "ambiguousMatches": 0,
+        "totalRowsCompared": 1,
+        "totalPass": 0,
+        "totalFail": 1
+      },
+      "fails": [
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 1400",
+          "referenceProduct": "JEM 1400",
+          "jewelsGpPct": 98.65,
+          "kokaGpPct": 29.9987,
+          "diffPp": 68.6513,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 1500",
+          "referenceProduct": "JEM 1500",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 31.5676,
+          "diffPp": 68.4324,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 450",
+          "referenceProduct": "JEM 450",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 32.4396,
+          "diffPp": 67.5604,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 1600",
+          "referenceProduct": "JEM 1600",
+          "jewelsGpPct": 98.22,
+          "kokaGpPct": 31.1665,
+          "diffPp": 67.0535,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 3000",
+          "referenceProduct": "JEM 3000",
+          "jewelsGpPct": 98.57,
+          "kokaGpPct": 33.7177,
+          "diffPp": 64.8523,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 6000",
+          "referenceProduct": "JEM 6000",
+          "jewelsGpPct": 74.62,
+          "kokaGpPct": 27.6461,
+          "diffPp": 46.9739,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 50",
+          "referenceProduct": "JEM 50",
+          "jewelsGpPct": 80.4,
+          "kokaGpPct": 40.1801,
+          "diffPp": 40.2199,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 150",
+          "referenceProduct": "JEM 150",
+          "jewelsGpPct": 93.12,
+          "kokaGpPct": 53.1514,
+          "diffPp": 39.9686,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 2400",
+          "referenceProduct": "JEM 2400",
+          "jewelsGpPct": 66.69,
+          "kokaGpPct": 28.788,
+          "diffPp": 37.902,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 100",
+          "referenceProduct": "JEM 100",
+          "jewelsGpPct": 89.92,
+          "kokaGpPct": 59.2832,
+          "diffPp": 30.6368,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 200",
+          "referenceProduct": "JEM 200",
+          "jewelsGpPct": 68.87,
+          "kokaGpPct": 42.7565,
+          "diffPp": 26.1135,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 9000",
+          "referenceProduct": "JEM 9000",
+          "jewelsGpPct": 42.58,
+          "kokaGpPct": 27.8874,
+          "diffPp": 14.6926,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 700",
+          "referenceProduct": "JEM 700",
+          "jewelsGpPct": 40.79,
+          "kokaGpPct": 32.5055,
+          "diffPp": 8.2845,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 350",
+          "referenceProduct": "JEM 350",
+          "jewelsGpPct": 96.3,
+          "kokaGpPct": 89.7685,
+          "diffPp": 6.5315,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 1300",
+          "referenceProduct": "JEM 1300",
+          "jewelsGpPct": 25.84,
+          "kokaGpPct": 30.7652,
+          "diffPp": -4.9252,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 500",
+          "referenceProduct": "JEM 500",
+          "jewelsGpPct": 98.84,
+          "kokaGpPct": 96.9507,
+          "diffPp": 1.8893,
+          "status": "FAIL"
+        },
+        {
+          "category": "Emeralds",
+          "product": "Emeralds JEM 1000",
+          "referenceProduct": "JEM 1000",
+          "jewelsGpPct": 36.32,
+          "kokaGpPct": 35.5165,
+          "diffPp": 0.8035,
+          "status": "FAIL"
+        }
+      ],
+      "passCount": 36,
+      "missingInKoka": [],
+      "missingInJewels": [],
+      "totals": [
+        {
+          "kind": "grand_total",
+          "category": "Emeralds",
+          "product": "GRAND TOTAL",
+          "referenceProduct": "Total",
+          "jewelsGpPct": 70.91,
+          "kokaGpPct": 57.7322,
+          "diffPp": 13.1778,
+          "status": "FAIL",
+          "note": null
+        }
+      ],
+      "duplicatesGenerated": [],
+      "duplicatesReference": [],
+      "ambiguous": []
+    },
+    {
+      "summary": {
+        "sheet": "Pearls",
+        "referenceSheet": "PERALS",
+        "generatedGpPercentColumn": 30,
+        "referenceGpPercentColumn": 26,
+        "matchedProducts": 21,
+        "passCount": 13,
+        "failCount": 8,
+        "missingInReference": 0,
+        "missingInGenerated": 0,
+        "duplicateGenerated": 0,
+        "duplicateReference": 0,
+        "ambiguousMatches": 0,
+        "totalRowsCompared": 1,
+        "totalPass": 0,
+        "totalFail": 1
+      },
+      "fails": [
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 1600",
+          "referenceProduct": "JPS 1600",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 29.4274,
+          "diffPp": 70.5726,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 150",
+          "referenceProduct": "JPS 150",
+          "jewelsGpPct": 95.36,
+          "kokaGpPct": 30.8615,
+          "diffPp": 64.4985,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 1300",
+          "referenceProduct": "JPS 1300",
+          "jewelsGpPct": 97.66,
+          "kokaGpPct": 36.3981,
+          "diffPp": 61.2619,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 250",
+          "referenceProduct": "JPS 250",
+          "jewelsGpPct": 88.93,
+          "kokaGpPct": 30.7593,
+          "diffPp": 58.1707,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 50",
+          "referenceProduct": "JPS 50",
+          "jewelsGpPct": 64.35,
+          "kokaGpPct": 28.7024,
+          "diffPp": 35.6476,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 300",
+          "referenceProduct": "JPS 300",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 64.8142,
+          "diffPp": 35.1858,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 200",
+          "referenceProduct": "JPS 200",
+          "jewelsGpPct": 97.23,
+          "kokaGpPct": 67.0183,
+          "diffPp": 30.2117,
+          "status": "FAIL"
+        },
+        {
+          "category": "Pearls :",
+          "product": "Pearls JPS 2000",
+          "referenceProduct": "JPS 2000",
+          "jewelsGpPct": 35.32,
+          "kokaGpPct": 28.5735,
+          "diffPp": 6.7465,
+          "status": "FAIL"
+        }
+      ],
+      "passCount": 13,
+      "missingInKoka": [],
+      "missingInJewels": [],
+      "totals": [
+        {
+          "kind": "grand_total",
+          "category": "Pearls :",
+          "product": "GRAND TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 59.61,
+          "kokaGpPct": 40.6967,
+          "diffPp": 18.9133,
+          "status": "FAIL",
+          "note": null
+        }
+      ],
+      "duplicatesGenerated": [],
+      "duplicatesReference": [],
+      "ambiguous": []
+    },
+    {
+      "summary": {
+        "sheet": "Rubie",
+        "referenceSheet": "RUBIE",
+        "generatedGpPercentColumn": 30,
+        "referenceGpPercentColumn": 26,
+        "matchedProducts": 40,
+        "passCount": 32,
+        "failCount": 8,
+        "missingInReference": 0,
+        "missingInGenerated": 0,
+        "duplicateGenerated": 0,
+        "duplicateReference": 0,
+        "ambiguousMatches": 0,
+        "totalRowsCompared": 1,
+        "totalPass": 0,
+        "totalFail": 1
+      },
+      "fails": [
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 1800",
+          "referenceProduct": "JRU 1800",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 33.2144,
+          "diffPp": 66.7856,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 200",
+          "referenceProduct": "JRU 200",
+          "jewelsGpPct": 85.27,
+          "kokaGpPct": 28.2367,
+          "diffPp": 57.0333,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 50",
+          "referenceProduct": "JRU 50",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 55.7869,
+          "diffPp": 44.2131,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 500",
+          "referenceProduct": "JRU 500",
+          "jewelsGpPct": 71.54,
+          "kokaGpPct": 32.2687,
+          "diffPp": 39.2713,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 100",
+          "referenceProduct": "JRU 100",
+          "jewelsGpPct": 61.81,
+          "kokaGpPct": 23.8968,
+          "diffPp": 37.9132,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 1000",
+          "referenceProduct": "JRU 1000",
+          "jewelsGpPct": 47.61,
+          "kokaGpPct": 30.9887,
+          "diffPp": 16.6213,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 450",
+          "referenceProduct": "JRU 450",
+          "jewelsGpPct": 96.98,
+          "kokaGpPct": 88.7211,
+          "diffPp": 8.2589,
+          "status": "FAIL"
+        },
+        {
+          "category": "Rubies",
+          "product": "Rubies JRU 150",
+          "referenceProduct": "JRU 150",
+          "jewelsGpPct": 97.55,
+          "kokaGpPct": 91.1691,
+          "diffPp": 6.3809,
+          "status": "FAIL"
+        }
+      ],
+      "passCount": 32,
+      "missingInKoka": [],
+      "missingInJewels": [],
+      "totals": [
+        {
+          "kind": "grand_total",
+          "category": "Rubies",
+          "product": "GRAND TOTAL",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 62.75,
+          "kokaGpPct": 57.5363,
+          "diffPp": 5.2137,
+          "status": "FAIL",
+          "note": null
+        }
+      ],
+      "duplicatesGenerated": [],
+      "duplicatesReference": [],
+      "ambiguous": []
+    },
+    {
+      "summary": {
+        "sheet": "Precious and Semi Precious",
+        "referenceSheet": "PRECIOUS",
+        "generatedGpPercentColumn": 30,
+        "referenceGpPercentColumn": 26,
+        "matchedProducts": 51,
+        "passCount": 33,
+        "failCount": 18,
+        "missingInReference": 0,
+        "missingInGenerated": 0,
+        "duplicateGenerated": 0,
+        "duplicateReference": 0,
+        "ambiguousMatches": 0,
+        "totalRowsCompared": 4,
+        "totalPass": 1,
+        "totalFail": 3
+      },
+      "fails": [
+        {
+          "category": "Semi Precious",
+          "product": "Semi Precious JSP 200",
+          "referenceProduct": "JSP 200",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 24.5928,
+          "diffPp": 75.4072,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 5600",
+          "referenceProduct": "JOS 5600",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 26.9862,
+          "diffPp": 73.0138,
+          "status": "FAIL"
+        },
+        {
+          "category": "Semi Precious",
+          "product": "Semi precious JSP 900",
+          "referenceProduct": "JSP 900",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 28.3141,
+          "diffPp": 71.6859,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious Stones JOS 4000",
+          "referenceProduct": "JOS 4000",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 28.5306,
+          "diffPp": 71.4694,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious Stones JOS 3500",
+          "referenceProduct": "JOS 3500",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 28.5713,
+          "diffPp": 71.4287,
+          "status": "FAIL"
+        },
+        {
+          "category": "Semi Precious",
+          "product": "Semi precious JSP 300",
+          "referenceProduct": "JSP 300",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 30.4322,
+          "diffPp": 69.5678,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 5000",
+          "referenceProduct": "JOS 5000",
+          "jewelsGpPct": 96.23,
+          "kokaGpPct": 27.6342,
+          "diffPp": 68.5958,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 2200",
+          "referenceProduct": "JOS 2200",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 35.1092,
+          "diffPp": 64.8908,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 2500",
+          "referenceProduct": "JOS 2500",
+          "jewelsGpPct": 99.81,
+          "kokaGpPct": 36.2534,
+          "diffPp": 63.5566,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 1800",
+          "referenceProduct": "JOS 1800",
+          "jewelsGpPct": 94.9,
+          "kokaGpPct": 31.3476,
+          "diffPp": 63.5524,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 1600",
+          "referenceProduct": "JOS 1600",
+          "jewelsGpPct": 88.63,
+          "kokaGpPct": 30.6908,
+          "diffPp": 57.9392,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 2000",
+          "referenceProduct": "JOS 2000",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 42.0991,
+          "diffPp": 57.9009,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 3000",
+          "referenceProduct": "JOS 3000",
+          "jewelsGpPct": 84.27,
+          "kokaGpPct": 31.5572,
+          "diffPp": 52.7128,
+          "status": "FAIL"
+        },
+        {
+          "category": "Semi Precious",
+          "product": "Semi precious JSP 100",
+          "referenceProduct": "JSP 100",
+          "jewelsGpPct": 83.36,
+          "kokaGpPct": 31.4925,
+          "diffPp": 51.8675,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 900",
+          "referenceProduct": "JOS 900",
+          "jewelsGpPct": 89.29,
+          "kokaGpPct": 44.0487,
+          "diffPp": 45.2413,
+          "status": "FAIL"
+        },
+        {
+          "category": "Precious Stones",
+          "product": "Precious stones JOS 200",
+          "referenceProduct": "JOS 200",
+          "jewelsGpPct": 64.99,
+          "kokaGpPct": 20.646,
+          "diffPp": 44.344,
+          "status": "FAIL"
+        },
+        {
+          "category": "Semi Precious",
+          "product": "Semi precious JSP 50",
+          "referenceProduct": "JSP 50",
+          "jewelsGpPct": 100.0,
+          "kokaGpPct": 55.7751,
+          "diffPp": 44.2249,
+          "status": "FAIL"
+        },
+        {
+          "category": "Semi Precious",
+          "product": "Semi Precious JSP 350",
+          "referenceProduct": "JSP 350",
+          "jewelsGpPct": 0.0,
+          "kokaGpPct": null,
+          "diffPp": null,
+          "status": "FAIL"
+        }
+      ],
+      "passCount": 33,
+      "missingInKoka": [],
+      "missingInJewels": [],
+      "totals": [
+        {
+          "kind": "category_total",
+          "category": "Precious Stones",
+          "product": "TOTAL - PRECIOUS STONES",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 62.67,
+          "kokaGpPct": 39.3366,
+          "diffPp": 23.3334,
+          "status": "FAIL",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Semi Precious",
+          "product": "TOTAL - SEMI PRECIOUS",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 93.3,
+          "kokaGpPct": 38.5755,
+          "diffPp": 54.7245,
+          "status": "FAIL",
+          "note": null
+        },
+        {
+          "kind": "category_total",
+          "category": "Synthetic Stones",
+          "product": "TOTAL - SYNTHETIC STONES",
+          "referenceProduct": "TOTAL",
+          "jewelsGpPct": 27.69,
+          "kokaGpPct": 27.6883,
+          "diffPp": 0.0017,
+          "status": "PASS",
+          "note": null
+        },
+        {
+          "kind": "grand_total",
+          "category": "Synthetic Stones",
+          "product": "GRAND TOTAL",
+          "referenceProduct": "GRAND TOTAL",
+          "jewelsGpPct": 64.18,
+          "kokaGpPct": 39.278,
+          "diffPp": 24.902,
+          "status": "FAIL",
+          "note": null
+        }
+      ],
+      "duplicatesGenerated": [],
+      "duplicatesReference": [],
+      "ambiguous": []
+    }
+  ]
+}
