@@ -9,13 +9,14 @@ export function loadJubileeOpeningMappings() {
   return readOpeningStockMappings(JUBILEE_BRANCH);
 }
 
-export function saveJubileeOpeningMapping(product, previousYearProducts) {
+export function saveJubileeOpeningMapping(product, previousYearProducts, extras = {}) {
   const names = (Array.isArray(previousYearProducts) ? previousYearProducts : [previousYearProducts])
     .map((item) => String(item || '').trim())
     .filter(Boolean);
   return saveOpeningStockMapping(JUBILEE_BRANCH, {
     product,
     previousYearProducts: names,
+    openingQtySource: extras.openingQtySource,
   });
 }
 
@@ -79,6 +80,7 @@ export function JubileeOpeningAmountPanel({ match, onConfirm, scopeId = '' }) {
             category: mapping.category,
             subcategory: mapping.subcategory,
             openingQty: mapping.openingQty,
+            openingQtySource: mapping.openingQtySource,
             previousYearProduct: names[0] || '',
             previousYearProducts: names,
             openingAmt: mapping.openingAmt,

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roundHalfUpWhole } from './format.js';
+import { roundHalfDownWhole, roundHalfUpWhole } from './format.js';
 
 test('average rate rounds below, at, and above 0.5', () => {
   assert.equal(roundHalfUpWhole(10.49), 10);
@@ -11,6 +11,14 @@ test('average rate rounds below, at, and above 0.5', () => {
   assert.equal(roundHalfUpWhole(10.51), 11);
   assert.equal(roundHalfUpWhole(0.49), 0);
   assert.equal(roundHalfUpWhole(0.5), 1);
+});
+
+test('amount values round 0.5 or less down and above 0.5 up', () => {
+  assert.equal(roundHalfDownWhole(10.49), 10);
+  assert.equal(roundHalfDownWhole(10.5), 10);
+  assert.equal(roundHalfDownWhole(10.51), 11);
+  assert.equal(roundHalfDownWhole(0.5), 0);
+  assert.equal(roundHalfDownWhole(0.51), 1);
 });
 
 test('closing stock preview and export round only the Average Rate display', () => {
@@ -28,4 +36,6 @@ test('closing stock preview and export round only the Average Rate display', () 
   assert.match(template, /def displayed_average_rate/);
   assert.match(template, /measure_key == 'averageRateAmt'/);
   assert.match(template, /ROUND_HALF_UP/);
+  assert.match(template, /round_amount_whole/);
+  assert.match(template, /measure_key.endswith\('Amt'\)/);
 });

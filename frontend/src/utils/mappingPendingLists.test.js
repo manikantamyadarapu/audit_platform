@@ -213,6 +213,24 @@ test('abstract closing balances become the opening amount and leave the pending 
   assert.equal(basheerbagh.openingAmountMatch, start.openingAmountMatch);
 });
 
+test('map with difference can write previous-year closing qty onto the sheet', () => {
+  memory.clear();
+  const start = resultWith([
+    pendingRow('Standard Gold 24K', 'Gold', [
+      { product: 'Gold Account 24K', source: 'abstract', closingStockAmount: 618634, closingStockQty: 164.645 },
+    ]),
+  ]);
+  saveOpeningStockMapping('jubilee-hills', {
+    product: 'Standard Gold 24K',
+    previousYearProducts: ['Gold Account 24K'],
+    openingQtySource: 'previousYear',
+  });
+  const next = reapplyOpeningStockMappings(start, 'jubilee-hills');
+  const mapped = next.openingPivot.find((row) => row.product === 'Standard Gold 24K');
+  assert.equal(mapped.sumOfQuantity, 164.645);
+  assert.equal(mapped.sumOfGross, 618634);
+});
+
 test('a failed receipt mapping keeps the original review row', () => {
   const rows = [{ product: 'Ring', category: 'Diamond', sourceBranch: 'basheerbagh', column: 'qty' }];
   const snapshot = rows;

@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from app.engines.financials_engine.engine.closing_stock_template import CLOSING_STOCK_CATEGORIES
 from app.engines.financials_engine.engine.jubilee_hills_template import (
     build_jubilee_hills_structure_bytes,
+    build_jubilee_hills_workbook_bytes,
 )
 
 
@@ -74,8 +75,54 @@ def test_jubilee_hills_workbook_is_structure_only():
         abstract.cell(row=row, column=1).value for row in range(1, abstract.max_row + 1)
     ]
     assert 'Gold Account 24K' in abstract_labels
+    assert abstract_labels.index('Gold Account 14K') < abstract_labels.index('Platinum Account')
+    assert abstract_labels.index('Platinum Account') < abstract_labels.index('Gold Account Jadau')
+    assert abstract_labels.index('Gold Account Jadau') < abstract_labels.index('Silver Account')
     assert 'Diamonds - Beads' in abstract_labels
     assert 'TOTAL' in abstract_labels
     for row in abstract.iter_rows(min_row=4, max_row=abstract.max_row, min_col=2, max_col=abstract.max_column):
         for cell in row:
             assert not isinstance(cell.value, (int, float))
+
+
+def test_jubilee_hills_abstract_fills_platinum_and_jadau_with_gold_accounts():
+    raw = build_jubilee_hills_workbook_bytes(
+        layout_by_category={'Diamond': [{'kind': 'grand_total', 'label': 'GRAND TOTAL'}]},
+        opening_pivot=[
+            {'product': 'Standard Gold 24K', 'sumOfQuantity': 10, 'sumOfGross': 1000},
+            {'product': 'Gold Platinum', 'sumOfQuantity': 164.645, 'sumOfGross': 618634},
+            {'product': 'Gold Ornaments Jadau', 'sumOfQuantity': 5, 'sumOfGross': 500},
+        ],
+        purchases_pivot=[
+            {'product': 'Gold Platinum', 'sumOfQuantity': 1, 'sumOfGross': 4000},
+            {'product': 'Gold Ornaments Jadau', 'sumOfQuantity': 2, 'sumOfGross': 200},
+        ],
+        sales_pivot=[
+            {'product': 'Gold Platinum', 'sumOfQuantity': 3, 'sumOfGross': 12000},
+            {'product': 'Gold Ornaments Jadau', 'sumOfQuantity': 1, 'sumOfGross': 110},
+        ],
+    )
+    ws = load_workbook(BytesIO(raw))['Abstract']
+    labels = [ws.cell(row=row, column=1).value for row in range(1, ws.max_row + 1)]
+    assert labels.index('Gold Account 14K') < labels.index('Platinum Account')
+    assert labels.index('Platinum Account') < labels.index('Gold Account Jadau')
+    assert labels.index('Gold Account Jadau') < labels.index('Silver Account')
+
+    def row_for(label):
+        for r in range(4, ws.max_row + 1):
+            if ws.cell(row=r, column=1).value == label:
+                return r
+        raise AssertionError(label)
+
+    platinum = row_for('Platinum Account')
+    jadau = row_for('Gold Account Jadau')
+    gold24 = row_for('Gold Account 24K')
+    assert ws.cell(row=gold24, column=2).value == 10
+    assert ws.cell(row=platinum, column=2).value == 164.645
+    assert ws.cell(row=platinum, column=3).value == 618634
+    assert ws.cell(row=platinum, column=4).value == 1
+    assert ws.cell(row=platinum, column=5).value == 4000
+    assert ws.cell(row=jadau, column=2).value == 5
+    assert ws.cell(row=jadau, column=3).value == 500
+    assert ws.cell(row=jadau, column=4).value == 2
+    assert ws.cell(row=jadau, column=5).value == 200

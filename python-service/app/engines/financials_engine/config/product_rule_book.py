@@ -7,9 +7,11 @@ import json
 import re
 import unicodedata
 from collections import OrderedDict
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from app.engines.financials_engine.engine.amount_rounding import round_amount_whole_float
 
 from app.engines.financials_engine.engine.closing_stock_template import (
     CATEGORIES_WITH_SUBCATEGORIES,
@@ -130,14 +132,13 @@ def _opening_balance_blank_or_zero(row: Mapping[str, Any]) -> bool:
 
 def _round_closing_stock_measure(value: float | None) -> float | None:
     """
-    Round a Closing Stock display value to the nearest whole number.
+    Round a Closing Stock Amount to a whole rupee.
 
-    Decimal < 0.5 → down; decimal >= 0.5 → up.
-    Used for product cells and for the final TOTAL after summing unrounded values.
+    Decimal 0.5 or less stays on the same integer; greater than 0.5 goes up.
+    Quantity is never rounded. Used for product cells and for TOTAL after summing
+    unrounded values.
     """
-    if value is None:
-        return None
-    return float(Decimal(str(value)).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    return round_amount_whole_float(value)
 
 
 def _clean_product_list(entries: Sequence[Any]) -> list[str]:
@@ -1017,7 +1018,7 @@ def _add_stock_section_totals(raw: dict[str, float | None]) -> dict[str, float |
 
 
 def _add_average_rate(raw: dict[str, float | None]) -> dict[str, float | None]:
-    """Average Rate Amount = Total Amount / Total Qty. Qty 0 → 0. Does not change Totals."""
+    """Average Rate = Total Amount / Total Qty at full precision. Qty 0 → 0."""
     total_qty = _coerce_measure(raw.get('totalQty'))
     total_amt = _coerce_measure(raw.get('totalAmt'))
     if total_qty is None and total_amt is None:
@@ -1026,12 +1027,7 @@ def _add_average_rate(raw: dict[str, float | None]) -> dict[str, float | None]:
     if total_qty is None or total_qty == 0:
         raw['averageRateAmt'] = 0.0
         return raw
-    raw['averageRateAmt'] = float(
-        (Decimal(str(total_amt or 0)) / Decimal(str(total_qty))).quantize(
-            Decimal('0.0001'),
-            rounding=ROUND_HALF_UP,
-        )
-    )
+    raw['averageRateAmt'] = float(Decimal(str(total_amt or 0)) / Decimal(str(total_qty)))
     return raw
 
 
@@ -1042,9 +1038,20 @@ _ISSUE_AMT_BY_QTY: tuple[tuple[str, str], ...] = (
 )
 
 
-def _add_issues_amounts(raw: dict[str, float | None]) -> dict[str, float | None]:
-    """Issue Amount = Issue Qty × Average Rate. Qty 0 → 0. Does not change Issue Qty."""
+def _amount_at_raw_average_rate(raw: Mapping[str, float | None], qty: float) -> float:
+    """Qty × (Total Amount / Total Qty), not the displayed Average Rate."""
+    total_qty = _coerce_measure(raw.get('totalQty'))
+    total_amt = _coerce_measure(raw.get('totalAmt'))
+    if total_qty is not None and total_qty != 0 and total_amt is not None:
+        return float(
+            Decimal(str(qty)) * Decimal(str(total_amt)) / Decimal(str(total_qty))
+        )
     rate = _coerce_measure(raw.get('averageRateAmt'))
+    return float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+
+
+def _add_issues_amounts(raw: dict[str, float | None]) -> dict[str, float | None]:
+    """Issue Amount = Issue Qty × raw Average Rate. Qty 0 → 0. Does not change Issue Qty."""
     for qty_key, amt_key in _ISSUE_AMT_BY_QTY:
         qty = _coerce_measure(raw.get(qty_key))
         if qty is None:
@@ -1053,7 +1060,7 @@ def _add_issues_amounts(raw: dict[str, float | None]) -> dict[str, float | None]
         if qty == 0:
             raw[amt_key] = 0.0
             continue
-        raw[amt_key] = float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+        raw[amt_key] = _amount_at_raw_average_rate(raw, qty)
     issues_total_amt = _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
     raw['issuesTotalAmt'] = issues_total_amt
     return raw
@@ -1067,7 +1074,7 @@ _ISSUE_QTY_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_qty(raw: Mapping[str, float | None]) -> float | None:
-    """Issues Total Qty = Internal + Jubilee Hills + Kokapet."""
+    """Issues Total Qty = Internal + Banjara Hills + Kokapet."""
     return _sum_qty_parts(raw, _ISSUE_QTY_KEYS)
 
 
@@ -1087,8 +1094,7 @@ def _add_closing_stock(raw: dict[str, float | None]) -> dict[str, float | None]:
         - Decimal(str(issues_total_qty or 0))
     )
     raw['closingStockQty'] = qty
-    rate = _coerce_measure(raw.get('averageRateAmt'))
-    raw['closingStockAmt'] = float(Decimal(str(qty)) * Decimal(str(rate or 0)))
+    raw['closingStockAmt'] = _amount_at_raw_average_rate(raw, qty)
     return raw
 
 
@@ -1100,7 +1106,7 @@ _ISSUE_AMT_KEYS: tuple[str, ...] = (
 
 
 def _issues_total_amt(raw: Mapping[str, float | None]) -> float | None:
-    """Issues Total Amount = Internal + Jubilee Hills + Kokapet."""
+    """Issues Total Amount = Internal + Banjara Hills + Kokapet."""
     return _sum_qty_parts(raw, _ISSUE_AMT_KEYS)
 
 
@@ -1135,12 +1141,7 @@ def _add_gross_profit_pct(raw: dict[str, float | None]) -> dict[str, float | Non
         return raw
     sales_amt = _coerce_measure(raw.get('salesAmt'))
     if gp_amt > 0 and sales_amt is not None and sales_amt != 0:
-        raw['grossProfitPct'] = float(
-            (Decimal(str(gp_amt)) / Decimal(str(sales_amt))).quantize(
-                Decimal('0.0001'),
-                rounding=ROUND_HALF_UP,
-            )
-        )
+        raw['grossProfitPct'] = float(Decimal(str(gp_amt)) / Decimal(str(sales_amt)))
         return raw
     raw['grossProfitPct'] = 0.0
     return raw
@@ -1179,15 +1180,8 @@ def _raw_product_measures(
 
 
 def _display_product_measures(raw: Mapping[str, float | None]) -> dict[str, float | None]:
-    """Product-level display: round Amounts only; Quantity stays exact."""
-    display = {
-        key: (
-            _round_closing_stock_measure(raw.get(key))
-            if key.endswith('Amt')
-            else raw.get(key)
-        )
-        for key in _MEASURE_KEYS
-    }
+    """Layout keeps calculation precision. Preview and Excel round only when presenting."""
+    display = {key: raw.get(key) for key in _MEASURE_KEYS}
     display['averageRateAmt'] = raw.get('averageRateAmt')
     display['grossProfitPct'] = raw.get('grossProfitPct')
     return display
@@ -1230,9 +1224,8 @@ def _total_measures_from_raw(
     """
     TOTAL / GRAND TOTAL: each column is SUM of product rows in that group.
 
-    Amounts: ROUND(SUM(unrounded)) — never sum of already-rounded product cells.
-    Quantity: SUM(unrounded) with no rounding.
-    Average Rate stays Total Amt / Total Qty (not a sum of rates).
+    Amounts and quantities stay unrounded sums. Average Rate is Total Amt / Total Qty.
+    Preview and Excel apply display rounding when presenting.
     """
     totals: dict[str, float] = {}
     present: set[str] = set()
@@ -1247,8 +1240,6 @@ def _total_measures_from_raw(
     def _finalize(key: str) -> float | None:
         if key not in present:
             return None
-        if key.endswith('Amt'):
-            return _round_closing_stock_measure(totals[key])
         return totals[key]
 
     return _add_gross_profit_pct(_add_average_rate({key: _finalize(key) for key in _MEASURE_KEYS}))
@@ -1321,7 +1312,8 @@ def _build_layout_for_category(
     Build one category sheet from the Sales, Purchases, and Opening catalog.
 
     Rule Book names that are not in those files are not listed.
-    Product Amounts are rounded for display; TOTAL Amounts use ROUND(SUM(unrounded)).
+    Product and TOTAL values stay at calculation precision; display rounding is applied
+    only in preview and Excel output.
     """
     layout: list[dict[str, Any]] = []
     flat_products: list[str] = []
@@ -1561,10 +1553,10 @@ def _build_reconciliation(
         return abs(a - b) <= 1e-4
 
     mapped_matches_output = (
-        _eq(rounded_sales_qty, out_sales_qty)
-        and _eq(rounded_sales_amt, out_sales_amt)
-        and _eq(rounded_purchases_qty, out_purchases_qty)
-        and _eq(rounded_purchases_amt, out_purchases_amt)
+        _eq(mapped_sales_qty, out_sales_qty)
+        and _eq(mapped_sales_amt, out_sales_amt)
+        and _eq(mapped_purchases_qty, out_purchases_qty)
+        and _eq(mapped_purchases_amt, out_purchases_amt)
     )
     pivot_matches_output = (
         _eq(pivot_sales_qty, out_sales_qty)
@@ -1861,6 +1853,7 @@ def _apply_branch_receipt_amounts(
         mapped.get('layoutByCategory'),
         destination=destination_branch,
         source_average_rates=source_average_rates,
+        receipt_rate_mappings=receipt_rate_mappings,
     )
     mapped['layoutByCategory'] = applied['layoutByCategory']
     mapped['receiptAmountReview'] = applied['receiptAmountReview']

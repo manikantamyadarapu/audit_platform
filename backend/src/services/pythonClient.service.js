@@ -952,6 +952,19 @@ async function postFinancialsRemapClosingStock(payload, options = {}) {
   }
 }
 
+async function postFinancialsFillReceiptAmounts(payload, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.requestId) headers['x-request-id'] = options.requestId;
+  try {
+    const { data } = await client.post('/api/process/financials/fill-receipt-amounts', payload, {
+      headers,
+    });
+    return data;
+  } catch (err) {
+    throw mapAxiosError(err);
+  }
+}
+
 async function postJubileeHillsFinancials(files, options = {}) {
   const form = new FormData();
   const fields = [
@@ -1030,5 +1043,6 @@ module.exports = {
   postFinancialsExportClosingStock,
   getClosingStockRuleBook,
   postFinancialsRemapClosingStock,
+  postFinancialsFillReceiptAmounts,
   postJubileeHillsPlace,
 };

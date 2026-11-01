@@ -108,6 +108,11 @@ router.post(
   financialsController.remapClosingStock
 );
 router.post(
+  '/fill-receipt-amounts',
+  express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
+  financialsController.fillReceiptAmounts
+);
+router.post(
   '/jubilee-hills/place',
   express.json({ limit: REQUEST_BODY_JSON_LIMIT }),
   financialsController.placeJubileeHillsSheets

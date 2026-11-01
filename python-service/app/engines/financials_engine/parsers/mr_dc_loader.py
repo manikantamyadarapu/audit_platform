@@ -157,6 +157,8 @@ def load_transfer_workbook(
     gross_col = column_map['gross_amount']
     branch_col = column_map['branch']
     party_col = column_map.get('party')
+    voucher_col = column_map.get('voucher_no')
+    date_col = column_map.get('date')
 
     rows: list[dict[str, Any]] = []
     for _, series in dataframe.iterrows():
@@ -170,6 +172,8 @@ def load_transfer_workbook(
                 'grossAmount': parse_numeric_value(series.get(gross_col)),
                 'branch': _display_text(series.get(branch_col)),
                 'party': _display_text(series.get(party_col)) if party_col else '',
+                'voucherNo': _display_text(series.get(voucher_col)) if voucher_col else '',
+                'date': _display_text(series.get(date_col)) if date_col else '',
             }
         )
     return rows

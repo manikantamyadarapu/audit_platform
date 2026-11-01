@@ -17,6 +17,17 @@ function branchFromParams(req) {
   return branch;
 }
 
+function heldErrorResponse(err, req, res, next) {
+  if (err.status) {
+    return res.status(err.status).json({
+      success: false,
+      detail: err.message,
+      requestId: req.requestId,
+    });
+  }
+  return next(err);
+}
+
 function sendExcelDownload(res, file, requestId) {
   if (file.contentDisposition) {
     res.setHeader('Content-Disposition', file.contentDisposition);
@@ -26,6 +37,25 @@ function sendExcelDownload(res, file, requestId) {
     res.setHeader('x-request-id', requestId);
   }
   return res.send(file.buffer);
+}
+
+function sixFileProcessBranch(req) {
+  return String(req.body?.destinationBranch || '').trim() === 'kokapet'
+    ? 'kokapet'
+    : 'basheerbagh';
+}
+
+function formJsonField(value, empty) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || empty;
+  }
+  if (value == null) return empty;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return empty;
+  }
 }
 
 function processBasheerbaghFinancials(req, res, next) {
@@ -40,15 +70,13 @@ function processKokapetFinancials(req, res, next) {
 
 async function processFinancialsPivot(req, res, next) {
   try {
-    const branch =
-      req.body?.destinationBranch === 'kokapet' ? 'kokapet' : 'basheerbagh';
-    const files = await heldFinancialsService.resolveProcessFiles(req, branch);
-    const salesFile = files?.salesFile?.[0];
-    const purchasesFile = files?.purchasesFile?.[0];
-    const openingQtyFile = files?.openingQtyFile?.[0];
-    const previousYearFile = files?.previousYearFile?.[0];
-    const mrFile = files?.mrFile?.[0];
-    const dcFile = files?.dcFile?.[0];
+    req.files = await heldFinancialsService.resolveProcessFiles(req, sixFileProcessBranch(req));
+    const salesFile = req.files?.salesFile?.[0];
+    const purchasesFile = req.files?.purchasesFile?.[0];
+    const openingQtyFile = req.files?.openingQtyFile?.[0];
+    const previousYearFile = req.files?.previousYearFile?.[0];
+    const mrFile = req.files?.mrFile?.[0];
+    const dcFile = req.files?.dcFile?.[0];
 
     if (!salesFile?.buffer) {
       return res.status(400).json({
@@ -95,14 +123,12 @@ async function processFinancialsPivot(req, res, next) {
 
     logger.info('Financials pivot: forwarding to Python', {
       requestId: req.requestId,
-      branch,
       salesFile: salesFile.originalname,
       purchasesFile: purchasesFile.originalname,
       openingQtyFile: openingQtyFile.originalname,
       previousYearFile: previousYearFile.originalname,
       mrFile: mrFile.originalname,
       dcFile: dcFile.originalname,
-      fromHeld: !req.files?.salesFile?.[0]?.buffer,
     });
 
     const { data, auditRunId } = await financialsService.processFinancialsPivot(
@@ -117,11 +143,7 @@ async function processFinancialsPivot(req, res, next) {
     return res.json({ ...data, auditRunId });
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({
-        success: false,
-        detail: err.message,
-        requestId: req.requestId,
-      });
+      return heldErrorResponse(err, req, res, next);
     }
     financialsService.notifyFinancialsPivotFailure(req, err);
     return next(err);
@@ -235,6 +257,57 @@ async function processSalesPurchasesPivots(req, res, next) {
   }
 }
 
+async function holdFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        detail: 'Authentication required',
+        requestId: req.requestId,
+      });
+    }
+    const data = await heldFinancialsService.holdBranchFiles(req.user.id, branch, req.files);
+    return res.json({ success: true, ...data, requestId: req.requestId });
+  } catch (err) {
+    return heldErrorResponse(err, req, res, next);
+  }
+}
+
+async function listHeldFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        detail: 'Authentication required',
+        requestId: req.requestId,
+      });
+    }
+    const data = await heldFinancialsService.listHeldFiles(req.user.id, branch);
+    return res.json({ success: true, ...data, requestId: req.requestId });
+  } catch (err) {
+    return heldErrorResponse(err, req, res, next);
+  }
+}
+
+async function clearHeldFinancialsBranchFiles(req, res, next) {
+  try {
+    const branch = branchFromParams(req);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        detail: 'Authentication required',
+        requestId: req.requestId,
+      });
+    }
+    const data = await heldFinancialsService.clearBranchFiles(req.user.id, branch);
+    return res.json({ success: true, branch, ...data, requestId: req.requestId });
+  } catch (err) {
+    return heldErrorResponse(err, req, res, next);
+  }
+}
+
 function exportBasheerbaghPivots(req, res, next) {
   req.financialsBranch = 'basheerbagh';
   return exportFinancialsPivots(req, res, next);
@@ -286,14 +359,37 @@ async function exportJubileeHillsTemplate(req, res, next) {
     const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName : '';
     const address = typeof req.body?.address === 'string' ? req.body.address : '';
     const financialYear = typeof req.body?.financialYear === 'string' ? req.body.financialYear : '';
+    const body = req.body || {};
     const file = await financialsService.exportJubileeHillsTemplate(req, {
       companyName,
       address,
       financialYear,
-      layoutByCategory: req.body?.layoutByCategory || null,
-      salesPivot: Array.isArray(req.body?.salesPivot) ? req.body.salesPivot : [],
-      purchasesPivot: Array.isArray(req.body?.purchasesPivot) ? req.body.purchasesPivot : [],
-      openingPivot: Array.isArray(req.body?.openingPivot) ? req.body.openingPivot : [],
+      destinationBranch: body.destinationBranch == null ? 'jubileeHills' : String(body.destinationBranch),
+      layoutByCategory: body.layoutByCategory && typeof body.layoutByCategory === 'object' ? body.layoutByCategory : {},
+      salesPivot: Array.isArray(body.salesPivot) ? body.salesPivot : [],
+      purchasesPivot: Array.isArray(body.purchasesPivot) ? body.purchasesPivot : [],
+      openingPivot: Array.isArray(body.openingPivot) ? body.openingPivot : [],
+      mrPivots: body.mrPivots && typeof body.mrPivots === 'object' ? body.mrPivots : {},
+      dcPivots: body.dcPivots && typeof body.dcPivots === 'object' ? body.dcPivots : {},
+      sourceAverageRates:
+        body.sourceAverageRates && typeof body.sourceAverageRates === 'object' ? body.sourceAverageRates : {},
+      receiptRateMappings: Array.isArray(body.receiptRateMappings) ? body.receiptRateMappings : [],
+      sourceIssueLayouts:
+        body.sourceIssueLayouts && typeof body.sourceIssueLayouts === 'object' ? body.sourceIssueLayouts : {},
+      sourceOpeningComplete:
+        body.sourceOpeningComplete && typeof body.sourceOpeningComplete === 'object'
+          ? body.sourceOpeningComplete
+          : {},
+      sourceOpeningPending:
+        body.sourceOpeningPending && typeof body.sourceOpeningPending === 'object'
+          ? body.sourceOpeningPending
+          : {},
+      sourceTransferLines:
+        body.sourceTransferLines && typeof body.sourceTransferLines === 'object' ? body.sourceTransferLines : {},
+      destinationTransferLines:
+        body.destinationTransferLines && typeof body.destinationTransferLines === 'object'
+          ? body.destinationTransferLines
+          : {},
     });
     return sendExcelDownload(res, file, req.requestId);
   } catch (err) {
@@ -340,9 +436,15 @@ async function exportClosingStockTemplate(req, res, next) {
       companyName: parsed.companyName,
       address: parsed.address,
       financialYear: parsed.financialYear,
-      destinationBranch: parsed.destinationBranch,
+      destinationBranch: parsed.destinationBranch || req.financialsBranch || '',
       sourceAverageRates: parsed.sourceAverageRates,
       receiptRateMappings: parsed.receiptRateMappings,
+      layoutByCategory: parsed.layoutByCategory,
+      sourceIssueLayouts: parsed.sourceIssueLayouts,
+      sourceOpeningComplete: parsed.sourceOpeningComplete,
+      sourceOpeningPending: parsed.sourceOpeningPending,
+      sourceTransferLines: parsed.sourceTransferLines,
+      destinationTransferLines: parsed.destinationTransferLines,
     });
     return sendExcelDownload(res, file, req.requestId);
   } catch (err) {
@@ -415,9 +517,57 @@ async function remapClosingStock(req, res, next) {
   }
 }
 
+async function fillReceiptAmounts(req, res, next) {
+  try {
+    const body = req.body;
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({
+        success: false,
+        detail: 'Request body must be a JSON object',
+        requestId: req.requestId,
+      });
+    }
+    const data = await financialsService.fillReceiptAmounts(req, {
+      destinationBranch: body.destinationBranch == null ? '' : String(body.destinationBranch),
+      layoutByCategory:
+        body.layoutByCategory && typeof body.layoutByCategory === 'object'
+          ? body.layoutByCategory
+          : {},
+      sourceAverageRates:
+        body.sourceAverageRates && typeof body.sourceAverageRates === 'object'
+          ? body.sourceAverageRates
+          : {},
+      receiptRateMappings: Array.isArray(body.receiptRateMappings) ? body.receiptRateMappings : [],
+      sourceIssueLayouts:
+        body.sourceIssueLayouts && typeof body.sourceIssueLayouts === 'object'
+          ? body.sourceIssueLayouts
+          : {},
+      sourceOpeningComplete:
+        body.sourceOpeningComplete && typeof body.sourceOpeningComplete === 'object'
+          ? body.sourceOpeningComplete
+          : {},
+      sourceOpeningPending:
+        body.sourceOpeningPending && typeof body.sourceOpeningPending === 'object'
+          ? body.sourceOpeningPending
+          : {},
+      sourceTransferLines:
+        body.sourceTransferLines && typeof body.sourceTransferLines === 'object'
+          ? body.sourceTransferLines
+          : {},
+      destinationTransferLines:
+        body.destinationTransferLines && typeof body.destinationTransferLines === 'object'
+          ? body.destinationTransferLines
+          : {},
+    });
+    return res.json(data);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function processJubileeHillsFinancials(req, res, next) {
   try {
-    const resolved = await heldFinancialsService.resolveProcessFiles(req, 'jubilee-hills');
+    req.files = await heldFinancialsService.resolveProcessFiles(req, 'jubilee-hills');
     const required = [
       ['salesFile', 'salesFile'],
       ['purchasesFile', 'purchasesFile'],
@@ -430,7 +580,7 @@ async function processJubileeHillsFinancials(req, res, next) {
     ];
     const files = {};
     for (const [key, field] of required) {
-      const file = resolved?.[field]?.[0];
+      const file = req.files?.[field]?.[0];
       if (!file?.buffer) {
         return res.status(400).json({
           success: false,
@@ -440,14 +590,11 @@ async function processJubileeHillsFinancials(req, res, next) {
       }
       files[key] = file;
     }
-    files.mrFile = resolved?.mrFile?.[0] || null;
-    files.dcFile = resolved?.dcFile?.[0] || null;
-    files.savedOpeningMappings =
-      typeof req.body?.savedOpeningMappings === 'string' ? req.body.savedOpeningMappings : '[]';
-    files.sourceAverageRates =
-      typeof req.body?.sourceAverageRates === 'string' ? req.body.sourceAverageRates : '{}';
-    files.receiptRateMappings =
-      typeof req.body?.receiptRateMappings === 'string' ? req.body.receiptRateMappings : '[]';
+    files.mrFile = req.files?.mrFile?.[0] || null;
+    files.dcFile = req.files?.dcFile?.[0] || null;
+    files.savedOpeningMappings = formJsonField(req.body?.savedOpeningMappings, '[]');
+    files.sourceAverageRates = formJsonField(req.body?.sourceAverageRates, '{}');
+    files.receiptRateMappings = formJsonField(req.body?.receiptRateMappings, '[]');
 
     logger.info('Jubilee Hills financials: forwarding to Python', {
       requestId: req.requestId,
@@ -457,71 +604,15 @@ async function processJubileeHillsFinancials(req, res, next) {
       purchaseReturnFile: files.purchaseReturnFile.originalname,
       creditNoteFile: files.creditNoteFile.originalname,
       debitNoteFile: files.debitNoteFile.originalname,
-      fromHeld: !req.files?.salesFile?.[0]?.buffer,
     });
 
     const { data, auditRunId } = await financialsService.processJubileeHillsFinancials(req, files);
     return res.json({ ...data, auditRunId });
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({
-        success: false,
-        detail: err.message,
-        requestId: req.requestId,
-      });
+      return heldErrorResponse(err, req, res, next);
     }
     financialsService.notifyFinancialsPivotFailure(req, err);
-    return next(err);
-  }
-}
-
-async function holdFinancialsBranchFiles(req, res, next) {
-  try {
-    const branch = branchFromParams(req);
-    const data = await heldFinancialsService.holdBranchFiles(req.user.id, branch, req.files || {});
-    return res.json({ success: true, ...data, requestId: req.requestId });
-  } catch (err) {
-    if (err.status) {
-      return res.status(err.status).json({
-        success: false,
-        detail: err.message,
-        requestId: req.requestId,
-      });
-    }
-    return next(err);
-  }
-}
-
-async function listHeldFinancialsBranchFiles(req, res, next) {
-  try {
-    const branch = branchFromParams(req);
-    const data = await heldFinancialsService.listHeldFiles(req.user.id, branch);
-    return res.json({ success: true, ...data, requestId: req.requestId });
-  } catch (err) {
-    if (err.status) {
-      return res.status(err.status).json({
-        success: false,
-        detail: err.message,
-        requestId: req.requestId,
-      });
-    }
-    return next(err);
-  }
-}
-
-async function clearHeldFinancialsBranchFiles(req, res, next) {
-  try {
-    const branch = branchFromParams(req);
-    const data = await heldFinancialsService.clearBranchFiles(req.user.id, branch);
-    return res.json({ success: true, branch, ...data, requestId: req.requestId });
-  } catch (err) {
-    if (err.status) {
-      return res.status(err.status).json({
-        success: false,
-        detail: err.message,
-        requestId: req.requestId,
-      });
-    }
     return next(err);
   }
 }
@@ -546,5 +637,6 @@ module.exports = {
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,
+  fillReceiptAmounts,
   placeJubileeHillsSheets,
 };

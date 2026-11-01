@@ -12,6 +12,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.engines.financials_engine.engine.amount_rounding import round_amount_whole
 from app.engines.financials_engine.engine.abstract_template import (
     ABSTRACT_SHEET_NAME,
     write_abstract_sheet,
@@ -244,7 +245,11 @@ def _leaf_excel_column(leaf_idx: int) -> int:
 
 
 def displayed_average_rate(value: Any) -> int | None:
-    """Nearest whole number for the Average Rate column. Stored rates stay unchanged."""
+    """Nearest whole number for the Average Rate column.
+
+    Matches the Closing Stock preview (formatClosingStockAverageRate /
+    roundHalfUpWhole). Stored averageRateAmt stays at calculation precision.
+    """
     if value is None or value == '':
         return None
     number = Decimal(str(value))
@@ -262,6 +267,8 @@ def _assign_measure_cell(cell, measure_key: str, value: Any, path) -> None:
             width=240,
             height=40,
         )
+    elif measure_key.endswith('Amt'):
+        cell.value = round_amount_whole(value)
     else:
         cell.value = value
     _apply_closing_stock_cell_format(cell, path)
@@ -326,7 +333,14 @@ def _write_sum_formulas(
             cell.font = TOTAL_FONT
             continue
 
-        if _is_summable_leaf(path) and first is not None and last is not None and first <= last:
+        # Empty preview totals stay blank. Do not write SUM(empty) which displays 0.
+        if (
+            entry is None
+            and _is_summable_leaf(path)
+            and first is not None
+            and last is not None
+            and first <= last
+        ):
             letter = get_column_letter(col)
             cell.value = f'=SUM({letter}{first}:{letter}{last})'
             cell.font = TOTAL_FONT

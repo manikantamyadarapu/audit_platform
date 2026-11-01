@@ -13,7 +13,10 @@ from app.engines.financials_engine.engine.abstract_values import (
     empty_abstract_measures,
 )
 from app.engines.financials_engine.engine.metal_trading import (
-    aggregate_metal_trading_totals,
+    GOLD_22K,
+    JADAU,
+    PLATINUM,
+    aggregate_abstract_gold_totals,
     metal_gross_profit_amt,
     resolve_metal_trading_account,
 )
@@ -109,14 +112,7 @@ _DIAMOND_ITEM_LABELS: tuple[str, ...] = (
     'Diamonds',
 )
 
-UNMAPPED_ACCOUNT_REASONS: dict[str, str] = {
-    'Platinum Account': (
-        'Platinum Account has no Trading Account or Closing Stock mapping in branch Financials'
-    ),
-    'Gold Account Jadau': (
-        'Gold Account Jadau is Opening-mapping only and has no Trading Account'
-    ),
-}
+UNMAPPED_ACCOUNT_REASONS: dict[str, str] = {}
 
 STATIC_UNRESOLVED: tuple[str, ...] = (
     'GP AY 2025-26: branch Closing Stock / Abstract outputs do not compute this column',
@@ -165,9 +161,19 @@ def build_consolidated_abstract_row_measures(
             metal_account=_METAL_BY_TITLE.get(trading_title),
         )
 
-    for label, reason in UNMAPPED_ACCOUNT_REASONS.items():
-        by_label[label] = empty_consolidated_measures()
-        unresolved.append(reason)
+    ornament_template = _METAL_BY_TITLE.get(GOLD_22K)
+    for label, trading_title in (
+        ('Platinum Account', PLATINUM),
+        ('Gold Account Jadau', JADAU),
+    ):
+        by_label[label] = _consolidate_from_totals(
+            [
+                _account_totals(snapshots[name], trading_title, True)
+                for name in contributing
+            ],
+            metal=True,
+            metal_account=ornament_template,
+        )
 
     account_rows = [by_label[label] for label in _ACCOUNT_SECTION_LABELS]
     by_label['TOTAL'] = _sum_consolidated_measures(account_rows)
@@ -216,7 +222,6 @@ def build_consolidated_abstract_row_measures(
         color_rows.append(measures)
     by_label['TOTAL Colour Stones'] = _sum_consolidated_measures(color_rows)
 
-    _flag_jadau_products(snapshots, contributing, unresolved)
     return by_label, contributing, unresolved
 
 
@@ -264,7 +269,7 @@ def _account_totals(
     is_metal: bool,
 ) -> dict[str, Any]:
     if is_metal:
-        metal_totals = aggregate_metal_trading_totals(
+        metal_totals = aggregate_abstract_gold_totals(
             sales_pivot=snapshot.get('salesPivot'),
             purchases_pivot=snapshot.get('purchasesPivot'),
             opening_pivot=snapshot.get('openingPivot'),

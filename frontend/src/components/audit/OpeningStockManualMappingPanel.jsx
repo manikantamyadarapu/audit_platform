@@ -29,13 +29,32 @@ function isAddressLikeLabel(value) {
 
 function coerceNumber(value) {
   if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
 
+function candidateName(row) {
+  return String(row?.product || row?.sheetName || '')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function roundQty(value, decimals = 4) {
+  const factor = 10 ** decimals;
+  return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+}
+
 function qtyEqual(a, b) {
   if (a === null || b === null) return false;
-  return Math.abs(a - b) <= QTY_EPS;
+  if (Math.abs(a - b) <= QTY_EPS) return true;
+  return roundQty(a) === roundQty(b);
 }
 
 function candidateQty(row) {
@@ -76,13 +95,15 @@ function MappingModal({
 }) {
   const products = group?.products || [];
   const current = products[productIndex] || null;
-  const openingQty = coerceNumber(current?.openingQty);
+  const fileOpeningQty = coerceNumber(current?.openingQty);
   const [selected, setSelected] = useState(() => new Set());
   const [differenceWarning, setDifferenceWarning] = useState(false);
+  const [qtySource, setQtySource] = useState('openingBalance');
 
   useEffect(() => {
     setSelected(new Set());
     setDifferenceWarning(false);
+    setQtySource('openingBalance');
   }, [current?.product, group?.key]);
 
   useEffect(() => {
@@ -101,20 +122,23 @@ function MappingModal({
         ? current.candidateProducts
         : [];
     const category = String(current?.category || '').trim();
+    const seen = new Set();
     return raw.filter((c) => {
-      const name = String(c.product || c.sheetName || '').trim();
+      const name = candidateName(c);
       const candidateCategory = String(c.category || '').trim();
       if (candidateScope === 'category' && category && candidateCategory && candidateCategory !== category) {
         return false;
       }
-      return name && !isAddressLikeLabel(name);
+      if (!name || isAddressLikeLabel(name) || seen.has(name)) return false;
+      seen.add(name);
+      return true;
     });
   }, [candidateScope, catalog, current]);
 
   const selectedRows = useMemo(
     () =>
       candidates.filter((c) => {
-        const name = String(c.product || c.sheetName || '').trim();
+        const name = candidateName(c);
         return name && selected.has(name) && !claimedPrevNames.has(name);
       }),
     [candidates, claimedPrevNames, selected]
@@ -122,15 +146,16 @@ function MappingModal({
   const selectedQty = selectedRows.reduce((sum, c) => sum + (candidateQty(c) || 0), 0);
   const selectedAmt = selectedRows.reduce((sum, c) => sum + (candidateAmt(c) || 0), 0);
   const difference =
-    openingQty === null ? null : Math.round((openingQty - selectedQty) * 1e6) / 1e6;
-  const qtyMatches = qtyEqual(openingQty, selectedQty);
+    fileOpeningQty === null ? null : Math.round((fileOpeningQty - selectedQty) * 1e6) / 1e6;
+  const qtyMatches = qtyEqual(fileOpeningQty, selectedQty);
+  const sheetOpeningQty = qtySource === 'previousYear' ? selectedQty : fileOpeningQty;
   const canConfirm = selectedRows.length > 0 && qtyMatches;
   const canMapWithDifference = selectedRows.length > 0 && !qtyMatches;
 
   if (!open || !current || !group) return null;
 
   function toggle(name) {
-    const key = String(name || '').trim();
+    const key = candidateName({ product: name });
     if (!key) return;
     setDifferenceWarning(false);
     setSelected((prev) => {
@@ -147,9 +172,10 @@ function MappingModal({
       ruleBookProduct: current.ruleBookProduct || current.product,
       category: current.category || null,
       subcategory: current.subcategory || null,
-      openingQty,
+      openingQty: sheetOpeningQty,
+      openingQtySource: qtyMatches ? 'openingBalance' : qtySource,
       openingAmt: selectedAmt,
-      previousYearProducts: selectedRows.map((c) => c.product),
+      previousYearProducts: selectedRows.map((c) => candidateName(c)),
     });
   }
 
@@ -209,9 +235,9 @@ function MappingModal({
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/60">
           <p className="text-xs text-slate-500">Current product</p>
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{current.product}</p>
-          <p className="mt-2 text-xs text-slate-500">Current Opening Qty</p>
+          <p className="mt-2 text-xs text-slate-500">Opening Quantity file · Opening Balance</p>
           <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-50">
-            {formatNumber(openingQty ?? 0, 4)}
+            {formatNumber(fileOpeningQty ?? 0, 4)}
           </p>
         </div>
 
@@ -230,11 +256,11 @@ function MappingModal({
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {candidates.map((c) => {
-                  const name = String(c.product || c.sheetName || '').trim();
+                  const name = candidateName(c);
                   const usedAlready = claimedPrevNames.has(name);
                   const checked = selected.has(name);
                   return (
-                    <li key={`${c.sheetName || 'sheet'}-${name}`}>
+                    <li key={name}>
                       <label className={`flex items-center gap-3 px-3 py-2 ${usedAlready ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}>
                         <input
                           type="checkbox"
@@ -279,7 +305,7 @@ function MappingModal({
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div className="rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-900/50">
             <p className="text-[11px] text-slate-500">Current Qty</p>
-            <p className="font-semibold tabular-nums">{formatNumber(openingQty ?? 0, 4)}</p>
+            <p className="font-semibold tabular-nums">{formatNumber(fileOpeningQty ?? 0, 4)}</p>
           </div>
           <div className="rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-900/50">
             <p className="text-[11px] text-slate-500">Selected Qty</p>
@@ -303,9 +329,42 @@ function MappingModal({
         </div>
 
         {differenceWarning ? (
-          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-            Selected Qty does not equal Opening Qty. Difference is {formatNumber(difference ?? 0, 4)}.
-            Mapping still keeps the current opening quantity and uses the selected previous-year amount.
+          <div className="mt-4 space-y-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            <p>
+              Selected Qty does not equal Opening Balance. Difference is {formatNumber(difference ?? 0, 4)}.
+              Choose which quantity to write on the sheet. Opening Amount still comes from the previous-year selection.
+            </p>
+            <fieldset className="space-y-2">
+              <legend className="font-semibold">Opening Qty on the sheet</legend>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name={`opening-qty-source-${current.product}`}
+                  checked={qtySource === 'openingBalance'}
+                  onChange={() => setQtySource('openingBalance')}
+                />
+                <span>
+                  Opening Quantity file · Opening Balance
+                  <span className="mt-0.5 block font-semibold tabular-nums">
+                    {formatNumber(fileOpeningQty ?? 0, 4)}
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name={`opening-qty-source-${current.product}`}
+                  checked={qtySource === 'previousYear'}
+                  onChange={() => setQtySource('previousYear')}
+                />
+                <span>
+                  Previous year sheet · Closing Qty
+                  <span className="mt-0.5 block font-semibold tabular-nums">
+                    {formatNumber(selectedQty, 4)}
+                  </span>
+                </span>
+              </label>
+            </fieldset>
           </div>
         ) : null}
 
@@ -383,7 +442,7 @@ export function OpeningStockManualMappingPanel({
       }
       const pool = Array.isArray(row?.candidateProducts) ? row.candidateProducts : [];
       for (const candidate of pool) {
-        const name = String(candidate?.product || candidate?.sheetName || '').trim();
+        const name = candidateName(candidate);
         if (name && !bucket.has(name)) bucket.set(name, candidate);
       }
     }

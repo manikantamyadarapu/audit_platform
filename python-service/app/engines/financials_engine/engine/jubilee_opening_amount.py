@@ -9,6 +9,7 @@ names that previous-year product.
 from __future__ import annotations
 
 import re
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Mapping, Sequence
 
 from app.engines.financials_engine.config.product_rule_book import (
@@ -18,6 +19,7 @@ from app.engines.financials_engine.config.product_rule_book import (
     _resolve_closing_stock_sheet,
 )
 from app.engines.financials_engine.engine.jubilee_hills_placement import locate_jubilee_hills_product
+from app.engines.financials_engine.engine.metal_trading import metal_opening_group
 from app.engines.financials_engine.engine.opening_stock import (
     collapse_same_product_rows,
     norm_opening_product_name,
@@ -32,10 +34,18 @@ def _exact_key(name: str) -> str:
     return ' '.join(text.split())
 
 
+def _qty_key(value: float) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+
 def _qty_equal(left: float | None, right: float | None) -> bool:
     if left is None or right is None:
         return False
-    return abs(float(left) - float(right)) <= _QTY_EPS
+    a = float(left)
+    b = float(right)
+    if abs(a - b) <= _QTY_EPS:
+        return True
+    return _qty_key(a) == _qty_key(b)
 
 
 def _coerce_qty(value: Any) -> float | None:
@@ -63,6 +73,18 @@ def _token_prefix(shorter: str, longer: str) -> bool:
     return right.startswith(f'{left} ')
 
 
+def _account_group(product: str) -> tuple[str | None, str | None]:
+    """Gold/Silver/Platinum abstract accounts. Not a jewel Closing Stock sheet."""
+    group = metal_opening_group(product)
+    if group is not None:
+        category = str(group.get('category') or '').strip() or None
+        subcategory = group.get('subcategory')
+        return category, str(subcategory).strip() if subcategory else None
+    if 'platinum' in _match_key(product):
+        return 'Platinum', None
+    return None, None
+
+
 def _category_of(product: str, sheet_name: str | None = None) -> tuple[str | None, str | None]:
     found = locate_jubilee_hills_product(product)
     if found is not None:
@@ -71,7 +93,7 @@ def _category_of(product: str, sheet_name: str | None = None) -> tuple[str | Non
     sheet = _resolve_closing_stock_sheet(str(sheet_name or ''))
     if sheet:
         return sheet, None
-    return None, None
+    return _account_group(product)
 
 
 def _previous_year_category(product: str, sheet_name: str | None) -> tuple[str | None, str | None]:
@@ -83,7 +105,7 @@ def _previous_year_category(product: str, sheet_name: str | None) -> tuple[str |
         return sheet, subcategory
     if found is not None:
         return found[0]
-    return None, None
+    return _account_group(product)
 
 
 def _previous_rows(product_index: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -116,8 +138,15 @@ def _previous_rows(product_index: Mapping[str, Mapping[str, Any]]) -> list[dict[
     return rows
 
 
-def _saved_index(saved_mappings: Sequence[Mapping[str, Any]] | None) -> dict[str, list[str]]:
-    index: dict[str, list[str]] = {}
+def _opening_qty_source(value: Any) -> str:
+    key = str(value or '').strip()
+    if key in {'previousYear', 'previous_year', 'previous-year'}:
+        return 'previousYear'
+    return 'openingBalance'
+
+
+def _saved_index(saved_mappings: Sequence[Mapping[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
     for row in saved_mappings or ():
         product = str(row.get('product') or '').strip()
         names = row.get('previousYearProducts')
@@ -127,7 +156,10 @@ def _saved_index(saved_mappings: Sequence[Mapping[str, Any]] | None) -> dict[str
         previous = [str(name or '').strip() for name in names if str(name or '').strip()]
         key = _exact_key(product) or _match_key(product)
         if key and previous:
-            index[key] = previous
+            index[key] = {
+                'names': previous,
+                'openingQtySource': _opening_qty_source(row.get('openingQtySource')),
+            }
     return index
 
 
@@ -204,6 +236,33 @@ def _abstract_tokens(*parts: str | None) -> set[str]:
     return tokens
 
 
+def _abstract_account_rows(abstract_products: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
+    """Abstract Gold/Silver/Platinum accounts, keyed like previous-year closing rows."""
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in _abstract_rows(abstract_products):
+        product = str(entry.get('product') or '').strip()
+        key = norm_opening_product_name(product)
+        category, subcategory = _account_group(product)
+        if not product or not key or not category or key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                'product': product,
+                'category': category,
+                'subcategory': subcategory,
+                'closingStockQty': entry.get('closingStockQty'),
+                'closingStockAmount': entry.get('closingStockAmount'),
+                'exactKey': _exact_key(product),
+                'alnumKey': _match_key(product),
+                'coreKey': _core_key(product),
+                'source': 'abstract',
+            }
+        )
+    return rows
+
+
 def _relevant_abstract_rows(
     product: str,
     category: str | None,
@@ -238,6 +297,13 @@ def match_jubilee_opening_amounts(
     )
     previous = _previous_rows(previous_year_index)
     abstract = _abstract_rows(abstract_products)
+    seen_previous = {norm_opening_product_name(row['product']) for row in previous}
+    for row in _abstract_account_rows(abstract_products):
+        key = norm_opening_product_name(row['product'])
+        if key in seen_previous:
+            continue
+        seen_previous.add(key)
+        previous.append(row)
     by_category: dict[str, list[dict[str, Any]]] = {}
     for row in previous:
         by_category.setdefault(row['category'], []).append(row)
@@ -252,6 +318,7 @@ def match_jubilee_opening_amounts(
         'alphanumericMatches': 0,
         'coreCodeMatches': 0,
         'prefixMatches': 0,
+        'quantityMatches': 0,
         'quantityVerifiedMatches': 0,
         'savedMappingsReused': 0,
         'manualMappingRequired': 0,
@@ -261,15 +328,21 @@ def match_jubilee_opening_amounts(
     }
     seen: set[str] = set()
 
-    def _options(category: str) -> list[dict[str, Any]]:
+    def _options(category: str, subcategory: str | None = None) -> list[dict[str, Any]]:
+        rows = by_category.get(category, [])
+        if subcategory:
+            narrowed = [row for row in rows if row.get('subcategory') == subcategory]
+            if narrowed:
+                rows = narrowed
         return [
             {
                 'product': row['product'],
                 'category': category,
                 'closingStockQty': row['closingStockQty'],
                 'closingStockAmount': row['closingStockAmount'],
+                'source': row.get('source'),
             }
-            for row in by_category.get(category, [])
+            for row in rows
         ]
 
     def _accept(
@@ -310,6 +383,9 @@ def match_jubilee_opening_amounts(
         elif method == 'prefix':
             counts['prefixMatches'] += 1
             counts['quantityVerifiedMatches'] += 1
+        elif method == 'quantity':
+            counts['quantityMatches'] += 1
+            counts['quantityVerifiedMatches'] += 1
 
     def _manual(
         product: str,
@@ -326,7 +402,7 @@ def match_jubilee_opening_amounts(
             counts['quantityMismatches'] += 1
         elif reason == 'multiple_candidates':
             counts['multipleCandidateMatches'] += 1
-        candidates = _options(category) if category else []
+        candidates = _options(category, subcategory) if category else []
         seen_names = {norm_opening_product_name(item.get('product') or '') for item in candidates}
         for abstract_row in _relevant_abstract_rows(product, category, subcategory, abstract):
             name_key = norm_opening_product_name(abstract_row['product'])
@@ -371,12 +447,18 @@ def match_jubilee_opening_amounts(
         seen.add(identity)
         opening_qty = _coerce_qty(qty_row.get('openingBalance'))
         category, subcategory = _category_of(product)
+        account_category, account_subcategory = _account_group(product)
         pool = [
             row
             for row in by_category.get(category, [])
             if norm_opening_product_name(row['product']) not in claimed
         ]
-        saved_names = saved.get(_exact_key(product)) or saved.get(_match_key(product)) or []
+        if account_category and account_subcategory:
+            narrowed = [row for row in pool if row.get('subcategory') == account_subcategory]
+            if narrowed:
+                pool = narrowed
+        saved_entry = saved.get(_exact_key(product)) or saved.get(_match_key(product)) or {}
+        saved_names = list(saved_entry.get('names') or [])
         if saved_names:
             saved_rows: list[dict[str, Any]] = []
             search_rows = [*pool, *abstract]
@@ -397,13 +479,18 @@ def match_jubilee_opening_amounts(
             if saved_rows and len(saved_rows) == len(saved_names):
                 amount = sum(_coerce_qty(row.get('closingStockAmount')) or 0 for row in saved_rows)
                 quantity = sum(_coerce_qty(row.get('closingStockQty')) or 0 for row in saved_rows)
+                qty_for_sheet = (
+                    quantity
+                    if saved_entry.get('openingQtySource') == 'previousYear'
+                    else opening_qty
+                )
                 for row in saved_rows:
                     claimed.add(norm_opening_product_name(row['product']))
                 _accept(
                     product,
                     category=category,
                     subcategory=subcategory,
-                    opening_qty=opening_qty,
+                    opening_qty=qty_for_sheet,
                     previous_row={
                         'product': ' + '.join(row['product'] for row in saved_rows),
                         'closingStockAmount': amount,
@@ -427,6 +514,15 @@ def match_jubilee_opening_amounts(
                 chosen = hits
                 break
 
+        if not chosen and account_category:
+            qty_hits = [
+                row
+                for row in pool
+                if _qty_equal(opening_qty, row.get('closingStockQty'))
+            ]
+            if len(qty_hits) == 1:
+                chosen_method = 'quantity'
+                chosen = qty_hits
         if not chosen:
             _manual(
                 product,
@@ -496,6 +592,7 @@ def match_jubilee_opening_amounts(
         'exactMatchedCount': counts['exactMatches'] + counts['alphanumericMatches'],
         'coreCodeMatchedCount': counts['coreCodeMatches'],
         'prefixMatchedCount': counts['prefixMatches'],
+        'quantityMatchedCount': counts['quantityMatches'],
         'quantityVerifiedCount': counts['quantityVerifiedMatches'],
         'savedMappingsReused': counts['savedMappingsReused'],
         'fallbackMatchedCount': counts['coreCodeMatches'] + counts['prefixMatches'],

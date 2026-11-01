@@ -118,11 +118,21 @@ def build_mr_dc_pivot_payload(
     dc_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """MR and DC stay in separate pivot trees. Never mixed."""
-    mr_pivots, mr_report = build_location_pivots_with_report(list(mr_rows or []))
-    dc_pivots, dc_report = build_location_pivots_with_report(list(dc_rows or []))
+    from app.engines.financials_engine.engine.cross_branch_transfers import (
+        build_transfer_lines_from_rows,
+    )
+
+    mr_list = list(mr_rows or [])
+    dc_list = list(dc_rows or [])
+    mr_pivots, mr_report = build_location_pivots_with_report(mr_list)
+    dc_pivots, dc_report = build_location_pivots_with_report(dc_list)
     return {
         'mrPivots': mr_pivots,
         'dcPivots': dc_pivots,
         'mrReport': mr_report,
         'dcReport': dc_report,
+        'transferLines': {
+            'mr': build_transfer_lines_from_rows(mr_list),
+            'dc': build_transfer_lines_from_rows(dc_list),
+        },
     }

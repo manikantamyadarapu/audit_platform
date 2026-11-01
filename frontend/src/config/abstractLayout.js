@@ -1,4 +1,4 @@
-import { formatIndianNumber, roundHalfUpWhole } from '../utils/format.js';
+import { formatIndianNumber, roundHalfDownWhole } from '../utils/format.js';
 
 export const ABSTRACT_SHEET_NAME = 'Abstract';
 export const ABSTRACT_TITLE = 'Trading Account Abstract';
@@ -29,13 +29,13 @@ export function abstractColumnSpan(group) {
 }
 
 /**
- * Nearest whole Amount for Abstract display. Below 0.5 rounds down; 0.5+ rounds up.
+ * Whole Amount for Abstract display. 0.5 or less stays; greater than 0.5 goes up.
  * @param {number|null|undefined} value
  * @returns {number|null}
  */
 export function displayedAbstractAmount(value) {
   if (value === null || value === undefined || value === '') return null;
-  return roundHalfUpWhole(value);
+  return roundHalfDownWhole(value);
 }
 
 /**
@@ -64,6 +64,17 @@ export const ABSTRACT_ACCOUNT_ROWS = Object.freeze([
   { label: 'Rubies', tradingTitle: 'RUBIES ACCOUNT', metal: false },
   { label: 'Color Stones Account', tradingTitle: 'COLOR STONES ACCOUNT', metal: false },
 ]);
+
+export const JH_ABSTRACT_EXTRA_GOLD_ROWS = Object.freeze([
+  { label: 'Platinum Account', tradingTitle: 'PLATINUM ACCOUNT', metal: true },
+  { label: 'Gold Account Jadau', tradingTitle: 'GOLD ACCOUNT - JADAU', metal: true },
+]);
+
+export const JUBILEE_ABSTRACT_ACCOUNT_ROWS = Object.freeze(
+  ABSTRACT_ACCOUNT_ROWS.flatMap((row) =>
+    row.label === 'Gold Account 14K' ? [row, ...JH_ABSTRACT_EXTRA_GOLD_ROWS] : [row]
+  )
+);
 
 export const DIAMOND_PRODUCT_ROWS = Object.freeze([
   'Diamonds - Beads',
@@ -112,3 +123,11 @@ export const ABSTRACT_BODY_ROWS = Object.freeze([
   { kind: 'item', label: 'Synthetic Stones' },
   { kind: 'group_total', label: 'TOTAL Colour Stones' },
 ]);
+
+export const JUBILEE_ABSTRACT_BODY_ROWS = Object.freeze(
+  ABSTRACT_BODY_ROWS.flatMap((row) =>
+    row.label === 'Gold Account 14K'
+      ? [row, { kind: 'account', label: 'Platinum Account' }, { kind: 'account', label: 'Gold Account Jadau' }]
+      : [row]
+  )
+);

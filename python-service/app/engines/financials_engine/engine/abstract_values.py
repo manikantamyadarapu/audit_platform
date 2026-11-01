@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from app.engines.financials_engine.engine.metal_trading import (
+    GOLD_22K,
+    JADAU,
+    PLATINUM,
+    aggregate_abstract_gold_totals,
     aggregate_metal_trading_totals,
     metal_gross_profit_amt,
 )
@@ -30,6 +34,21 @@ ABSTRACT_ACCOUNT_ROWS: tuple[tuple[str, str, bool], ...] = (
     ('Rubies', 'RUBIES ACCOUNT', False),
     ('Color Stones Account', 'COLOR STONES ACCOUNT', False),
 )
+JH_ABSTRACT_EXTRA_GOLD_ROWS: tuple[tuple[str, str, bool], ...] = (
+    ('Platinum Account', PLATINUM, True),
+    ('Gold Account Jadau', JADAU, True),
+)
+
+
+def abstract_account_rows(*, extra_gold_accounts: bool = False) -> tuple[tuple[str, str, bool], ...]:
+    if not extra_gold_accounts:
+        return ABSTRACT_ACCOUNT_ROWS
+    rows: list[tuple[str, str, bool]] = []
+    for item in ABSTRACT_ACCOUNT_ROWS:
+        rows.append(item)
+        if item[0] == 'Gold Account 14K':
+            rows.extend(JH_ABSTRACT_EXTRA_GOLD_ROWS)
+    return tuple(rows)
 
 DIAMOND_PRODUCT_ROWS: tuple[str, ...] = (
     'Diamonds - Beads',
@@ -223,24 +242,31 @@ def build_abstract_row_measures(
     opening_pivot: Sequence[Mapping[str, Any]] | None = None,
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    extra_gold_accounts: bool = False,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Particulars label → Abstract column measures. Group headings stay empty."""
     layouts = layout_by_category or {}
-    metal_totals = aggregate_metal_trading_totals(
+    aggregator = (
+        aggregate_abstract_gold_totals if extra_gold_accounts else aggregate_metal_trading_totals
+    )
+    metal_totals = aggregator(
         sales_pivot=sales_pivot,
         purchases_pivot=purchases_pivot,
         opening_pivot=opening_pivot,
         mr_pivots=mr_pivots,
         dc_pivots=dc_pivots,
     )
+    ornament_template = _METAL_BY_TITLE.get(GOLD_22K)
     by_label: dict[str, dict[str, dict[str, Any]]] = {}
     section1: list[dict[str, dict[str, Any]]] = []
-    for label, trading_title, is_metal in ABSTRACT_ACCOUNT_ROWS:
+    for label, trading_title, is_metal in abstract_account_rows(
+        extra_gold_accounts=extra_gold_accounts
+    ):
         if is_metal:
             measures = abstract_measures_from_trading_source(
                 metal_totals.get(trading_title) or {},
                 metal=True,
-                metal_account=_METAL_BY_TITLE.get(trading_title),
+                metal_account=_METAL_BY_TITLE.get(trading_title) or ornament_template,
             )
         else:
             category = TRADING_ACCOUNT_SOURCE_CATEGORY[trading_title]

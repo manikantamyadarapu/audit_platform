@@ -1,6 +1,6 @@
 /** Shared Closing Stock layout — mirrors python closing_stock_template. */
 
-import { formatIndianNumber, roundHalfUpWhole } from '../utils/format';
+import { formatIndianNumber, roundHalfDownWhole, roundHalfUpWhole } from '../utils/format';
 
 export const CLOSING_STOCK_CATEGORIES = Object.freeze([
   'Diamond',
@@ -155,6 +155,15 @@ export function formatClosingStockMeasure(value) {
   if (!Number.isFinite(num)) return '\u00a0';
   // Indian grouping — Qty may keep decimals; Amounts are whole numbers.
   return formatIndianNumber(num, { minDecimals: 0, maxDecimals: 4, fallback: '\u00a0' });
+}
+
+export function formatClosingStockAmount(value) {
+  if (value === null || value === undefined || value === '') {
+    return '\u00a0';
+  }
+  const rounded = roundHalfDownWhole(value);
+  if (rounded === null) return '\u00a0';
+  return formatIndianNumber(rounded, { minDecimals: 0, maxDecimals: 0, fallback: '\u00a0' });
 }
 
 /**
@@ -334,6 +343,9 @@ export function closingStockCellValue(row, leafIndex) {
   }
   if (field === 'averageRateAmt') {
     return formatClosingStockAverageRate(row[field]);
+  }
+  if (field.endsWith('Amt')) {
+    return formatClosingStockAmount(row[field]);
   }
   return formatClosingStockMeasure(row[field]);
 }

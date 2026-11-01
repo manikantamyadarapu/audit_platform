@@ -114,6 +114,7 @@ def build_financials_pivot_response(
     destination_branch: str | None = None,
     source_average_rates: Any = None,
     receipt_rate_mappings: Any = None,
+    transfer_lines: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sales_qty, sales_gross = _pivot_totals(sales_pivot)
     purchases_qty, purchases_gross = _pivot_totals(purchases_pivot)
@@ -170,6 +171,11 @@ def build_financials_pivot_response(
         'dcPivots': dc_tree,
         'mrReport': mr_rep,
         'dcReport': dc_rep,
+        'transferLines': transfer_lines
+        or {
+            'mr': [],
+            'dc': [],
+        },
         **mapping_payload,
         'exportColumns': list(PIVOT_COLUMNS),
         'columnDisplayHeaders': dict(PIVOT_DISPLAY_HEADERS),

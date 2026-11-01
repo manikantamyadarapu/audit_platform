@@ -12,6 +12,7 @@ from app.engines.financials_engine.config.product_rule_book import (
 )
 from app.engines.financials_engine.engine.abstract_template import (
     ABSTRACT_SHEET_NAME,
+    JH_ABSTRACT_BODY_ROWS,
     write_abstract_sheet,
 )
 from app.engines.financials_engine.engine.closing_stock_template import (
@@ -93,7 +94,12 @@ def build_jubilee_hills_structure_bytes(
     trading = wb.create_sheet(title=TRADING_SHEET_NAME)
     write_trading_sheet(trading, structure_only=True)
     abstract = wb.create_sheet(title=ABSTRACT_SHEET_NAME)
-    write_abstract_sheet(abstract, structure_only=True)
+    write_abstract_sheet(
+        abstract,
+        structure_only=True,
+        extra_gold_accounts=True,
+        body_rows=JH_ABSTRACT_BODY_ROWS,
+    )
 
     buffer = BytesIO()
     wb.save(buffer)
@@ -156,6 +162,8 @@ def build_jubilee_hills_workbook_bytes(
         opening_pivot=opening_pivot,
         mr_pivots=mr_pivots,
         dc_pivots=dc_pivots,
+        extra_gold_accounts=True,
+        body_rows=JH_ABSTRACT_BODY_ROWS,
     )
 
     buffer = BytesIO()

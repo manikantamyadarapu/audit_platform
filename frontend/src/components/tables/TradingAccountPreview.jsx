@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { formatClosingStockMeasure } from '../../config/closingStockLayout';
+import { formatClosingStockAmount, formatClosingStockMeasure } from '../../config/closingStockLayout';
 import {
   TRADING_ACCOUNTS,
   TRADING_METAL_ACCOUNTS,
@@ -65,7 +65,9 @@ function SideTable({
               <td className={cn(QTY_CELL, isGp && 'bg-slate-50 dark:bg-slate-900/40')}>
                 {isGp ? '' : displayMeasure(values.qty)}
               </td>
-              <td className={AMT_CELL}>{displayMeasure(values.amt)}</td>
+              <td className={AMT_CELL}>
+                {values.amt == null ? '' : formatClosingStockAmount(values.amt).replace(/\u00a0/g, '').trim()}
+              </td>
             </tr>
           );
         })}

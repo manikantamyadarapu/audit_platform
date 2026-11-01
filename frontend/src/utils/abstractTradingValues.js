@@ -3,6 +3,7 @@ import {
   ABSTRACT_MEASURE_GROUPS,
   COLOR_STONE_PRODUCT_ROWS,
   DIAMOND_PRODUCT_ROWS,
+  JUBILEE_ABSTRACT_ACCOUNT_ROWS,
 } from '../config/abstractLayout';
 import {
   TRADING_ACCOUNT_SOURCE_CATEGORY,
@@ -11,7 +12,7 @@ import {
   metalTradingLineValues,
   tradingLineValues,
 } from '../config/tradingAccountLayout';
-import { aggregateMetalTradingTotals } from './metalTradingTotals';
+import { GOLD_22K, aggregateAbstractGoldTotals, aggregateMetalTradingTotals } from './metalTradingTotals';
 
 const ISSUE_QTY_KEYS = ['issuesInternalQty', 'issuesBanjaraHillsQty', 'issuesKokapetQty'];
 const ISSUE_AMT_KEYS = ['issuesInternalAmt', 'issuesBanjaraHillsAmt', 'issuesKokapetAmt'];
@@ -130,8 +131,9 @@ export function buildAbstractRowMeasures({
   openingPivot = [],
   mrPivots = {},
   dcPivots = {},
+  extraGoldAccounts = false,
 } = {}) {
-  const metalTotals = aggregateMetalTradingTotals({
+  const metalTotals = (extraGoldAccounts ? aggregateAbstractGoldTotals : aggregateMetalTradingTotals)({
     salesPivot,
     purchasesPivot,
     openingPivot,
@@ -140,12 +142,14 @@ export function buildAbstractRowMeasures({
   });
   const byLabel = {};
   const section1 = [];
-  ABSTRACT_ACCOUNT_ROWS.forEach(({ label, tradingTitle, metal }) => {
+  const accountRows = extraGoldAccounts ? JUBILEE_ABSTRACT_ACCOUNT_ROWS : ABSTRACT_ACCOUNT_ROWS;
+  const ornamentTemplate = METAL_BY_TITLE[GOLD_22K];
+  accountRows.forEach(({ label, tradingTitle, metal }) => {
     let measures;
     if (metal) {
       measures = abstractMeasuresFromTradingSource(metalTotals[tradingTitle] || {}, {
         metal: true,
-        metalAccount: METAL_BY_TITLE[tradingTitle],
+        metalAccount: METAL_BY_TITLE[tradingTitle] || ornamentTemplate,
       });
     } else {
       const category = TRADING_ACCOUNT_SOURCE_CATEGORY[tradingTitle];

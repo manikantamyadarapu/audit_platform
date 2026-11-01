@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { readSourceAverageRates } from '../utils/sourceAverageRates';
+import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
+import {
+  applyReadyReceiptRates,
+  FINANCIALS_RECEIPT_RATES_EVENT,
+  readyAverageRates,
+  receiptRateBranchKey,
+} from '../utils/fillCrossBranchReceiptAmounts';
 import { readReceiptRateMappings } from '../utils/receiptRateMappings';
 import {
   fetchClosingStockRuleBook,
@@ -85,7 +91,17 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
       }
 
       if (requestId !== syncGenerationRef.current) return null;
-      const updated = mergeRemapIntoResult(resultRef.current || current, remapped);
+      let updated = mergeRemapIntoResult(resultRef.current || current, remapped);
+      try {
+        updated = await applyReadyReceiptRates(destinationBranch, updated);
+      } catch {
+        /* keep remapped sheets if receipt fill is unavailable */
+      }
+      if (requestId !== syncGenerationRef.current) return null;
+      const published = readyAverageRates(updated);
+      if (published.length) {
+        saveBranchAverageRates(receiptRateBranchKey(destinationBranch), published);
+      }
       setMappedResult(updated);
 
       const nextFingerprint = remapped.ruleBookFingerprint ?? remapped.summary?.ruleBookFingerprint;
@@ -121,6 +137,12 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
             unmappedProductCount: local.unmappedProducts?.length ?? 0,
           },
         });
+        if (requestId !== syncGenerationRef.current) return null;
+        try {
+          updated = await applyReadyReceiptRates(destinationBranch, updated);
+        } catch {
+          /* keep remapped sheets if receipt fill is unavailable */
+        }
         if (requestId !== syncGenerationRef.current) return null;
         setMappedResult(updated);
         if (
@@ -172,9 +194,11 @@ export function useClosingStockMapping(result, onSynced, destinationBranch = '')
 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
+    window.addEventListener(FINANCIALS_RECEIPT_RATES_EVENT, onVisible);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
+      window.removeEventListener(FINANCIALS_RECEIPT_RATES_EVENT, onVisible);
     };
   }, [result, syncFromLiveRuleBook]);
 

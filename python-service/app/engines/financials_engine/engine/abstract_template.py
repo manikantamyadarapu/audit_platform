@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Mapping, Sequence
+
+from app.engines.financials_engine.engine.amount_rounding import round_amount_whole
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -40,6 +41,41 @@ ABSTRACT_BODY_ROWS: tuple[tuple[str, str | None], ...] = (
     ('account', 'Gold Account 22K'),
     ('account', 'Gold Account 18K'),
     ('account', 'Gold Account 14K'),
+    ('account', 'Silver Account'),
+    ('account', 'Diamonds Account'),
+    ('account', 'Emeralds'),
+    ('account', 'Pearls'),
+    ('account', 'Rubies'),
+    ('account', 'Color Stones Account'),
+    ('spacer', None),
+    ('total', 'TOTAL'),
+    ('spacer', None),
+    ('spacer', None),
+    ('section_heading', 'Particulars'),
+    ('spacer', None),
+    ('group_heading', 'DIAMONDS'),
+    ('item', 'Diamonds - Beads'),
+    ('item', 'Diamonds Rosecut diamonds'),
+    ('item', 'Diamonds - Flat polki'),
+    ('item', 'Uncut - diamonds'),
+    ('item', 'Diamonds'),
+    ('group_total', 'Total Diamonds'),
+    ('spacer', None),
+    ('group_heading', 'COLOR STONES'),
+    ('item', 'Precious Stones'),
+    ('item', 'Semi Precious'),
+    ('item', 'Synthetic Stones'),
+    ('group_total', 'TOTAL Colour Stones'),
+)
+
+JH_ABSTRACT_BODY_ROWS: tuple[tuple[str, str | None], ...] = (
+    ('spacer', None),
+    ('account', 'Gold Account 24K'),
+    ('account', 'Gold Account 22K'),
+    ('account', 'Gold Account 18K'),
+    ('account', 'Gold Account 14K'),
+    ('account', 'Platinum Account'),
+    ('account', 'Gold Account Jadau'),
     ('account', 'Silver Account'),
     ('account', 'Diamonds Account'),
     ('account', 'Emeralds'),
@@ -104,13 +140,8 @@ def abstract_column_span(group: str) -> int:
 
 
 def displayed_abstract_amount(value: Any) -> int | None:
-    """Nearest whole Amount for Abstract display/export. Source measures stay unchanged."""
-    if value is None or value == '':
-        return None
-    number = Decimal(str(value))
-    if not number.is_finite():
-        return None
-    return int(number.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    """Whole Amount for Abstract display/export. 0.5 or less stays; above 0.5 goes up."""
+    return round_amount_whole(value)
 
 
 _LAST_COL = 1 + sum(abstract_column_span(group) for group in ABSTRACT_MEASURE_GROUPS)
@@ -126,6 +157,8 @@ def write_abstract_sheet(
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
     structure_only: bool = False,
+    extra_gold_accounts: bool = False,
+    body_rows: Sequence[tuple[str, str | None]] | None = None,
 ) -> None:
     """Write the Abstract sheet: grouped Particulars filled from Trading sources."""
     ws.title = ABSTRACT_SHEET_NAME
@@ -209,8 +242,10 @@ def write_abstract_sheet(
         opening_pivot=opening_pivot,
         mr_pivots=mr_pivots,
         dc_pivots=dc_pivots,
+        extra_gold_accounts=extra_gold_accounts,
     )
-    for offset, (kind, label) in enumerate(ABSTRACT_BODY_ROWS):
+    rows = body_rows if body_rows is not None else ABSTRACT_BODY_ROWS
+    for offset, (kind, label) in enumerate(rows):
         measures = by_label.get(label or '') if kind not in {'spacer', 'section_heading', 'group_heading'} else None
         _write_body_row(ws, _FIRST_BODY_ROW + offset, kind, label, measures)
         if structure_only and kind not in {'spacer', 'section_heading', 'group_heading'}:

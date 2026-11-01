@@ -25,6 +25,18 @@ export function roundHalfUpWhole(value) {
   return sign * Math.round(Math.abs(num));
 }
 
+/** Whole rupees. 0.5 or less stays; greater than 0.5 goes to the next integer. */
+export function roundHalfDownWhole(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const sign = num < 0 ? -1 : 1;
+  const abs = Math.abs(num);
+  const whole = Math.floor(abs);
+  const fraction = abs - whole;
+  if (fraction > 0.5) return sign * (whole + 1);
+  return sign * whole;
+}
+
 /**
  * @param {number|null|undefined} n
  * @param {number} [decimals=0]

@@ -16,6 +16,7 @@ from app.engines.financials_engine.engine.metal_trading import (
     to_head_office_amt,
     to_head_office_qty,
 )
+from app.engines.financials_engine.engine.amount_rounding import round_amount_whole
 from app.utils.indian_number_format import apply_indian_number_format
 
 TRADING_SHEET_NAME = 'Trading'
@@ -504,7 +505,7 @@ def _write_line(
 
     amount = ws.cell(row=row, column=amt_col, value=None)
     _style_cell(amount, font=font, fill=fill, alignment=_CENTER, border=amount_border)
-    _write_numeric(amount, amt_value)
+    _write_numeric(amount, round_amount_whole(amt_value) if amt_value not in (None, '') else None)
 
 
 def _write_t_account(

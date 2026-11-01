@@ -260,6 +260,10 @@ async function remapClosingStock(req, payload) {
   return pythonClient.postFinancialsRemapClosingStock(payload, { requestId: req.requestId });
 }
 
+async function fillReceiptAmounts(req, payload) {
+  return pythonClient.postFinancialsFillReceiptAmounts(payload, { requestId: req.requestId });
+}
+
 async function placeJubileeHillsSheets(req, payload) {
   return pythonClient.postJubileeHillsPlace(payload, { requestId: req.requestId });
 }
@@ -318,6 +322,7 @@ module.exports = {
   exportClosingStockTemplate,
   getClosingStockRuleBook,
   remapClosingStock,
+  fillReceiptAmounts,
   placeJubileeHillsSheets,
   processFinancialsSalesPurchases,
   processSalesPurchasesPivots,

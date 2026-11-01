@@ -1,5 +1,6 @@
 """Branch validate routes keep the existing processors and pin the branch."""
 
+import json
 from io import BytesIO
 
 from fastapi.testclient import TestClient
@@ -232,3 +233,89 @@ def test_jubilee_hills_validate_uses_existing_jubilee_processor(monkeypatch) -> 
     assert response.status_code == 200
     assert called['count'] == 1
     assert response.json()['success'] is True
+
+
+def test_jubilee_hills_process_forwards_receipt_rate_mappings(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_jubilee(*_args, **kwargs):
+        seen['receipt_rate_mappings'] = kwargs.get('receipt_rate_mappings')
+        return {'success': True}
+
+    monkeypatch.setattr(financials_router.processor, 'process_jubilee_hills', fake_jubilee)
+    files = {
+        name: XLSX
+        for name in (
+            'sales_file',
+            'purchases_file',
+            'opening_qty_file',
+            'previous_year_file',
+            'sales_return_file',
+            'purchase_return_file',
+            'credit_note_file',
+            'debit_note_file',
+        )
+    }
+    mappings = [{'product': 'Di. RA 10', 'sourceProduct': 'Di RA 10'}]
+    response = client.post(
+        '/api/process/financials/jubilee-hills',
+        files=files,
+        data={'receipt_rate_mappings': json.dumps(mappings)},
+    )
+    assert response.status_code == 200
+    assert seen['receipt_rate_mappings'] == mappings
+
+    empty = client.post('/api/process/financials/jubilee-hills', files=files)
+    assert empty.status_code == 200
+    assert seen['receipt_rate_mappings'] == []
+
+
+def test_closing_stock_export_forwards_destination_rates_and_mappings(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_prepare(**kwargs):
+        captured.update(kwargs)
+        return {
+            'productsByCategory': {},
+            'layoutByCategory': {},
+            'destinationBranch': kwargs.get('destination'),
+        }
+
+    monkeypatch.setattr(financials_router, 'prepare_branch_export_layout', fake_prepare)
+    monkeypatch.setattr(financials_router, 'build_closing_stock_template_bytes', lambda **_k: b'xlsx')
+
+    response = client.post(
+        '/api/process/financials/export-closing-stock/kokapet',
+        json={
+            'salesPivot': [{'product': 'A'}],
+            'destinationBranch': 'kokapet',
+            'sourceAverageRates': {'jubileeHills': [{'product': 'A', 'averageRateAmt': 3}]},
+            'receiptRateMappings': [{'product': 'A', 'sourceProduct': 'A1'}],
+        },
+    )
+    assert response.status_code == 200
+    assert captured['destination'] == 'kokapet'
+    assert captured['source_average_rates']['jubileeHills'][0]['averageRateAmt'] == 3
+    assert captured['receipt_rate_mappings'][0]['sourceProduct'] == 'A1'
+
+
+def test_closing_stock_export_infers_destination_from_path_when_omitted(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_prepare(**kwargs):
+        captured['destination'] = kwargs.get('destination')
+        return {
+            'productsByCategory': {},
+            'layoutByCategory': {},
+            'destinationBranch': kwargs.get('destination'),
+        }
+
+    monkeypatch.setattr(financials_router, 'prepare_branch_export_layout', fake_prepare)
+    monkeypatch.setattr(financials_router, 'build_closing_stock_template_bytes', lambda **_k: b'xlsx')
+
+    response = client.post(
+        '/api/process/financials/export-closing-stock/basheerbagh',
+        json={'salesPivot': [{'product': 'A'}]},
+    )
+    assert response.status_code == 200
+    assert captured['destination'] == 'basheerbagh'

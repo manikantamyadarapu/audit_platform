@@ -79,8 +79,6 @@ def test_sums_opening_from_all_three_branches():
     assert gold['amt'] == 60
     assert by_label['Platinum Account']['Opening Stock']['qty'] is None
     assert by_label['Gold Account Jadau']['Opening Stock']['qty'] is None
-    assert any('Platinum Account' in item for item in unresolved)
-    assert any('Jadau' in item for item in unresolved)
     assert any('GP AY 2025-26' in item for item in unresolved)
 
 
@@ -210,3 +208,24 @@ def test_values_stay_blank_until_all_three_branches_are_present():
     assert gold_row is not None
     assert ws.cell(row=gold_row, column=2).value is None
     assert ws.cell(row=gold_row, column=3).value is None
+
+
+def test_consolidated_platinum_and_jadau_sum_from_branch_gold_products():
+    extra = {
+        'openingPivot': [
+            {'product': 'Standard Gold 24K', 'sumOfQuantity': 1, 'sumOfGross': 10},
+            {'product': 'Gold Platinum', 'sumOfQuantity': 2, 'sumOfGross': 20},
+            {'product': 'Gold Ornaments Jadau', 'sumOfQuantity': 3, 'sumOfGross': 30},
+        ]
+    }
+    by_label, _contributing, _unresolved = build_consolidated_abstract_row_measures(
+        {
+            'basheerbagh': _gold_branch(1, 10, extra),
+            'kokapet': _gold_branch(1, 10),
+            'jubileeHills': _gold_branch(1, 10, extra),
+        }
+    )
+    assert by_label['Platinum Account']['Opening Stock']['qty'] == 4
+    assert by_label['Platinum Account']['Opening Stock']['amt'] == 40
+    assert by_label['Gold Account Jadau']['Opening Stock']['qty'] == 6
+    assert by_label['Gold Account Jadau']['Opening Stock']['amt'] == 60

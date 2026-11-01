@@ -208,9 +208,9 @@ class TestOpeningStockProductSheetMapping:
             if row.get('kind') == 'product' and row.get('label') == 'Emeralds JEM 100'
         )
         assert beads['openingQty'] == 263.03
-        assert beads['openingAmt'] == 234713
+        assert beads['openingAmt'] == 234713.15
         assert jem['openingQty'] == 10
-        assert jem['openingAmt'] == 1000
+        assert jem['openingAmt'] == 999.5
         assert mapped['productsWithOpeningData'] == 2
 
     def test_build_opening_measures_for_layout_uses_name_keys_not_rule_book(self):

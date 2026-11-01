@@ -365,6 +365,18 @@ export async function placeJubileeHillsFromPivots(payload, signal) {
   }
 }
 
+/** Fill receipt amounts on a stored branch layout using source-branch Average Rates. */
+export async function fillReceiptAmountsFromLayout(payload, signal) {
+  try {
+    const { data } = await apiClient.post('/api/v1/process/financials/fill-receipt-amounts', payload, {
+      signal,
+    });
+    return data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err), { cause: err });
+  }
+}
+
 /** Rebuild Closing Stock mapping from current Rule Book + stored pivots. */
 export async function remapClosingStockFromPivots(payload, signal) {
   try {

@@ -1,5 +1,15 @@
 /** Pending-list helpers shared by Opening Stock and Average Rate mapping panels. */
 
+export function openingMappingPendingCount(result) {
+  const report = result?.openingStockReport || result?.summary?.openingStockReport;
+  if (Array.isArray(report?.manualMappingRequired)) {
+    return report.manualMappingRequired.length;
+  }
+  const jubilee = result?.openingAmountMatch?.manualMappingRequiredRows;
+  if (Array.isArray(jubilee)) return jubilee.length;
+  return Number(report?.manualMappingRequiredCount || 0);
+}
+
 export function receiptReviewKey(row) {
   return [
     String(row?.product || '').trim(),

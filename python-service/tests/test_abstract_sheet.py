@@ -234,12 +234,13 @@ class TestAbstractSheet:
         heading = _abstract_row(abstract, 'DIAMONDS')
         assert abstract.cell(row=heading, column=2).value is None
 
-    def test_abstract_amounts_round_half_up_to_whole_numbers(self):
+    def test_abstract_amounts_round_half_down_to_whole_numbers(self):
         assert displayed_abstract_amount(123.4567) == 123
         assert displayed_abstract_amount(123.5678) == 124
-        assert displayed_abstract_amount(123.5) == 124
+        assert displayed_abstract_amount(123.5) == 123
         assert displayed_abstract_amount(0.49) == 0
-        assert displayed_abstract_amount(0.5) == 1
+        assert displayed_abstract_amount(0.5) == 0
+        assert displayed_abstract_amount(0.51) == 1
 
         raw = build_closing_stock_template_bytes(
             sales_pivot=[
@@ -263,7 +264,7 @@ class TestAbstractSheet:
         assert abstract.cell(row=gold_row, column=19).value == 123
 
         trading = load_workbook(BytesIO(raw))[TRADING_SHEET_NAME]
-        assert trading.cell(row=3, column=3).value == pytest.approx(1000.49)
+        assert trading.cell(row=3, column=3).value == 1000
 
 
 def _abstract_row(ws, label: str) -> int:

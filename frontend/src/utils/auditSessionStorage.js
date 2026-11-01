@@ -324,6 +324,8 @@ export function slimJubileeHillsResult(result, { keepCatalog = true } = {}) {
     unmappedProducts: result.unmappedProducts ?? [],
     unmappedProductDetails: keepCatalog ? result.unmappedProductDetails ?? [] : [],
     receiptAmountReview: result.receiptAmountReview ?? [],
+    transferReview: result.transferReview ?? [],
+    transferLines: result.transferLines ?? { mr: [], dc: [] },
     productAverageRates: keepCatalog ? result.productAverageRates ?? [] : [],
     resolvedMappings: keepCatalog ? result.resolvedMappings ?? [] : [],
     categories: result.categories,

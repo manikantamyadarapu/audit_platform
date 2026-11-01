@@ -7,22 +7,6 @@
  * @param {string} field
  * @returns {{ ok: true, rows: object[] } | { ok: false, detail: string }}
  */
-function branchFrom(body) {
-  const branch = String(body?.destinationBranch || '').trim();
-  if (branch === 'basheerbagh' || branch === 'kokapet' || branch === 'jubileeHills') return branch;
-  return '';
-}
-
-function ratesFrom(body) {
-  const rates = body?.sourceAverageRates;
-  if (rates && typeof rates === 'object' && !Array.isArray(rates)) return rates;
-  return {};
-}
-
-function mappingsFrom(body) {
-  return Array.isArray(body?.receiptRateMappings) ? body.receiptRateMappings : [];
-}
-
 function validatePivotArray(value, field) {
   if (value == null) {
     return { ok: true, rows: [] };
@@ -88,14 +72,23 @@ function validateFinancialsExportPivotsBody(body) {
   if (!mrPivots.ok) return mrPivots;
   const dcPivots = validateLocationPivots(body.dcPivots, 'dcPivots');
   if (!dcPivots.ok) return dcPivots;
+
   const salesReturn = validatePivotArray(body.salesReturnPivot, 'salesReturnPivot');
   if (!salesReturn.ok) return salesReturn;
   const purchaseReturn = validatePivotArray(body.purchaseReturnPivot, 'purchaseReturnPivot');
   if (!purchaseReturn.ok) return purchaseReturn;
-  const supplierDebit = validatePivotArray(body.supplierDebitNotePivot, 'supplierDebitNotePivot');
-  if (!supplierDebit.ok) return supplierDebit;
-  const supplierCredit = validatePivotArray(body.supplierCreditNotePivot, 'supplierCreditNotePivot');
-  if (!supplierCredit.ok) return supplierCredit;
+  const debitNote = validatePivotArray(body.supplierDebitNotePivot, 'supplierDebitNotePivot');
+  if (!debitNote.ok) return debitNote;
+  const creditNote = validatePivotArray(body.supplierCreditNotePivot, 'supplierCreditNotePivot');
+  if (!creditNote.ok) return creditNote;
+
+  const sourceAverageRates =
+    body.sourceAverageRates && typeof body.sourceAverageRates === 'object' && !Array.isArray(body.sourceAverageRates)
+      ? body.sourceAverageRates
+      : {};
+  const receiptRateMappings = Array.isArray(body.receiptRateMappings) ? body.receiptRateMappings : [];
+  const destinationBranch =
+    body.destinationBranch == null ? '' : String(body.destinationBranch);
 
   return {
     ok: true,
@@ -104,13 +97,13 @@ function validateFinancialsExportPivotsBody(body) {
     openingPivot: opening.rows,
     salesReturnPivot: salesReturn.rows,
     purchaseReturnPivot: purchaseReturn.rows,
-    supplierDebitNotePivot: supplierDebit.rows,
-    supplierCreditNotePivot: supplierCredit.rows,
+    supplierDebitNotePivot: debitNote.rows,
+    supplierCreditNotePivot: creditNote.rows,
     mrPivots: mrPivots.tree,
     dcPivots: dcPivots.tree,
-    destinationBranch: branchFrom(body),
-    sourceAverageRates: ratesFrom(body),
-    receiptRateMappings: mappingsFrom(body),
+    sourceAverageRates,
+    receiptRateMappings,
+    destinationBranch,
   };
 }
 
@@ -153,6 +146,15 @@ function validateClosingStockExportBody(body) {
     body.financialYear == null || body.financialYear === ''
       ? 'AY 2025-26'
       : String(body.financialYear);
+  const sourceAverageRates =
+    body.sourceAverageRates && typeof body.sourceAverageRates === 'object' && !Array.isArray(body.sourceAverageRates)
+      ? body.sourceAverageRates
+      : {};
+  const receiptRateMappings = Array.isArray(body.receiptRateMappings) ? body.receiptRateMappings : [];
+  const destinationBranch =
+    body.destinationBranch == null ? '' : String(body.destinationBranch);
+  const transfer = validateExportTransferFields(body);
+  if (!transfer.ok) return transfer;
 
   return {
     ok: true,
@@ -165,13 +167,52 @@ function validateClosingStockExportBody(body) {
     companyName,
     address,
     financialYear,
-    destinationBranch: branchFrom(body),
-    sourceAverageRates: ratesFrom(body),
-    receiptRateMappings: mappingsFrom(body),
+    destinationBranch,
+    sourceAverageRates,
+    receiptRateMappings,
+    ...transfer.fields,
+  };
+}
+
+function optionalObject(value, name) {
+  if (value == null) return { ok: true, value: {} };
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, detail: `"${name}" must be an object` };
+  }
+  return { ok: true, value };
+}
+
+function validateExportTransferFields(body) {
+  const layout = optionalObject(body.layoutByCategory, 'layoutByCategory');
+  if (!layout.ok) return layout;
+  const sourceIssueLayouts = optionalObject(body.sourceIssueLayouts, 'sourceIssueLayouts');
+  if (!sourceIssueLayouts.ok) return sourceIssueLayouts;
+  const sourceOpeningComplete = optionalObject(body.sourceOpeningComplete, 'sourceOpeningComplete');
+  if (!sourceOpeningComplete.ok) return sourceOpeningComplete;
+  const sourceOpeningPending = optionalObject(body.sourceOpeningPending, 'sourceOpeningPending');
+  if (!sourceOpeningPending.ok) return sourceOpeningPending;
+  const sourceTransferLines = optionalObject(body.sourceTransferLines, 'sourceTransferLines');
+  if (!sourceTransferLines.ok) return sourceTransferLines;
+  const destinationTransferLines = optionalObject(
+    body.destinationTransferLines,
+    'destinationTransferLines'
+  );
+  if (!destinationTransferLines.ok) return destinationTransferLines;
+  return {
+    ok: true,
+    fields: {
+      layoutByCategory: layout.value,
+      sourceIssueLayouts: sourceIssueLayouts.value,
+      sourceOpeningComplete: sourceOpeningComplete.value,
+      sourceOpeningPending: sourceOpeningPending.value,
+      sourceTransferLines: sourceTransferLines.value,
+      destinationTransferLines: destinationTransferLines.value,
+    },
   };
 }
 
 module.exports = {
   validateFinancialsExportPivotsBody,
   validateClosingStockExportBody,
+  validateExportTransferFields,
 };

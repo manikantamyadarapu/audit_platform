@@ -441,9 +441,11 @@ class TestClosingStockProductRuleBook:
     def test_product_rounds_amount_total_rounds_unrounded_amount_sum(self):
         """
         Qty is never rounded.
-        Beads DB Amount = ROUND(each).
-        TOTAL Amount = ROUND(SUM(unrounded)), not SUM(rounded product amounts).
+        Layout keeps full-precision Amounts.
+        Excel Amount = ROUND(each product) and ROUND(SUM(unrounded)) for TOTAL.
         """
+        from app.engines.financials_engine.engine.amount_rounding import round_amount_whole
+
         sales_pivot = [
             {'product': 'Stone JEM X', 'sumOfQuantity': 100.49, 'sumOfGross': 100.49},
             {'product': 'Stone JEM Y', 'sumOfQuantity': 200.49, 'sumOfGross': 200.49},
@@ -471,8 +473,8 @@ class TestClosingStockProductRuleBook:
         y = _product_row(result['layoutByCategory']['Emerald'], 'Stone JEM Y')
         assert x['salesQty'] == 100.49
         assert y['salesQty'] == 200.49
-        assert x['salesAmt'] == 100
-        assert y['salesAmt'] == 200
+        assert x['salesAmt'] == 100.49
+        assert y['salesAmt'] == 200.49
 
         grand = next(
             row
@@ -480,9 +482,24 @@ class TestClosingStockProductRuleBook:
             if row.get('kind') == 'grand_total'
         )
         assert grand['salesQty'] == 300.98
-        assert grand['salesAmt'] == 301
-        assert (x['salesAmt'] + y['salesAmt']) == 300
-        assert grand['salesAmt'] != (x['salesAmt'] + y['salesAmt'])
+        assert grand['salesAmt'] == 300.98
+        assert (x['salesAmt'] + y['salesAmt']) == grand['salesAmt']
+
+        raw = build_closing_stock_template_bytes(
+            products_by_category=result['productsByCategory'],
+            layout_by_category=result['layoutByCategory'],
+        )
+        wb = load_workbook(BytesIO(raw))
+        emerald = wb['Emerald']
+        sales_amt_col = _leaf_col(SALES_AMT_LEAF_IDX)
+        assert emerald.cell(row=10, column=sales_amt_col).value == round_amount_whole(100.49)
+        assert emerald.cell(row=11, column=sales_amt_col).value == round_amount_whole(200.49)
+        assert emerald.cell(row=12, column=sales_amt_col).value == round_amount_whole(300.98)
+        assert emerald.cell(row=12, column=sales_amt_col).value == 301
+        assert (
+            emerald.cell(row=10, column=sales_amt_col).value
+            + emerald.cell(row=11, column=sales_amt_col).value
+        ) != emerald.cell(row=12, column=sales_amt_col).value
 
     def test_reconciliation_with_unmapped_pivot_reduces_output_totals(self):
         result = map_pivots_to_closing_stock_categories(

@@ -11,6 +11,8 @@ test('financials opening mappings are stored per branch in localStorage', () => 
   assert.match(source, /export function saveOpeningStockMapping/);
   assert.match(source, /export function reapplyOpeningStockMappings/);
   assert.match(source, /applyManualOpeningMapping/);
+  assert.match(source, /openingQtySource/);
+  assert.match(source, /previousYear/);
 });
 
 test('session slim keeps openingStockReport for Financials branches', () => {

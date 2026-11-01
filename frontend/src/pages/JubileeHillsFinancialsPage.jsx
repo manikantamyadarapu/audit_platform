@@ -19,7 +19,7 @@ import { AbstractPreviewTable } from '../components/tables/AbstractPreviewTable'
 import { Input } from '../components/ui/Input';
 import { CLOSING_STOCK_AUDIT_CONFIG } from '../config/closingStockAuditConfig';
 import { CLOSING_STOCK_CATEGORIES, JUBILEE_HILLS_HEADER_LABELS } from '../config/closingStockLayout';
-import { ABSTRACT_SHEET_NAME } from '../config/abstractLayout';
+import { ABSTRACT_SHEET_NAME, JUBILEE_ABSTRACT_BODY_ROWS } from '../config/abstractLayout';
 import { TRADING_SHEET_NAME } from '../config/tradingAccountLayout';
 import {
   JUBILEE_HILLS_FOLDER_SLOTS,
@@ -44,6 +44,10 @@ import { SourceAverageRatesHint } from '../components/audit/SourceAverageRatesHi
 import { readSourceAverageRates, saveBranchAverageRates } from '../utils/sourceAverageRates';
 import { readReceiptRateMappings, saveReceiptRateMapping } from '../utils/receiptRateMappings';
 import { withoutResolvedReceiptReviews } from '../utils/mappingPendingLists';
+import {
+  buildCrossBranchExportFields,
+  maybeFillCrossBranchReceiptAmounts,
+} from '../utils/fillCrossBranchReceiptAmounts';
 import { ReceiptRateManualMappingPanel } from '../components/audit/ReceiptRateManualMappingPanel';
 import { useAuditSessionPersistence } from '../hooks/useAuditSessionPersistence';
 import { bootstrapAuditSessionState, slimJubileeHillsSnapshot } from '../utils/auditSessionStorage';
@@ -365,9 +369,12 @@ export default function JubileeHillsFinancialsPage() {
             savedOpeningMappings: loadJubileeOpeningMappings(),
           });
       applyPlacement(data);
+      const restored = restoreFinancialsMappings(data, 'jubilee-hills');
+      const filled = await maybeFillCrossBranchReceiptAmounts('jubileeHills', restored);
+      applyPlacement(filled);
       setActiveSheet(CLOSING_STOCK_CATEGORIES[0]);
       persistWorkspace(
-        { result: data, sheetError: null, activeSheet: CLOSING_STOCK_CATEGORIES[0], ...fileNames },
+        { result: filled, sheetError: null, activeSheet: CLOSING_STOCK_CATEGORIES[0], ...fileNames },
         { notifyOnFailure: true, force: true }
       );
       requestAnimationFrame(() => {
@@ -407,7 +414,9 @@ export default function JubileeHillsFinancialsPage() {
       const previousNames = mapping.previousYearProducts?.length
         ? mapping.previousYearProducts
         : [mapping.previousYearProduct].filter(Boolean);
-      saveJubileeOpeningMapping(mapping.product, previousNames);
+      saveJubileeOpeningMapping(mapping.product, previousNames, {
+        openingQtySource: mapping.openingQtySource,
+      });
       const openingAmt = mapping.amount ?? mapping.openingAmt;
       const applied = applyManualOpeningMapping(
         {
@@ -425,6 +434,7 @@ export default function JubileeHillsFinancialsPage() {
           category: mapping.category,
           subcategory: mapping.subcategory,
           openingQty: mapping.openingQty,
+          openingQtySource: mapping.openingQtySource,
           openingAmt,
           previousYearProducts: previousNames,
         }
@@ -460,13 +470,13 @@ export default function JubileeHillsFinancialsPage() {
           supplierDebitNotePivot: next.supplierDebitNotePivot || [],
           supplierCreditNotePivot: next.supplierCreditNotePivot || [],
           openingPivot,
-          mrPivots: transfers.mrPivots || {},
-          dcPivots: transfers.dcPivots || {},
+          mrPivots: transfers.mrPivots || result.mrPivots || {},
+          dcPivots: transfers.dcPivots || result.dcPivots || {},
           sourceAverageRates: readSourceAverageRates(),
           receiptRateMappings: readReceiptRateMappings('jubileeHills'),
         });
         saveBranchAverageRates('jubileeHills', placed.productAverageRates);
-        setResult({
+        const placedResult = {
           ...next,
           productsByCategory: placed.productsByCategory,
           layoutByCategory: placed.layoutByCategory,
@@ -474,18 +484,12 @@ export default function JubileeHillsFinancialsPage() {
           unmappedProductDetails: placed.unmappedProductDetails,
           receiptAmountReview: placed.receiptAmountReview || [],
           productAverageRates: placed.productAverageRates || [],
-        });
+        };
+        const filled = await maybeFillCrossBranchReceiptAmounts('jubileeHills', placedResult);
+        setResult(filled);
         persistWorkspace(
           {
-            result: {
-              ...next,
-              productsByCategory: placed.productsByCategory,
-              layoutByCategory: placed.layoutByCategory,
-              unmappedProducts: placed.unmappedProducts,
-              unmappedProductDetails: placed.unmappedProductDetails,
-              receiptAmountReview: placed.receiptAmountReview || [],
-              productAverageRates: placed.productAverageRates || [],
-            },
+            result: filled,
           },
           { notifyOnFailure: true, force: true }
         );
@@ -516,16 +520,18 @@ export default function JubileeHillsFinancialsPage() {
   const downloadSheets = useCallback(async () => {
     setExporting(true);
     try {
+      const transfer = await buildCrossBranchExportFields('jubileeHills', result);
       await downloadJubileeHillsTemplate({
         companyName: companyName.trim(),
         address: address.trim(),
         financialYear: financialYear.trim() || CLOSING_STOCK_AUDIT_CONFIG.defaultFinancialYear,
-        layoutByCategory: result?.layoutByCategory || null,
+        destinationBranch: 'jubileeHills',
         salesPivot: result?.netSalesPivot || result?.salesPivot || [],
         purchasesPivot: result?.netPurchasesPivot || result?.purchasesPivot || [],
         openingPivot: result?.openingPivot || [],
         mrPivots: result?.mrPivots || result?.transferPivots?.mrPivots || {},
         dcPivots: result?.dcPivots || result?.transferPivots?.dcPivots || {},
+        ...transfer,
       });
       auditToastSuccess('Jubilee Hills workbook downloaded');
     } catch (e) {
@@ -759,8 +765,9 @@ export default function JubileeHillsFinancialsPage() {
               receiptAmountReview: placed.receiptAmountReview || [],
               productAverageRates: placed.productAverageRates || [],
             };
-            setResult(placedResult);
-            persistWorkspace({ result: placedResult, sheetError: null }, { notifyOnFailure: true, force: true });
+            const filled = await maybeFillCrossBranchReceiptAmounts('jubileeHills', placedResult);
+            setResult(filled);
+            persistWorkspace({ result: filled, sheetError: null }, { notifyOnFailure: true, force: true });
           } catch (error) {
             setResult(snapshot);
             throw error;
@@ -846,6 +853,8 @@ export default function JubileeHillsFinancialsPage() {
                 openingPivot={result?.openingPivot || []}
                 mrPivots={result?.mrPivots || result?.transferPivots?.mrPivots || {}}
                 dcPivots={result?.dcPivots || result?.transferPivots?.dcPivots || {}}
+                extraGoldAccounts
+                bodyRows={JUBILEE_ABSTRACT_BODY_ROWS}
               />
             ) : (
               <ClosingStockPreviewTable

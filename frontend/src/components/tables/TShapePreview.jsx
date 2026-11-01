@@ -1,5 +1,5 @@
 import { TSHAPE_BRANCH_COLUMNS, TSHAPE_LEFT_ROWS, TSHAPE_RIGHT_ROWS } from '../../config/consolidatedTShapeLayout';
-import { formatClosingStockMeasure } from '../../config/closingStockLayout';
+import { formatClosingStockAmount } from '../../config/closingStockLayout';
 import { tshapeSideTotal } from '../../utils/consolidatedTShapeValues';
 import { cn } from '../../utils/cn';
 
@@ -14,7 +14,7 @@ const TOTAL_ROW = 'bg-amber-50 font-bold text-amber-950 dark:bg-amber-950/30 dar
 
 function displayAmt(value) {
   if (value == null) return '';
-  return formatClosingStockMeasure(value).replace(/\u00a0/g, '').trim();
+  return formatClosingStockAmount(value).replace(/\u00a0/g, '').trim();
 }
 
 function amountKeys(values) {

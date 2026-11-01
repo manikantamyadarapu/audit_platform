@@ -180,6 +180,7 @@ class FinancialsPivotAudit:
             destination_branch=destination_branch,
             source_average_rates=source_average_rates,
             receipt_rate_mappings=receipt_rate_mappings,
+            transfer_lines=mr_dc_pivots.get('transferLines'),
         )
 
     def process_sales_purchases_pivots(
@@ -507,6 +508,7 @@ class FinancialsPivotAudit:
             'mrPivots': mr_dc_pivots['mrPivots'],
             'dcPivots': mr_dc_pivots['dcPivots'],
         }
+        rebuilt['transferLines'] = mr_dc_pivots.get('transferLines') or {'mr': [], 'dc': []}
         rebuilt['salesReturnPivot'] = sales_return_pivot
         rebuilt['purchaseReturnPivot'] = purchase_return_pivot
         rebuilt['supplierCreditNotePivot'] = credit_note_pivot

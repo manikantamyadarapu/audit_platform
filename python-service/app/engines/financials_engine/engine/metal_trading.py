@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -35,6 +35,8 @@ GOLD_22K = 'GOLD ORNAMENTS ACCOUNT - 22K'
 GOLD_18K = 'GOLD ORNAMENTS ACCOUNT - 18K'
 GOLD_14K = 'GOLD ORNAMENTS ACCOUNT - 14K'
 SILVER = 'SILVER ACCOUNT'
+PLATINUM = 'PLATINUM ACCOUNT'
+JADAU = 'GOLD ACCOUNT - JADAU'
 
 METAL_TRADING_ACCOUNT_TITLES: tuple[str, ...] = (
     GOLD_24K,
@@ -43,6 +45,7 @@ METAL_TRADING_ACCOUNT_TITLES: tuple[str, ...] = (
     GOLD_14K,
     SILVER,
 )
+ABSTRACT_EXTRA_GOLD_TITLES: tuple[str, ...] = (PLATINUM, JADAU)
 
 
 def _empty_bucket() -> dict[str, float | None]:
@@ -194,6 +197,20 @@ def resolve_metal_trading_account(product: str) -> str | None:
     if display:
         return _account_from_metal_name(display)
     return _account_from_metal_name(name)
+
+
+def resolve_abstract_gold_account(product: str) -> str | None:
+    """Trading metals plus Abstract-only Platinum and Jadau. Trading sheet is unchanged."""
+    name = str(product or '').strip()
+    if not name:
+        return None
+    catalog = resolve_metal_catalog_name(name)
+    key = _match_key(catalog or name)
+    if 'jadau' in key:
+        return JADAU
+    if 'platinum' in key:
+        return PLATINUM
+    return resolve_metal_trading_account(name)
 
 
 def metal_opening_group(product: str) -> dict[str, str | None] | None:
@@ -367,13 +384,14 @@ def _accumulate_source(
     rows: Sequence[Mapping[str, Any]] | None,
     qty_key: str,
     amt_key: str,
+    resolve=resolve_metal_trading_account,
 ) -> None:
     for row in rows or ():
         product = str(row.get('product') or '').strip()
         if not product:
             continue
-        account = resolve_metal_trading_account(product)
-        if account is None:
+        account = resolve(product)
+        if account is None or account not in buckets:
             continue
         qty, amt = _row_qty_amt(row)
         if qty is None and amt is None:
@@ -383,13 +401,16 @@ def _accumulate_source(
         entry[amt_key] = _add_measure(entry[amt_key], amt)
 
 
-def _qty_by_metal_account(rows: Sequence[Mapping[str, Any]] | None) -> dict[str, float]:
+def _qty_by_metal_account(
+    rows: Sequence[Mapping[str, Any]] | None,
+    resolve=resolve_metal_trading_account,
+) -> dict[str, float]:
     totals: dict[str, float] = {}
     for row in rows or ():
         product = str(row.get('product') or '').strip()
         if not product:
             continue
-        account = resolve_metal_trading_account(product)
+        account = resolve(product)
         if account is None:
             continue
         qty = _coerce_measure(row.get('sumOfQuantity'))
@@ -404,18 +425,21 @@ def _apply_mr_dc_nets(
     *,
     mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None,
     dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+    resolve=resolve_metal_trading_account,
 ) -> None:
     """Same branch net as product sheets: MR Qty − DC Qty; sign picks Receipts vs Issues."""
     mr_tree = mr_pivots or {}
     dc_tree = dc_pivots or {}
     for location, receipts_key, issues_key in _LOCATION_NET_FIELDS:
-        mr_qty = _qty_by_metal_account(mr_tree.get(location))
-        dc_qty = _qty_by_metal_account(dc_tree.get(location))
+        mr_qty = _qty_by_metal_account(mr_tree.get(location), resolve=resolve)
+        dc_qty = _qty_by_metal_account(dc_tree.get(location), resolve=resolve)
         for account in set(mr_qty) | set(dc_qty):
+            entry = buckets.get(account)
+            if entry is None:
+                continue
             net = float(Decimal(str(mr_qty.get(account, 0.0))) - Decimal(str(dc_qty.get(account, 0.0))))
             if abs(net) < _ZERO_EPS:
                 continue
-            entry = buckets[account]
             if net > 0:
                 entry[receipts_key] = _add_measure(entry[receipts_key], float(net))
             else:
@@ -442,12 +466,7 @@ def _metal_average_rate(entry: Mapping[str, float | None]) -> float | None:
         return None
     if qty is None or qty == 0:
         return 0.0
-    return float(
-        (Decimal(str(amt or 0)) / Decimal(str(qty))).quantize(
-            Decimal('0.0001'),
-            rounding=ROUND_HALF_UP,
-        )
-    )
+    return float(Decimal(str(amt or 0)) / Decimal(str(qty)))
 
 
 def _sum_present(*parts: float | None) -> float | None:
@@ -488,11 +507,54 @@ def aggregate_metal_trading_totals(
     Net rate = (Opening + Purchase Difference + From HO + Making Charges) Amt
     / same Qty.
     """
-    buckets = {title: _empty_bucket() for title in METAL_TRADING_ACCOUNT_TITLES}
-    _accumulate_source(buckets, opening_pivot, 'openingQty', 'openingAmt')
-    _accumulate_source(buckets, purchases_pivot, 'purchasesQty', 'purchasesAmt')
-    _accumulate_source(buckets, sales_pivot, 'salesQty', 'salesAmt')
-    _apply_mr_dc_nets(buckets, mr_pivots=mr_pivots, dc_pivots=dc_pivots)
+    return _aggregate_account_totals(
+        titles=METAL_TRADING_ACCOUNT_TITLES,
+        resolve=resolve_metal_trading_account,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
+
+
+def aggregate_abstract_gold_totals(
+    *,
+    sales_pivot: Sequence[Mapping[str, Any]] | None = None,
+    purchases_pivot: Sequence[Mapping[str, Any]] | None = None,
+    opening_pivot: Sequence[Mapping[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> dict[str, dict[str, float | None]]:
+    """Trading Gold/Silver plus Abstract-only Platinum and Jadau."""
+    return _aggregate_account_totals(
+        titles=METAL_TRADING_ACCOUNT_TITLES + ABSTRACT_EXTRA_GOLD_TITLES,
+        resolve=resolve_abstract_gold_account,
+        sales_pivot=sales_pivot,
+        purchases_pivot=purchases_pivot,
+        opening_pivot=opening_pivot,
+        mr_pivots=mr_pivots,
+        dc_pivots=dc_pivots,
+    )
+
+
+def _aggregate_account_totals(
+    *,
+    titles: Sequence[str],
+    resolve,
+    sales_pivot: Sequence[Mapping[str, Any]] | None = None,
+    purchases_pivot: Sequence[Mapping[str, Any]] | None = None,
+    opening_pivot: Sequence[Mapping[str, Any]] | None = None,
+    mr_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    dc_pivots: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> dict[str, dict[str, float | None]]:
+    buckets = {title: _empty_bucket() for title in titles}
+    _accumulate_source(buckets, opening_pivot, 'openingQty', 'openingAmt', resolve=resolve)
+    _accumulate_source(buckets, purchases_pivot, 'purchasesQty', 'purchasesAmt', resolve=resolve)
+    _accumulate_source(buckets, sales_pivot, 'salesQty', 'salesAmt', resolve=resolve)
+    _apply_mr_dc_nets(
+        buckets, mr_pivots=mr_pivots, dc_pivots=dc_pivots, resolve=resolve
+    )
     for entry in buckets.values():
         entry['netPurchasesQty'] = _net_measure(
             entry['purchasesQty'], entry['purchaseReturnsQty']

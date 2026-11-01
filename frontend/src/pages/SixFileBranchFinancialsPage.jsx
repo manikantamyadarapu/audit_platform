@@ -33,6 +33,7 @@ import {
 } from '../utils/auditSessionStorage';
 import { cn } from '../utils/cn';
 import { restoreFinancialsMappings } from '../utils/financialsOpeningMappings';
+import { maybeFillCrossBranchReceiptAmounts } from '../utils/fillCrossBranchReceiptAmounts';
 import {
   beginFinancialsMappingSession,
   ensureFinancialsMappingSession,
@@ -393,7 +394,8 @@ export function SixFileBranchFinancialsPage({ branch }) {
         persistWorkspace({ result: null, sheetError: errorBody, ...fileNames }, { notifyOnFailure: true, force: true });
       } else {
         saveBranchAverageRates(page.branch, data.productAverageRates);
-        const nextResult = restoreFinancialsMappings(data, page.branch);
+        const restored = restoreFinancialsMappings(data, page.branch);
+        const nextResult = await maybeFillCrossBranchReceiptAmounts(page.branch, restored);
         setResult(nextResult);
         setSheetError(null);
         requestAnimationFrame(() => {

@@ -13,6 +13,8 @@ export const GOLD_22K = 'GOLD ORNAMENTS ACCOUNT - 22K';
 export const GOLD_18K = 'GOLD ORNAMENTS ACCOUNT - 18K';
 export const GOLD_14K = 'GOLD ORNAMENTS ACCOUNT - 14K';
 export const SILVER = 'SILVER ACCOUNT';
+export const PLATINUM = 'PLATINUM ACCOUNT';
+export const JADAU = 'GOLD ACCOUNT - JADAU';
 
 export const METAL_TRADING_ACCOUNT_TITLES = Object.freeze([
   GOLD_24K,
@@ -21,6 +23,7 @@ export const METAL_TRADING_ACCOUNT_TITLES = Object.freeze([
   GOLD_14K,
   SILVER,
 ]);
+export const ABSTRACT_EXTRA_GOLD_TITLES = Object.freeze([PLATINUM, JADAU]);
 
 function normProduct(name) {
   let text = String(name || '');
@@ -108,6 +111,16 @@ export function resolveMetalTradingAccount(product) {
   const display = resolveDisplayName(name);
   if (display) return accountFromMetalName(display);
   return accountFromMetalName(name);
+}
+
+export function resolveAbstractGoldAccount(product) {
+  const name = String(product || '').trim();
+  if (!name) return null;
+  const display = resolveDisplayName(name);
+  const key = matchKey(display || name);
+  if (key.includes('jadau')) return JADAU;
+  if (key.includes('platinum')) return PLATINUM;
+  return resolveMetalTradingAccount(name);
 }
 
 function coerceMeasure(value) {
@@ -201,12 +214,12 @@ function emptyBucket() {
   };
 }
 
-function accumulate(buckets, rows, qtyKey, amtKey) {
+function accumulate(buckets, rows, qtyKey, amtKey, resolve = resolveMetalTradingAccount) {
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const product = String(row?.product || '').trim();
     if (!product) return;
-    const account = resolveMetalTradingAccount(product);
-    if (!account) return;
+    const account = resolve(product);
+    if (!account || !buckets[account]) return;
     const { qty, amt } = rowQtyAmt(row);
     if (qty == null && amt == null) return;
     const entry = buckets[account];
@@ -221,12 +234,12 @@ const LOCATION_NET_FIELDS = [
   ['internalBasheerbagh', 'receiptsInternalQty', 'issuesInternalQty'],
 ];
 
-function qtyByMetalAccount(rows) {
+function qtyByMetalAccount(rows, resolve = resolveMetalTradingAccount) {
   const totals = {};
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const product = String(row?.product || '').trim();
     if (!product) return;
-    const account = resolveMetalTradingAccount(product);
+    const account = resolve(product);
     if (!account) return;
     const qty = coerceMeasure(row?.sumOfQuantity);
     if (qty == null) return;
@@ -235,12 +248,12 @@ function qtyByMetalAccount(rows) {
   return totals;
 }
 
-function applyMrDcNets(buckets, mrPivots, dcPivots) {
+function applyMrDcNets(buckets, mrPivots, dcPivots, resolve = resolveMetalTradingAccount) {
   const mrTree = mrPivots && typeof mrPivots === 'object' ? mrPivots : {};
   const dcTree = dcPivots && typeof dcPivots === 'object' ? dcPivots : {};
   LOCATION_NET_FIELDS.forEach(([location, receiptsKey, issuesKey]) => {
-    const mrQty = qtyByMetalAccount(mrTree[location]);
-    const dcQty = qtyByMetalAccount(dcTree[location]);
+    const mrQty = qtyByMetalAccount(mrTree[location], resolve);
+    const dcQty = qtyByMetalAccount(dcTree[location], resolve);
     const accounts = new Set([...Object.keys(mrQty), ...Object.keys(dcQty)]);
     accounts.forEach((account) => {
       const net = (mrQty[account] || 0) - (dcQty[account] || 0);
@@ -320,18 +333,12 @@ function applyHeadOfficeIssueAmounts(entry) {
  *   dcPivots?: object,
  * }} pivots
  */
-export function aggregateMetalTradingTotals({
-  salesPivot = [],
-  purchasesPivot = [],
-  openingPivot = [],
-  mrPivots = {},
-  dcPivots = {},
-} = {}) {
-  const buckets = Object.fromEntries(METAL_TRADING_ACCOUNT_TITLES.map((title) => [title, emptyBucket()]));
-  accumulate(buckets, openingPivot, 'openingQty', 'openingAmt');
-  accumulate(buckets, purchasesPivot, 'purchasesQty', 'purchasesAmt');
-  accumulate(buckets, salesPivot, 'salesQty', 'salesAmt');
-  applyMrDcNets(buckets, mrPivots, dcPivots);
+function aggregateAccountTotals(titles, resolve, { salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots }) {
+  const buckets = Object.fromEntries(titles.map((title) => [title, emptyBucket()]));
+  accumulate(buckets, openingPivot, 'openingQty', 'openingAmt', resolve);
+  accumulate(buckets, purchasesPivot, 'purchasesQty', 'purchasesAmt', resolve);
+  accumulate(buckets, salesPivot, 'salesQty', 'salesAmt', resolve);
+  applyMrDcNets(buckets, mrPivots, dcPivots, resolve);
   Object.values(buckets).forEach((entry) => {
     entry.netPurchasesQty = netMeasure(entry.purchasesQty, entry.purchaseReturnsQty);
     entry.netPurchasesAmt = netMeasure(entry.purchasesAmt, entry.purchaseReturnsAmt);
@@ -342,4 +349,34 @@ export function aggregateMetalTradingTotals({
     entry.closingStockAmt = metalClosingAmt(entry);
   });
   return buckets;
+}
+
+export function aggregateMetalTradingTotals({
+  salesPivot = [],
+  purchasesPivot = [],
+  openingPivot = [],
+  mrPivots = {},
+  dcPivots = {},
+} = {}) {
+  return aggregateAccountTotals(METAL_TRADING_ACCOUNT_TITLES, resolveMetalTradingAccount, {
+    salesPivot,
+    purchasesPivot,
+    openingPivot,
+    mrPivots,
+    dcPivots,
+  });
+}
+
+export function aggregateAbstractGoldTotals({
+  salesPivot = [],
+  purchasesPivot = [],
+  openingPivot = [],
+  mrPivots = {},
+  dcPivots = {},
+} = {}) {
+  return aggregateAccountTotals(
+    [...METAL_TRADING_ACCOUNT_TITLES, ...ABSTRACT_EXTRA_GOLD_TITLES],
+    resolveAbstractGoldAccount,
+    { salesPivot, purchasesPivot, openingPivot, mrPivots, dcPivots }
+  );
 }

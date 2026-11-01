@@ -50,6 +50,18 @@ def test_core_match_fills_amount_when_quantity_matches():
     assert result['match']['manualMappingRequired'] == 0
 
 
+def test_same_quantity_at_four_decimals_is_not_a_mismatch():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'FP 1', 'openingBalance': 4.32004}],
+        previous_year_index=_index(('Flat Polki FP 1', 'Dia', 4.31996, 400)),
+    )
+    row = _row(result, 'FP 1')
+    assert row['openingAmt'] == 400
+    assert row.get('reason') != 'quantity_mismatch'
+    assert result['match']['quantityMismatches'] == 0
+    assert result['match']['manualMappingRequired'] == 0
+
+
 def test_number_boundary_does_not_match_a_longer_code():
     result = match_jubilee_opening_amounts(
         quantity_rows=[{'product': 'FP 1', 'openingBalance': 4}],
@@ -221,6 +233,25 @@ def test_exact_match_ignores_abstract_products():
     assert result['match']['manualMappingRequired'] == 0
 
 
+def test_saved_mapping_can_take_opening_qty_from_previous_year_sheet():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'Standard Gold 24K', 'openingBalance': 32810.58}],
+        previous_year_index={},
+        saved_mappings=[
+            {
+                'product': 'Standard Gold 24K',
+                'previousYearProducts': ['Gold Account 24K'],
+                'openingQtySource': 'previousYear',
+            }
+        ],
+        abstract_products=_abstract(('Gold Account 24K', 164.645, 618634)),
+    )
+    row = _row(result, 'Standard Gold 24K')
+    assert row['openingQty'] == 164.645
+    assert row['openingAmt'] == 618634
+    assert row['matchMethod'] == 'saved'
+
+
 def test_saved_abstract_mapping_uses_closing_balance_on_rerun():
     result = match_jubilee_opening_amounts(
         quantity_rows=[{'product': 'Plain Finding', 'openingBalance': 3}],
@@ -279,3 +310,51 @@ def test_basheerbagh_opening_validation_does_not_use_abstract_products():
         for item in row.get('candidateProducts') or []
     ]
     assert 'Platinum Account' not in candidates
+
+
+def test_gold_24k_opening_qty_stays_quantity_file_not_platinum():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[
+            {'product': 'Standard Gold 24K', 'openingBalance': 32810.58},
+            {'product': 'Gold Platinum', 'openingBalance': 164.645},
+        ],
+        previous_year_index=_index(('Flat Polki FP 1', 'Dia', 4, 400)),
+        abstract_products=_abstract(
+            ('Gold Account 24K', 32810.58, 269344355.03),
+            ('Platinum Account', 164.645, 618634),
+            ('Gold Account 18K', 100, 200),
+        ),
+    )
+    gold = _row(result, 'Standard Gold 24K')
+    platinum = _row(result, 'Gold Platinum')
+    assert gold['openingQty'] == 32810.58
+    assert gold['openingAmt'] == 269344355.03
+    assert gold['previousYearProduct'] == 'Gold Account 24K'
+    assert gold['status'] != 'manual_mapping_required'
+    assert platinum['openingQty'] == 164.645
+    assert platinum['openingAmt'] == 618634
+    assert platinum['previousYearProduct'] == 'Platinum Account'
+    metal_24k = [
+        row['sumOfQuantity']
+        for row in result['openingPivot']
+        if row['product'] == 'Standard Gold 24K'
+    ]
+    assert metal_24k == [32810.58]
+
+
+def test_unresolved_gold_platinum_still_lists_platinum_not_24k():
+    result = match_jubilee_opening_amounts(
+        quantity_rows=[{'product': 'Gold Platinum', 'openingBalance': 7}],
+        previous_year_index=_index(('Flat Polki FP 1', 'Dia', 4, 400)),
+        abstract_products=_abstract(
+            ('Platinum Account', 164.645, 618634),
+            ('Gold Account 24K', 32810.58, 269344355.03),
+        ),
+    )
+    row = _row(result, 'Gold Platinum')
+    assert row['openingQty'] == 7
+    assert row['openingAmt'] is None
+    names = {item['product'] for item in row['candidateProducts']}
+    assert 'Platinum Account' in names
+    assert 'Gold Account 24K' not in names
+    assert 'Flat Polki FP 1' not in names

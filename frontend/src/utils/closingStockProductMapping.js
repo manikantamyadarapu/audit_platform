@@ -52,12 +52,17 @@ function coerceMeasure(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-/** Round Closing Stock Amount values only (half up). Quantity is never rounded. */
+/** Round Closing Stock Amount values only. 0.5 or less stays; >0.5 goes up. Quantity is never rounded. */
 function roundClosingStockAmount(value) {
   if (value === null || value === undefined) return null;
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
-  return Math.round(num);
+  const sign = num < 0 ? -1 : 1;
+  const abs = Math.abs(num);
+  const whole = Math.floor(abs);
+  const fraction = abs - whole;
+  if (fraction > 0.5) return sign * (whole + 1);
+  return sign * whole;
 }
 
 function normalizeRuleBookRaw(ruleBookRaw) {
@@ -525,8 +530,17 @@ const ISSUE_AMT_BY_QTY = [
   ['issuesKokapetQty', 'issuesKokapetAmt'],
 ];
 
-function addIssuesAmounts(raw) {
+function amountAtRawAverageRate(raw, qty) {
+  const totalQty = coerceMeasure(raw.totalQty);
+  const totalAmt = coerceMeasure(raw.totalAmt);
+  if (totalQty !== null && totalQty !== 0 && totalAmt !== null) {
+    return (qty * totalAmt) / totalQty;
+  }
   const rate = coerceMeasure(raw.averageRateAmt);
+  return qty * (rate ?? 0);
+}
+
+function addIssuesAmounts(raw) {
   for (const [qtyKey, amtKey] of ISSUE_AMT_BY_QTY) {
     const qty = coerceMeasure(raw[qtyKey]);
     if (qty === null) {
@@ -537,7 +551,7 @@ function addIssuesAmounts(raw) {
       raw[amtKey] = 0;
       continue;
     }
-    raw[amtKey] = qty * (rate ?? 0);
+    raw[amtKey] = amountAtRawAverageRate(raw, qty);
   }
   raw.issuesTotalAmt = sumQtyParts(raw, ISSUE_AMT_KEYS);
   return raw;
@@ -559,8 +573,7 @@ function addClosingStock(raw) {
   }
   const qty = (totalQty ?? 0) - (salesQty ?? 0) - (issuesQty ?? 0);
   raw.closingStockQty = qty;
-  const rate = coerceMeasure(raw.averageRateAmt);
-  raw.closingStockAmt = qty * (rate ?? 0);
+  raw.closingStockAmt = amountAtRawAverageRate(raw, qty);
   return raw;
 }
 
@@ -604,27 +617,27 @@ function addGrossProfitPct(raw) {
 function displayProductMeasures(raw) {
   const display = {
     openingQty: raw.openingQty ?? null,
-    openingAmt: roundClosingStockAmount(raw.openingAmt),
+    openingAmt: raw.openingAmt ?? null,
     purchasesQty: raw.purchasesQty ?? null,
-    purchasesAmt: roundClosingStockAmount(raw.purchasesAmt),
+    purchasesAmt: raw.purchasesAmt ?? null,
     salesQty: raw.salesQty ?? null,
-    salesAmt: roundClosingStockAmount(raw.salesAmt),
+    salesAmt: raw.salesAmt ?? null,
     receiptsQty: raw.receiptsQty ?? null,
-    receiptsAmt: roundClosingStockAmount(raw.receiptsAmt),
-    receiptsInternalAmt: roundClosingStockAmount(raw.receiptsInternalAmt),
-    receiptsJubileeHillsAmt: roundClosingStockAmount(raw.receiptsJubileeHillsAmt),
-    receiptsKokapetAmt: roundClosingStockAmount(raw.receiptsKokapetAmt),
+    receiptsAmt: raw.receiptsAmt ?? null,
+    receiptsInternalAmt: raw.receiptsInternalAmt ?? null,
+    receiptsJubileeHillsAmt: raw.receiptsJubileeHillsAmt ?? null,
+    receiptsKokapetAmt: raw.receiptsKokapetAmt ?? null,
     totalQty: raw.totalQty ?? null,
-    totalAmt: roundClosingStockAmount(raw.totalAmt),
+    totalAmt: raw.totalAmt ?? null,
     averageRateAmt: raw.averageRateAmt ?? null,
-    issuesInternalAmt: roundClosingStockAmount(raw.issuesInternalAmt),
-    issuesBanjaraHillsAmt: roundClosingStockAmount(raw.issuesBanjaraHillsAmt),
-    issuesKokapetAmt: roundClosingStockAmount(raw.issuesKokapetAmt),
+    issuesInternalAmt: raw.issuesInternalAmt ?? null,
+    issuesBanjaraHillsAmt: raw.issuesBanjaraHillsAmt ?? null,
+    issuesKokapetAmt: raw.issuesKokapetAmt ?? null,
     issuesTotalQty: raw.issuesTotalQty ?? null,
-    issuesTotalAmt: roundClosingStockAmount(raw.issuesTotalAmt),
+    issuesTotalAmt: raw.issuesTotalAmt ?? null,
     closingStockQty: raw.closingStockQty ?? null,
-    closingStockAmt: roundClosingStockAmount(raw.closingStockAmt),
-    grossProfitAmt: roundClosingStockAmount(raw.grossProfitAmt),
+    closingStockAmt: raw.closingStockAmt ?? null,
+    grossProfitAmt: raw.grossProfitAmt ?? null,
     grossProfitPct: raw.grossProfitPct ?? null,
   };
   for (const key of TRANSFER_QTY_FIELDS) {
@@ -633,7 +646,7 @@ function displayProductMeasures(raw) {
   return display;
 }
 
-/** TOTAL from unrounded originals: Amt = ROUND(SUM); Qty = SUM with no rounding. */
+/** TOTAL from unrounded originals. Display rounding is applied only when presenting. */
 function totalMeasuresFromRaw(rawRows) {
   const totals = {};
   const present = new Set();
@@ -668,51 +681,37 @@ function totalMeasuresFromRaw(rawRows) {
       present.add(key);
     }
   }
-  const rounded = {
+  const summed = {
     openingQty: present.has('openingQty') ? totals.openingQty : null,
-    openingAmt: present.has('openingAmt') ? roundClosingStockAmount(totals.openingAmt) : null,
+    openingAmt: present.has('openingAmt') ? totals.openingAmt : null,
     purchasesQty: present.has('purchasesQty') ? totals.purchasesQty : null,
-    purchasesAmt: present.has('purchasesAmt') ? roundClosingStockAmount(totals.purchasesAmt) : null,
+    purchasesAmt: present.has('purchasesAmt') ? totals.purchasesAmt : null,
     salesQty: present.has('salesQty') ? totals.salesQty : null,
-    salesAmt: present.has('salesAmt') ? roundClosingStockAmount(totals.salesAmt) : null,
+    salesAmt: present.has('salesAmt') ? totals.salesAmt : null,
     receiptsQty: present.has('receiptsQty') ? totals.receiptsQty : null,
-    receiptsAmt: present.has('receiptsAmt') ? roundClosingStockAmount(totals.receiptsAmt) : null,
-    receiptsInternalAmt: present.has('receiptsInternalAmt')
-      ? roundClosingStockAmount(totals.receiptsInternalAmt)
-      : null,
+    receiptsAmt: present.has('receiptsAmt') ? totals.receiptsAmt : null,
+    receiptsInternalAmt: present.has('receiptsInternalAmt') ? totals.receiptsInternalAmt : null,
     receiptsJubileeHillsAmt: present.has('receiptsJubileeHillsAmt')
-      ? roundClosingStockAmount(totals.receiptsJubileeHillsAmt)
+      ? totals.receiptsJubileeHillsAmt
       : null,
-    receiptsKokapetAmt: present.has('receiptsKokapetAmt')
-      ? roundClosingStockAmount(totals.receiptsKokapetAmt)
-      : null,
+    receiptsKokapetAmt: present.has('receiptsKokapetAmt') ? totals.receiptsKokapetAmt : null,
     totalQty: present.has('totalQty') ? totals.totalQty : null,
-    totalAmt: present.has('totalAmt') ? roundClosingStockAmount(totals.totalAmt) : null,
-    issuesInternalAmt: present.has('issuesInternalAmt')
-      ? roundClosingStockAmount(totals.issuesInternalAmt)
-      : null,
+    totalAmt: present.has('totalAmt') ? totals.totalAmt : null,
+    issuesInternalAmt: present.has('issuesInternalAmt') ? totals.issuesInternalAmt : null,
     issuesBanjaraHillsAmt: present.has('issuesBanjaraHillsAmt')
-      ? roundClosingStockAmount(totals.issuesBanjaraHillsAmt)
+      ? totals.issuesBanjaraHillsAmt
       : null,
-    issuesKokapetAmt: present.has('issuesKokapetAmt')
-      ? roundClosingStockAmount(totals.issuesKokapetAmt)
-      : null,
+    issuesKokapetAmt: present.has('issuesKokapetAmt') ? totals.issuesKokapetAmt : null,
     issuesTotalQty: present.has('issuesTotalQty') ? totals.issuesTotalQty : null,
-    issuesTotalAmt: present.has('issuesTotalAmt')
-      ? roundClosingStockAmount(totals.issuesTotalAmt)
-      : null,
+    issuesTotalAmt: present.has('issuesTotalAmt') ? totals.issuesTotalAmt : null,
     closingStockQty: present.has('closingStockQty') ? totals.closingStockQty : null,
-    closingStockAmt: present.has('closingStockAmt')
-      ? roundClosingStockAmount(totals.closingStockAmt)
-      : null,
-    grossProfitAmt: present.has('grossProfitAmt')
-      ? roundClosingStockAmount(totals.grossProfitAmt)
-      : null,
+    closingStockAmt: present.has('closingStockAmt') ? totals.closingStockAmt : null,
+    grossProfitAmt: present.has('grossProfitAmt') ? totals.grossProfitAmt : null,
   };
   for (const key of TRANSFER_QTY_FIELDS) {
-    rounded[key] = present.has(key) ? totals[key] : null;
+    summed[key] = present.has(key) ? totals[key] : null;
   }
-  return addGrossProfitPct(addAverageRate(rounded));
+  return addGrossProfitPct(addAverageRate(summed));
 }
 
 function buildLayoutFromRuleBook(
@@ -1095,10 +1094,9 @@ export function mergeRemapIntoResult(result, remapPayload) {
     productsDisplayed:
       remapPayload.productsDisplayed ?? remapPayload.summary?.productsDisplayed,
     closingStockCategories: remapPayload.closingStockCategories,
-    receiptAmountReview: mergeReceiptReviews(
-      result.receiptAmountReview,
-      remapPayload.receiptAmountReview
-    ),
+    receiptAmountReview: Array.isArray(remapPayload.receiptAmountReview)
+      ? remapPayload.receiptAmountReview
+      : mergeReceiptReviews(result.receiptAmountReview, remapPayload.receiptAmountReview),
     productAverageRates: remapPayload.productAverageRates ?? result.productAverageRates ?? [],
     summary: {
       ...(result.summary || {}),
@@ -1168,11 +1166,11 @@ function addSalesPurchasesMeasure(bucket, qty, amt) {
 function sheetMeasureFields(sales, purchases, opening = emptySalesPurchasesMeasures()) {
   const fields = {
     openingQty: opening.qty,
-    openingAmt: roundClosingStockAmount(opening.amt),
+    openingAmt: opening.amt ?? null,
     purchasesQty: purchases.qty,
-    purchasesAmt: roundClosingStockAmount(purchases.amt),
+    purchasesAmt: purchases.amt ?? null,
     salesQty: sales.qty,
-    salesAmt: roundClosingStockAmount(sales.amt),
+    salesAmt: sales.amt ?? null,
     receiptsQty: null,
     receiptsAmt: null,
     receiptsInternalAmt: null,

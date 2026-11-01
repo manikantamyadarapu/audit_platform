@@ -418,6 +418,6 @@ def _write_tshape_line(
         if value is None or value == '':
             cell.value = None
         else:
-            cell.value = value
+            cell.value = displayed_abstract_amount(value)
             apply_indian_number_format(cell)
 

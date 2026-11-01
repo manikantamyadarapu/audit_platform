@@ -10,7 +10,13 @@ import {
   grandTotalFromLayout,
 } from '../config/tradingAccountLayout';
 import { abstractMeasuresFromTradingSource } from './abstractTradingValues';
-import { aggregateMetalTradingTotals, metalGrossProfitAmt } from './metalTradingTotals';
+import {
+  GOLD_22K,
+  JADAU,
+  PLATINUM,
+  aggregateAbstractGoldTotals,
+  metalGrossProfitAmt,
+} from './metalTradingTotals';
 
 const BRANCH_KEYS = ['basheerbagh', 'kokapet', 'jubileeHills'];
 const BRANCH_ALIASES = {
@@ -141,7 +147,7 @@ export function normalizeBranches(branches) {
 
 export function accountTotals(snapshot, tradingTitle, isMetal) {
   if (isMetal) {
-    const metalTotals = aggregateMetalTradingTotals({
+    const metalTotals = aggregateAbstractGoldTotals({
       salesPivot: snapshot.salesPivot,
       purchasesPivot: snapshot.purchasesPivot,
       openingPivot: snapshot.openingPivot,
@@ -276,8 +282,16 @@ export function buildConsolidatedAbstractRowMeasures(branches) {
       { metal, metalAccount: METAL_BY_TITLE[tradingTitle] }
     );
   });
-  byLabel['Platinum Account'] = emptyConsolidatedMeasures();
-  byLabel['Gold Account Jadau'] = emptyConsolidatedMeasures();
+  const ornamentTemplate = METAL_BY_TITLE[GOLD_22K];
+  [
+    ['Platinum Account', PLATINUM],
+    ['Gold Account Jadau', JADAU],
+  ].forEach(([label, tradingTitle]) => {
+    byLabel[label] = consolidateFromTotals(
+      contributing.map((name) => accountTotals(snapshots[name], tradingTitle, true)),
+      { metal: true, metalAccount: ornamentTemplate }
+    );
+  });
   byLabel.TOTAL = sumConsolidatedMeasures(ACCOUNT_SECTION_LABELS.map((label) => byLabel[label]));
 
   const diamondRows = DIAMOND_ITEM_LABELS.map((label) => {

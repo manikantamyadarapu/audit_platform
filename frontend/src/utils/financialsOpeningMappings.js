@@ -30,6 +30,25 @@ function candidateAmt(row) {
   return coerceNumber(row?.closingStockAmount ?? row?.closingAmt);
 }
 
+function candidateQty(row) {
+  return coerceNumber(row?.closingStockQty ?? row?.closingQty);
+}
+
+function normalizeOpeningQtySource(value) {
+  const key = String(value || '').trim();
+  if (key === 'previousYear' || key === 'previous_year' || key === 'previous-year') {
+    return 'previousYear';
+  }
+  return 'openingBalance';
+}
+
+function sheetOpeningQty(mapping, row, selected) {
+  if (normalizeOpeningQtySource(mapping?.openingQtySource) === 'previousYear') {
+    return selected.reduce((sum, candidate) => sum + (candidateQty(candidate) || 0), 0);
+  }
+  return coerceNumber(row?.openingQty);
+}
+
 /**
  * Apply a confirmed manual Opening Stock mapping into process result + pivots.
  * Writes Opening Qty/Amt onto the Closing Stock layout via matched_fallback status.
@@ -43,6 +62,7 @@ export function applyManualOpeningMapping(result, mapping) {
     openingQty,
     openingAmt,
     previousYearProducts,
+    openingQtySource,
   } = mapping || {};
 
   const productKey = String(product || '').trim();
@@ -93,6 +113,7 @@ export function applyManualOpeningMapping(result, mapping) {
         category: category || null,
         subcategory: subcategory || null,
         previousYearProducts,
+        openingQtySource: normalizeOpeningQtySource(openingQtySource),
       };
     });
 
@@ -130,6 +151,7 @@ export function applyManualOpeningMapping(result, mapping) {
       category,
       subcategory,
       previousYearProducts,
+      openingQtySource: normalizeOpeningQtySource(openingQtySource),
     },
   ];
 
@@ -197,6 +219,7 @@ export function saveOpeningStockMapping(branch, mapping) {
     ruleBookProduct: mapping.ruleBookProduct || product,
     category: mapping.category || null,
     subcategory: mapping.subcategory || null,
+    openingQtySource: normalizeOpeningQtySource(mapping.openingQtySource),
   });
   writeSessionOpeningMappings(branch, next);
   return next;
@@ -240,7 +263,7 @@ export function reapplyOpeningStockMappings(result, branch) {
       const amt = candidateAmt(candidate);
       return amt == null ? sum : sum + amt;
     }, 0);
-    const openingQty = coerceNumber(row.openingQty);
+    const openingQty = sheetOpeningQty(mapping, row, selected);
     if (openingAmt == null && openingQty == null) continue;
 
     next = applyManualOpeningMapping(next, {
@@ -249,6 +272,7 @@ export function reapplyOpeningStockMappings(result, branch) {
       category: mapping.category || row.category || null,
       subcategory: mapping.subcategory || row.subcategory || null,
       openingQty,
+      openingQtySource: mapping.openingQtySource,
       openingAmt,
       previousYearProducts: selected.map((candidate) =>
         String(candidate.product || candidate.sheetName || '').trim()
